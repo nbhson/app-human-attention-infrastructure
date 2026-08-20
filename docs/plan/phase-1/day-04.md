@@ -83,17 +83,17 @@ The `event_log` table is the source of truth for *what happened*. Every other ta
 
 ### 3.1 Scaffold `packages/db` (45 min)
 
-- [ ] `packages/db/package.json` — name `@harness/db`; deps: `drizzle-orm`, `postgres` (node-postgres driver), `@harness/domain`; devDeps: `drizzle-kit`.
-- [ ] `packages/db/tsconfig.json`.
-- [ ] `packages/db/drizzle.config.ts` — points to `src/schema/`, outputs to `migrations/`, reads `DATABASE_URL` from env.
-- [ ] `packages/db/src/index.ts` — barrel (empty for now).
-- [ ] Add `pnpm --filter @harness/db migrate` script to root `package.json`.
+- [x] `packages/db/package.json` — name `@harness/db`; deps: `drizzle-orm`, `postgres` (node-postgres driver), `@harness/domain`; devDeps: `drizzle-kit`.
+- [x] `packages/db/tsconfig.json`.
+- [x] `packages/db/drizzle.config.ts` — points to `src/schema/`, outputs to `migrations/`, reads `DATABASE_URL` from env.
+- [x] `packages/db/src/index.ts` — barrel (empty for now).
+- [x] Add `pnpm --filter @harness/db migrate` script to root `package.json`.
 
 ### 3.2 Define Drizzle schema — core tables (90 min)
 
 Create one file per table group in `packages/db/src/schema/`:
 
-- [ ] `packages/db/src/schema/projects.ts`:
+- [x] `packages/db/src/schema/projects.ts`:
 
 ```typescript
 export const projects = pgTable('projects', {
@@ -104,7 +104,7 @@ export const projects = pgTable('projects', {
 });
 ```
 
-- [ ] `packages/db/src/schema/tasks.ts` — all 12 canonical states as a CHECK constraint:
+- [x] `packages/db/src/schema/tasks.ts` — all 12 canonical states as a CHECK constraint:
 
 ```typescript
 export const tasks = pgTable('tasks', {
@@ -121,22 +121,22 @@ export const tasks = pgTable('tasks', {
 });
 ```
 
-- [ ] `packages/db/src/schema/agent-runs.ts` — `id`, `task_id` FK, `attempt_number`, `status`, `started_at`, `finished_at`, `max_steps`, `steps_used`.
-- [ ] `packages/db/src/schema/index.ts` — barrel export of all schema objects.
+- [x] `packages/db/src/schema/agent-runs.ts` — `id`, `task_id` FK, `attempt_number`, `status`, `started_at`, `finished_at`, `max_steps`, `steps_used`.
+- [x] `packages/db/src/schema/index.ts` — barrel export of all schema objects.
 
 ### 3.3 Define Drizzle schema — artifact + verification tables (90 min)
 
-- [ ] `packages/db/src/schema/artifacts.ts` — `id`, `project_id` FK, `file_path`, `current_change_id`, `status` (enum includes `MERGED` per updated Spec 5 §2.1), `created_at`, `updated_at`.
-- [ ] `packages/db/src/schema/changes.ts` — `id`, `artifact_id` FK, `agent_run_id` FK, `change_type` (`CREATE`/`MODIFY`/`DELETE`), `status` (`PENDING`/`VERIFIED`/`REVIEWED`/`ROLLED_BACK`), `content_hash`, `diff_summary`, `commit_sha` (nullable — set after merge), `created_at`.
-- [ ] `packages/db/src/schema/snapshots.ts` — `id`, `change_id` FK, `content_hash` (indexed, for dedup), `content` (text), `generation` (integer), `created_at`.
-- [ ] `packages/db/src/schema/verification-requests.ts` — `id`, `task_id` FK, `change_id` FK, `requested_checks` (jsonb array), `timeout_ms`, `created_at`.
-- [ ] `packages/db/src/schema/verification-results.ts` — `id`, `request_id` FK, `status` (`PASSED`/`FAILED`/`FLAKY`/`TIMEOUT`/`ERROR`), `check_results` (jsonb), `execution_env`, `duration_ms`, `created_at`.
+- [x] `packages/db/src/schema/artifacts.ts` — `id`, `project_id` FK, `file_path`, `current_change_id`, `status` (enum includes `MERGED` per updated Spec 5 §2.1), `created_at`, `updated_at`.
+- [x] `packages/db/src/schema/changes.ts` — `id`, `artifact_id` FK, `agent_run_id` FK, `change_type` (`CREATE`/`MODIFY`/`DELETE`), `status` (`PENDING`/`VERIFIED`/`REVIEWED`/`ROLLED_BACK`), `content_hash`, `diff_summary`, `commit_sha` (nullable — set after merge), `created_at`.
+- [x] `packages/db/src/schema/snapshots.ts` — `id`, `change_id` FK, `content_hash` (indexed, for dedup), `content` (text), `generation` (integer), `created_at`.
+- [x] `packages/db/src/schema/verification-requests.ts` — `id`, `task_id` FK, `change_id` FK, `requested_checks` (jsonb array), `timeout_ms`, `created_at`.
+- [x] `packages/db/src/schema/verification-results.ts` — `id`, `request_id` FK, `status` (`PASSED`/`FAILED`/`FLAKY`/`TIMEOUT`/`ERROR`), `check_results` (jsonb), `execution_env`, `duration_ms`, `created_at`.
 
 ### 3.4 Define Drizzle schema — attention + review + event log (60 min)
 
-- [ ] `packages/db/src/schema/assessments.ts` — `id`, `artifact_id` FK, `change_id` FK, `risk_score`, `impact_score`, `novelty_score`, `complexity_score`, `confidence_score`, `combined_priority`, `label` (`CRITICAL`/`HIGH`/`MEDIUM`/`LOW`), `factors_unavailable` (jsonb — list of factors defaulted to 0.5), `created_at`.
-- [ ] `packages/db/src/schema/decisions.ts` — `id`, `change_id` FK, `assessment_id` FK, `decision` (`APPROVED`/`REJECTED`/`REWORK_REQUESTED`), `reviewer_id`, `rationale` (text, nullable), `created_at`.
-- [ ] `packages/db/src/schema/event-log.ts`:
+- [x] `packages/db/src/schema/assessments.ts` — `id`, `artifact_id` FK, `change_id` FK, `risk_score`, `impact_score`, `novelty_score`, `complexity_score`, `confidence_score`, `combined_priority`, `label` (`CRITICAL`/`HIGH`/`MEDIUM`/`LOW`), `factors_unavailable` (jsonb — list of factors defaulted to 0.5), `created_at`.
+- [x] `packages/db/src/schema/decisions.ts` — `id`, `change_id` FK, `assessment_id` FK, `decision` (`APPROVED`/`REJECTED`/`REWORK_REQUESTED`), `reviewer_id`, `rationale` (text, nullable), `created_at`.
+- [x] `packages/db/src/schema/event-log.ts`:
 
 ```typescript
 export const eventLog = pgTable('event_log', {
@@ -153,19 +153,19 @@ export const eventLog = pgTable('event_log', {
 }));
 ```
 
-- [ ] Update `packages/db/src/schema/index.ts` barrel.
+- [x] Update `packages/db/src/schema/index.ts` barrel.
 
 ### 3.5 Generate and apply first migration (30 min)
 
-- [ ] Copy `.env.example` → `.env`; set `DATABASE_URL=postgres://harness:harness@localhost:5432/harness`.
-- [ ] `docker compose up -d postgres` — confirm healthy.
-- [ ] `pnpm --filter @harness/db generate` — review generated SQL before applying.
-- [ ] `pnpm --filter @harness/db migrate` — apply.
-- [ ] Verify with `psql`: `\dt` shows all 12 tables.
+- [x] Copy `.env.example` → `.env`; set `DATABASE_URL=postgres://harness:harness@localhost:5432/harness`.
+- [x] `docker compose up -d postgres` — confirm healthy.
+- [x] `pnpm --filter @harness/db generate` — review generated SQL before applying.
+- [x] `pnpm --filter @harness/db migrate` — apply.
+- [x] Verify with `psql`: `\dt` shows all 12 tables.
 
 ### 3.6 Implement `EventLogWriter` (60 min)
 
-- [ ] `packages/db/src/event-log-writer.ts`:
+- [x] `packages/db/src/event-log-writer.ts`:
 
 ```typescript
 export class EventLogWriter {
@@ -191,31 +191,31 @@ export class EventLogWriter {
 }
 ```
 
-- [ ] Handle the async `write` inside a sync handler: fire-and-forget with `.catch(err => console.error('[EventLogWriter] write failed', err))`. Phase 1 accepts this; Phase 2 adds a write queue.
+- [x] Handle the async `write` inside a sync handler: fire-and-forget with `.catch(err => console.error('[EventLogWriter] write failed', err))`. Phase 1 accepts this; Phase 2 adds a write queue.
 
 ### 3.7 Database client factory (30 min)
 
-- [ ] `packages/db/src/client.ts` — `createDb(connectionString: string): DrizzleDB`; throw if `DATABASE_URL` is not set.
-- [ ] `packages/db/src/index.ts` — export `createDb`, `EventLogWriter`, all schema objects, all inferred types (`typeof tasks.$inferSelect` etc.).
+- [x] `packages/db/src/client.ts` — `createDb(connectionString: string): DrizzleDB`; throw if `DATABASE_URL` is not set.
+- [x] `packages/db/src/index.ts` — export `createDb`, `EventLogWriter`, all schema objects, all inferred types (`typeof tasks.$inferSelect` etc.).
 
 ### 3.8 Seed script (45 min)
 
-- [ ] `packages/db/src/seed.ts` — insert:
+- [x] `packages/db/src/seed.ts` — insert:
   - 1 project (`fixtures/sample-repo` path)
   - 3 tasks in different states (`PENDING`, `EXECUTING`, `AWAITING_REVIEW`)
-- [ ] Add `pnpm --filter @harness/db seed` script.
+- [x] Add `pnpm --filter @harness/db seed` script.
 
 ### 3.9 Tests (90 min)
 
 Use `harness_test` schema. Setup/teardown helpers in `packages/db/src/__tests__/helpers.ts`.
 
-- [ ] Migration applies cleanly to a fresh database.
-- [ ] `tasks.idempotency_key` unique constraint rejects duplicate inserts.
-- [ ] `event_log` insert + query by `correlation_id` returns correct rows.
-- [ ] `event_log` duplicate `event_id` insert is a silent no-op (idempotency test).
-- [ ] `EventLogWriter.write` persists an event; query returns matching `event_id`.
-- [ ] `changes.commit_sha` is nullable (Phase 1: most changes are pre-commit).
-- [ ] FK constraints reject orphaned inserts (e.g., `changes.artifact_id` pointing to nonexistent artifact).
+- [x] Migration applies cleanly to a fresh database.
+- [x] `tasks.idempotency_key` unique constraint rejects duplicate inserts.
+- [x] `event_log` insert + query by `correlation_id` returns correct rows.
+- [x] `event_log` duplicate `event_id` insert is a silent no-op (idempotency test).
+- [x] `EventLogWriter.write` persists an event; query returns matching `event_id`.
+- [x] `changes.commit_sha` is nullable (Phase 1: most changes are pre-commit).
+- [x] FK constraints reject orphaned inserts (e.g., `changes.artifact_id` pointing to nonexistent artifact).
 
 ---
 
@@ -235,15 +235,15 @@ Use `harness_test` schema. Setup/teardown helpers in `packages/db/src/__tests__/
 
 ## 5. Acceptance Criteria
 
-- [ ] `docker compose up -d postgres` → healthy container.
-- [ ] `pnpm --filter @harness/db migrate` applies without errors.
-- [ ] `pnpm --filter @harness/db seed` inserts without errors.
-- [ ] `pnpm --filter @harness/db test` — all tests pass.
-- [ ] `pnpm --filter @harness/db build` — clean build.
-- [ ] `grep -r "from '@harness" packages/db/src` shows only `@harness/domain` and `@harness/event-bus` (for `IEventBus` type in `EventLogWriter`).
-- [ ] `event_log` table has indexes on `correlation_id`, `event_type`, `occurred_at`.
-- [ ] `tasks` table CHECK constraint enforces all 12 canonical states exactly as listed in Spec 2 §3.
-- [ ] `EventLogWriter` duplicate-write test passes (idempotency).
+- [x] `docker compose up -d postgres` → healthy container.
+- [x] `pnpm --filter @harness/db migrate` applies without errors.
+- [x] `pnpm --filter @harness/db seed` inserts without errors.
+- [x] `pnpm --filter @harness/db test` — all tests pass.
+- [x] `pnpm --filter @harness/db build` — clean build.
+- [x] `grep -r "from '@harness" packages/db/src` shows only `@harness/domain` and `@harness/event-bus` (for `IEventBus` type in `EventLogWriter`).
+- [x] `event_log` table has indexes on `correlation_id`, `event_type`, `occurred_at`.
+- [x] `tasks` table CHECK constraint enforces all 12 canonical states exactly as listed in Spec 2 §3.
+- [x] `EventLogWriter` duplicate-write test passes (idempotency).
 
 ---
 

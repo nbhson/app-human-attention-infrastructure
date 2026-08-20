@@ -2,39 +2,42 @@
 
 ## Hiểu nhanh
 
-**Nhiệm vụ:** "kho lưu trữ" — PostgreSQL schema (14 bảng), migration và repository để mọi package đọc/ghi dữ liệu.
+**Nhiệm vụ:** "kho lưu trữ" — PostgreSQL schema (12 bảng), migration, và lớp truy cập dữ liệu để mọi package đọc/ghi.
 
-Nói nôm na: đây là tủ hồ sơ của cả hệ thống. Mọi thứ ghi vào đây để không mất và truy vết được về sau.
+Nói nôm na: đây là tủ hồ sơ của cả hệ thống. Mọi thứ ghi vào đây để không mất và truy vết được về sau. Riêng bảng `event_log` là **append-only** — nguồn sự thật về "*chuyện gì đã xảy ra*"; các bảng còn lại chỉ là "ảnh chụp hiện trạng" có thể dựng lại bằng cách replay `event_log`.
 
 ---
 
 ## Trạng thái hiện tại
 
-Stubs: `src/index.ts` chỉ export string `'db'`. Chưa có schema, chưa có migration.
+**Đã triển khai (Day 04).** Schema đầy đủ 12 bảng, migration đầu tiên đã sinh & áp dụng, seed data, `createDb`, và `EventLogWriter`.
 
 ---
 
 ## Mục đích
 
-Trừu tượng hóa PostgreSQL storage qua Drizzle ORM. Cung cấp schema definitions, migrations, và repository pattern.
+Trừu tượng hoá PostgreSQL storage qua **Drizzle ORM** (driver `postgres.js`). Cung cấp schema definitions, migration runner, and a repository/migration surface cho các package phía trên.
 
 ---
 
-## Công việc cần làm (Day 04)
-
-### 1. Scaffold package
+## Cài đặt & chạy (local)
 
 ```bash
-# Thêm dependencies
-pnpm add -F @harness/db drizzle-orm postgres
-pnpm add -D -F @harness/db drizzle-kit
+docker compose up -d postgres        # Postgres 16 healthy
+cp .env.example .env                 # DATABASE_URL=postgres://harness:harness@localhost:5432/harness
+
+pnpm --filter @harness/db generate   # sinh migration từ diff schema (chỉ khi sửa schema)
+pnpm --filter @harness/db migrate    # áp migration
+pnpm --filter @harness/db seed       # nạp 1 project + 3 tasks mẫu
+pnpm --filter @harness/db build      # tsc build
+pnpm test                            # chạy toàn bộ test (gồm db) từ repo root
 ```
 
-**package.json**: name = `@harness/db`, deps = `drizzle-orm`, `postgres`, `@harness/domain`
+> **Không dùng `drizzle-kit push`** sau migration đầu tiên — `push` bỏ qua lịch sử migration. Luôn `generate` → review → `migrate`.
 
-### 2. Drizzle schema — 14 tables
+---
 
-Mỗi table group trong một file riêng tại `src/schema/`:
+## Schema — 12 bảng
 
 | File | Bảng | Package sở hữu logic |
 |------|------|---------------------|
@@ -49,144 +52,71 @@ Mỗi table group trong một file riêng tại `src/schema/`:
 | `verification-results.ts` | `verification_results` | verification-engine |
 | `assessments.ts` | `assessments` | attention-engine |
 | `decisions.ts` | `decisions` | review |
-| `review-queue.ts` | `review_queue` | review |
-| `trajectory-steps.ts` | `trajectory_steps` | agent-runtime |
 | `event-log.ts` | `event_log` | db (own) |
 
-### 3. Quy tắc thiết kế schema
-
-```typescript
-// Primary keys: text (UUIDv7 string), KHÔNG dùng serial int
-id: text('id').primaryKey()
-
-// Status fields: text + CHECK constraint
-state: text('state')
-  .notNull()
-  .default('PENDING')
-  .check("state IN ('PENDING', 'QUEUED', 'EXECUTING', ...)")
-
-// Timestamps: timestamptz (UTC)
-created_at: timestamp('created_at', { withTimezone: true })
-  .notNull()
-  .defaultNow()
-
-// JSON fields: jsonb
-metadata: jsonb('metadata').notNull().default({})
-payload: jsonb('payload').notNull().default({})
-
-// Content hash: text (SHA-256 hex)
-content_hash: text('content_hash').notNull()
-
-// Correlation ID: indexed
-correlation_id: text('correlation_id').notNull()
-// → createIndex trên correlation_id
-```
-
-### 4. Migration runner (`src/migrate.ts`)
-
-```typescript
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-
-const db = drizzle(postgres(process.env.DATABASE_URL!));
-await migrate(db, { migrationsFolder: './migrations' });
-await db.destroy();
-```
-
-Chạy bằng: `pnpm --filter @harness/db migrate`
-
-### 5. Drizzle config (`drizzle.config.ts`)
-
-```typescript
-export default {
-  schema: './src/schema/*.ts',
-  out: './migrations',
-  driver: 'pg',
-  dbCredentials: { connectionString: process.env.DATABASE_URL! },
-};
-```
-
-### 6. EventLogWriter subscriber
-
-Persist mọi event từ `IEventBus` vào `event_log` table:
-
-```typescript
-export class EventLogWriter {
-  constructor(private db: Db, private bus: IEventBus) {
-    bus.subscribe('*', async (event) => {
-      await db.insert(eventLog).values({
-        id: event.event_id,
-        event_type: event.event_type,
-        event_version: event.event_version,
-        occurred_at: event.occurred_at,
-        correlation_id: event.correlation_id,
-        payload: event.payload,
-      });
-    });
-  }
-}
-```
-
-**Quy tắc**: `event_log` là append-only — không UPDATE, không DELETE.
-
-### 7. Repository pattern
-
-Tạo repository interface + implementation cho mỗi aggregate root:
-
-```typescript
-export interface TaskRepository {
-  create(task: Task): Promise<TaskID>;
-  findById(id: TaskID): Promise<Task | null>;
-  updateStatus(id: TaskID, newStatus: TaskStatus, expectedStatus: TaskStatus): Promise<void>;
-  findPendingAndQueued(): Promise<Task[]>;
-}
-```
+*(`review_queue` và `trajectory_steps` không thuộc Day 04 — thêm sau khi spec yêu cầu.)*
 
 ---
 
-## Dependency rule
+## Quy tắc thiết kế schema
 
-```
-packages/db → chỉ import @harness/domain + @harness/event-bus
+- **Primary key**: `text` (chuỗi UUIDv7 từ domain) — không dùng `serial int`.
+- **Status/type columns**: `text` + **CHECK constraint** (đọc được trong raw SQL). Giá trị được liệt kê tường minh trong `schema/enums.ts` và được khoá khớp với `@harness/domain` bằng drift-test `enums.test.ts`.
+- **`tasks.state`**: 13 trạng thái canonical (domain `TaskStatus`, gồm cả `RETRYING`) — CHECK liệt kê đầy đủ.
+- **Timestamp**: `timestamptz` (UTC) mọi nơi — `timestamp(..., { withTimezone: true })`.
+- **JSON**: `jsonb` (payload, metadata, sources, check_results, factors_unavailable).
+- **`event_log`**: append-only (không UPDATE/DELETE), indexed trên `correlation_id`, `event_type`, `occurred_at`.
+
+---
+
+## EventLogWriter
+
+`src/event-log-writer.ts` — đăng ký tất cả `EventType` lên `IEventBus` và ghi mỗi event vào `event_log`. Ghi là **fire-and-forget** (Phase 1): `publish` không block lên DB write; `.catch(console.error)` để không nuốt lỗi. Duplicate `event_id` là no-op nhờ `onConflictDoNothing()`.
+
+```typescript
+const db = createDb(process.env.DATABASE_URL!);
+const writer = new EventLogWriter(db);
+writer.subscribeTo(bus);
 ```
 
 ---
 
 ## Test strategy
 
-- **Test schema riêng**: `harness_test` — tạo/xóa per test run, không dùng dev DB
-- **Integration tests**: dùng test container hoặc local Postgres với schema riêng
-- **Migration tests**: verify migration applies cleanly from empty DB
+- **Schema riêng** `harness_test` / `harness_test_writer`: `createTestDb()` tạo schema + `SET search_path` + migrate vào đó; `destroyTestDb()` drop toàn bộ bằng `DROP SCHEMA ... CASCADE`. Không bao giờ chạy test trên dev DB.
+- Migration SQL được sinh với FK reference **unqualified** (đã bỏ prefix `public`) để áp được vào schema bất kỳ qua `search_path`.
+- Tests chạy qua `pnpm test` (root vitest), không phải `pnpm --filter @harness/db test`.
 
 ---
 
-## Files cần tạo
+## Dependency rule
+
+```
+packages/db → chỉ import @harness/domain + @harness/event-bus (cho IEventBus)
+            → KHÔNG import các engine packages khác
+```
+
+> Ghi chú: schema files KHÔNG import `@harness/domain` lúc runtime (để `drizzle-kit generate` không phải kéo ESM workspace package); toàn bộ status values nằm trong `schema/enums.ts` và được drift-test khoá với domain.
+
+---
+
+## Files
 
 ```
 src/
-├── index.ts
-├── db.ts            # PostgreSQL connection + Drizzle instance
-├── migrate.ts       # Migration runner script
+├── index.ts               # barrel: schema + createDb + EventLogWriter
+├── client.ts              # createDb(connectionString): DrizzleDB
+├── event-log-writer.ts    # EventLogWriter
+├── env.ts                 # load .env + requireConnectionString()
+├── migrate.ts             # migration runner (tsx)
+├── seed.ts                # dev seed (tsx)
 ├── schema/
-│   ├── projects.ts
-│   ├── tasks.ts
-│   ├── agent-runs.ts
-│   ├── artifacts.ts
-│   ├── changes.ts
-│   ├── snapshots.ts
-│   ├── contexts.ts
-│   ├── verification-requests.ts
-│   ├── verification-results.ts
-│   ├── assessments.ts
-│   ├── decisions.ts
-│   ├── review-queue.ts
-│   ├── trajectory-steps.ts
-│   ├── event-log.ts
-│   └── index.ts     # Barrel export
-└── repositories/
-    ├── task-repository.ts
-    ├── artifact-repository.ts
-    └── ...
-migrations/          # Generated SQL
+│   ├── enums.ts           # CHECK constraints + value lists
+│   ├── projects.ts / tasks.ts / agent-runs.ts / artifacts.ts / changes.ts
+│   ├── snapshots.ts / contexts.ts / verification-requests.ts
+│   ├── verification-results.ts / assessments.ts / decisions.ts / event-log.ts
+│   └── index.ts           # table barrel (relational schema registry)
+└── __tests__/helpers.ts   # createTestDb / destroyTestDb
+migrations/                # generated SQL (committed)
+drizzle.config.ts
 ```
