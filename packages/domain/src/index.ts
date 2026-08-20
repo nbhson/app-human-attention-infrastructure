@@ -22,3 +22,6 @@ export * from './review.js';
 
 // Read-models.
 export * from './provenance.js';
+
+// Events.
+export * from './events/index.js';

@@ -78,6 +78,8 @@ export type PolicyID = Brand<string, 'PolicyID'>;
 export type ClaimID = Brand<string, 'ClaimID'>;
 /** Identifies a human reviewer (memory/evidence spec §3.1). */
 export type ReviewerID = Brand<string, 'ReviewerID'>;
+/** Identifies a causal event chain traceable to one origin (orchestrator spec §8). */
+export type CorrelationID = Brand<string, 'CorrelationID'>;
 
 // --- UUIDv7 generation ----------------------------------------------------
 
@@ -154,3 +156,5 @@ export const newPolicyID = (): PolicyID => newBrandedId('PolicyID');
 export const newClaimID = (): ClaimID => newBrandedId('ClaimID');
 /** Generate a new {@link ReviewerID}. */
 export const newReviewerID = (): ReviewerID => newBrandedId('ReviewerID');
+/** Generate a new {@link CorrelationID}. */
+export const newCorrelationID = (): CorrelationID => newBrandedId('CorrelationID');

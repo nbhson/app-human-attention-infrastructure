@@ -111,35 +111,35 @@ Keep payload interfaces in `packages/domain` (not `packages/event-bus`) so the e
 
 ### 3.1 Create `packages/event-bus` scaffold (30 min)
 
-- [ ] `packages/event-bus/package.json` — name `@harness/event-bus`, dep on `@harness/domain` only.
-- [ ] `packages/event-bus/tsconfig.json` — extends root base config.
-- [ ] `packages/event-bus/src/index.ts` — barrel export (empty for now).
-- [ ] `packages/event-bus/vitest.config.ts`.
+- [x] `packages/event-bus/package.json` — name `@harness/event-bus`, dep on `@harness/domain` only.
+- [x] `packages/event-bus/tsconfig.json` — extends root base config.
+- [x] `packages/event-bus/src/index.ts` — barrel export (empty for now).
+- [x] `packages/event-bus/vitest.config.ts`.
 
 ### 3.2 Define event types in `packages/domain` (60 min)
 
-- [ ] `packages/domain/src/events/event-envelope.ts` — `EventEnvelope<T>`, `CorrelationID` branded type.
-- [ ] `packages/domain/src/events/event-types.ts` — `EventType` const object (all types listed in §2.2).
-- [ ] `packages/domain/src/events/task-events.ts` — `TaskStateChangedPayload`, `TaskExecutionFinishedPayload`, `TaskCreatedPayload`.
-- [ ] `packages/domain/src/events/artifact-events.ts` — `ArtifactChangedPayload` (fields: `artifact_id`, `change_id`, `change_type`, `content_hash`, `agent_run_id`).
-- [ ] `packages/domain/src/events/verification-events.ts` — `VerificationCompletedPayload` (fields: `request_id`, `result_id`, `status`, `check_summaries[]`).
-- [ ] `packages/domain/src/events/attention-events.ts` — `AssessmentCreatedPayload` (fields: `assessment_id`, `artifact_id`, `combined_priority`, `label`).
-- [ ] `packages/domain/src/events/review-events.ts` — `DecisionSubmittedPayload` (fields: `decision_id`, `change_id`, `decision`, `reviewer_id`).
-- [ ] `packages/domain/src/events/index.ts` — barrel.
-- [ ] Update `packages/domain/src/index.ts` to re-export `events/`.
+- [x] `packages/domain/src/events/event-envelope.ts` — `EventEnvelope<T>`, `CorrelationID` branded type.
+- [x] `packages/domain/src/events/event-types.ts` — `EventType` const object (all types listed in §2.2).
+- [x] `packages/domain/src/events/task-events.ts` — `TaskStateChangedPayload`, `TaskExecutionFinishedPayload`, `TaskCreatedPayload`.
+- [x] `packages/domain/src/events/artifact-events.ts` — `ArtifactChangedPayload` (fields: `artifact_id`, `change_id`, `change_type`, `content_hash`, `agent_run_id`).
+- [x] `packages/domain/src/events/verification-events.ts` — `VerificationCompletedPayload` (fields: `request_id`, `result_id`, `status`, `check_summaries[]`).
+- [x] `packages/domain/src/events/attention-events.ts` — `AssessmentCreatedPayload` (fields: `assessment_id`, `artifact_id`, `combined_priority`, `label`).
+- [x] `packages/domain/src/events/review-events.ts` — `DecisionSubmittedPayload` (fields: `decision_id`, `change_id`, `decision`, `reviewer_id`).
+- [x] `packages/domain/src/events/index.ts` — barrel.
+- [x] Update `packages/domain/src/index.ts` to re-export `events/`.
 
 ### 3.3 Implement `IEventBus` interface + `InProcessEventBus` (90 min)
 
-- [ ] `packages/event-bus/src/ievent-bus.ts` — interface definition + `EventHandler<T>` + `UnsubscribeFn` types.
-- [ ] `packages/event-bus/src/in-process-event-bus.ts` — implementation using Node `EventEmitter`:
+- [x] `packages/event-bus/src/ievent-bus.ts` — interface definition + `EventHandler<T>` + `UnsubscribeFn` types.
+- [x] `packages/event-bus/src/in-process-event-bus.ts` — implementation using Node `EventEmitter`:
   - `publish`: emit on channel = `event_type`; wrap handler call in try/catch; on error, call injected `onHandlerError` callback (default: `console.error`) and continue.
   - `subscribe`: register on channel; return unsubscribe function.
   - `subscriberCount(eventType)`: expose for testing.
-- [ ] `packages/event-bus/src/index.ts` — export `IEventBus`, `InProcessEventBus`, `EventHandler`, `UnsubscribeFn`.
+- [x] `packages/event-bus/src/index.ts` — export `IEventBus`, `InProcessEventBus`, `EventHandler`, `UnsubscribeFn`.
 
 ### 3.4 Event factory helper (45 min)
 
-- [ ] `packages/event-bus/src/create-event.ts` — helper that stamps `event_id` (UUIDv7), `occurred_at` (now), and `event_version: 1`:
+- [x] `packages/event-bus/src/create-event.ts` — helper that stamps `event_id` (UUIDv7), `occurred_at` (now), and `event_version: 1`:
 
 ```typescript
 export function createEvent<T>(
@@ -150,23 +150,23 @@ export function createEvent<T>(
 ): EventEnvelope<T>
 ```
 
-- [ ] Unit test: `event_id` is a valid UUIDv7, `occurred_at` is within 1s of now, `event_version` defaults to 1.
+- [x] Unit test: `event_id` is a valid UUIDv7, `occurred_at` is within 1s of now, `event_version` defaults to 1.
 
 ### 3.5 Tests (90 min)
 
 Write tests **before** considering the task done. File: `packages/event-bus/src/__tests__/in-process-event-bus.test.ts`
 
-- [ ] `publish` calls all handlers subscribed to that event type.
-- [ ] `publish` does not call handlers subscribed to a different event type.
-- [ ] A throwing handler does not prevent subsequent handlers from being called.
-- [ ] `unsubscribe()` removes the handler; subsequent publishes are not received.
-- [ ] `subscriberCount` returns correct count after subscribe/unsubscribe.
-- [ ] Events carry the exact envelope fields (`event_id`, `event_type`, `event_version`, `occurred_at`, `correlation_id`, `payload`).
-- [ ] `createEvent` produces a valid envelope with correct defaults.
+- [x] `publish` calls all handlers subscribed to that event type.
+- [x] `publish` does not call handlers subscribed to a different event type.
+- [x] A throwing handler does not prevent subsequent handlers from being called.
+- [x] `unsubscribe()` removes the handler; subsequent publishes are not received.
+- [x] `subscriberCount` returns correct count after subscribe/unsubscribe.
+- [x] Events carry the exact envelope fields (`event_id`, `event_type`, `event_version`, `occurred_at`, `correlation_id`, `payload`).
+- [x] `createEvent` produces a valid envelope with correct defaults.
 
 ### 3.6 README (30 min)
 
-- [ ] `packages/event-bus/README.md`:
+- [x] `packages/event-bus/README.md`:
   - One-paragraph purpose statement.
   - Usage example: subscribe to `task.state_changed`, publish a `createEvent`-built envelope.
   - Rule: "Never import another `@harness/*` engine package here. This package depends only on `@harness/domain`."
@@ -189,13 +189,13 @@ Write tests **before** considering the task done. File: `packages/event-bus/src/
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/event-bus test` — all tests pass.
-- [ ] `pnpm --filter @harness/event-bus build` — clean build, zero errors.
-- [ ] `grep -r "from '@harness" packages/event-bus/src` shows only `@harness/domain`.
-- [ ] `EventEnvelope` interface matches §2.1 exactly (field names, types).
-- [ ] `EventType` const object has at least the 6 event types listed in §2.2.
-- [ ] A throwing subscriber does not crash the bus or skip remaining subscribers (test proves this).
-- [ ] `createEvent` stamps a UUIDv7 `event_id` and current `occurred_at` automatically.
+- [x] `pnpm --filter @harness/event-bus test` — all tests pass.
+- [x] `pnpm --filter @harness/event-bus build` — clean build, zero errors.
+- [x] `grep -r "from '@harness" packages/event-bus/src` shows only `@harness/domain`.
+- [x] `EventEnvelope` interface matches §2.1 exactly (field names, types).
+- [x] `EventType` const object has at least the 6 event types listed in §2.2.
+- [x] A throwing subscriber does not crash the bus or skip remaining subscribers (test proves this).
+- [x] `createEvent` stamps a UUIDv7 `event_id` and current `occurred_at` automatically.
 
 ---
 
@@ -207,6 +207,24 @@ Write tests **before** considering the task done. File: `packages/event-bus/src/
 - **`EventEmitter` listener leak warning:** Node warns at >10 listeners per channel. This is fine in tests (subscribe/unsubscribe cycles); do not suppress the warning globally — it will catch real leaks in integration tests.
 - **Naming:** `InProcessEventBus`, not `LocalEventBus` or `SyncEventBus`. "In-process" is the Phase 1 architectural constraint; the name should make that visible.
 - **Tomorrow (Day 4):** the `EventLogWriter` subscriber will persist every event to `event_log` in PostgreSQL. Do not build that today — today's bus must remain pure and persistence-free.
+
+---
+
+## 7. Status vs Plan (scanned 2026-08-20)
+
+All 26 task checkboxes and 7 acceptance criteria are complete. `@harness/event-bus` builds standalone (turbo `dependsOn: ^build` builds `@harness/domain` first), typechecks, lints clean, and has 9 green tests (41 repo-wide). `grep -r "from '@harness" packages/event-bus/src` shows only `@harness/domain`.
+
+Divergences from the plan:
+
+- **`CorrelationID` lives in `ids.ts`**, not `event-envelope.ts` — added beside the other 17 branded IDs with a `newCorrelationID()` factory; `event-envelope.ts` imports it.
+- **`EventType` has 7 members** (PascalCase keys): the 6 from §2.2 plus `task.created` (to back `TaskCreatedPayload`). Values follow `<domain>.<entity>_<verb_past_tense>`.
+- **Payload field names are snake_case** (`task_id`, `from_state`, `content_hash`, `check_summaries`, …) per §2.1/§2.4 — a serialization boundary that maps 1:1 to Day 04's `event_log` columns, distinct from the camelCase domain entities.
+- **`from_state`/`to_state` are typed `TaskStatus`** (the actual Day 02 union — 13 states), not the plan's `TaskState`.
+- **No per-package `vitest.config.ts` or `test` script**: tests run from the workspace root via `pnpm test` (root `vitest.config.ts` include `packages/*/src/**/*.test.ts`), consistent with Day 02.
+- **`subscriberCount` is on `InProcessEventBus` only**, not `IEventBus` — §2.3 keeps the interface to `publish`/`subscribe`.
+- **`createEvent` uses `newEventID()`** (the domain UUIDv7 factory) rather than `uuidv7()` directly, so `event_id` is a branded `EventID`.
+
+Tests added: `packages/event-bus/src/__tests__/in-process-event-bus.test.ts` (8 tests covering the §3.5 bullets plus version override), `packages/event-bus/src/index.test.ts` (barrel smoke), `packages/domain/src/events/events.test.ts` (EventType values + CorrelationID).
 
 ---
 
