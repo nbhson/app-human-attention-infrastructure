@@ -1,124 +1,51 @@
-# @harness/domain — Shared Types & Domain Model
+# @harness/domain
 
-## Trạng thái hiện tại
+Shared domain types for the Harness Human-Attention Infrastructure. This package is the single source of truth: every other `@harness/*` package imports from here, and nothing in here may import from another `@harness/*` package.
 
-Stubs: `src/index.ts` chỉ export string `'domain'`. Chưa có type definitions.
+## Modules
 
----
+### `ids.ts` — Branded IDs & UUIDv7
 
-## Mục đích
+`Brand<T, Name>` and `brand()` give structural strings a nominal tag so that `TaskID` and `ChangeID` cannot be passed to each other's slots. `uuidv7()` produces RFC 9562 time-sortable UUIDs from `node:crypto` (48-bit millisecond timestamp). 17 branded ID types are exported, each with a matching `newXxxID()` factory.
 
-Single source of truth cho mọi kiểu dữ liệu dùng chung. Tất cả packages khác import từ đây — không package nào import package engine khác.
+### `result.ts` — `Result<T, E>`
 
----
+A discriminated union (`ok` / `err`) plus the `ok()`, `err()`, `isOk()`, `isErr()`, `map()`, and `unwrapOr()` helpers for explicit, exception-free error handling.
 
-## Công việc cần làm (Day 02)
+### `task.ts` — Tasks
 
-### 1. Branded IDs (`src/ids.ts`)
+`TaskStatus` (13 states, including `RETRYING`), `Priority`, `Owner`, `JsonSchema`, `FailureStrategy`, the `Task` entity, and `CreateTaskInput` / `createTask()` with sensible defaults (Pending, system owner, Medium priority, retry counter, timeouts).
 
-```typescript
-// Helper để tạo branded string types
-type Brand<K, T> = K & { __brand: T };
+### `agent-run.ts` — Agent execution
 
-// 13 ID types (UUIDv7)
-type TaskID         = Brand<string, 'TaskID'>;
-type AgentRunID     = Brand<string, 'AgentRunID'>;
-type ArtifactID     = Brand<string, 'ArtifactID'>;
-type ChangeID       = Brand<string, 'ChangeID'>;
-type ContextID      = Brand<string, 'ContextID'>;
-type AssessmentID   = Brand<string, 'AssessmentID'>;
-type VerificationRequestID = Brand<string, 'VerificationRequestID'>;
-type VerificationResultID   = Brand<string, 'VerificationResultID'>;
-type EvidenceID     = Brand<string, 'EvidenceID'>;
-type ProjectID      = Brand<string, 'ProjectID'>;
-type DecisionID     = Brand<string, 'DecisionID'>;
-type EventID        = Brand<string, 'EventID'>;
-type CorrelationID  = Brand<string, 'CorrelationID'>;
+`AgentType`, `AgentRunStatus` (the run lifecycle) and `AgentExecutionStatus` (the execution sub-state), `ModelProvider`, `ModelConfig`, the `TrajectoryStep` discriminated union (`THOUGHT` / `TOOL_CALL` / `OBSERVATION`), `AgentRun`, `AgentExecutionRequest`, `DEFAULT_MAX_STEPS`, and `createAgentExecutionRequest()`.
 
-// Factory functions
-function newTaskID(): TaskID;
-function newAgentRunID(): AgentRunID;
-// ... tương tự cho các types còn lại
-```
+### `artifact.ts` — Artifacts & changes
 
-**Lý do**: Ngăn nhầm type — ví dụ không được pass `ArtifactID` vào chỗ chờ `TaskID`. Bug class #1 khi cross-module.
+`ArtifactType`, `ArtifactStatus`, `ChangeStatus`, `FileChangeType`, `Artifact`, `FileChange`, `Change`, `ArtifactSnapshot`, and the `createArtifact()` / `createChange()` factories.
 
-### 2. Status enums (`src/task.ts`, `src/artifact.ts`, v.v.)
+### `context.ts` — Context snapshots
 
-```typescript
-// Không dùng TS enum — dùng const object + union type
-export const TaskStatus = {
-  Pending: 'PENDING',
-  Queued: 'QUEUED',
-  Executing: 'EXECUTING',
-  Verifying: 'VERIFYING',
-  AwaitingReview: 'AWAITING_REVIEW',
-  Approved: 'APPROVED',
-  Rejected: 'REJECTED',
-  Rework: 'REWORK',
-  Completed: 'COMPLETED',
-  Failed: 'FAILED',
-  AwaitingHumanIntervention: 'AWAITING_HUMAN_INTERVENTION',
-  Cancelled: 'CANCELLED',
-} as const;
+`ContextSourceType`, `CompressionStrategy`, `ContextSource`, `ContextSnapshot`, `RepositoryRef`, `ContextRequest`, `ContextPolicy`, plus `createContextSource()` and `createContextSnapshot()`.
 
-export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
-```
+### `verification.ts` — Trust pipeline
 
-12 canonical states cho Task (theo Spec 2 §3).
+`VerificationCheckType`, `VerificationStatus`, `VerificationCheckResultStatus`, `VerificationErrorSeverity`, `VerificationPriority`, the `VerificationCheck`, `VerificationError`, `VerificationCheckResult`, `VerificationRequest`, `VerificationResult`, and `VerificationPolicy` types, with `createVerificationRequest()`, `createVerificationCheckResult()`, and `createVerificationError()`.
 
-### 3. Entity interfaces
+### `attention.ts` — Attention assessment
 
-| File | Interfaces |
-|------|-----------|
-| `src/task.ts` | `Task`, `TaskState` (12 states) |
-| `src/agent-run.ts` | `AgentRun`, `AgentRunStatus`, `TrajectoryStep`, `AgentExecutionRequest` |
-| `src/artifact.ts` | `Artifact`, `ArtifactStatus`, `Change`, `ChangeStatus`, `FileChange` |
-| `src/context.ts` | `ContextSnapshot`, `ContextSource` |
-| `src/verification.ts` | `VerificationRequest`, `VerificationResult`, `VerificationCheckResult` |
-| `src/attention.ts` | `AttentionAssessment`, `AttentionScores`, `AttentionFactor`, `AttentionPolicy` |
-| `src/review.ts` | `HumanDecision`, `ReviewQueueItem` |
-| `src/provenance.ts` | `ProvenanceChain` |
-| `src/events.ts` | `EventEnvelope<T>`, `EventType` constants |
+`PriorityLabel`, `SuggestReviewDepth`, `AttentionRuleAction`, `AttentionScores`, `AttentionFactor`, `AttentionRule`, `AttentionPolicy`, `AttentionAssessment`, and the `createAttentionAssessment()` / `createAttentionScores()` factories.
 
-### 4. Result type (`src/result.ts`)
+### `review.ts` — Human decisions & review queue
 
-```typescript
-type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
-```
+`HumanDecisionType`, `HumanDecision`, `ReviewQueueItemStatus`, `ReviewQueueItem`, and `createHumanDecision()` / `createReviewQueueItem()`. The review queue is a read-model with no separate upstream spec section, so it is kept minimal.
 
-Dùng cho explicit error handling trong pure logic.
+### `provenance.ts` — Read-model
 
-### 5. Tests
-
-- Branded ID misuse phải là compile error (`@ts-expect-error`)
-- Factory functions produce unique, parseable values
-- ≥ 90% exported symbols có TSDoc comments
-
----
+`ProvenanceChain` — a cross-aggregate read-model linking a task to its context, agent trajectory, changes, verification, risk assessment, and human decision.
 
 ## Dependency rule
 
 ```
-packages/domain → KHÔNG import gì từ @harness/* packages khác
-```
-
----
-
-## Files cần tạo
-
-```
-src/
-├── ids.ts          # Branded IDs + factories
-├── result.ts       # Result<T, E> type
-├── task.ts         # Task, TaskStatus
-├── agent-run.ts    # AgentRun, TrajectoryStep
-├── artifact.ts     # Artifact, Change, FileChange
-├── context.ts      # ContextSnapshot, ContextSource
-�├── verification.ts # VerificationRequest, CheckKind, CheckStatus
-├── attention.ts    # AttentionAssessment, PriorityLabel
-├── review.ts       # HumanDecision, ReviewQueueItem
-├── provenance.ts   # ProvenanceChain
-├── events.ts       # EventEnvelope, EventType
-└── index.ts        # Barrel exports
+@harness/domain → must NOT import from any other @harness/* package
 ```

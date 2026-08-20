@@ -133,6 +133,9 @@ importers:
 
   packages/domain:
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.1
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -141,7 +144,14 @@ importers:
         version: 2.1.9(@types/node@22.20.1)
 
   packages/event-bus:
+    dependencies:
+      '@harness/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.1
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
