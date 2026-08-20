@@ -1,5 +1,13 @@
 # @harness/context-engine — Context Engine
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "người chọn tài liệu" — chọn lọc, xếp hạng, nén ngữ cảnh đúng cho agent, để agent có đủ thông tin mà không bị tràn context window.
+
+Nói nôm na: trước khi thợ (agent) làm việc, gói này soạn cho thợ một bộ tài liệu gọn và đúng trọng tâm, chứ không vứt cả repo vào mặt thợ.
+
+---
+
 ## Trạng thái hiện tại
 
 Stubs: `src/index.ts` chỉ export string `'context-engine'`. Chưa có implementation.

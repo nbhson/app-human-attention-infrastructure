@@ -2,6 +2,14 @@
 
 The nervous system of the Harness. Every subsystem publishes and consumes domain events through a single `IEventBus` interface — no package imports another engine directly. Phase 1 is a synchronous, in-process bus; the interface hides that so a future Kafka/NATS broker can replace it without touching any consumer.
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "hệ thần kinh" — kênh truyền tin giữa các package. Không package nào import trực tiếp package kia; tất cả nói chuyện qua sự kiện trên bus.
+
+Nói nôm na: thay vì gọi trực tiếp nhau, các bộ phận "hét lên một sự kiện" (task xong rồi, verification đạt rồi...) và ai quan tâm thì lắng nghe.
+
+---
+
 ## Usage
 
 ```typescript

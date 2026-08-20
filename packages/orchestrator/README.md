@@ -1,5 +1,13 @@
 # @harness/orchestrator — Task / Work Orchestrator
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "bộ não" — điều phối một Task đi đâu, chuyển trạng thái thế nào, bao giờ retry.
+
+Nói nôm na: gói này chỉ *điều phối*, giống quản đốc phân việc. Nó KHÔNG tự làm task (đó là việc của `agent-runtime`), KHÔNG tự kiểm tra (việc của `verification-engine`) — chỉ nhận task, gửi đi, theo dõi trạng thái và xử lý khi thất bại.
+
+---
+
 ## Trạng thái hiện tại
 
 Stubs: `src/index.ts` chỉ export string `'orchestrator'`. Chưa có implementation.

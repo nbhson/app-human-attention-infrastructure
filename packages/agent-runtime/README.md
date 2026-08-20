@@ -1,5 +1,13 @@
 # @harness/agent-runtime — AI Agent Runtime
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "người thợ AI" — nơi thực sự chạy AI agent (vòng ReAct: nghĩ → gọi tool → quan sát) để hoàn thành task.
+
+Nói nôm na: đây là tay chân làm việc thật. Nhận task, chạy LLM, đọc/ghi file trong sandbox và ghi lại từng bước (trajectory) để ai cũng truy vết được về sau.
+
+---
+
 ## Trạng thái hiện tại
 
 Stubs: `src/index.ts` chỉ export string `'agent-runtime'`. Chưa có implementation.

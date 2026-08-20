@@ -1,5 +1,13 @@
 # @harness/artifact-tracker — Artifact / Change Tracker
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "người ghi chép" — theo dõi mọi file (artifact) AI tạo ra, kèm hash, snapshot và diff.
+
+Nói nôm na: mỗi lần AI sửa file, gói này chụp "trước/sau" và ghi nhận ai tạo, tạo gì, khác gì. Nó là bằng chứng cho câu hỏi "AI đã đổi những gì?".
+
+---
+
 ## Trạng thái hiện tại
 
 Stubs: `src/index.ts` chỉ export string `'artifact-tracker'`. Chưa có implementation.

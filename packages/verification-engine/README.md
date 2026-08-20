@@ -1,5 +1,13 @@
 # @harness/verification-engine — Verification Engine
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "người kiểm tra độc lập" — chạy compile/test/lint để kiểm chứng lời AI nói là đúng hay sai (Claim ≠ Evidence).
+
+Nói nôm na: AI bảo "xong rồi" thì chưa tính; gói này chạy test & build thật để xác nhận. Mọi claim của AI phải có evidence từ đây.
+
+---
+
 ## Trạng thái hiện tại
 
 Stubs: `src/index.ts` chỉ export string `'verification-engine'`. Chưa có implementation.

@@ -1,5 +1,13 @@
 # @harness/di — Dependency Injection Container
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "người nối dây" — dependency injection container nối các package lại với nhau lúc khởi động.
+
+Nói nôm na: các package chỉ nhận *interface*, không biết nhau cụ thể. Gói này cắm dây cho chúng lúc startup, để sau này swap cái nào cũng chỉ đổi ở một chỗ.
+
+---
+
 ## Trạng thái hiện tại
 
 **Package chưa tồn tại** — cần tạo mới.

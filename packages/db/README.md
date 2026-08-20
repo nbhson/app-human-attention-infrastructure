@@ -1,5 +1,13 @@
 # @harness/db — Database Layer
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "kho lưu trữ" — PostgreSQL schema (14 bảng), migration và repository để mọi package đọc/ghi dữ liệu.
+
+Nói nôm na: đây là tủ hồ sơ của cả hệ thống. Mọi thứ ghi vào đây để không mất và truy vết được về sau.
+
+---
+
 ## Trạng thái hiện tại
 
 Stubs: `src/index.ts` chỉ export string `'db'`. Chưa có schema, chưa có migration.

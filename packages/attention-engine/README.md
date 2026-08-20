@@ -1,5 +1,13 @@
 # @harness/attention-engine — Attention Engine
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "bộ lọc mức quan trọng" — chấm điểm mỗi thay đổi (rủi ro, ảnh hưởng, độ mới, độ phức tạp, độ tin cậy) để quyết định cái nào cần người xem, ưu tiên ra sao.
+
+Nói nôm na: người review là nguồn lực có hạn, gói này giúp họ chỉ xem đúng thứ đáng xem, thay vì phải xem tất cả.
+
+---
+
 ## Trạng thái hiện tại
 
 Stubs: `src/index.ts` chỉ export string `'attention-engine'`. Chưa có implementation.

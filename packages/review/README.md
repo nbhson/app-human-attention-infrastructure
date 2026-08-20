@@ -1,5 +1,13 @@
 # @harness/review — Human Review Interface
 
+## Hiểu nhanh
+
+**Nhiệm vụ:** "bàn làm việc của người duyệt" — queue + API cho human reviewer xem đánh giá, diff, evidence rồi quyết định APPROVE/REJECT.
+
+Nói nôm na: đây là nơi con người cuối cùng bấm "duyệt" hay "từ chối", sau khi đã xem các bằng chứng do các gói kia chuẩn bị.
+
+---
+
 ## Trạng thái hiện tại
 
 Stubs: `src/index.ts` chỉ export string `'review'`. Chưa có implementation.
