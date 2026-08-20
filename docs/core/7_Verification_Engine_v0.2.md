@@ -1,8 +1,8 @@
 # Verification Engine
-## Specification v0.1 – Independently Validating AI-Generated Changes
+## Specification v0.2 – Independently Validating AI-Generated Changes
 
-**Status:** Draft v0.1  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.1.md`)  
+**Status:** Draft v0.2  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
 **Purpose:** Define how the Harness independently validates AI-generated outputs — running compilation, tests, static analysis, and security scans — ensuring that verification is separated from generation to prevent bias and false confidence.
 
 ---
@@ -218,6 +218,7 @@ Verification must run against an **isolated, reproducible copy** of the code —
 
 - **Phase 1:** Run in-process against the agent's dedicated branch/worktree created by the Agent Runtime for its execution. Each agent run gets its own checkout, so concurrent verifications do not interfere.
 - **Phase 2+:** Run in an isolated git worktree or container per verification request, with the Change's file set applied. This enables sandboxing of untrusted code execution and deterministic environments (locked tool versions).
+- **Reference model (Phase 2+, from the reference skills framework):** the container/worktree isolation above is the same pattern as the framework's "Code Mode" vm sandbox and its **Minimal Benchmark Harness** (a container with only `bash` + a file-editor tool, so an untrusted run can do nothing outside its declared surface). Adoption rule: the sandbox exposes a *minimal, explicit* tool surface — verification runs a command and reads output, nothing more — which is what keeps a verification result attributable and tamper-evident.
 - **Rule:** A verification result is only meaningful if the exact content verified is identified by content hash and recorded in the VerificationResult (link to Change via `change_id`).
 
 # 5.6 Flaky Test Handling

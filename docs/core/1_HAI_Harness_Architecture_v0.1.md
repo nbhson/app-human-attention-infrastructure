@@ -297,7 +297,7 @@ It is the foundation that defines how the other ten subsystems interact.
 
 The **Evaluation Engine** closes the loop. Verification (7) answers "is this change correct?"; Evaluation (11) answers "is our pipeline — model, prompt, context, ranking, weights — actually good?", and feeds calibration back into Attention (6) and Context (4). Without it, the critical milestone's final step, *Learning*, has no owner.
 
-**Specification status (v0.1):** Subsystems 1–7, 9, and 11 have dedicated specifications in `docs/core/` (`9_Memory_Evidence_System_v0.1.md`, `11_Evaluation_Engine_v0.1.md`). Subsystem 8 (Human Review Interface) and 10 (Observability / Governance) are designed inside `docs/plan/day-22..27` and are promoted to standalone specs in Phase 2.
+**Specification status (v0.1):** Subsystems 1–7, 9, and 11 have dedicated specifications in `docs/core/` (`9_Memory_Evidence_System_v0.2.md`, `11_Evaluation_Engine_v0.2.md`). Subsystem 8 (Human Review Interface) and 10 (Observability / Governance) are designed inside `docs/plan/phase-1/day-22..27` and are promoted to standalone specs in Phase 2.
 
 ---
 
@@ -377,7 +377,7 @@ Task
 └── outcome
 ```
 
-The canonical Task state machine is defined in the Task / Work Orchestrator specification (`2_Task_Work_Orchestrator_v0.1.md`, Section 3), which is the **single source of truth** for Task states and transitions. This document does not redefine them.
+The canonical Task state machine is defined in the Task / Work Orchestrator specification (`2_Task_Work_Orchestrator_v0.2.md`, Section 3), which is the **single source of truth** for Task states and transitions. This document does not redefine them.
 
 High-level flow (simplified):
 
@@ -1011,7 +1011,7 @@ PHASE 2 — Calibrate & Close the Measurement Loop
     Evidence is collected; now measure the pipeline itself.
     Evaluation Engine v0 (offline metrics + A/B harness)
     Attention weight calibration from real usefulness data
-    Semantic ranking / re-ranking (plug-in behind Ranker seam)
+    Semantic search infrastructure (pgvector + Embedder) — shadow/experimental, behind the Ranker seam
     Auto-approve for AUTO_APPROVABLE behind flag + sampling audit
     Promote Human Review Interface (8) & Observability (10) to standalone specs
 
@@ -1019,6 +1019,7 @@ PHASE 3 — Learn & Automate Under Guardrails
     The Learning milestone from the core loop becomes a real subsystem.
     Full Memory / Evidence System (retrieval, expiration, decision memory)
     Targeted / incremental verification (dependency graph)
+    Context ranking → hybrid default (BM25 + embeddings + RRF + re-rank) + RAG Fusion
     Multi-agent orchestration + bounded autonomous loops
     Continuous improvement loop closes: Evaluate → Calibrate → Deploy → Observe
 ```
@@ -1046,7 +1047,7 @@ Evaluation Engine v0 (metrics, report, A/B harness)
     ↓
 Attention calibration (weights fitted from review usefulness data)
     ↓
-Context relevance upgrade (semantic + re-ranking, behind Ranker seam)
+Semantic search infra (pgvector + Embedder) — shadow, not default
     ↓
 Observability / Governance (metrics, audit, policy)
 
@@ -1054,6 +1055,8 @@ PHASE 3
 Memory / Evidence (decision memory, project memory, learning from reviews)
     ↓
 Targeted / incremental verification (dependency graph)
+    ↓
+Context ranking → hybrid default (BM25 + embeddings + RRF + re-rank) + RAG Fusion
     ↓
 Multi-agent orchestration + bounded autonomous workflows
     ↓

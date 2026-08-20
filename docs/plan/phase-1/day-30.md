@@ -162,4 +162,4 @@ Tag message body lists: spec versions (all v0.2), migration count, test count, l
 
 ---
 
-*Prev: [Day 29 — Documentation: Specs v0.2, Dev Guide & Runbook](day-29.md) | End of 30-day plan — next: [Phase 2 Backlog](phase-2-backlog.md) (created on Day 30)*
+*Prev: [Day 29 — Documentation: Specs v0.2, Dev Guide & Runbook](day-29.md) | End of Phase 1 — next: [Phase 2 Plan](../phase-2/README.md)*

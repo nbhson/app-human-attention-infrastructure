@@ -1,6 +1,6 @@
 # 9. Memory / Evidence System — Specification
 
-**Status:** Draft v0.1
+**Status:** Draft v0.2
 **Phase:** Evidence store ships in Phase 1 (days 04, 17). Knowledge Memory subsystem ships in Phase 3.
 **Depends on:** Artifact/Change Tracker (5), Verification Engine (7), Attention Engine (6).
 
@@ -139,6 +139,30 @@ revised. Phase 3 implements that loop with two extra rules on top of §4.3:
   via expiration rather than being deleted.
 - **Promotion is revocable.** A promoted version can be demoted by calibration without
   breaking history, because retrieval always reads "current pointer", not the raw stream.
+
+### 4.5 Consolidation, decay & retrieval (Phase 3 — from the reference skills framework)
+
+The reference framework models memory as a *managed* store with an explicit lifecycle,
+not a grow-forever pile. Phase 3 adopts these conventions on top of §4.3:
+
+- **Consolidation pipeline.** Periodically (offline, not on the hot path) the engine:
+  1. **Dedup** — merge `MemoryEntry`s whose similarity exceeds `0.85` into one entry
+     whose `sourceEvidence` is the union of both.
+  2. **Conflict** — when two entries contradict, keep the one with higher `confidence`
+     *and* more recent evidence; the loser is superseded (never deleted, per §4.4).
+  3. **Decay** — an entry's effective weight decays as `0.99^days_since_last_use`; decayed
+     entries stop being offered as a Context ranking signal.
+  4. **Archive** — entries unused for ~90 days move to cold storage, freeing ranking
+     budget (mirrors Spec 5's retention policy).
+- **Relevance scoring for retrieval.** When Memory is used as a Context Engine (4) signal,
+  a candidate's rank is `0.6·similarity + 0.2·recency + 0.2·access_frequency` — no term
+  dominates, and frequently-retrieved entries are not lost to a pure embedding score.
+- **Retrieval patterns.** Memory is not fetched as one blob. The framework's patterns map
+  onto the §4.1 kinds: *Summary Memory* (project conventions) is injected globally;
+  *Entity Memory* (a class/API + its quirks) is pulled when that entity enters context;
+  *Failure Memory* (past REWORK causes) is pulled for risk scoring (Spec 6). This keeps
+  Memory retrieval **targeted** — the same "selected by relevance, not dumped" principle
+  that governs Context (4).
 
 ---
 

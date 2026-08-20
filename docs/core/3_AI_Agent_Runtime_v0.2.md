@@ -1,8 +1,8 @@
 # AI Agent Runtime
-## Specification v0.1 – Running and Coordinating AI Agents
+## Specification v0.2 – Running and Coordinating AI Agents
 
-**Status:** Draft v0.1  
-**Dependencies:** Architecture (`1_HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`2_Task_Work_Orchestrator_v0.1.md`)  
+**Status:** Draft v0.2  
+**Dependencies:** Architecture (`1_HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`2_Task_Work_Orchestrator_v0.2.md`)  
 **Purpose:** Define how the Harness initializes, executes, monitors, and records AI Agent activities when performing a specific `Task`.
 
 ---
@@ -442,3 +442,37 @@ Follow this order to avoid being overwhelmed:
 **Token Costs:** Trajectory logs everything and will consume significant memory. Limit the number of steps (Max Steps) for Agents, e.g., maximum 10 loops, auto-fail if exceeded.
 
 **Hallucination:** Runtime does not evaluate code quality (that is the Verification Engine's job). Runtime only validates whether the Agent called the correct Tool.
+
+## 14.1 Tool permission tiers (Phase 2+)
+
+Phase 1 uses a flat `allowedTools` allowlist. The reference framework escalates this to
+**RBAC tiers**, which the Runtime adopts once tool count grows:
+
+| Tier | Examples | Policy |
+|------|----------|--------|
+| `public` | `read_file`, `search_code`, `git_log` | Any agent, no extra gate |
+| `standard` | `write_file`, `patch_file`, `run_test` | Allowlist, logged per call |
+| `elevated` | `git_push`, `npm_publish`, `modify_ci` | Requires human-scoped approval gate (orchestrator flag) |
+| `admin` | `delete_branch`, `rotate_secret` | Disabled for agents by default; human-only |
+
+- A tool's tier is a property of the tool registry entry, not a per-call guess by the agent.
+- Tier escalation is enforced by the **Runtime**, verified by the **Trajectory** (the
+  `TOOL_CALL` step records the tier), and auditable via the Evidence System (9).
+
+## 14.2 Tool rate limiting (Phase 2+)
+
+A runaway ReAct loop can exhaust budget or hammer an external API. The Runtime applies a
+**sliding window** per tool (e.g. `run_test` ≤ 10 / minute; `write_file` ≤ 50 / run):
+exceeding the window returns a structured rate-limit observation to the LLM (so it can
+change strategy) rather than a silent drop, and repeated violations are a
+failure signal to the Orchestrator (2).
+
+## 14.3 Code-mode sandbox (Phase 2+)
+
+The reference framework's "Code Mode" (a vm-sandboxed, high-token-density execution mode
+with batched tools) is the model for the Phase-2 sandbox upgrade in this spec's
+"Sandbox" note: untrusted agent execution moves from in-process to an isolated worktree
+or container, with tool calls batched against the sandbox instead of leaked into the host
+process. This is the *same* isolation boundary as Verification §5.5 — the Runtime and the
+Verification Engine share one sandbox abstraction so verification is genuinely
+independent of generation, not just a different call site.

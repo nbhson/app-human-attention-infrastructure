@@ -1,6 +1,6 @@
 # 11. Evaluation Engine (Learning Loop) — Specification
 
-**Status:** Draft v0.1
+**Status:** Draft v0.2
 **Phase:** v0 (offline metrics + A/B harness) ships in Phase 2. Full closed loop in Phase 3.
 **Depends on:** Evidence System (9), Attention Engine (6), Human Review decisions (8), Context Engine (4).
 **Consumes:** Aggregated events, evidence, review decisions; **produces:** calibration signals.
@@ -108,6 +108,30 @@ that actually fixed the bug in the top-N?"). Phase 3 adds two orthogonal quality
 
 These two signals plug into §6's loop as the *measurement layer*: they do not change
 behavior directly; they produce the evidence that `Evaluate → Calibrate` consumes.
+
+## 5.2 Benchmark execution runtime (Phase 3)
+
+A benchmark corpus is only as good as its *runner*. The reference framework's **Minimal
+Benchmark Harness** is adopted as the execution model here: it re-runs a labelled task
+inside a **container with a deliberately minimal tool surface — `bash` + a file editor —
+and records the full trajectory as a first-class artifact**. That maps exactly onto
+what HAI already owns:
+
+- **Minimal tools by construction** → a benchmarked capability is exercised through the
+  same `Agent Runtime` + `Verification Engine` sandbox boundary as production (§5.5 of
+  Spec 7 / §14.3 of Spec 3), so a score measures HAI's real pipeline, not a synthetic one.
+- **Trajectory-as-artifact** → every benchmark run produces an `AgentRunTrajectory`
+  (Spec 3 §6), which is exactly the raw material the corpus labels and the LLM-judge
+  (rubric) score against. No separate recording path.
+- **External references** — SWE-bench, LiveCodeBench, and Aider's leaderboard methodology
+  are cited as gold-standard *formats and scoring conventions*, adopted selectively
+  rather than reproduced wholesale.
+
+> **Rubric dimensions (rubric design):** an evaluation rubric for HAI is scored across the
+> four dimensions already defined in §4 — *routing quality*, *attention efficiency*,
+> *pipeline quality*, and *context sufficiency* — never a single blended number. A
+> capability change must name which dimension it improves and how that maps to "less
+> human attention at equal or better safety" (§2), before it is admitted to the harness.
 
 ---
 

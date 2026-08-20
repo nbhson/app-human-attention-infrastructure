@@ -2,7 +2,7 @@
 ## Specification v0.1 – Assessing Risk, Impact, and Review Priority
 
 **Status:** Draft v0.1  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.1.md`)  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
 **Purpose:** Define how the Harness intelligently determines whether a change requires human attention, and if so, at what priority level — transforming human attention from a passive bottleneck into an optimized resource.
 
 ---

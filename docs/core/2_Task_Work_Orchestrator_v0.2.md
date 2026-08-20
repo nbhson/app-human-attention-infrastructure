@@ -1,7 +1,7 @@
 # Task / Work Orchestrator
-## Specification v0.1 – Managing Tasks and Workflows
+## Specification v0.2 – Managing Tasks and Workflows
 
-**Status:** Draft v0.1  
+**Status:** Draft v0.2  
 **Dependency:** Architecture Specification (`HAI_Harness_Architecture_v0.1.md`)  
 **Purpose:** Define the core orchestration engine responsible for breaking down high-level goals into executable tasks, managing their lifecycle, handling dependencies, and ensuring reliable end-to-end execution flow.
 
@@ -238,6 +238,10 @@ Since the system is AI-native, failures are expected. The Orchestrator must be r
 - **Retries:** Implements an exponential backoff. Only retries on transient errors (e.g., LLM API rate limit, network blip). Does not retry on logical failures (e.g., "Code compilation fails").
 - **Human Escalation:** If a task fails `max_retries` times, the Orchestrator should automatically transition the Task to a special AWAITING_HUMAN_INTERVENTION state, allowing a Developer to inspect logs and manually override/retry.
 - **Checkpointing:** For long-running workflows, the Orchestrator saves state after every Task completion. If the system crashes, it can restart from the last checkpoint instead of the beginning.
+- **Compensation (Saga pattern, Phase 2+):** REWORK and ROLLBACK are not just state flips — a rejected change may have side effects that must be undone. Each workflow type carries a compensating action (roll back the artifact via the Artifact Tracker §8, reset verification cache), so a rejected branch leaves the system as if it never ran. This mirrors the framework's saga/compensation principle: *forward actions are paired with a defined undo*.
+- **Circuit breaker (Phase 2+):** If an external dependency (LLM provider, CI, a verification tool) fails repeatedly, the Orchestrator opens a breaker for that dependency and fails fast with a clear `AWAITING_HUMAN_INTERVENTION` instead of queueing N doomed retries. This prevents one flaky integration from cascading failure across every in-flight task.
+
+> **Workflow design principles (from the reference skills framework):** the four workflow types (§4) are designed for **idempotency** (retry a transition, not a side-effect), **observability** (every step emits an event), **separation** (orchestration vs execution — the Orchestrator owns *when*, the Agent owns *how*), **progressive disclosure** (start linear, add DAG/parallel only when needed), **fail-fast** (per above), and **state externalization** (state lives in Postgres, never in process memory only). These are the reasons §12's idempotency rule exists.
 
 # 8. Event-Driven Communication
 To remain decoupled, the Orchestrator primarily communicates via Domain Events.
@@ -305,6 +309,20 @@ Following the Architecture roadmap, we build the Orchestrator incrementally.
 
 - Integrate the Context Engine + Agent Runtime to automatically break a large prompt into a Workflow of subtasks.
 - The Planner becomes an internal AI Agent itself.
+
+> **Decomposition strategy (from the reference skills framework):** the Phase-3 Planner is
+> itself subject to the same *evidence before confidence* rule as any agent. It produces a
+> plan, not a verdict, and the plan must pass checks before it becomes a Workflow:
+>
+> - **Three-level hierarchical planning** — goal → subtasks → atomic tasks; the atomic
+>   tasks are what enter the DAG, not the raw goal.
+> - **Plan-and-Solve / ReWOO** — separate "form a plan" from "execute the plan", so a bad
+>   decomposition fails cheaply before any step runs. Dynamic replanning re-runs the
+>   planner on REWORK with the failure evidence as input.
+> - **Planning guardrails** (the framework's "10 Commandments") — a generated plan must be
+>   *definite, bounded, and conservative*: decompose to testable units, never invent
+>   steps the evidence does not support, and stop rather than over-engineer. A plan that
+>   fails these checks escalates to a human instead of being auto-executed.
 
 ### Phase 4: Full Resilience & Auto-Escalation
 

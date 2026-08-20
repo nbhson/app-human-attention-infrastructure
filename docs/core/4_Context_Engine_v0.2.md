@@ -1,8 +1,8 @@
 # Context Engine
-## Specification v0.1 – Selecting and Preparing Context for AI Agents
+## Specification v0.2 – Selecting and Preparing Context for AI Agents
 
-**Status:** Draft v0.1  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.1.md`)  
+**Status:** Draft v0.2  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
 **Purpose:** Define how the Harness selects, ranks, compresses, and delivers relevant context to AI Agents — ensuring Agents receive the right information without overwhelming the model's context window.
 
 ---
@@ -276,7 +276,81 @@ Rules that Phase 1 commits to now (and Phase 3 implements):
 - **Index boundary:** Phase 3 introduces the code/document index and embeddings as a
   separate, replaceable infrastructure component. Phase 1 does not build it, but the
   `ContextSource.type` already distinguishes `FILE | SYMBOL | ARCHITECTURE | DOCUMENTATION`
-  so the future index has a stable shard key.
+  so the future index has a stable shard key. (Phase 2 may stand up the embeddings index
+  + `Embedder` as **shadow/experimental infra** — measured by the A/B harness (Spec 11 §5),
+  not used as default ranking — but hybrid does **not** become the default until Phase 3.)
+
+## 5.2 Hierarchical Context, Validity & Caching (from the reference skills framework)
+
+Beyond *which* items are selected, the reference framework also constrains *how* the
+selected material is structured and kept non-stale. Three techniques map directly onto
+this engine and are adopted as follows:
+
+### 5.2.1 Five-level hierarchical context (Phase 1 layout, Phase 3 depth)
+
+The delivery stage (§3, step 4) already groups context into project / task / file /
+historical / evidence. The framework's 5-level model formalizes an **eviction order** so
+budget trimming is deterministic rather than "truncate whatever is last":
+
+```text
+Level 0  Global / system  (architecture rules, project conventions, model instructions)  ~500 tok
+Level 1  Task             (description, requirements, output schema)
+Level 2  Code / archive   (ranked source files, symbols, git history)
+Level 3  Decisions        (previous human decisions + reasons)
+Level 4  Focused          (target files from the task, always full content)
+```
+
+- **Evict bottom-up:** when over budget, drop from the highest level (least focused)
+  first — Level 4 target files are the last thing touched. This makes §6's priority rule
+  ("never remove the target file") a structural guarantee, not a special case.
+- **Never evict Level 0.** System/architecture context is cheap and load-bearing; losing
+  it changes the agent's behavior in ways that are hard to attribute.
+
+### 5.2.2 Lost-in-the-middle & why re-ranking matters
+
+Models attend best to the beginning and end of a prompt; mid-prompt items are weakly
+recalled ("lost in the middle"). This is the quantitative reason §5.1 forces a
+**re-rank over top-N** instead of dumping the full ranked list: the highest-value items
+must be placed at the head of the delivered context. It also argues for smaller, focused
+contexts over "everything that might be relevant".
+
+### 5.2.3 Context cache (Phase 2)
+
+Phase 2's "context caching" bullet (§10) is refined here: cache resolved
+`ContextSource` content keyed by `source_id + content_hash`.
+
+- **Hit:** reuse parsed content, skipping file read + parse.
+- **Invalidation:** the hash changes when the file changes — a stale entry is simply a
+  cache miss, never a poisoned result. No TTL clock is required; the hash *is* the truth
+  (§8's freshness rule).
+- **Scope:** cache is per-source, read-only, and shared across tasks within a project.
+  The `ContextSnapshot` itself is *not* cached — snapshots are point-in-time and must
+  reflect the actual resolution a task consumed (for the trajectory/provenance record).
+
+### 5.2.4 Context validation gate (Phase 2)
+
+Before a `ContextSnapshot` is handed to the Agent Runtime, a lightweight validator checks
+structural soundness (mirroring the framework's `ContextValidator`):
+
+1. **Token budget:** `total_tokens ≤ max_tokens` (hard fail).
+2. **Target-files present:** every `target_files` entry is included in full (hard fail —
+   the snapshot is useless to the task otherwise).
+3. **Freshness:** no `target_file` marked `STALE` without an explicit `stale_warning`
+   attached for the consumer (§8).
+4. **Relevance floor:** at least one source clears `min_relevance_threshold` (warn-only;
+   an empty context is allowed only for tasks that declare no file input).
+
+A failed gate re-resolves once; a second failure is an error surfaced to the Orchestrator,
+never a silently degraded context.
+
+### 5.2.5 RAG Fusion (multi-query, Phase 3)
+
+Phase 3 may upgrade the semantic retriever to **RAG Fusion**: expand the task into *k*
+query variants (paraphrases / symbol-focussed / history-focussed), run each against the
+index, and fuse the result sets with the same RRF from §5.1. This raises recall for
+indirectly-related files without any change to the `Retriever` interface. Multi-query is
+**optional and behind the seam** — Phase 1's single-query keyword ranker remains the
+default.
 
 ---
 
