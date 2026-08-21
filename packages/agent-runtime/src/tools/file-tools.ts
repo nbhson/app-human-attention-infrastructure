@@ -65,6 +65,7 @@ export function makeWriteFileTool(sandboxRoot: string): Tool {
           file_path: relPath,
           content_hash: sha256(content),
           size_bytes: Buffer.byteLength(content, 'utf8'),
+          content,
         };
         ctx.bus.publish(
           createEvent(EventType.ArtifactCreated, brand(ctx.agentRunId, 'CorrelationID'), payload),

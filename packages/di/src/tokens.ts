@@ -12,6 +12,8 @@ export const TOKENS = {
   Db: 'Db',
   EventLogWriter: 'EventLogWriter',
   ArtifactCaptureSubscriber: 'ArtifactCaptureSubscriber',
+  SnapshotStore: 'SnapshotStore',
+  ChangeStatusSubscriber: 'ChangeStatusSubscriber',
   TaskStateMachine: 'TaskStateMachine',
   TaskService: 'TaskService',
   Dispatcher: 'Dispatcher',

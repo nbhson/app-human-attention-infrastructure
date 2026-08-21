@@ -29,4 +29,14 @@ export interface ArtifactCreatedPayload {
   readonly content_hash: string;
   /** Byte size of the file content (UTF-8). */
   readonly size_bytes: number;
+  /** The full file content, so the tracker can snapshot it without re-reading disk. */
+  readonly content: string;
+}
+
+/** Payload for {@link import('./event-types.js').EventType.ArtifactRollbackRequested}. */
+export interface ArtifactRollbackRequestedPayload {
+  /** The change to roll back. */
+  readonly change_id: ChangeID;
+  /** Why the rollback was requested (a human decision or a policy). */
+  readonly reason: string;
 }

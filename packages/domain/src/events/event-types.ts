@@ -12,6 +12,7 @@ export const EventType = {
   TaskExecutionFinished: 'task.execution_finished',
   ArtifactChanged: 'artifact.changed',
   ArtifactCreated: 'artifact.created',
+  ArtifactRollbackRequested: 'artifact.rollback_requested',
   VerificationCompleted: 'verification.completed',
   AssessmentCreated: 'attention.assessment_created',
   DecisionSubmitted: 'review.decision_submitted',

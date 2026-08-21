@@ -10,7 +10,14 @@ Nói nôm na: mỗi lần AI sửa file, gói này chụp "trước/sau" và ghi
 
 ## Trạng thái hiện tại
 
-Stubs: `src/index.ts` chỉ export string `'artifact-tracker'`. Chưa có implementation.
+**Đã implement (Day 13–14):**
+
+- `src/capture/artifact-capture-subscriber.ts` — nghe `artifact.created`, forward sang tracker.
+- `src/snapshot-store.ts` — `SnapshotStore`: snapshot content-addressed, dedup theo SHA-256.
+- `src/artifact-tracker.ts` — `ArtifactTracker.capture`: transaction get-or-create artifact → change (PENDING) → snapshot.
+- `src/change-status-subscriber.ts` — writer duy nhất của `changes.status` (PENDING → VERIFIED → REVIEWED, any → ROLLED_BACK).
+
+Chưa có: diff engine (Day 17), provenance chain assembly (Day 17+).
 
 ---
 
@@ -144,14 +151,14 @@ packages/artifact-tracker → import @harness/domain, @harness/event-bus, @harne
 ```
 src/
 ├── index.ts
-├── artifact-tracker.ts         # Capture service (transactional)
-├── snapshot-store.ts           # Content-addressed storage
-├── diff-engine.ts              # Unified diff + line counts
-├── provenance.ts               # ProvenanceChain assembly query
-├── subscribers/
-│   └── change-status-subscriber.ts
+├── artifact-tracker.ts            # Capture service (transactional)
+├── snapshot-store.ts              # Content-addressed storage
+├── change-status-subscriber.ts    # Sole writer of changes.status
+├── capture/
+│   └── artifact-capture-subscriber.ts
 └── __tests__/
     ├── artifact-tracker.test.ts
     ├── snapshot-store.test.ts
-    └── diff-engine.test.ts
+    ├── change-status-subscriber.test.ts
+    └── no-delete.test.ts
 ```

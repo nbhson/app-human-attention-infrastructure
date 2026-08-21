@@ -26,7 +26,12 @@ import {
   TrajectoryRecorder,
 } from '@harness/agent-runtime';
 import type { LLMProvider } from '@harness/agent-runtime';
-import { ArtifactCaptureSubscriber } from '@harness/artifact-tracker';
+import {
+  ArtifactCaptureSubscriber,
+  ArtifactTracker,
+  ChangeStatusSubscriber,
+  SnapshotStore,
+} from '@harness/artifact-tracker';
 import { Container, TOKENS } from '@harness/di';
 import { EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -48,7 +53,6 @@ const ENGINE_STUB_TOKENS = [
   TOKENS.Orchestrator,
   TOKENS.AgentRuntime,
   TOKENS.ContextEngine,
-  TOKENS.ArtifactTracker,
   TOKENS.AttentionEngine,
   TOKENS.VerificationEngine,
 ] as const;
@@ -99,10 +103,32 @@ export function buildContainer(): Container {
     return writer;
   });
 
-  // Day 13: every write_file publishes artifact.created; this subscriber turns it
-  // into an artifacts row (lightweight stub — the full Tracker lands Day 14).
+  // Day 14: the full Artifact Tracker. `SnapshotStore` is content-addressed
+  // storage; `ArtifactTracker.capture` is the transactional
+  // get-or-create-artifact → change → snapshot writer. The Day-13 capture
+  // subscriber now forwards `artifact.created` into the tracker instead of doing
+  // its own inline insert.
+  c.register(TOKENS.SnapshotStore, () => new SnapshotStore());
+
+  c.register(TOKENS.ArtifactTracker, (container) => {
+    return new ArtifactTracker(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<SnapshotStore>(TOKENS.SnapshotStore),
+    );
+  });
+
   c.register(TOKENS.ArtifactCaptureSubscriber, (container) => {
-    const subscriber = new ArtifactCaptureSubscriber(container.resolve<DrizzleDB>(TOKENS.Db));
+    const subscriber = new ArtifactCaptureSubscriber(
+      container.resolve<ArtifactTracker>(TOKENS.ArtifactTracker),
+    );
+    subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
+    return subscriber;
+  });
+
+  // Day 14: the sole writer of `changes.status` — PENDING→VERIFIED→REVIEWED and
+  // any→ROLLED_BACK, driven only by events (day-14 §2.5). Idle until Days 15/22.
+  c.register(TOKENS.ChangeStatusSubscriber, (container) => {
+    const subscriber = new ChangeStatusSubscriber(container.resolve<DrizzleDB>(TOKENS.Db));
     subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
     return subscriber;
   });

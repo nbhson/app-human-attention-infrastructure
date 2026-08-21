@@ -16,6 +16,7 @@ for (const token of Object.values(TOKENS)) {
 }
 container.resolve(TOKENS.EventLogWriter);
 container.resolve(TOKENS.ArtifactCaptureSubscriber);
+container.resolve(TOKENS.ChangeStatusSubscriber);
 
 // Start the pull-based dispatch loop (§2.5). The interval is configurable via
 // env so it never needs to be hardcoded here.
