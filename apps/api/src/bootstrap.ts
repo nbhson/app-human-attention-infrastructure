@@ -32,6 +32,7 @@ import {
   ArtifactCaptureSubscriber,
   ArtifactTracker,
   ChangeStatusSubscriber,
+  DiffEngine,
   SnapshotStore,
 } from '@harness/artifact-tracker';
 import { AttentionRouter, AttentionSubscriber } from '@harness/attention-engine';
@@ -329,12 +330,14 @@ export function buildContainer(): Container {
     );
   });
 
-  // Day 22: the review backend. It drives the task state machine and the Day-19
-  // alert-fatigue feedback loop through structural seams (R6 — review may not
-  // import orchestrator or attention-engine), wired here at the composition root.
+  // Day 22: the review backend. It drives the task state machine, the Day-19
+  // alert-fatigue feedback loop, and the Day-17 diff engine through structural
+  // seams (R6 — review may not import orchestrator, attention-engine, or
+  // artifact-tracker), wired here at the composition root.
   c.register(TOKENS.ReviewService, (container) => {
     const taskService = container.resolve<TaskService>(TOKENS.TaskService);
     const attentionRouter = container.resolve<AttentionRouter>(TOKENS.AttentionRouter);
+    const diffEngine = new DiffEngine(container.resolve<DrizzleDB>(TOKENS.Db));
     return new ReviewService(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<IEventBus>(TOKENS.EventBus),
@@ -346,6 +349,7 @@ export function buildContainer(): Container {
         reportAssessmentFeedback: (assessmentId, wasUseful, comment) =>
           attentionRouter.reportAssessmentFeedback(assessmentId, wasUseful, comment),
       },
+      { diffChange: (changeId) => diffEngine.diffChange(changeId) },
     );
   });
 

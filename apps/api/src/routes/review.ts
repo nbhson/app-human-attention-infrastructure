@@ -13,6 +13,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { brand } from '@harness/domain';
 import {
+  EvidenceNotFoundError,
   MissingRationaleError,
   QueueConflictError,
   QueueItemNotFoundError,
@@ -39,7 +40,7 @@ interface DropBody {
 
 /** Map a review failure onto the right HTTP status (day-22 §3.3). */
 function toErrorReply(reply: FastifyReply, error: unknown): FastifyReply {
-  if (error instanceof QueueItemNotFoundError) {
+  if (error instanceof QueueItemNotFoundError || error instanceof EvidenceNotFoundError) {
     return reply.code(404).send({ error: error.message });
   }
   if (error instanceof QueueConflictError || error instanceof QueueStateError) {
@@ -56,7 +57,18 @@ function toErrorReply(reply: FastifyReply, error: unknown): FastifyReply {
 
 /** Register the five review endpoints under `/api/review`. */
 export function registerReviewRoutes(app: FastifyInstance, reviewService: ReviewService): void {
-  app.get('/api/review/queue', async () => reviewService.listQueue());
+  app.get<{ Querystring: { status?: string } }>('/api/review/queue', async (request) =>
+    reviewService.listQueue(request.query.status),
+  );
+
+  app.get<{ Params: { id: string } }>('/api/review/evidence/:id', async (request, reply) => {
+    try {
+      const { id } = request.params;
+      return await reviewService.getEvidence(brand(id, 'EvidenceID'));
+    } catch (error) {
+      return toErrorReply(reply, error);
+    }
+  });
 
   app.get<{ Params: { id: string } }>('/api/review/queue/:id', async (request, reply) => {
     try {
