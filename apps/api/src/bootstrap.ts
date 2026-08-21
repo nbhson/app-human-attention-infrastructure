@@ -10,7 +10,16 @@
  * else that needs the bus must `resolve(TOKENS.EventBus)`.
  */
 
-import { AnthropicProvider, LoggingLLMProvider, MockLLM } from '@harness/agent-runtime';
+import {
+  AgentRunner,
+  AnthropicProvider,
+  LoggingLLMProvider,
+  MockLLM,
+  noopTool,
+  RuntimePollLoop,
+  ToolRegistry,
+} from '@harness/agent-runtime';
+import type { LLMProvider } from '@harness/agent-runtime';
 import { Container, TOKENS } from '@harness/di';
 import { EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -19,6 +28,7 @@ import type { IEventBus } from '@harness/event-bus';
 import {
   Dispatcher,
   DispatchLoop,
+  LINEAR_WORKFLOW_V1,
   StepKind,
   TaskService,
   TaskStateMachine,
@@ -125,6 +135,40 @@ export function buildContainer(): Container {
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<TaskService>(TOKENS.TaskService),
       handlers,
+    );
+  });
+
+  // Day 12: the tool catalogue. `noop` is the Phase-1 stand-in (day-12 §6);
+  // real read_file/write_file/run_command tools land on Day 13.
+  c.register(TOKENS.ToolRegistry, () => {
+    const registry = new ToolRegistry();
+    registry.register(noopTool);
+    return registry;
+  });
+
+  // Day 12: the AgentRunner owns one task's execution. `TaskService` is injected
+  // through the runner's structural seam and the completion handoff is a closure
+  // that starts the linear workflow, so agent-runtime never imports orchestrator.
+  c.register(TOKENS.AgentRunner, (container) => {
+    const workflowRunner = container.resolve<WorkflowRunner>(TOKENS.WorkflowRunner);
+    const maxSteps = Number(process.env.AGENT_MAX_STEPS ?? '10');
+    const tokenLimit = Number(process.env.AGENT_TOKEN_BUDGET ?? '50000');
+    return new AgentRunner(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<LLMProvider>(TOKENS.LLMProvider),
+      container.resolve<ToolRegistry>(TOKENS.ToolRegistry),
+      container.resolve<TaskService>(TOKENS.TaskService),
+      { runLinearWorkflow: (taskId) => workflowRunner.run(taskId, LINEAR_WORKFLOW_V1) },
+      maxSteps,
+      tokenLimit,
+    );
+  });
+
+  c.register(TOKENS.RuntimePollLoop, (container) => {
+    return new RuntimePollLoop(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<AgentRunner>(TOKENS.AgentRunner),
     );
   });
 

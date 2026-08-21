@@ -46,6 +46,7 @@ export const agentRunStatuses = [
   'FINALIZING',
   'COMPLETED',
   'FAILED',
+  'ESCALATED',
   'CANCELLED',
   'ERROR',
 ] as const;

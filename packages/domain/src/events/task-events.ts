@@ -34,14 +34,17 @@ export interface TaskStateChangedPayload {
   readonly attempt_number: number;
 }
 
+/** How an agent run ended (day-12 §2.6). */
+export type AgentExecutionOutcome = 'COMPLETED' | 'ESCALATED';
+
 /** Payload for {@link import('./event-types.js').EventType.TaskExecutionFinished}. */
 export interface TaskExecutionFinishedPayload {
   /** The task that finished executing. */
   readonly task_id: TaskID;
   /** The agent run that executed it. */
   readonly agent_run_id: AgentRunID;
-  /** Terminal task status. */
-  readonly status: TaskStatus;
+  /** Terminal outcome: `COMPLETED` (end_turn) or `ESCALATED` (max_steps/token budget). */
+  readonly outcome: AgentExecutionOutcome;
   /** Total execution duration in milliseconds. */
   readonly duration_ms: number;
 }

@@ -124,6 +124,12 @@ importers:
       '@harness/domain':
         specifier: workspace:^
         version: link:../domain
+      '@harness/event-bus':
+        specifier: workspace:^
+        version: link:../event-bus
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
       '@types/node':
         specifier: ^22.10.1

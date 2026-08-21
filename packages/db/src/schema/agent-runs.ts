@@ -17,6 +17,10 @@ export const agentRuns = pgTable(
     finished_at: timestamp('finished_at', { withTimezone: true }),
     max_steps: integer('max_steps').notNull(),
     steps_used: integer('steps_used').notNull().default(0),
+    // How far the loop got (day-12 §6: crash visibility).
+    current_step: integer('current_step').notNull().default(0),
+    // Populated when status = 'ESCALATED' (MAX_STEPS_EXCEEDED | TOKEN_BUDGET_EXCEEDED).
+    escalation_reason: text('escalation_reason'),
   },
   () => [agentRunStatusCheck],
 );

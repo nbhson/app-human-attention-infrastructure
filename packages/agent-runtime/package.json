@@ -22,7 +22,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
     "@harness/db": "workspace:^",
-    "@harness/domain": "workspace:^"
+    "@harness/domain": "workspace:^",
+    "@harness/event-bus": "workspace:^",
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

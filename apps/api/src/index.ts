@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 
+import type { RuntimePollLoop } from '@harness/agent-runtime';
 import { TOKENS } from '@harness/di';
 import type { DispatchLoop } from '@harness/orchestrator';
 
@@ -20,6 +21,10 @@ container.resolve(TOKENS.EventLogWriter);
 const dispatchLoop = container.resolve<DispatchLoop>(TOKENS.DispatchLoop);
 dispatchLoop.start(Number(process.env.DISPATCH_INTERVAL_MS ?? '2000'));
 
+// Day 12: the runtime poll loop executes QUEUED tasks alongside dispatch.
+const runtimePollLoop = container.resolve<RuntimePollLoop>(TOKENS.RuntimePollLoop);
+runtimePollLoop.start(Number(process.env.RUNTIME_POLL_INTERVAL_MS ?? '2000'));
+
 app.get('/health', async () => ({ status: 'ok' }));
 
 const start = async (): Promise<void> => {
@@ -31,9 +36,10 @@ const start = async (): Promise<void> => {
   }
 };
 
-// Stop cleanly on shutdown: halt the poll loop, then let the process exit.
+// Stop cleanly on shutdown: halt both poll loops, then let the process exit.
 const shutdown = (): void => {
   dispatchLoop.stop();
+  runtimePollLoop.stop();
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);
