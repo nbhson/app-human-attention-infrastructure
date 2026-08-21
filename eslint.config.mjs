@@ -65,7 +65,11 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        // Day-25 E2E driver lives outside `src/` (and outside the api tsconfig);
+        // lint it under a default project so type-aware rules still apply.
+        projectService: {
+          allowDefaultProject: ['apps/api/scripts/*.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },

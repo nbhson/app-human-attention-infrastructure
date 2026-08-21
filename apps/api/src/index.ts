@@ -1,30 +1,19 @@
-import Fastify from 'fastify';
-
 import type { RuntimePollLoop } from '@harness/agent-runtime';
+
 import { TOKENS } from '@harness/di';
 import type { DispatchLoop } from '@harness/orchestrator';
-import type { ReviewService } from '@harness/review';
 
-import { buildContainer } from './bootstrap.js';
-import { registerReviewRoutes } from './routes/review.js';
-
-const app = Fastify({ logger: true });
+import { buildApp } from './app.js';
+import { bootContainer, buildContainer } from './bootstrap.js';
 
 // Build the object graph and resolve the core infrastructure eagerly so a
 // missing DATABASE_URL or broken wiring fails fast at boot, not on first use.
 const container = buildContainer();
+const app = buildApp(container, { logger: true });
 for (const token of Object.values(TOKENS)) {
   app.log.info(`di: registered token "${token}"`);
 }
-container.resolve(TOKENS.EventLogWriter);
-container.resolve(TOKENS.ArtifactCaptureSubscriber);
-container.resolve(TOKENS.ChangeStatusSubscriber);
-container.resolve(TOKENS.AttentionSubscriber);
-container.resolve(TOKENS.AttentionRouter);
-container.resolve(TOKENS.ContextEngine);
-container.resolve(TOKENS.ReviewService);
-container.resolve(TOKENS.MergeService);
-container.resolve(TOKENS.ReworkService);
+bootContainer(container);
 
 // Start the pull-based dispatch loop (§2.5). The interval is configurable via
 // env so it never needs to be hardcoded here.
@@ -34,11 +23,6 @@ dispatchLoop.start(Number(process.env.DISPATCH_INTERVAL_MS ?? '2000'));
 // Day 12: the runtime poll loop executes QUEUED tasks alongside dispatch.
 const runtimePollLoop = container.resolve<RuntimePollLoop>(TOKENS.RuntimePollLoop);
 runtimePollLoop.start(Number(process.env.RUNTIME_POLL_INTERVAL_MS ?? '2000'));
-
-app.get('/health', async () => ({ status: 'ok' }));
-
-// Day 22: the human-review endpoints (queue list/claim/decide/drop).
-registerReviewRoutes(app, container.resolve<ReviewService>(TOKENS.ReviewService));
 
 const start = async (): Promise<void> => {
   try {

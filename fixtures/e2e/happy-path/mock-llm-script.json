@@ -1,0 +1,31 @@
+[
+  {
+    "content": "",
+    "toolCalls": [
+      { "id": "c1", "name": "read_file", "input": { "path": "src/greeting.ts" } }
+    ],
+    "usage": { "inputTokens": 12, "outputTokens": 8 },
+    "stopReason": "tool_use"
+  },
+  {
+    "content": "",
+    "toolCalls": [
+      {
+        "id": "c2",
+        "name": "write_file",
+        "input": {
+          "path": "src/greeting.ts",
+          "content": "/** A tiny greeting helper (fixed by the happy-path agent). */\nexport function greeting(name: string): string {\n  return `Hello, ${name.toLowerCase()}!`;\n}\n"
+        }
+      }
+    ],
+    "usage": { "inputTokens": 14, "outputTokens": 12 },
+    "stopReason": "tool_use"
+  },
+  {
+    "content": "Fixed the greeting helper to lowercase the name with `toLowerCase`.",
+    "toolCalls": [],
+    "usage": { "inputTokens": 10, "outputTokens": 6 },
+    "stopReason": "end_turn"
+  }
+]

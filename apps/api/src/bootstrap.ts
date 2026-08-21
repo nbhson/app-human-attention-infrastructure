@@ -10,7 +10,7 @@
  * else that needs the bus must `resolve(TOKENS.EventBus)`.
  */
 
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 
 import { and, desc, eq } from 'drizzle-orm';
 
@@ -27,7 +27,7 @@ import {
   ToolRegistry,
   TrajectoryRecorder,
 } from '@harness/agent-runtime';
-import type { LLMProvider } from '@harness/agent-runtime';
+import type { LLMProvider, MockScript } from '@harness/agent-runtime';
 import {
   ArtifactCaptureSubscriber,
   ArtifactTracker,
@@ -93,6 +93,22 @@ function notYetImplemented(token: string): object {
       },
     },
   );
+}
+
+/**
+ * Load a canned {@link MockScript} from a JSON path (day-25 §3.1). The E2E demo
+ * needs a deterministic agent, so it points `MOCK_LLM_SCRIPT` at a fixture and
+ * leaves `ANTHROPIC_API_KEY` unset. An unset path yields an empty script, which
+ * fails loudly on first use (day-11 §6).
+ */
+function loadMockScript(envVar: string | undefined): MockScript {
+  if (!envVar) {
+    return [];
+  }
+  if (!existsSync(envVar)) {
+    throw new Error(`MOCK_LLM_SCRIPT file not found: ${envVar}`);
+  }
+  return JSON.parse(readFileSync(envVar, 'utf8')) as MockScript;
 }
 
 /**
@@ -318,9 +334,10 @@ export function buildContainer(): Container {
   // set; otherwise an empty MockLLM so the graph builds but any live call fails
   // loudly (day-11 §6). Wrapped in LoggingLLMProvider for provenance.
   c.register(TOKENS.LLMProvider, (container) => {
-    const raw = process.env.ANTHROPIC_API_KEY
-      ? new AnthropicProvider(process.env.ANTHROPIC_API_KEY)
-      : new MockLLM([]);
+    const key = process.env.ANTHROPIC_API_KEY;
+    const raw = key
+      ? new AnthropicProvider(key)
+      : new MockLLM(loadMockScript(process.env.MOCK_LLM_SCRIPT));
     return new LoggingLLMProvider(raw, container.resolve<DrizzleDB>(TOKENS.Db));
   });
 
@@ -473,4 +490,22 @@ export function buildContainer(): Container {
   }
 
   return c;
+}
+
+/**
+ * Resolve every eagerly-initialised token so its side effect (bus subscription)
+ * is live before any task runs. The server (`index.ts`) and the Day-25 E2E
+ * driver both call this — component registrations are lazy, so without an eager
+ * resolve the subscribers never bind to the bus.
+ */
+export function bootContainer(container: Container): void {
+  container.resolve(TOKENS.EventLogWriter);
+  container.resolve(TOKENS.ArtifactCaptureSubscriber);
+  container.resolve(TOKENS.ChangeStatusSubscriber);
+  container.resolve(TOKENS.AttentionSubscriber);
+  container.resolve(TOKENS.AttentionRouter);
+  container.resolve(TOKENS.ContextEngine);
+  container.resolve(TOKENS.ReviewService);
+  container.resolve(TOKENS.MergeService);
+  container.resolve(TOKENS.ReworkService);
 }
