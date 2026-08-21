@@ -30,6 +30,7 @@ export const TOKENS = {
   ContextEngine: 'ContextEngine',
   ArtifactTracker: 'ArtifactTracker',
   AttentionEngine: 'AttentionEngine',
+  AttentionSubscriber: 'AttentionSubscriber',
   VerificationEngine: 'VerificationEngine',
 } as const;
 

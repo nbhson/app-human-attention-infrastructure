@@ -34,6 +34,7 @@ import {
   ChangeStatusSubscriber,
   SnapshotStore,
 } from '@harness/artifact-tracker';
+import { AttentionSubscriber } from '@harness/attention-engine';
 import { Container, TOKENS } from '@harness/di';
 import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -215,6 +216,17 @@ export function buildContainer(): Container {
   // any→ROLLED_BACK, driven only by events (day-14 §2.5). Idle until Days 15/22.
   c.register(TOKENS.ChangeStatusSubscriber, (container) => {
     const subscriber = new ChangeStatusSubscriber(container.resolve<DrizzleDB>(TOKENS.Db));
+    subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
+    return subscriber;
+  });
+
+  // Day 18: the Attention Engine's scoring subscriber. On `task.state_changed`
+  // → AWAITING_REVIEW it computes the five Phase-1 factors, inserts an
+  // `assessments` row, and publishes `attention.assessment_created`. The
+  // `AttentionEngine` token itself stays a stub until its build day; this
+  // subscriber is the engine's live integration point.
+  c.register(TOKENS.AttentionSubscriber, (container) => {
+    const subscriber = new AttentionSubscriber(container.resolve<DrizzleDB>(TOKENS.Db));
     subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
     return subscriber;
   });
