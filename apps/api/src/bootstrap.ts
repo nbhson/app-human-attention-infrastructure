@@ -15,7 +15,7 @@ import { EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import { TaskService, TaskStateMachine } from '@harness/orchestrator';
+import { Dispatcher, DispatchLoop, TaskService, TaskStateMachine } from '@harness/orchestrator';
 
 /** Engine tokens registered as stubs until their build day (Days 06+). */
 const ENGINE_STUB_TOKENS = [
@@ -69,8 +69,7 @@ export function buildContainer(): Container {
     return writer;
   });
 
-  // Day 06: the canonical state machine + its public service. The full
-  // Orchestrator dispatch loop (Day 08) is still a stub below.
+  // Day 06: the canonical state machine + its public service.
   c.register(TOKENS.TaskStateMachine, () => new TaskStateMachine());
 
   c.register(TOKENS.TaskService, (container) => {
@@ -79,6 +78,20 @@ export function buildContainer(): Container {
       container.resolve<IEventBus>(TOKENS.EventBus),
       container.resolve<TaskStateMachine>(TOKENS.TaskStateMachine),
     );
+  });
+
+  // Day 08: the pull-based dispatch core. `Dispatcher` drives PENDING/REWORK →
+  // QUEUED (or FAILED) via `TaskService`; `DispatchLoop` polls it on an interval.
+  // The full multi-step Orchestrator (linear workflow, Day 09) is still a stub.
+  c.register(TOKENS.Dispatcher, (container) => {
+    return new Dispatcher(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<TaskService>(TOKENS.TaskService),
+    );
+  });
+
+  c.register(TOKENS.DispatchLoop, (container) => {
+    return new DispatchLoop(container.resolve<Dispatcher>(TOKENS.Dispatcher));
   });
 
   // Engines are wired on their own build days; until then each token resolves

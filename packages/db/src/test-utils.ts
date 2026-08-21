@@ -52,3 +52,20 @@ export async function destroyTestDb(testDb: TestDb, schemaName: string): Promise
   await testDb.sql.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
   await testDb.sql.end();
 }
+
+/**
+ * Open a *second* independent connection (max 1) onto an already-created test
+ * schema, pointed at the same `search_path`. This exists for concurrency tests
+ * that need two truly-independent transactions (e.g. `SKIP LOCKED`): two
+ * Dispatchers, one on `createTestDb`'s connection and one on this, can contend
+ * on the same row without serialising on a shared pool.
+ *
+ * The schema lifecycle is the caller's: call `sql.end()` on the returned client
+ * when done, but do **not** pass it to {@link destroyTestDb}.
+ */
+export async function openTestDbConnection(schemaName: string): Promise<TestDb> {
+  const sql = postgres(testConnectionString(), { max: 1, onnotice: () => {} });
+  await sql.unsafe(`SET search_path TO "${schemaName}"`);
+  const db = drizzle(sql, { schema });
+  return { sql, db };
+}

@@ -8,6 +8,7 @@ export * from './assessments.js';
 export * from './changes.js';
 export * from './contexts.js';
 export * from './decisions.js';
+export * from './dispatch-log.js';
 export * from './event-log.js';
 export * from './projects.js';
 export * from './snapshots.js';

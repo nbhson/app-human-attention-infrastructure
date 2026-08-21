@@ -58,6 +58,7 @@ function toRecord(row: TaskRow): TaskRecord {
     description: row.description,
     state: row.state as TaskState,
     attemptNumber: row.attempt_number,
+    maxAttempts: row.max_attempts,
     assignedAgent: row.assigned_agent,
     idempotencyKey: row.idempotency_key,
     createdAt: row.created_at,
@@ -101,6 +102,7 @@ export class TaskService {
         description: input.description ?? null,
         state: TaskStatus.Pending,
         attempt_number: attemptNumber,
+        max_attempts: input.maxAttempts ?? 3,
         assigned_agent: null,
         idempotency_key: `${id}:${attemptNumber}`,
       })

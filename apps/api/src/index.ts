@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 
 import { TOKENS } from '@harness/di';
+import type { DispatchLoop } from '@harness/orchestrator';
 
 import { buildContainer } from './bootstrap.js';
 
@@ -14,6 +15,11 @@ for (const token of Object.values(TOKENS)) {
 }
 container.resolve(TOKENS.EventLogWriter);
 
+// Start the pull-based dispatch loop (§2.5). The interval is configurable via
+// env so it never needs to be hardcoded here.
+const dispatchLoop = container.resolve<DispatchLoop>(TOKENS.DispatchLoop);
+dispatchLoop.start(Number(process.env.DISPATCH_INTERVAL_MS ?? '2000'));
+
 app.get('/health', async () => ({ status: 'ok' }));
 
 const start = async (): Promise<void> => {
@@ -24,5 +30,13 @@ const start = async (): Promise<void> => {
     process.exit(1);
   }
 };
+
+// Stop cleanly on shutdown: halt the poll loop, then let the process exit.
+const shutdown = (): void => {
+  dispatchLoop.stop();
+  process.exit(0);
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 void start();

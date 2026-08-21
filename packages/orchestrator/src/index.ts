@@ -16,4 +16,9 @@ export {
 export { TaskService } from './task-service.js';
 export type { TransitionOptions } from './task-service.js';
 
+export { Dispatcher } from './dispatch/dispatcher.js';
+export type { DispatchResult } from './dispatch/dispatcher.js';
+export { DispatchLoop } from './dispatch/dispatch-loop.js';
+export type { DispatchLoopLogger } from './dispatch/dispatch-loop.js';
+
 export type { CreateTaskParams, TaskRecord, TaskStateHistoryEntry } from './types.js';

@@ -15,6 +15,13 @@
       "when": 1787317427799,
       "tag": "0001_nebulous_joseph",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787320013023,
+      "tag": "0002_spooky_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

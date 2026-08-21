@@ -17,6 +17,7 @@ export interface TaskRecord {
   readonly description: string | null;
   readonly state: TaskStatus;
   readonly attemptNumber: number;
+  readonly maxAttempts: number;
   readonly assignedAgent: string | null;
   readonly idempotencyKey: string;
   readonly createdAt: Date;
@@ -29,6 +30,8 @@ export interface CreateTaskParams {
   readonly projectId: ProjectID;
   readonly title: string;
   readonly description?: string | null;
+  /** Re-dispatch bound (day-08 §2.4). Defaults to 3 when omitted. */
+  readonly maxAttempts?: number;
 }
 
 /** One row of the `task_state_history` audit trail (day-06 §2.3). */

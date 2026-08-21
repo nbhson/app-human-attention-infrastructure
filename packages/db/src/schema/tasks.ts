@@ -18,6 +18,9 @@ export const tasks = pgTable(
     description: text('description'),
     state: text('state').notNull().default('PENDING'),
     attempt_number: integer('attempt_number').notNull().default(0),
+    // Bound on re-dispatch: a REWORK task with attempt_number >= max_attempts is
+    // FAILED rather than QUEUED (day-08 §2.4).
+    max_attempts: integer('max_attempts').notNull().default(3),
     assigned_agent: text('assigned_agent'),
     // `task_id + attempt_number` — idempotency guard against double dispatch.
     idempotency_key: text('idempotency_key').notNull().unique(),
