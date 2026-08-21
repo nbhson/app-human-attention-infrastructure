@@ -75,6 +75,19 @@ export const verificationStatuses = [
 
 export const priorityLabels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 
+/**
+ * Per-check result status (day-15 §2.1, engine-local `CheckStatus`). Distinct
+ * from the overall `verificationStatuses` above: `TIMED_OUT` names a single
+ * check that exceeded its budget, whereas `TIMEOUT` is an overall verification
+ * outcome. `CheckStatus` lives in `@harness/verification-engine` (an engine may
+ * not be imported by `db`), so these are plain-text copies, like the domain
+ * enums above.
+ */
+export const checkStatuses = ['PASSED', 'FAILED', 'FLAKY', 'TIMED_OUT', 'SKIPPED'] as const;
+
+/** `verification_reports.overall` — the two possible aggregate verdicts. */
+export const reportOverallStatuses = ['PASSED', 'FAILED'] as const;
+
 export const humanDecisionTypes = [
   'APPROVED',
   'REJECTED',
@@ -108,6 +121,20 @@ export const verificationStatusCheck = inList(
   'verification_results_status_check',
   'status',
   verificationStatuses,
+);
+
+/** `verification_check_results.status`. */
+export const checkStatusCheck = inList(
+  'verification_check_results_status_check',
+  'status',
+  checkStatuses,
+);
+
+/** `verification_reports.overall`. */
+export const reportOverallCheck = inList(
+  'verification_reports_overall_check',
+  'overall',
+  reportOverallStatuses,
 );
 
 /** `assessments.label`. */

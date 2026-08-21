@@ -10,7 +10,15 @@ Nói nôm na: AI bảo "xong rồi" thì chưa tính; gói này chạy test & bu
 
 ## Trạng thái hiện tại
 
-Stubs: `src/index.ts` chỉ export string `'verification-engine'`. Chưa có implementation.
+**Day 15 hoàn thành:**
+
+- `src/types.ts` — `CheckKind`, `CheckStatus`, `CheckResult`, `CheckContext`, `VerificationCheck`, `VerificationReport`.
+- `src/checks/compile-check.ts` — `CompileCheck` chạy `tsc --noEmit -p <worktree>` in-process, under `sanitizedEnv`, cap 64 KB output.
+- `src/verification-engine.ts` — `verify(changeId)`: full/parallel strategy, hai mức timeout (per-check + request), persist `verification_reports` + `verification_check_results`, publish `verification.completed`.
+- `src/timeout.ts` — `withTimeout`, `CheckTimeoutError`, `RequestTimeoutError`.
+- `src/env.ts` — `sanitizedEnv`, `readInt`, `truncateOutput`.
+
+**Còn lại:** Day 16 (`TestCheck` + flaky), Day 17 (evidence storage), Day 22+ (human review hand-off).
 
 ---
 

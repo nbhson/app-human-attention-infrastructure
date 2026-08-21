@@ -12,6 +12,8 @@
 
 import { mkdirSync } from 'node:fs';
 
+import { and, desc, eq } from 'drizzle-orm';
+
 import {
   AgentRunner,
   AnthropicProvider,
@@ -33,13 +35,16 @@ import {
   SnapshotStore,
 } from '@harness/artifact-tracker';
 import { Container, TOKENS } from '@harness/di';
-import { EventLogWriter, createDb } from '@harness/db';
+import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
+import { brand, ChangeStatus, TaskStatus } from '@harness/domain';
+import type { ChangeID, TaskID } from '@harness/domain';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import {
   Dispatcher,
   DispatchLoop,
+  FailureClass,
   LINEAR_WORKFLOW_V1,
   StepKind,
   TaskService,
@@ -47,6 +52,7 @@ import {
   WorkflowRunner,
 } from '@harness/orchestrator';
 import type { StepHandler } from '@harness/orchestrator';
+import { CompileCheck, VerificationEngine } from '@harness/verification-engine';
 
 /** Engine tokens registered as stubs until their build day (Days 06+). */
 const ENGINE_STUB_TOKENS = [
@@ -54,7 +60,6 @@ const ENGINE_STUB_TOKENS = [
   TOKENS.AgentRuntime,
   TOKENS.ContextEngine,
   TOKENS.AttentionEngine,
-  TOKENS.VerificationEngine,
 ] as const;
 
 /**
@@ -75,6 +80,82 @@ function notYetImplemented(token: string): object {
       },
     },
   );
+}
+
+/**
+ * Resolve the task's latest `PENDING` change through `agent_runs` (day-15 §2.5).
+ * A change is produced by an agent run, so the join is `changes → agent_runs →
+ * task`. Returns `null` when the task has not produced a change yet.
+ */
+async function findLatestPendingChangeId(db: DrizzleDB, taskId: TaskID): Promise<ChangeID | null> {
+  const rows = await db
+    .select({ id: changes.id })
+    .from(changes)
+    .innerJoin(agentRuns, eq(agentRuns.id, changes.agent_run_id))
+    .where(and(eq(agentRuns.task_id, taskId), eq(changes.status, ChangeStatus.Pending)))
+    .orderBy(desc(changes.created_at))
+    .limit(1);
+  const id = rows[0]?.id;
+  return id ? brand(id, 'ChangeID') : null;
+}
+
+/**
+ * The VERIFY step handler (day-15 §2.2, §2.5).
+ *
+ * Owns the `VERIFYING` lifecycle — the line before it is EXECUTING, so it enters
+ * `VERIFYING` first, then drives the engine and lands the task in `AWAITING_REVIEW`
+ * (PASSED) or `REWORK` (FAILED). It always returns `{ ok: true }` on a verdict, so
+ * the {@link WorkflowRunner} never escalates a *failed verification* to
+ * `AWAITING_HUMAN_INTERVENTION` — a failing change is a REWORK, not an infra error.
+ */
+function makeVerifyHandler(container: Container): StepHandler {
+  return async (stepCtx) => {
+    const db = container.resolve<DrizzleDB>(TOKENS.Db);
+    const taskService = container.resolve<TaskService>(TOKENS.TaskService);
+    const engine = container.resolve<VerificationEngine>(TOKENS.VerificationEngine);
+
+    const task = await taskService.getTask(stepCtx.taskId);
+    if (!task) {
+      return {
+        ok: false,
+        error: 'task not found',
+        failureClass: FailureClass.PERMANENT,
+        retriable: false,
+      };
+    }
+
+    // Enter the VERIFYING state (EXECUTING → VERIFYING). REWORK re-dispatch keeps
+    // the task in REWORK/EXECUTING, so guard on the current state.
+    if (task.state === TaskStatus.Executing) {
+      await taskService.transitionTask(stepCtx.taskId, TaskStatus.Verifying, 'verification_engine');
+    }
+
+    const changeId = await findLatestPendingChangeId(db, stepCtx.taskId);
+    if (!changeId) {
+      // No change to verify: request infra gap, not a REWORK-able failure.
+      await taskService.transitionTask(stepCtx.taskId, TaskStatus.Failed, 'verification_engine');
+      return { ok: true, output: { error: 'no pending change to verify' } };
+    }
+
+    const report = await engine.verify(changeId);
+
+    if (report.overall === 'PASSED') {
+      await taskService.transitionTask(
+        stepCtx.taskId,
+        TaskStatus.AwaitingReview,
+        'verification_engine',
+      );
+      return { ok: true, output: { reportId: report.id } };
+    }
+
+    await taskService.transitionTask(stepCtx.taskId, TaskStatus.Rework, 'verification_engine', {
+      rationale:
+        report.failedChecks.length > 0
+          ? `verification failed: ${report.failedChecks.join(', ')}`
+          : 'verification failed',
+    });
+    return { ok: true, output: { reportId: report.id, failedChecks: report.failedChecks } };
+  };
 }
 
 /** Build the full container, wiring every token in dependency order. */
@@ -133,6 +214,16 @@ export function buildContainer(): Container {
     return subscriber;
   });
 
+  // Day 15: the Verification Engine — full/parallel strategy, two-level timeouts,
+  // and the first real check (CompileCheck). Resolved by the VERIFY step handler.
+  c.register(TOKENS.VerificationEngine, (container) => {
+    return new VerificationEngine(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      { checks: [new CompileCheck()] },
+    );
+  });
+
   // Day 11: the LLM provider abstraction. A real Anthropic adapter when a key is
   // set; otherwise an empty MockLLM so the graph builds but any live call fails
   // loudly (day-11 §6). Wrapped in LoggingLLMProvider for provenance.
@@ -168,13 +259,14 @@ export function buildContainer(): Container {
     return new DispatchLoop(container.resolve<Dispatcher>(TOKENS.Dispatcher));
   });
 
-  // Day 09: the linear workflow runner. Step handlers are Phase-1 stubs here
-  // (real engines land on Days 12/15/20); the runner is orchestration-only.
+  // Day 09: the linear workflow runner. COLLECT_CONTEXT/EXECUTE are Phase-1
+  // stubs (context lands Day 20; EXECUTE is driven by RuntimePollLoop's AgentRunner
+  // handoff, not this handler); VERIFY is the real Verification Engine (Day 15).
   c.register(TOKENS.WorkflowRunner, (container) => {
     const handlers = new Map<StepKind, StepHandler>([
       [StepKind.COLLECT_CONTEXT, async () => ({ ok: true, output: { stub: true } })],
       [StepKind.EXECUTE, async () => ({ ok: true, output: { stub: true } })],
-      [StepKind.VERIFY, async () => ({ ok: true, output: { stub: true } })],
+      [StepKind.VERIFY, makeVerifyHandler(container)],
     ]);
     return new WorkflowRunner(
       container.resolve<DrizzleDB>(TOKENS.Db),

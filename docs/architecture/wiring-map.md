@@ -36,7 +36,7 @@ This table records the object graph built by `buildContainer()` (`apps/api/src/b
 | `ContextEngine` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (real impl Day 07+) |
 | `ArtifactTracker` | `ArtifactTracker(db, SnapshotStore)` | Day 14 | `ArtifactCaptureSubscriber` |
 | `AttentionEngine` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (real impl later) |
-| `VerificationEngine` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (real impl later) |
+| `VerificationEngine` | `VerificationEngine(db, EventBus, { checks: [new CompileCheck()] })` | Day 15 | VERIFY step handler of `WorkflowRunner` (drives `verify()` → publishes `verification.completed`) |
 
 ## Bootstrap order (topological)
 
@@ -46,17 +46,18 @@ This table records the object graph built by `buildContainer()` (`apps/api/src/b
 4. `ArtifactTracker` — needs `Db`, `SnapshotStore`.
 5. `ArtifactCaptureSubscriber` — needs `ArtifactTracker`, `EventBus`.
 6. `ChangeStatusSubscriber` — needs `Db`, `EventBus`.
-7. `TaskStateMachine` — no deps.
-8. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
-9. `Dispatcher` — needs `Db`, `TaskService`.
-10. `DispatchLoop` — needs `Dispatcher`.
-11. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (Phase 1 stubs).
-12. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter; falls back to an empty `MockLLM`.
-13. `ToolRegistry` — needs `EventBus` + `AGENT_ALLOWED_TOOLS`; registers `read_file`/`write_file`/`list_directory` into `SANDBOX_ROOT`.
-14. `TrajectoryRecorder` — needs `Db`.
-15. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, `TrajectoryRecorder`, plus the `WorkflowRunner` completion handoff.
-16. `RuntimePollLoop` — needs `Db`, `AgentRunner`.
-17. Engine slots — `Orchestrator`/`AgentRuntime`/`ContextEngine`/`AttentionEngine`/`VerificationEngine` registered as stubs today; wired to `IEventBus`/`Db` on their build days.
+7. `VerificationEngine` — needs `Db`, `EventBus`, plus its check set (Phase 1: `CompileCheck`). Resolved by the VERIFY step handler.
+8. `TaskStateMachine` — no deps.
+9. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
+10. `Dispatcher` — needs `Db`, `TaskService`.
+11. `DispatchLoop` — needs `Dispatcher`.
+12. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT`/`EXECUTE` stubs, real `VERIFY` → `VerificationEngine`).
+13. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter; falls back to an empty `MockLLM`.
+14. `ToolRegistry` — needs `EventBus` + `AGENT_ALLOWED_TOOLS`; registers `read_file`/`write_file`/`list_directory` into `SANDBOX_ROOT`.
+15. `TrajectoryRecorder` — needs `Db`.
+16. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, `TrajectoryRecorder`, plus the `WorkflowRunner` completion handoff.
+17. `RuntimePollLoop` — needs `Db`, `AgentRunner`.
+18. Engine slots — `Orchestrator`/`AgentRuntime`/`ContextEngine`/`AttentionEngine` registered as stubs today; wired on their build days.
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 
