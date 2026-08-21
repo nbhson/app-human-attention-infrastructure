@@ -2,7 +2,7 @@
  * Artifact change event payloads (artifact-tracker spec §2.2).
  */
 
-import type { AgentRunID, ArtifactID, ChangeID } from '../ids.js';
+import type { AgentRunID, ArtifactID, ChangeID, TaskID } from '../ids.js';
 import type { FileChangeType } from '../artifact.js';
 
 /** Payload for {@link import('./event-types.js').EventType.ArtifactChanged}. */
@@ -39,4 +39,12 @@ export interface ArtifactRollbackRequestedPayload {
   readonly change_id: ChangeID;
   /** Why the rollback was requested (a human decision or a policy). */
   readonly reason: string;
+}
+
+/** Payload for {@link import('./event-types.js').EventType.ArtifactMerged}. */
+export interface ArtifactMergedPayload {
+  /** The task whose approved change set was merged. */
+  readonly task_id: TaskID;
+  /** The git commit SHA produced by the merge (post-merge source of truth). */
+  readonly commit_sha: string;
 }

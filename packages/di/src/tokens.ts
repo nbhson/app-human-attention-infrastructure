@@ -34,6 +34,9 @@ export const TOKENS = {
   AttentionRouter: 'AttentionRouter',
   VerificationEngine: 'VerificationEngine',
   ReviewService: 'ReviewService',
+  GitAdapter: 'GitAdapter',
+  MergeService: 'MergeService',
+  ReworkService: 'ReworkService',
 } as const;
 
 /** The string union of every known token. */

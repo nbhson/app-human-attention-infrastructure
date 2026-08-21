@@ -48,3 +48,11 @@ export interface TaskExecutionFinishedPayload {
   /** Total execution duration in milliseconds. */
   readonly duration_ms: number;
 }
+
+/** Payload for {@link import('./event-types.js').EventType.TaskFailed}. */
+export interface TaskFailedPayload {
+  /** The task that failed terminally. */
+  readonly task_id: TaskID;
+  /** Why the task failed (e.g. `MAX_ATTEMPTS_EXHAUSTED`). */
+  readonly reason: string;
+}

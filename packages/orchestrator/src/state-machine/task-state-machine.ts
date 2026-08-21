@@ -29,8 +29,11 @@ const TRANSITIONS: ReadonlyMap<TaskState, ReadonlySet<TaskState>> = new Map([
     new Set([TaskStatus.AwaitingReview, TaskStatus.Rework, TaskStatus.Failed]),
   ],
   [TaskStatus.AwaitingReview, new Set([TaskStatus.Approved, TaskStatus.Rejected])],
-  [TaskStatus.Approved, new Set([TaskStatus.Completed])],
-  [TaskStatus.Rejected, new Set([TaskStatus.Rework, TaskStatus.Cancelled])],
+  // APPROVED → AWAITING_HUMAN_INTERVENTION is the merge-failure escape hatch
+  // (day-24 §2.1); APPROVED → COMPLETED is the "artifact merged" move.
+  [TaskStatus.Approved, new Set([TaskStatus.Completed, TaskStatus.AwaitingHumanIntervention])],
+  // REJECTED → FAILED is the max-attempts terminus (day-24 §2.2).
+  [TaskStatus.Rejected, new Set([TaskStatus.Rework, TaskStatus.Failed, TaskStatus.Cancelled])],
   [TaskStatus.Rework, new Set([TaskStatus.Queued, TaskStatus.Cancelled, TaskStatus.Failed])],
   [TaskStatus.Completed, new Set()],
   [TaskStatus.Failed, new Set([TaskStatus.Queued, TaskStatus.Cancelled])],

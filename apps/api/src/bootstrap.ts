@@ -63,6 +63,11 @@ import {
   VerificationEngine,
 } from '@harness/verification-engine';
 
+import { ShellGitAdapter } from './services/git-adapter.js';
+import type { GitAdapter } from './services/git-adapter.js';
+import { MergeService } from './services/merge.js';
+import { ReworkService } from './services/rework.js';
+
 /** Engine tokens registered as stubs until their build day (Days 06+). */
 const ENGINE_STUB_TOKENS = [
   TOKENS.Orchestrator,
@@ -351,6 +356,35 @@ export function buildContainer(): Container {
       },
       { diffChange: (changeId) => diffEngine.diffChange(changeId) },
     );
+  });
+
+  // Day 24: decision follow-through. `GitAdapter` owns the only git invocation
+  // (in apps/api — never in packages/*); `MergeService` closes the approve path
+  // and `ReworkService` the reject path. Both subscribe to `task.state_changed`.
+  c.register(
+    TOKENS.GitAdapter,
+    () => new ShellGitAdapter(process.env.WORKING_REPO_ROOT ?? './working-repo'),
+  );
+
+  c.register(TOKENS.MergeService, (container) => {
+    const service = new MergeService(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<GitAdapter>(TOKENS.GitAdapter),
+      container.resolve<TaskService>(TOKENS.TaskService),
+    );
+    service.subscribe();
+    return service;
+  });
+
+  c.register(TOKENS.ReworkService, (container) => {
+    const service = new ReworkService(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<TaskService>(TOKENS.TaskService),
+    );
+    service.subscribe();
+    return service;
   });
 
   // Day 08: the pull-based dispatch core. `Dispatcher` drives PENDING/REWORK →

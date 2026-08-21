@@ -26,10 +26,12 @@ const LEGAL: ReadonlyArray<readonly [TaskStatus, TaskStatus]> = [
   [TaskStatus.Rework, TaskStatus.Cancelled],
   [TaskStatus.Rework, TaskStatus.Failed],
   [TaskStatus.Rejected, TaskStatus.Rework],
+  [TaskStatus.Rejected, TaskStatus.Failed],
   [TaskStatus.Rejected, TaskStatus.Cancelled],
   [TaskStatus.AwaitingHumanIntervention, TaskStatus.Queued],
   [TaskStatus.AwaitingHumanIntervention, TaskStatus.Cancelled],
   [TaskStatus.Approved, TaskStatus.Completed],
+  [TaskStatus.Approved, TaskStatus.AwaitingHumanIntervention],
   [TaskStatus.Failed, TaskStatus.Queued],
   [TaskStatus.Failed, TaskStatus.Cancelled],
 ];

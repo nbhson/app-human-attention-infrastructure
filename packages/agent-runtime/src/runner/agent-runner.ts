@@ -19,7 +19,7 @@
  * - any other error → `agent_runs` becomes `FAILED` and the error rethrows.
  */
 
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
 import {
   AgentRunStatus,
@@ -38,7 +38,7 @@ import type {
 } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import { agentRuns } from '@harness/db';
+import { agentRuns, taskStateHistory } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 
 import type { LLMProvider } from '../llm/llm-provider.js';
@@ -89,9 +89,16 @@ export interface CompletionHandoff {
  */
 export type ContextPromptProvider = (task: TaskSnapshot) => Promise<string>;
 
-/** Build the loop's user message out of a task record. */
-function buildUserMessage(task: TaskSnapshot): string {
-  return task.description ? `Task: ${task.title}\n\n${task.description}` : `Task: ${task.title}`;
+/** Build the loop's user message out of a task record (day-12 §2.4). */
+function buildUserMessage(task: TaskSnapshot, previousRejection?: string | null): string {
+  const base = task.description
+    ? `Task: ${task.title}\n\n${task.description}`
+    : `Task: ${task.title}`;
+  // Day 24 §3.4: surface the reviewer's reason so the next attempt differs from the last.
+  if (!previousRejection) {
+    return base;
+  }
+  return `${base}\n\nPrevious attempt was rejected because: ${previousRejection}`;
 }
 
 export class AgentRunner {
@@ -142,9 +149,11 @@ export class AgentRunner {
 
     const systemPrompt = await this.buildSystemPrompt(task);
 
+    const previousRejection = await this.previousRejectionRationale(taskId);
+
     let result: ReActResult;
     try {
-      result = await loop.run(systemPrompt, buildUserMessage(task), runId);
+      result = await loop.run(systemPrompt, buildUserMessage(task, previousRejection), runId);
     } catch (error) {
       if (error instanceof TokenBudgetExceededError) {
         await this.escalate(taskId, runId, 'TOKEN_BUDGET_EXCEEDED', startedAt);
@@ -170,6 +179,22 @@ export class AgentRunner {
     if (!this.contextPrompt) return SYSTEM_PROMPT;
     const context = await this.contextPrompt(task);
     return context.length > 0 ? `${SYSTEM_PROMPT}\n\n${context}` : SYSTEM_PROMPT;
+  }
+
+  /** The reviewer's rationale from the previous attempt's rejection, if any (day-24 §3.4). */
+  private async previousRejectionRationale(taskId: TaskID): Promise<string | null> {
+    const rows = await this.db
+      .select({ rationale: taskStateHistory.rationale })
+      .from(taskStateHistory)
+      .where(
+        and(
+          eq(taskStateHistory.task_id, taskId),
+          eq(taskStateHistory.to_state, TaskStatus.Rejected),
+        ),
+      )
+      .orderBy(desc(taskStateHistory.occurred_at))
+      .limit(1);
+    return rows[0]?.rationale ?? null;
   }
 
   /** end_turn: mark the run complete, publish, then hand off (day-12 §2.6). */

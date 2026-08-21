@@ -23,6 +23,8 @@ container.resolve(TOKENS.AttentionSubscriber);
 container.resolve(TOKENS.AttentionRouter);
 container.resolve(TOKENS.ContextEngine);
 container.resolve(TOKENS.ReviewService);
+container.resolve(TOKENS.MergeService);
+container.resolve(TOKENS.ReworkService);
 
 // Start the pull-based dispatch loop (§2.5). The interval is configurable via
 // env so it never needs to be hardcoded here.
