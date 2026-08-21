@@ -32,6 +32,10 @@ export const reviewQueue = pgTable(
     rule_id: text('rule_id').notNull(),
     position: integer('position').notNull(),
     status: text('status').notNull().default('QUEUED'),
+    // Claim bookkeeping (day-22 §2.2): the reviewer who claimed and when. Both
+    // null until a human claims the item; `claim` sets them in a guarded UPDATE.
+    claimed_by: text('claimed_by'),
+    claimed_at: timestamp('claimed_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   () => [routingActionCheck, reviewQueueStatusCheck],

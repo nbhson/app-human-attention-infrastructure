@@ -3,8 +3,10 @@ import Fastify from 'fastify';
 import type { RuntimePollLoop } from '@harness/agent-runtime';
 import { TOKENS } from '@harness/di';
 import type { DispatchLoop } from '@harness/orchestrator';
+import type { ReviewService } from '@harness/review';
 
 import { buildContainer } from './bootstrap.js';
+import { registerReviewRoutes } from './routes/review.js';
 
 const app = Fastify({ logger: true });
 
@@ -20,6 +22,7 @@ container.resolve(TOKENS.ChangeStatusSubscriber);
 container.resolve(TOKENS.AttentionSubscriber);
 container.resolve(TOKENS.AttentionRouter);
 container.resolve(TOKENS.ContextEngine);
+container.resolve(TOKENS.ReviewService);
 
 // Start the pull-based dispatch loop (§2.5). The interval is configurable via
 // env so it never needs to be hardcoded here.
@@ -31,6 +34,9 @@ const runtimePollLoop = container.resolve<RuntimePollLoop>(TOKENS.RuntimePollLoo
 runtimePollLoop.start(Number(process.env.RUNTIME_POLL_INTERVAL_MS ?? '2000'));
 
 app.get('/health', async () => ({ status: 'ok' }));
+
+// Day 22: the human-review endpoints (queue list/claim/decide/drop).
+registerReviewRoutes(app, container.resolve<ReviewService>(TOKENS.ReviewService));
 
 const start = async (): Promise<void> => {
   try {

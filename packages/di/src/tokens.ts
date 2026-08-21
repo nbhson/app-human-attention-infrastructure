@@ -33,6 +33,7 @@ export const TOKENS = {
   AttentionSubscriber: 'AttentionSubscriber',
   AttentionRouter: 'AttentionRouter',
   VerificationEngine: 'VerificationEngine',
+  ReviewService: 'ReviewService',
 } as const;
 
 /** The string union of every known token. */

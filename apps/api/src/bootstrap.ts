@@ -54,6 +54,7 @@ import {
   WorkflowRunner,
 } from '@harness/orchestrator';
 import type { StepHandler } from '@harness/orchestrator';
+import { ReviewService } from '@harness/review';
 import {
   CompileCheck,
   EvidenceStore,
@@ -325,6 +326,26 @@ export function buildContainer(): Container {
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<IEventBus>(TOKENS.EventBus),
       container.resolve<TaskStateMachine>(TOKENS.TaskStateMachine),
+    );
+  });
+
+  // Day 22: the review backend. It drives the task state machine and the Day-19
+  // alert-fatigue feedback loop through structural seams (R6 — review may not
+  // import orchestrator or attention-engine), wired here at the composition root.
+  c.register(TOKENS.ReviewService, (container) => {
+    const taskService = container.resolve<TaskService>(TOKENS.TaskService);
+    const attentionRouter = container.resolve<AttentionRouter>(TOKENS.AttentionRouter);
+    return new ReviewService(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      {
+        transitionTask: (taskId, toState, triggeredBy, opts) =>
+          taskService.transitionTask(taskId, toState, triggeredBy, opts),
+      },
+      {
+        reportAssessmentFeedback: (assessmentId, wasUseful, comment) =>
+          attentionRouter.reportAssessmentFeedback(assessmentId, wasUseful, comment),
+      },
     );
   });
 
