@@ -80,11 +80,39 @@ export function isExcludedPath(sourceId: string): boolean {
 export class FileCollector {
   constructor(private readonly rootDir: string) {}
 
+  /** The project root this collector reads from (exposed for freshness checks). */
+  get root(): string {
+    return this.rootDir;
+  }
+
   /** Walk the root and return every eligible candidate (deterministic order). */
   async collect(): Promise<CollectedFile[]> {
     const files: CollectedFile[] = [];
     await this.walk('', files);
     return files;
+  }
+
+  /**
+   * Re-read only the named paths (day-21 §2.1). Used by the STALE re-resolve
+   * policy to patch just the sources that changed, leaving the rest untouched.
+   * Missing / excluded / oversized / unreadable paths are silently omitted: the
+   * caller keeps the previous snapshot entry (already flagged stale) in that case.
+   */
+  async collectPaths(paths: readonly string[]): Promise<CollectedFile[]> {
+    const out: CollectedFile[] = [];
+    for (const sourceId of paths) {
+      if (isExcludedPath(sourceId)) continue;
+      try {
+        const absPath = resolveSafe(this.rootDir, sourceId);
+        const info = await stat(absPath);
+        if (info.size > MAX_FILE_SIZE_BYTES) continue;
+        const content = await readFile(absPath, 'utf8');
+        out.push({ sourceId, content });
+      } catch {
+        // vanished or unreadable — omitting keeps the stale entry flagged.
+      }
+    }
+    return out;
   }
 
   private async walk(relDir: string, out: CollectedFile[]): Promise<void> {

@@ -113,3 +113,37 @@ describe('ContextEngine.resolveContext', () => {
     expect(snapshot.sources.length).toBeGreaterThan(0);
   });
 });
+
+describe('ContextEngine.resolveFresh', () => {
+  it('re-resolves only the stale source and leaves the rest untouched', async () => {
+    const taskId = (await seedTask()) as ReturnType<typeof newTaskID>;
+    const engine = new ContextEngine(db, new FileCollector(tmpRoot));
+
+    const request = {
+      taskId,
+      taskDescription: 'Fix bug in PaymentService.ts',
+      requirements: '',
+      targetFiles: ['src/PaymentService.ts'],
+      maxTokens: 4000,
+    };
+    const snapshot = await engine.resolveContext(request);
+    const staleContent =
+      'export class PaymentService {\n  process() {\n    return "updated!";\n  }\n}\n';
+
+    // Mid-flight edit to a single source, then refresh.
+    writeFileSync(join(tmpRoot, 'src', 'PaymentService.ts'), staleContent);
+    const { freshness, snapshot: patched } = await engine.resolveFresh(request, snapshot);
+
+    expect(freshness.freshness).toBe('STALE');
+    expect(freshness.staleSources).toEqual(['src/PaymentService.ts']);
+
+    const patchedPayment = patched.sources.find((s) => s.sourceId === 'src/PaymentService.ts');
+    expect(patchedPayment!.content).toBe(staleContent);
+
+    // Non-stale sources are byte-for-byte the originals.
+    const originalLogging = snapshot.sources.find((s) => s.sourceId === 'src/logging.ts');
+    const patchedLogging = patched.sources.find((s) => s.sourceId === 'src/logging.ts');
+    expect(patchedLogging?.content).toBe(originalLogging!.content);
+    expect(patchedLogging?.metadata.refreshed).toBeUndefined();
+  });
+});

@@ -18,11 +18,13 @@ import { MockLLM, mockTextResponse, mockToolCallResponse } from '../llm/mock-llm
 import { AgentRunner } from '../runner/agent-runner.js';
 import type {
   CompletionHandoff,
+  ContextPromptProvider,
   TaskSnapshot,
   TaskTransitionService,
 } from '../runner/agent-runner.js';
 import { ToolRegistry, noopTool } from '../tools/tool-registry.js';
 import { ToolAllowlist } from '../tools/tool-allowlist.js';
+import { TrajectoryRecorder } from '../trajectory/trajectory-recorder.js';
 
 /** A bus that records every published envelope, for spy assertions. */
 class RecordingBus implements IEventBus {
@@ -117,6 +119,7 @@ function buildRunner(
   maxSteps: number,
   tokenLimit: number,
   handoff: CompletionHandoff,
+  contextPrompt?: ContextPromptProvider,
 ): { runner: AgentRunner; bus: RecordingBus } {
   const bus = new RecordingBus();
   const tools = new ToolRegistry(new ToolAllowlist(new Set(['noop'])));
@@ -130,6 +133,8 @@ function buildRunner(
     handoff,
     maxSteps,
     tokenLimit,
+    new TrajectoryRecorder(testDb.db),
+    contextPrompt,
   );
   return { runner, bus };
 }
@@ -214,5 +219,21 @@ describe('AgentRunner', () => {
       (event) => event.event_type === EventType.TaskExecutionFinished,
     );
     expect((finished?.payload as TaskExecutionFinishedPayload).outcome).toBe('ESCALATED');
+  });
+
+  it('appends the injected context prompt to the system prompt (day-21 §2.2 seam)', async () => {
+    const taskId = await insertQueuedTask();
+    const { handoff } = makeHandoff();
+    const llm = new MockLLM([mockTextResponse('all done')]);
+    const context = '## Project Context\n## Task\n## Relevant Files (ranked, budgeted)\n';
+    const contextPrompt: ContextPromptProvider = async () => context;
+    const { runner } = buildRunner(llm, 10, 50_000, handoff, contextPrompt);
+
+    await runner.runTask(taskId);
+
+    expect(llm.calls).toHaveLength(1);
+    const systemPrompt = llm.calls[0]?.systemPrompt ?? '';
+    expect(systemPrompt).toContain('You are a focused coding agent');
+    expect(systemPrompt).toContain(context);
   });
 });

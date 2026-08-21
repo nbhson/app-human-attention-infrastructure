@@ -81,6 +81,14 @@ export interface CompletionHandoff {
   runLinearWorkflow(taskId: TaskID): Promise<void>;
 }
 
+/**
+ * R4-safe seam for delivering resolved context (day-21 §2.2): bootstrap injects a
+ * provider that returns the rendered context-prompt string for the task, which
+ * the runner appends to the system prompt. The runtime never imports the context
+ * engine — it only sees the final text — so the boundary linter stays green.
+ */
+export type ContextPromptProvider = (task: TaskSnapshot) => Promise<string>;
+
 /** Build the loop's user message out of a task record. */
 function buildUserMessage(task: TaskSnapshot): string {
   return task.description ? `Task: ${task.title}\n\n${task.description}` : `Task: ${task.title}`;
@@ -97,6 +105,7 @@ export class AgentRunner {
     private readonly maxSteps: number = DEFAULT_MAX_STEPS,
     private readonly tokenLimit: number = DEFAULT_TOKEN_BUDGET,
     private readonly recorder: TrajectoryRecorder = new TrajectoryRecorder(db),
+    private readonly contextPrompt?: ContextPromptProvider,
   ) {}
 
   /** Execute one task: claim, run the loop, terminate, and hand off (day-12 §2.4). */
@@ -131,9 +140,11 @@ export class AgentRunner {
       this.recorder,
     );
 
+    const systemPrompt = await this.buildSystemPrompt(task);
+
     let result: ReActResult;
     try {
-      result = await loop.run(SYSTEM_PROMPT, buildUserMessage(task), runId);
+      result = await loop.run(systemPrompt, buildUserMessage(task), runId);
     } catch (error) {
       if (error instanceof TokenBudgetExceededError) {
         await this.escalate(taskId, runId, 'TOKEN_BUDGET_EXCEEDED', startedAt);
@@ -152,6 +163,13 @@ export class AgentRunner {
     }
 
     await this.escalate(taskId, runId, 'MAX_STEPS_EXCEEDED', startedAt);
+  }
+
+  /** Append any injected context prompt to the base system prompt (day-21 §2.2). */
+  private async buildSystemPrompt(task: TaskSnapshot): Promise<string> {
+    if (!this.contextPrompt) return SYSTEM_PROMPT;
+    const context = await this.contextPrompt(task);
+    return context.length > 0 ? `${SYSTEM_PROMPT}\n\n${context}` : SYSTEM_PROMPT;
   }
 
   /** end_turn: mark the run complete, publish, then hand off (day-12 §2.6). */

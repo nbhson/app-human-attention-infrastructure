@@ -7,7 +7,11 @@ import { agentRuns, projects, tasks, trajectorySteps } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 
 import type { ReActStep } from '../react/react-loop.js';
-import { TrajectoryRecorder } from '../trajectory/trajectory-recorder.js';
+import {
+  TrajectoryRecorder,
+  WARNING_STEP_NUMBER,
+  WARNING_TOOL,
+} from '../trajectory/trajectory-recorder.js';
 
 const SCHEMA = 'harness_test_trajectory';
 const PROJECT = newProjectID();
@@ -95,6 +99,26 @@ describe('TrajectoryRecorder', () => {
       tool_name: null,
       tool_input: null,
       observation: null,
+    });
+  });
+
+  it('records a warning as a reserved step-0 observation row (Spec 4 §8 seam)', async () => {
+    const runId = await insertRun();
+    const recorder = new TrajectoryRecorder(testDb.db);
+
+    await recorder.recordWarning(runId, 'STALE_CONTEXT: src/PaymentService.ts changed');
+
+    const rows = await testDb.db
+      .select()
+      .from(trajectorySteps)
+      .where(eq(trajectorySteps.agent_run_id, runId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      step_number: WARNING_STEP_NUMBER,
+      thought: null,
+      tool_name: WARNING_TOOL,
+      tool_input: null,
+      observation: 'STALE_CONTEXT: src/PaymentService.ts changed',
     });
   });
 });
