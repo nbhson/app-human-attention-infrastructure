@@ -9,6 +9,8 @@
 
 import type { TaskID } from '@harness/domain';
 
+import type { FailureClass } from '../retry/failure-class.js';
+
 export interface StepContext {
   readonly taskId: TaskID;
   readonly workflowId: string;
@@ -17,6 +19,12 @@ export interface StepContext {
 
 export type StepResult =
   | { readonly ok: true; readonly output: Record<string, unknown> }
-  | { readonly ok: false; readonly error: string; readonly retriable: boolean };
+  | {
+      readonly ok: false;
+      readonly error: string;
+      /** Which {@link FailureClass} bucket this goes in — drives retry vs escalate. */
+      readonly failureClass: FailureClass;
+      readonly retriable: boolean;
+    };
 
 export type StepHandler = (ctx: StepContext) => Promise<StepResult>;

@@ -4,9 +4,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { EventType, TaskStatus, newProjectID, newTaskID } from '@harness/domain';
 import type { EventEnvelope, TaskID, TaskStatus as TaskState } from '@harness/domain';
 import type { EventHandler, IEventBus, UnsubscribeFn } from '@harness/event-bus';
-import { projects, tasks, taskStateHistory, taskStepLog } from '@harness/db';
+import { projects, retryLog, tasks, taskStateHistory, taskStepLog } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 
+import { FailureClass } from '../retry/failure-class.js';
+import { DEFAULT_RETRY_POLICY } from '../retry/retry-policy.js';
+import type { RetryPolicyConfig } from '../retry/retry-policy.js';
 import { TaskStateMachine } from '../state-machine/task-state-machine.js';
 import { TaskService } from '../task-service.js';
 import type { StepHandler } from '../workflow/step-handler.js';
@@ -29,6 +32,14 @@ class RecordingBus implements IEventBus {
   }
 }
 
+/** 1ms backoff so the default retry budgets run fast under real timers. */
+const FAST_RETRY_POLICY: RetryPolicyConfig = {
+  ...DEFAULT_RETRY_POLICY,
+  baseDelayMs: 1,
+  maxDelayMs: 1,
+  jitterFactor: 0,
+};
+
 const SCHEMA = 'harness_test_workflow_runner';
 const PROJECT = newProjectID();
 
@@ -44,6 +55,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   // Delete in FK order, then seed one project.
+  await testDb.db.delete(retryLog);
   await testDb.db.delete(taskStepLog);
   await testDb.db.delete(taskStateHistory);
   await testDb.db.delete(tasks);
@@ -70,7 +82,7 @@ const okHandler: StepHandler = async () => ({ ok: true, output: {} });
 
 function makeRunner(handlers: Map<StepKind, StepHandler>): WorkflowRunner {
   const service = new TaskService(testDb.db, new RecordingBus(), new TaskStateMachine());
-  return new WorkflowRunner(testDb.db, service, handlers);
+  return new WorkflowRunner(testDb.db, service, handlers, FAST_RETRY_POLICY);
 }
 
 /** A registry that defaults every step to success, with per-step overrides. */
@@ -139,6 +151,7 @@ describe('WorkflowRunner', () => {
     const collectContext: StepHandler = async () => ({
       ok: false,
       error: 'context boom',
+      failureClass: FailureClass.PERMANENT,
       retriable: false,
     });
     const execute: StepHandler = async () => {
@@ -169,7 +182,12 @@ describe('WorkflowRunner', () => {
     const id = await insertTask();
     let verifyRan = false;
 
-    const execute: StepHandler = async () => ({ ok: false, error: 'agent boom', retriable: true });
+    const execute: StepHandler = async () => ({
+      ok: false,
+      error: 'agent boom',
+      failureClass: FailureClass.PERMANENT,
+      retriable: false,
+    });
     const verify: StepHandler = async () => {
       verifyRan = true;
       return { ok: true, output: {} };
@@ -200,10 +218,11 @@ describe('WorkflowRunner', () => {
     const output = rows[0]?.output as { error: string };
     expect(output.error).toBe('kaboom');
 
+    // An unrecognised throw is classified PERMANENT — no retry, immediate escalation.
     expect(await taskState(id)).toBe(TaskStatus.AwaitingHumanIntervention);
   });
 
-  it('a step that exceeds its timeout records STEP_TIMEOUT and escalates', async () => {
+  it('a step that exceeds its timeout is TRANSIENT: retried, then escalates', async () => {
     const id = await insertTask();
 
     const slow: StepHandler = () => new Promise<never>(() => {}); // never resolves
@@ -218,9 +237,17 @@ describe('WorkflowRunner', () => {
     const rows = await stepsFor(id);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.status).toBe('FAILED');
-    const output = rows[0]?.output as { error: string; retriable: boolean };
+    const output = rows[0]?.output as {
+      error: string;
+      failureClass: string;
+      retriable: boolean;
+    };
     expect(output.error).toBe('STEP_TIMEOUT');
-    expect(output.retriable).toBe(true);
+    expect(output.failureClass).toBe(FailureClass.TRANSIENT);
+
+    // STEP_TIMEOUT is TRANSIENT, so the default budget retries it 3 times first.
+    const retries = await testDb.db.select().from(retryLog).where(eq(retryLog.task_id, id));
+    expect(retries).toHaveLength(3);
 
     expect(await taskState(id)).toBe(TaskStatus.AwaitingHumanIntervention);
   });

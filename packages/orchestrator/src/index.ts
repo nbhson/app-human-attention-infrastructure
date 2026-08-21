@@ -26,4 +26,10 @@ export type { WorkflowDefinition, WorkflowStep } from './workflow/workflow-defin
 export type { StepContext, StepHandler, StepResult } from './workflow/step-handler.js';
 export { WorkflowRunner } from './workflow/workflow-runner.js';
 
+export { FailureClass } from './retry/failure-class.js';
+export type { ClassifiedFailure } from './retry/failure-class.js';
+export { classifyError } from './retry/classify-error.js';
+export { DEFAULT_RETRY_POLICY, computeDelay, shouldRetry } from './retry/retry-policy.js';
+export type { RetryPolicyConfig } from './retry/retry-policy.js';
+
 export type { CreateTaskParams, TaskRecord, TaskStateHistoryEntry } from './types.js';

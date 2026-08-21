@@ -11,6 +11,7 @@ export * from './decisions.js';
 export * from './dispatch-log.js';
 export * from './event-log.js';
 export * from './projects.js';
+export * from './retry-log.js';
 export * from './snapshots.js';
 export * from './task-state-history.js';
 export * from './task-step-log.js';
