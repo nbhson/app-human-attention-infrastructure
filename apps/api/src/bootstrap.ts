@@ -35,9 +35,14 @@ import {
   DiffEngine,
   SnapshotStore,
 } from '@harness/artifact-tracker';
-import { AttentionRouter, AttentionSubscriber } from '@harness/attention-engine';
+import {
+  AttentionRouter,
+  AttentionSubscriber,
+  ATTENTION_POLICY_V1,
+} from '@harness/attention-engine';
 import { ContextEngine, extractFileReferences, FileCollector } from '@harness/context-engine';
-import { Container, TOKENS } from '@harness/di';
+import { Container, TOKENS, createRootLogger } from '@harness/di';
+import type { Logger } from '@harness/di';
 import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { brand, ChangeStatus, TaskStatus } from '@harness/domain';
@@ -232,7 +237,16 @@ export function buildContainer(): Container {
   const sandboxRoot = process.env.SANDBOX_ROOT ?? './sandbox';
   mkdirSync(sandboxRoot, { recursive: true });
 
-  c.register(TOKENS.EventBus, () => new InProcessEventBus());
+  // Day 27 §2.1: the process-wide structured logger. Registered first so every
+  // downstream engine and the bus's error handler can be handed the real thing.
+  c.register(TOKENS.Logger, () => createRootLogger());
+
+  c.register(TOKENS.EventBus, (container) => {
+    const logger = container.resolve<Logger>(TOKENS.Logger);
+    return new InProcessEventBus((eventType, error) =>
+      logger.error('event-bus handler error', { event_type: eventType, error: String(error) }),
+    );
+  });
 
   c.register(TOKENS.Db, () => {
     const url = process.env.DATABASE_URL;
@@ -245,7 +259,10 @@ export function buildContainer(): Container {
   });
 
   c.register(TOKENS.EventLogWriter, (container) => {
-    const writer = new EventLogWriter(container.resolve(TOKENS.Db));
+    const writer = new EventLogWriter(
+      container.resolve(TOKENS.Db),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
     writer.subscribeTo(container.resolve<IEventBus>(TOKENS.EventBus));
     return writer;
   });
@@ -267,6 +284,7 @@ export function buildContainer(): Container {
   c.register(TOKENS.ArtifactCaptureSubscriber, (container) => {
     const subscriber = new ArtifactCaptureSubscriber(
       container.resolve<ArtifactTracker>(TOKENS.ArtifactTracker),
+      container.resolve<Logger>(TOKENS.Logger),
     );
     subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
     return subscriber;
@@ -275,7 +293,10 @@ export function buildContainer(): Container {
   // Day 14: the sole writer of `changes.status` — PENDING→VERIFIED→REVIEWED and
   // any→ROLLED_BACK, driven only by events (day-14 §2.5). Idle until Days 15/22.
   c.register(TOKENS.ChangeStatusSubscriber, (container) => {
-    const subscriber = new ChangeStatusSubscriber(container.resolve<DrizzleDB>(TOKENS.Db));
+    const subscriber = new ChangeStatusSubscriber(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
     subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
     return subscriber;
   });
@@ -286,7 +307,10 @@ export function buildContainer(): Container {
   // `AttentionEngine` token itself stays a stub until its build day; this
   // subscriber is the engine's live integration point.
   c.register(TOKENS.AttentionSubscriber, (container) => {
-    const subscriber = new AttentionSubscriber(container.resolve<DrizzleDB>(TOKENS.Db));
+    const subscriber = new AttentionSubscriber(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
     subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
     return subscriber;
   });
@@ -298,6 +322,8 @@ export function buildContainer(): Container {
     const router = new AttentionRouter(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<IEventBus>(TOKENS.EventBus),
+      ATTENTION_POLICY_V1,
+      container.resolve<Logger>(TOKENS.Logger),
     );
     router.subscribe();
     return router;
@@ -372,6 +398,7 @@ export function buildContainer(): Container {
           attentionRouter.reportAssessmentFeedback(assessmentId, wasUseful, comment),
       },
       { diffChange: (changeId) => diffEngine.diffChange(changeId) },
+      container.resolve<Logger>(TOKENS.Logger),
     );
   });
 
@@ -389,6 +416,7 @@ export function buildContainer(): Container {
       container.resolve<IEventBus>(TOKENS.EventBus),
       container.resolve<GitAdapter>(TOKENS.GitAdapter),
       container.resolve<TaskService>(TOKENS.TaskService),
+      container.resolve<Logger>(TOKENS.Logger),
     );
     service.subscribe();
     return service;
@@ -399,6 +427,7 @@ export function buildContainer(): Container {
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<IEventBus>(TOKENS.EventBus),
       container.resolve<TaskService>(TOKENS.TaskService),
+      container.resolve<Logger>(TOKENS.Logger),
     );
     service.subscribe();
     return service;
@@ -416,7 +445,10 @@ export function buildContainer(): Container {
   });
 
   c.register(TOKENS.DispatchLoop, (container) => {
-    return new DispatchLoop(container.resolve<Dispatcher>(TOKENS.Dispatcher));
+    return new DispatchLoop(
+      container.resolve<Dispatcher>(TOKENS.Dispatcher),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
   });
 
   // Day 09: the linear workflow runner. COLLECT_CONTEXT is the real Context
@@ -481,6 +513,7 @@ export function buildContainer(): Container {
     return new RuntimePollLoop(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<AgentRunner>(TOKENS.AgentRunner),
+      container.resolve<Logger>(TOKENS.Logger),
     );
   });
 

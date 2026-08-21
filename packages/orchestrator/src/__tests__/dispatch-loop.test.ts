@@ -63,7 +63,7 @@ describe('DispatchLoop', () => {
 
     expect(dispatchPending).toHaveBeenCalledTimes(2);
     expect(logger.error).toHaveBeenCalledTimes(1);
-    expect(logger.error).toHaveBeenCalledWith(expect.any(Error));
+    expect(logger.error).toHaveBeenCalledWith('dispatch tick failed', { error: 'Error: boom' });
   });
 
   it('running is false after stop()', () => {

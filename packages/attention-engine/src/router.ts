@@ -42,6 +42,7 @@ import type {
 } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import type { Logger } from '@harness/di';
 
 import { ATTENTION_POLICY_V1, matchRule } from './policy.js';
 import type { AttentionPolicy, RoutingInput } from './policy.js';
@@ -100,13 +101,18 @@ export class AttentionRouter {
     private readonly db: DrizzleDB,
     private readonly bus: IEventBus,
     private readonly policy: AttentionPolicy = ATTENTION_POLICY_V1,
+    private readonly logger?: Logger,
   ) {}
 
   /** Wire the router to `attention.assessment_created` (fire-and-forget). */
   subscribe(): void {
     this.bus.subscribe<AssessmentCreatedPayload>(EventType.AssessmentCreated, (event) => {
       void this.route(event.payload.assessment_id).catch((error) => {
-        console.error('[attention] routing failed:', error);
+        this.logger?.error('attention routing failed', {
+          correlation_id: event.correlation_id,
+          assessment_id: event.payload.assessment_id,
+          error: String(error),
+        });
       });
     });
   }

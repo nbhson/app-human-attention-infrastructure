@@ -67,9 +67,11 @@ export function makeWriteFileTool(sandboxRoot: string): Tool {
           size_bytes: Buffer.byteLength(content, 'utf8'),
           content,
         };
-        ctx.bus.publish(
-          createEvent(EventType.ArtifactCreated, brand(ctx.agentRunId, 'CorrelationID'), payload),
-        );
+        // Correlation id == task id (day-27 §2.2). The loop threads the task's
+        // correlation id into the tool context; outside a real run (standalone
+        // tool use) fall back to the run id so the envelope is never empty.
+        const correlationId = ctx.correlationId ?? brand(ctx.agentRunId, 'CorrelationID');
+        ctx.bus.publish(createEvent(EventType.ArtifactCreated, correlationId, payload));
       }
 
       return `wrote ${relPath} (${Buffer.byteLength(content, 'utf8')} bytes)`;

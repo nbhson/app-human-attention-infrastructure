@@ -13,3 +13,6 @@ export { ContainerError } from './errors.js';
 
 export { TOKENS } from './tokens.js';
 export type { Token } from './tokens.js';
+
+export { createRootLogger, withCorrelation } from './logger.js';
+export type { CorrelationContext, LogFields, Logger } from './logger.js';

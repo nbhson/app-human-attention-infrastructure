@@ -30,21 +30,33 @@ import type {
 import { changes } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import type { IEventBus } from '@harness/event-bus';
+import type { Logger } from '@harness/di';
 
 export class ChangeStatusSubscriber {
-  constructor(private readonly db: DrizzleDB) {}
+  constructor(
+    private readonly db: DrizzleDB,
+    private readonly logger?: Logger,
+  ) {}
 
   /** Subscribe to all three status-driving events; returned handlers are fire-and-forget. */
   subscribe(bus: IEventBus): void {
     bus.subscribe<VerificationCompletedPayload>(EventType.VerificationCompleted, (event) => {
       void this.onVerificationCompleted(event.payload).catch((error) => {
-        console.error('[change-status] failed to apply VERIFIED:', error);
+        this.logger?.error('change status: apply VERIFIED failed', {
+          correlation_id: event.correlation_id,
+          change_id: event.payload.change_id,
+          error: String(error),
+        });
       });
     });
 
     bus.subscribe<DecisionSubmittedPayload>(EventType.DecisionSubmitted, (event) => {
       void this.onDecisionSubmitted(event.payload).catch((error) => {
-        console.error('[change-status] failed to apply REVIEWED:', error);
+        this.logger?.error('change status: apply REVIEWED failed', {
+          correlation_id: event.correlation_id,
+          change_id: event.payload.change_id,
+          error: String(error),
+        });
       });
     });
 
@@ -52,7 +64,11 @@ export class ChangeStatusSubscriber {
       EventType.ArtifactRollbackRequested,
       (event) => {
         void this.onRollbackRequested(event.payload).catch((error) => {
-          console.error('[change-status] failed to apply ROLLED_BACK:', error);
+          this.logger?.error('change status: apply ROLLED_BACK failed', {
+            correlation_id: event.correlation_id,
+            change_id: event.payload.change_id,
+            error: String(error),
+          });
         });
       },
     );

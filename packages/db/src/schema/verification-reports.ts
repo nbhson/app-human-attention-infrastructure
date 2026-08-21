@@ -17,6 +17,9 @@ export const verificationReports = pgTable(
   'verification_reports',
   {
     id: text('id').primaryKey(),
+    // Task lifecycle id (== tasks.id in Phase 1) copied from the triggering
+    // verification so the report joins to event_log (day-27 §2.2).
+    correlation_id: text('correlation_id'),
     change_id: text('change_id')
       .notNull()
       .references(() => changes.id),

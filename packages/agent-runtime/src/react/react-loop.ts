@@ -12,7 +12,7 @@
  * response that carries no actual call.
  */
 
-import type { AgentRunID } from '@harness/domain';
+import type { AgentRunID, CorrelationID } from '@harness/domain';
 
 import type { LLMMessage, LLMProvider, LLMToolCall } from '../llm/llm-provider.js';
 import { TokenBudget } from '../llm/token-budget.js';
@@ -58,6 +58,7 @@ export class ReActLoop {
     systemPrompt: string,
     userMessage: string,
     agentRunId?: AgentRunID,
+    correlationId?: CorrelationID,
   ): Promise<ReActResult> {
     const messages: LLMMessage[] = [{ role: 'user', content: userMessage }];
     const steps: ReActStep[] = [];
@@ -69,6 +70,8 @@ export class ReActLoop {
         maxTokens: MAX_TOKENS,
         systemPrompt,
         tools: this.tools.definitions(),
+        ...(agentRunId === undefined ? {} : { agent_run_id: agentRunId }),
+        ...(correlationId === undefined ? {} : { correlation_id: correlationId }),
       });
 
       // Throws TokenBudgetExceededError when over — the loop lets it propagate.
@@ -79,7 +82,7 @@ export class ReActLoop {
       }
 
       for (const call of response.toolCalls) {
-        const observation = await this.execute(call, agentRunId);
+        const observation = await this.execute(call, agentRunId, correlationId);
         const step: ReActStep = {
           stepNumber: i,
           thought: response.content,
@@ -102,9 +105,13 @@ export class ReActLoop {
   }
 
   /** Run one tool call, converting a thrown error into its observation (day-12 §3.7). */
-  private async execute(call: LLMToolCall, agentRunId?: AgentRunID): Promise<string> {
+  private async execute(
+    call: LLMToolCall,
+    agentRunId?: AgentRunID,
+    correlationId?: CorrelationID,
+  ): Promise<string> {
     try {
-      return await this.tools.execute(call, agentRunId);
+      return await this.tools.execute(call, agentRunId, correlationId);
     } catch (error) {
       return error instanceof Error ? error.message : String(error);
     }

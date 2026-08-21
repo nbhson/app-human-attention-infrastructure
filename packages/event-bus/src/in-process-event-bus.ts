@@ -59,5 +59,9 @@ export class InProcessEventBus implements IEventBus {
 }
 
 function defaultOnHandlerError(eventType: EventType, error: unknown): void {
-  console.error(`[event-bus] unhandled error in "${eventType}" handler:`, error);
+  // Low-level fallback (day-27 §2.1): the composition root injects a real
+  // structured handler via `onHandlerError`; before that, write a single line to
+  // stderr so an unhandled handler error is never silent. `event-bus` may not
+  // import `@harness/di` (boundary R4), so this stays on the process stream.
+  process.stderr.write(`[event-bus] unhandled error in "${eventType}" handler: ${String(error)}\n`);
 }

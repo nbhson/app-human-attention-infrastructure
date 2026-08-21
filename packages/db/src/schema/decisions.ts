@@ -9,6 +9,9 @@ export const decisions = pgTable(
   'decisions',
   {
     id: text('id').primaryKey(),
+    // Task lifecycle id (== tasks.id in Phase 1) copied from the task under
+    // review so the decision joins to event_log (day-27 §2.2).
+    correlation_id: text('correlation_id'),
     change_id: text('change_id')
       .notNull()
       .references(() => changes.id),

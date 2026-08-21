@@ -296,7 +296,10 @@ async function main(): Promise<void> {
     assert(await contextExists(db, taskId), 'context snapshot was not captured');
     assert((await overallVerdict(db, taskId)) === 'PASSED', 'verification overall != PASSED');
     assert((await evidenceCount(db)) >= 1, 'no evidence rows were recorded');
-    assert(await assessmentExists(db, taskId), 'no assessment was created');
+    // The assessment is written fire-and-forget by `AttentionSubscriber` after the
+    // AWAITING_REVIEW transition (day-18 §2.4), so it can lag the state column by a
+    // few ms; poll rather than assert-once.
+    await waitFor(() => assessmentExists(db, taskId), 10_000, 'assessment created');
 
     // 4. The task was routed into the review queue via the engine.
     const queueRes = await app.inject({ method: 'GET', url: '/api/review/queue' });

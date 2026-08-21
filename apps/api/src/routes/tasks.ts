@@ -72,6 +72,10 @@ export function registerTaskRoutes(app: FastifyInstance, container: Container): 
       ...(description ? { description } : {}),
     });
 
+    // Correlation ID (day-27 §2): the task id is the correlation id threaded through
+    // every table for a single task, so the client keeps the trace context from here on.
+    reply.header('X-Correlation-Id', task.id);
+
     return reply.code(201).send({
       id: task.id,
       projectId: task.projectId,

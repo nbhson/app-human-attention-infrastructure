@@ -15,17 +15,26 @@
 import { EventType } from '@harness/domain';
 import type { ArtifactCreatedPayload } from '@harness/domain';
 import type { IEventBus } from '@harness/event-bus';
+import type { Logger } from '@harness/di';
 
 import type { ArtifactTracker } from '../artifact-tracker.js';
 
 export class ArtifactCaptureSubscriber {
-  constructor(private readonly tracker: ArtifactTracker) {}
+  constructor(
+    private readonly tracker: ArtifactTracker,
+    private readonly logger?: Logger,
+  ) {}
 
   /** Subscribe to `artifact.created`; the returned handler is fire-and-forget. */
   subscribe(bus: IEventBus): void {
     bus.subscribe<ArtifactCreatedPayload>(EventType.ArtifactCreated, (event) => {
       void this.capture(event.payload).catch((error) => {
-        console.error('[artifact-capture] failed to record artifact:', error);
+        this.logger?.error('artifact capture: record artifact failed', {
+          correlation_id: event.correlation_id,
+          agent_run_id: event.payload.agent_run_id,
+          file_path: event.payload.file_path,
+          error: String(error),
+        });
       });
     });
   }

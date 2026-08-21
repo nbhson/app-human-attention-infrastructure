@@ -44,6 +44,7 @@ import type {
 } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import type { Logger } from '@harness/di';
 
 import {
   EvidenceNotFoundError,
@@ -138,6 +139,7 @@ export class ReviewService {
     private readonly taskTransition: TaskTransition,
     private readonly reportFeedback: FeedbackReporter,
     private readonly diffProvider?: DiffProvider,
+    private readonly logger?: Logger,
   ) {}
 
   /**
@@ -279,6 +281,7 @@ export class ReviewService {
     const assessmentId = brand(row.assessment_id, 'AssessmentID');
     await this.db.insert(decisions).values({
       id: decisionId,
+      correlation_id: row.task_id,
       change_id: changeId,
       assessment_id: assessmentId,
       decision,
@@ -311,7 +314,10 @@ export class ReviewService {
         input.comment,
       );
     } catch (error) {
-      console.error('[review] failed to record feedback (best-effort):', error);
+      this.logger?.error('review: record feedback failed (best-effort)', {
+        correlation_id: row.task_id,
+        error: String(error),
+      });
     }
 
     return this.getDetail(queueId);
@@ -341,6 +347,7 @@ export class ReviewService {
     // Record the drop as a DEFERRED decision so the rationale is auditable.
     await this.db.insert(decisions).values({
       id: newDecisionID(),
+      correlation_id: row.task_id,
       change_id: brand(row.change_id, 'ChangeID'),
       assessment_id: brand(row.assessment_id, 'AssessmentID'),
       decision: HumanDecisionType.Deferred,

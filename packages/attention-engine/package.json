@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@harness/db": "workspace:^",
+    "@harness/di": "workspace:^",
     "@harness/domain": "workspace:^",
     "@harness/event-bus": "workspace:^",
     "diff": "^9.0.0",

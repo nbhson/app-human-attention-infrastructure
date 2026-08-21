@@ -16,6 +16,9 @@ import { agentRuns } from './agent-runs.js';
  */
 export const llmCallLog = pgTable('llm_call_log', {
   id: text('id').primaryKey(),
+  // Task lifecycle id (== tasks.id in Phase 1) joining this call to event_log
+  // and every other row a single task produced (day-27 §2.2).
+  correlation_id: text('correlation_id'),
   agent_run_id: text('agent_run_id').references(() => agentRuns.id),
   model: text('model').notNull(),
   input_tokens: integer('input_tokens').notNull(),

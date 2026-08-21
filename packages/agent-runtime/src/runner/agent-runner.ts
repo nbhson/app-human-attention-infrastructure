@@ -131,6 +131,7 @@ export class AgentRunner {
     await this.db.insert(agentRuns).values({
       id: runId,
       task_id: taskId,
+      correlation_id: taskId,
       attempt_number: task.attemptNumber,
       status: AgentRunStatus.Executing,
       max_steps: this.maxSteps,
@@ -153,7 +154,12 @@ export class AgentRunner {
 
     let result: ReActResult;
     try {
-      result = await loop.run(systemPrompt, buildUserMessage(task, previousRejection), runId);
+      result = await loop.run(
+        systemPrompt,
+        buildUserMessage(task, previousRejection),
+        runId,
+        brand(taskId, 'CorrelationID'),
+      );
     } catch (error) {
       if (error instanceof TokenBudgetExceededError) {
         await this.escalate(taskId, runId, 'TOKEN_BUDGET_EXCEEDED', startedAt);

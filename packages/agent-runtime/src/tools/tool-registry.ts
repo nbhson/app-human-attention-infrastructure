@@ -16,7 +16,7 @@
  *   emit `artifact.created` without importing the Tracker.
  */
 
-import type { AgentRunID } from '@harness/domain';
+import type { AgentRunID, CorrelationID } from '@harness/domain';
 import type { IEventBus } from '@harness/event-bus';
 
 import type { LLMToolCall, LLMToolDefinition } from '../llm/llm-provider.js';
@@ -26,6 +26,8 @@ import { ToolAllowlist } from './tool-allowlist.js';
 export interface ToolExecutionContext {
   /** The agent run invoking the tool (absent for standalone/noop use). */
   readonly agentRunId?: AgentRunID;
+  /** The task lifecycle id (== correlation id) the run belongs to (day-27 §2.2). */
+  readonly correlationId?: CorrelationID;
   /** The event bus, for tools that emit domain events (write_file → artifact.created). */
   readonly bus?: IEventBus;
 }
@@ -66,7 +68,11 @@ export class ToolRegistry {
    * name and `TOOL_NOT_FOUND` for an unregistered one; both become the tool's
    * observation in the loop rather than killing the run.
    */
-  async execute(call: LLMToolCall, agentRunId?: AgentRunID): Promise<string> {
+  async execute(
+    call: LLMToolCall,
+    agentRunId?: AgentRunID,
+    correlationId?: CorrelationID,
+  ): Promise<string> {
     this.allowlist.assertAllowed(call.name);
     const tool = this.tools.get(call.name);
     if (!tool) {
@@ -74,6 +80,7 @@ export class ToolRegistry {
     }
     const ctx: ToolExecutionContext = {
       ...(agentRunId !== undefined ? { agentRunId } : {}),
+      ...(correlationId !== undefined ? { correlationId } : {}),
       ...(this.bus !== undefined ? { bus: this.bus } : {}),
     };
     return tool.execute(call.input, ctx);

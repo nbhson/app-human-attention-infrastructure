@@ -8,6 +8,9 @@ export const agentRuns = pgTable(
   'agent_runs',
   {
     id: text('id').primaryKey(),
+    // Task lifecycle id (== tasks.id in Phase 1) so a run joins its task's
+    // correlated rows across llm_call_log / event_log (day-27 §2.2).
+    correlation_id: text('correlation_id'),
     task_id: text('task_id')
       .notNull()
       .references(() => tasks.id),

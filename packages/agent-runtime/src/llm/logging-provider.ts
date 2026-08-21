@@ -28,7 +28,8 @@ export class LoggingLLMProvider implements LLMProvider {
 
     await this.db.insert(llmCallLog).values({
       id: uuidv7(),
-      agent_run_id: null,
+      agent_run_id: req.agent_run_id ?? null,
+      correlation_id: req.correlation_id ?? null,
       model: req.model,
       input_tokens: res.usage.inputTokens,
       output_tokens: res.usage.outputTokens,

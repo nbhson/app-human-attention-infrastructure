@@ -22,6 +22,7 @@ import type { ArtifactMergedPayload, TaskID, TaskStateChangedPayload } from '@ha
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { TaskService } from '@harness/orchestrator';
+import type { Logger } from '@harness/di';
 
 import type { GitAdapter } from './git-adapter.js';
 
@@ -39,6 +40,7 @@ export class MergeService {
     private readonly bus: IEventBus,
     private readonly git: GitAdapter,
     private readonly taskService: TaskService,
+    private readonly logger?: Logger,
   ) {}
 
   /** Attach the APPROVED handler; returns nothing (fire-and-forget). */
@@ -48,7 +50,11 @@ export class MergeService {
         return;
       }
       void this.onApproved(event.payload.task_id).catch((error) => {
-        console.error('[merge] approve follow-through failed:', error);
+        this.logger?.error('merge: approve follow-through failed', {
+          correlation_id: event.correlation_id,
+          task_id: event.payload.task_id,
+          error: String(error),
+        });
       });
     });
   }

@@ -157,6 +157,7 @@ export class VerificationEngine {
     await this.db.transaction(async (tx) => {
       await tx.insert(verificationReports).values({
         id: report.id,
+        correlation_id: report.taskId,
         change_id: report.changeId,
         task_id: report.taskId,
         overall: report.overall,
@@ -222,7 +223,9 @@ export class VerificationEngine {
     this.bus.publish(
       createEvent(
         EventType.VerificationCompleted,
-        brand(report.changeId, 'CorrelationID'),
+        // Correlation id == task id (day-27 §2.2); `change_id`/`result_id` live
+        // in the payload, the envelope carries the task lifecycle id.
+        brand(report.taskId, 'CorrelationID'),
         payload,
       ),
     );

@@ -9,6 +9,7 @@
 
 export const TOKENS = {
   EventBus: 'EventBus',
+  Logger: 'Logger',
   Db: 'Db',
   EventLogWriter: 'EventLogWriter',
   ArtifactCaptureSubscriber: 'ArtifactCaptureSubscriber',

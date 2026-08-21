@@ -77,6 +77,24 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
+      'no-console': 'error',
+    },
+  },
+  {
+    // CLI entrypoints and test fixtures are the only places a bare `console` is
+    // legitimate (day-27 §2.1): migration/seed drivers print once to a terminal,
+    // the E2E scripts are run directly, and tests may emit diagnostic lines. All
+    // runtime code must log through the structured `Logger` instead.
+    files: [
+      'apps/api/scripts/**',
+      'packages/db/src/migrate.ts',
+      'packages/db/src/seed.ts',
+      'packages/db/src/audit-orphans.ts',
+      '**/*.test.ts',
+      '**/__tests__/**',
+    ],
+    rules: {
+      'no-console': 'off',
     },
   },
   {

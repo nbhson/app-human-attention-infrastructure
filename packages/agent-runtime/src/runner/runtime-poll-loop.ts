@@ -17,10 +17,14 @@ import type { DrizzleDB } from '@harness/db';
 
 import type { AgentRunner } from './agent-runner.js';
 
-/** The two log levels the loop emits; injectable for tests. */
+/**
+ * The two log levels the loop emits, shaped to the di {@link import('@harness/di').Logger}
+ * signature (message-first) so the composition root can inject the real logger
+ * directly (day-27 §2.1).
+ */
 export interface RuntimePollLoopLogger {
-  debug(message: string, ...args: unknown[]): void;
-  error(error: Error): void;
+  debug(message: string, fields?: Record<string, unknown>): void;
+  error(message: string, fields?: Record<string, unknown>): void;
 }
 
 const DEFAULT_INTERVAL_MS = 2000;
@@ -32,7 +36,7 @@ export class RuntimePollLoop {
   constructor(
     private readonly db: DrizzleDB,
     private readonly runner: AgentRunner,
-    private readonly logger: RuntimePollLoopLogger = console,
+    private readonly logger: RuntimePollLoopLogger,
   ) {}
 
   /** Whether the loop is currently armed. */
@@ -100,7 +104,7 @@ export class RuntimePollLoop {
       this.logger.debug('runtime poll: executed task', { taskId });
     } catch (error) {
       // A transient/agent failure must not kill the loop (day-12 §3.5).
-      this.logger.error(error as Error);
+      this.logger.error('runtime poll failed', { error: String(error) });
     } finally {
       this.inFlight = false;
     }

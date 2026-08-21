@@ -23,7 +23,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "audit:orphans": "tsx src/audit-orphans.ts"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",

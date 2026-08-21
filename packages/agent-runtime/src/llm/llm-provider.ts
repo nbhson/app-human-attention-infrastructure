@@ -24,6 +24,14 @@ export interface LLMRequest {
   systemPrompt?: string;
   /** Tool definitions in Anthropic tool-use format. */
   tools?: LLMToolDefinition[];
+  /**
+   * Task lifecycle id (== tasks.id in Phase 1) — set by the ReActLoop so
+   * `LoggingLLMProvider` records it into `llm_call_log.correlation_id`
+   * (day-27 §2.2). Null only for calls made outside an agent run.
+   */
+  correlation_id?: string;
+  /** The agent run making this call, for `llm_call_log.agent_run_id`. */
+  agent_run_id?: string;
 }
 
 export interface LLMToolDefinition {

@@ -32,6 +32,7 @@ import { brand, EventType, newAssessmentID, TaskStatus } from '@harness/domain';
 import type { AssessmentCreatedPayload, TaskID, TaskStateChangedPayload } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import type { Logger } from '@harness/di';
 
 import {
   extractComplexity,
@@ -53,7 +54,10 @@ interface ChangeRow {
 }
 
 export class AttentionSubscriber {
-  constructor(private readonly db: DrizzleDB) {}
+  constructor(
+    private readonly db: DrizzleDB,
+    private readonly logger?: Logger,
+  ) {}
 
   /** Attach the AWAITING_REVIEW handler; returns nothing (fire-and-forget). */
   subscribe(bus: IEventBus): void {
@@ -62,7 +66,11 @@ export class AttentionSubscriber {
         return;
       }
       void this.onAwaitingReview(bus, event.payload.task_id).catch((error) => {
-        console.error('[attention] assessment failed:', error);
+        this.logger?.error('attention assessment failed', {
+          correlation_id: event.correlation_id,
+          task_id: event.payload.task_id,
+          error: String(error),
+        });
       });
     });
   }

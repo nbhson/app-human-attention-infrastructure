@@ -20,12 +20,14 @@ import type { TaskFailedPayload, TaskID, TaskStateChangedPayload } from '@harnes
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { TaskService } from '@harness/orchestrator';
+import type { Logger } from '@harness/di';
 
 export class ReworkService {
   constructor(
     private readonly db: DrizzleDB,
     private readonly bus: IEventBus,
     private readonly taskService: TaskService,
+    private readonly logger?: Logger,
   ) {}
 
   /** Attach the REJECTED handler; returns nothing (fire-and-forget). */
@@ -35,7 +37,11 @@ export class ReworkService {
         return;
       }
       void this.onRejected(event.payload.task_id).catch((error) => {
-        console.error('[rework] reject follow-through failed:', error);
+        this.logger?.error('rework: reject follow-through failed', {
+          correlation_id: event.correlation_id,
+          task_id: event.payload.task_id,
+          error: String(error),
+        });
       });
     });
   }

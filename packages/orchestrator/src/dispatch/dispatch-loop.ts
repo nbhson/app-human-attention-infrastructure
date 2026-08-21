@@ -10,10 +10,14 @@
 
 import type { Dispatcher } from './dispatcher.js';
 
-/** The two log levels the loop emits; injectable for tests. */
+/**
+ * The two log levels the loop emits, shaped to the di {@link import('@harness/di').Logger}
+ * signature (message-first) so the composition root can inject the real logger
+ * directly (day-27 §2.1).
+ */
 export interface DispatchLoopLogger {
-  debug(message: string, ...args: unknown[]): void;
-  error(error: Error): void;
+  debug(message: string, fields?: Record<string, unknown>): void;
+  error(message: string, fields?: Record<string, unknown>): void;
 }
 
 const DEFAULT_INTERVAL_MS = 2000;
@@ -24,7 +28,7 @@ export class DispatchLoop {
 
   constructor(
     private readonly dispatcher: Dispatcher,
-    private readonly logger: DispatchLoopLogger = console,
+    private readonly logger: DispatchLoopLogger,
   ) {}
 
   /** Whether the loop is currently armed. */
@@ -76,7 +80,7 @@ export class DispatchLoop {
       });
     } catch (error) {
       // A transient failure must not kill the loop (day-08 §3.3).
-      this.logger.error(error as Error);
+      this.logger.error('dispatch tick failed', { error: String(error) });
     } finally {
       this.inFlight = false;
     }
