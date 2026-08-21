@@ -11,6 +11,8 @@ export const TOKENS = {
   EventBus: 'EventBus',
   Db: 'Db',
   EventLogWriter: 'EventLogWriter',
+  TaskStateMachine: 'TaskStateMachine',
+  TaskService: 'TaskService',
   Orchestrator: 'Orchestrator',
   AgentRuntime: 'AgentRuntime',
   ContextEngine: 'ContextEngine',

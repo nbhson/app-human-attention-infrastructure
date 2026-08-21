@@ -11,6 +11,7 @@ export * from './decisions.js';
 export * from './event-log.js';
 export * from './projects.js';
 export * from './snapshots.js';
+export * from './task-state-history.js';
 export * from './tasks.js';
 export * from './verification-requests.js';
 export * from './verification-results.js';

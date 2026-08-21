@@ -53,20 +53,18 @@ async function makeChain(): Promise<Chain> {
     .values({ id: runId, task_id: taskId, status: AgentRunStatus.Completed, max_steps: 10 });
 
   const artifactId = newArtifactID();
-  await testDb.db
-    .insert(artifacts)
-    .values({
-      id: artifactId,
-      project_id: projectId,
-      file_path: 'src/index.ts',
-      status: ArtifactStatus.Draft,
-    });
+  await testDb.db.insert(artifacts).values({
+    id: artifactId,
+    project_id: projectId,
+    file_path: 'src/index.ts',
+    status: ArtifactStatus.Draft,
+  });
 
   return { projectId, taskId, runId, artifactId };
 }
 
 describe('@harness/db schema', () => {
-  it('applies all 12 tables to the isolated schema', async () => {
+  it('applies all 13 tables to the isolated schema', async () => {
     const rows = await testDb.sql<{ table_name: string }[]>`
       select table_name from information_schema.tables where table_schema = ${SCHEMA}
     `;
@@ -84,6 +82,7 @@ describe('@harness/db schema', () => {
       'assessments',
       'decisions',
       'event_log',
+      'task_state_history',
     ];
     for (const table of expected) {
       expect(names.has(table), `missing table ${table}`).toBe(true);
@@ -111,15 +110,13 @@ describe('@harness/db schema', () => {
     await testDb.db.insert(projects).values({ id: projectId, name: 'p', repo_path: '/r' });
 
     await expect(
-      testDb.db
-        .insert(tasks)
-        .values({
-          id: newTaskID(),
-          project_id: projectId,
-          title: 't',
-          idempotency_key: 'k',
-          state: 'NOT_A_STATE',
-        }),
+      testDb.db.insert(tasks).values({
+        id: newTaskID(),
+        project_id: projectId,
+        title: 't',
+        idempotency_key: 'k',
+        state: 'NOT_A_STATE',
+      }),
     ).rejects.toThrow();
   });
 
