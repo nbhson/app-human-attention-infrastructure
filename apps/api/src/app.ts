@@ -15,6 +15,7 @@ import type { ReviewService } from '@harness/review';
 
 import { registerReviewRoutes } from './routes/review.js';
 import { registerTaskRoutes } from './routes/tasks.js';
+import { registerProvenanceRoutes } from './routes/provenance.js';
 
 /** Build the Fastify app over an already-wired container. */
 export function buildApp(container: Container, opts?: { readonly logger?: boolean }) {
@@ -24,6 +25,7 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
 
   registerReviewRoutes(app, container.resolve<ReviewService>(TOKENS.ReviewService));
   registerTaskRoutes(app, container);
+  registerProvenanceRoutes(app, container);
 
   return app;
 }

@@ -17,9 +17,12 @@
 
 import { asc, eq, or } from 'drizzle-orm';
 
-import { brand, TaskStatus, uuidv7 } from '@harness/domain';
+import { brand, EventType, TaskStatus, uuidv7 } from '@harness/domain';
+import type { TaskFailedPayload } from '@harness/domain';
 import { dispatchLog, tasks } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
+import { createEvent } from '@harness/event-bus';
+import type { IEventBus } from '@harness/event-bus';
 
 import { TaskService } from '../task-service.js';
 
@@ -43,6 +46,7 @@ export class Dispatcher {
   constructor(
     private readonly db: DrizzleDB,
     private readonly taskService: TaskService,
+    private readonly bus: IEventBus,
   ) {}
 
   /**
@@ -70,7 +74,14 @@ export class Dispatcher {
         .for('update', { skipLocked: true });
 
       for (const row of candidates) {
-        const key = `${row.id}:${row.attempt_number}`;
+        // A REWORK task is dispatched for its *next* attempt: `attempt_number`
+        // bumps on the REWORK→QUEUED transition (day-06 §2.5), so keying the
+        // reservation on the pre-bump value would collide with the initial
+        // PENDING→QUEUED dispatch of the same attempt (both `id:0`) and silently
+        // skip the re-dispatch. Key on the attempt being launched instead.
+        const dispatchAttempt =
+          row.state === TaskStatus.Rework ? row.attempt_number + 1 : row.attempt_number;
+        const key = `${row.id}:${dispatchAttempt}`;
 
         // Reserve the dispatch. `onConflictDoNothing().returning()` yields a row
         // only when *we* won the claim; an empty result means someone else (a
@@ -80,7 +91,7 @@ export class Dispatcher {
           .values({
             id: uuidv7(),
             task_id: row.id,
-            attempt_number: row.attempt_number,
+            attempt_number: dispatchAttempt,
             idempotency_key: key,
             dispatched_at: new Date(),
           })
@@ -104,8 +115,17 @@ export class Dispatcher {
     // already durable in `dispatch_log`, so re-entrancy here is harmless.
     for (const claim of claims) {
       const toState = claim.exhausted ? TaskStatus.Failed : TaskStatus.Queued;
-      await this.taskService.transitionTask(brand(claim.id, 'TaskID'), toState, 'orchestrator');
+      const taskId = brand(claim.id, 'TaskID');
+      await this.taskService.transitionTask(taskId, toState, 'orchestrator');
       if (claim.exhausted) {
+        // An exhausted REWORK reaching FAILED by max-attempts is a terminal
+        // failure too (§2.4): publish `task.failed` so downstream observers
+        // (day-26 §2.1 scenario 2) see one catch-all failure signal, mirroring
+        // the ReworkService's reject-path publisher (day-24 §2.2).
+        const payload: TaskFailedPayload = { task_id: taskId, reason: 'MAX_ATTEMPTS_EXHAUSTED' };
+        this.bus.publish(
+          createEvent(EventType.TaskFailed, brand(claim.id, 'CorrelationID'), payload),
+        );
         result.failed += 1;
       } else {
         result.dispatched += 1;

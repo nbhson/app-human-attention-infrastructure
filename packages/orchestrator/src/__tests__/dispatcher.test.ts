@@ -64,7 +64,7 @@ function makeDispatcher(bus: IEventBus = new RecordingBus()): {
   bus: RecordingBus;
 } {
   const service = new TaskService(testDb.db, bus, new TaskStateMachine());
-  return { dispatcher: new Dispatcher(testDb.db, service), service, bus: bus as RecordingBus };
+  return { dispatcher: new Dispatcher(testDb.db, service, bus), service, bus: bus as RecordingBus };
 }
 
 /** Insert a task directly in `state` (bypassing the service) for setup. */
@@ -169,6 +169,27 @@ describe('Dispatcher', () => {
     expect(row[0]?.attempt_number).toBe(3); // requeue bumps the attempt
   });
 
+  it('re-dispatches an attempt-0 REWORK without colliding with the initial dispatch', async () => {
+    const { dispatcher } = makeDispatcher();
+    const id = await insertTask(TaskStatus.Pending, 0, 3);
+
+    // Initial dispatch launches attempt 0 (key `id:0`).
+    const first = await dispatcher.dispatchPending();
+    expect(first).toEqual({ dispatched: 1, skipped: 0, failed: 0 });
+
+    // A verify failure routes the task back to REWORK at attempt 0 (no bump).
+    await testDb.db.update(tasks).set({ state: TaskStatus.Rework }).where(eq(tasks.id, id));
+
+    // The re-dispatch launches attempt 1 — keyed `id:1`, so it must NOT be
+    // skipped as a duplicate of the attempt-0 dispatch.
+    const second = await dispatcher.dispatchPending();
+    expect(second).toEqual({ dispatched: 1, skipped: 0, failed: 0 });
+
+    const row = await testDb.db.select().from(tasks).where(eq(tasks.id, id));
+    expect(row[0]?.state).toBe(TaskStatus.Queued);
+    expect(row[0]?.attempt_number).toBe(1);
+  });
+
   it('transitions a REWORK task to FAILED when attempt_number >= max_attempts', async () => {
     const { dispatcher } = makeDispatcher();
     const id = await insertTask(TaskStatus.Rework, 3, 3);
@@ -178,6 +199,19 @@ describe('Dispatcher', () => {
     expect(result).toEqual({ dispatched: 0, skipped: 0, failed: 1 });
     const row = await testDb.db.select().from(tasks).where(eq(tasks.id, id));
     expect(row[0]?.state).toBe(TaskStatus.Failed);
+  });
+
+  it('publishes task.failed when an exhausted REWORK reaches FAILED', async () => {
+    const { dispatcher, bus } = makeDispatcher();
+    const id = await insertTask(TaskStatus.Rework, 3, 3);
+
+    await dispatcher.dispatchPending();
+
+    const failedEvent = bus.published.find((event) => event.event_type === EventType.TaskFailed);
+    expect(failedEvent).toBeDefined();
+    const payload = failedEvent?.payload as { task_id: string; reason: string };
+    expect(payload).toEqual({ task_id: id, reason: 'MAX_ATTEMPTS_EXHAUSTED' });
+    expect(failedEvent?.correlation_id).toBe(id);
   });
 
   it('respects the batchSize limit', async () => {
@@ -202,7 +236,7 @@ describe('Dispatcher', () => {
     const second = await openTestDbConnection(SCHEMA);
     try {
       const secondService = new TaskService(second.db, new RecordingBus(), new TaskStateMachine());
-      const secondDispatcher = new Dispatcher(second.db, secondService);
+      const secondDispatcher = new Dispatcher(second.db, secondService, new RecordingBus());
 
       const [r1, r2] = await Promise.all([
         dispatcher.dispatchPending(),

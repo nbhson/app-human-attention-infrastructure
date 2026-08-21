@@ -58,6 +58,18 @@ export class RuntimePollLoop {
     }
   }
 
+  /**
+   * Resolve once any in-flight execution drains. `stop()` only clears the timer;
+   * it does not join the currently-running tick. The graceful-shutdown path
+   * awaits this so a SIGTERM never aborts a task mid-execution, leaving it
+   * orphaned in `EXECUTING` (day-26 §2.1 scenario 8).
+   */
+  async waitForIdle(): Promise<void> {
+    while (this.inFlight) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
   /** Atomically claim the oldest `QUEUED` task, or `null` when the queue is empty. */
   async claimQueuedTask(): Promise<TaskID | null> {
     return this.db.transaction(async (tx) => {

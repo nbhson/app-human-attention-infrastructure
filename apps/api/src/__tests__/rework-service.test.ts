@@ -130,7 +130,7 @@ describe('ReworkService', () => {
     expect(history[0]?.rationale).toBe('needs more tests');
 
     // Dispatcher (day-08) is the only place REWORK → QUEUED bumps the attempt.
-    const dispatcher = new Dispatcher(db, taskService(bus));
+    const dispatcher = new Dispatcher(db, taskService(bus), bus);
     const result = await dispatcher.dispatchPending();
     expect(result.dispatched).toBe(1);
 

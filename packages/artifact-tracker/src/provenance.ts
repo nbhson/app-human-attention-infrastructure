@@ -79,6 +79,8 @@ export interface ProvenanceVerification {
 export interface ProvenanceEvent {
   readonly eventId: string;
   readonly eventType: string;
+  /** Wall-clock time the event was emitted, for the timeline's relative stamps. */
+  readonly occurredAt: Date;
 }
 
 /** The seven sections of a task's provenance (day-17 §2.4). */
@@ -155,7 +157,11 @@ export async function buildProvenanceChain(
   let events: readonly ProvenanceEvent[] = [];
   if (correlationKeys.length > 0) {
     events = await db
-      .select({ eventId: eventLog.event_id, eventType: eventLog.event_type })
+      .select({
+        eventId: eventLog.event_id,
+        eventType: eventLog.event_type,
+        occurredAt: eventLog.occurred_at,
+      })
       .from(eventLog)
       .where(inArray(eventLog.correlation_id, correlationKeys))
       .orderBy(asc(eventLog.occurred_at));

@@ -50,6 +50,17 @@ export class DispatchLoop {
     }
   }
 
+  /**
+   * Resolve once any in-flight poll drains. `stop()` only clears the timer; it
+   * does not join the currently-running tick. The graceful-shutdown path awaits
+   * this so a SIGTERM never aborts a dispatch mid-claim.
+   */
+  async waitForIdle(): Promise<void> {
+    while (this.inFlight) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
   private async poll(): Promise<void> {
     if (this.inFlight) {
       return; // previous tick still running — skip rather than stack up.

@@ -33,11 +33,14 @@ const start = async (): Promise<void> => {
   }
 };
 
-// Stop cleanly on shutdown: halt both poll loops, then let the process exit.
+// Stop cleanly on shutdown: halt both poll loops, then drain any in-flight tick
+// (day-26 §2.1 scenario 8) so a SIGTERM mid-execution leaves no orphaned task.
 const shutdown = (): void => {
   dispatchLoop.stop();
   runtimePollLoop.stop();
-  process.exit(0);
+  void Promise.all([dispatchLoop.waitForIdle(), runtimePollLoop.waitForIdle()]).then(() =>
+    process.exit(0),
+  );
 };
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

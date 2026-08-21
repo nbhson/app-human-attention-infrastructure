@@ -19,7 +19,7 @@
  * - any other error → `agent_runs` becomes `FAILED` and the error rethrows.
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 
 import {
   AgentRunStatus,
@@ -38,7 +38,7 @@ import type {
 } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import { agentRuns, taskStateHistory } from '@harness/db';
+import { agentRuns, taskStateHistory, trajectorySteps } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 
 import type { LLMProvider } from '../llm/llm-provider.js';
@@ -226,11 +226,18 @@ export class AgentRunner {
     reason: 'MAX_STEPS_EXCEEDED' | 'TOKEN_BUDGET_EXCEEDED',
     startedAt: number,
   ): Promise<void> {
+    // The loop threw (token budget) or returned before `complete()` ran (max
+    // steps), so `result.steps.length` is not always in scope. The trajectory is
+    // the append-only source of truth for executed steps (§2.6), so derive the
+    // count there — it is accurate for both escalation reasons.
+    const stepsUsed = await this.countSteps(runId);
     await this.db
       .update(agentRuns)
       .set({
         status: AgentRunStatus.Escalated,
         escalation_reason: reason,
+        steps_used: stepsUsed,
+        current_step: stepsUsed,
         finished_at: new Date(),
       })
       .where(eq(agentRuns.id, runId));
@@ -242,6 +249,15 @@ export class AgentRunner {
     );
 
     this.publishFinished(taskId, runId, 'ESCALATED', Date.now() - startedAt);
+  }
+
+  /** Count the executed steps recorded for a run (the trajectory is the source of truth). */
+  private async countSteps(runId: AgentRunID): Promise<number> {
+    const rows = await this.db
+      .select({ n: count() })
+      .from(trajectorySteps)
+      .where(eq(trajectorySteps.agent_run_id, runId));
+    return rows[0]?.n ?? 0;
   }
 
   /** Emit `task.execution_finished` for both terminal outcomes (day-12 §2.6). */

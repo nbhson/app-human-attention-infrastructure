@@ -411,6 +411,7 @@ export function buildContainer(): Container {
     return new Dispatcher(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<TaskService>(TOKENS.TaskService),
+      container.resolve<IEventBus>(TOKENS.EventBus),
     );
   });
 

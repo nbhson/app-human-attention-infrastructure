@@ -55,6 +55,8 @@ export default tseslint.config(
       '**/dist/**',
       '**/.turbo/**',
       '**/coverage/**',
+      'sandbox/**',
+      'working-repo/**',
       '**/*.config.ts',
       '**/*.config.mjs',
       'eslint.config.mjs',

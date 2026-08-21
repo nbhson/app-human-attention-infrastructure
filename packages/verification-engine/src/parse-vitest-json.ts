@@ -77,7 +77,9 @@ export function parseVitestJson(raw: string): ParsedTestResult[] {
         testFile: suite.name,
         testName: assertion.fullName,
         status: normalizeStatus(assertion.status),
-        durationMs: typeof assertion.duration === 'number' ? assertion.duration : 0,
+        // Vitest reports a fractional `duration` (e.g. 0.3895ms); the DB column is
+        // an integer (`verification_test_results.duration_ms`), so round it here.
+        durationMs: typeof assertion.duration === 'number' ? Math.round(assertion.duration) : 0,
         ...(error === undefined ? {} : { error }),
       });
     }
