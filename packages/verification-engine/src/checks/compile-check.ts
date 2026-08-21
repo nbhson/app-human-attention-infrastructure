@@ -6,11 +6,12 @@
  * not use containers (§5.5 fix). The child process is spawned with a
  * `sanitizedEnv` so an `ANTHROPIC_API_KEY` in the parent never reaches `tsc`.
  *
- * Output is captured with a 64 KB cap (tsc can dump megabytes on a broken
- * workspace); the tail is marked `...[truncated]` and the full output is left to
- * evidence storage (Day 17). The per-check timeout is enforced by the engine's
- * level-1 `withTimeout`; the child is *not* aborted on timeout in Phase 1
- * (documented trade-off — sandboxing lands in Phase 2).
+ * The inline `output` field is capped at 64 KB (tsc can dump megabytes on a
+ * broken workspace) but the **full** output is retained in `evidenceBody` so the
+ * engine can store untruncated `CHECK_OUTPUT` evidence (Day 17). The per-check
+ * timeout is enforced by the engine's level-1 `withTimeout`; the child is *not*
+ * aborted on timeout in Phase 1 (documented trade-off — sandboxing lands in
+ * Phase 2).
  */
 
 import { spawn } from 'node:child_process';
@@ -21,8 +22,6 @@ import { readInt, sanitizedEnv, truncateOutput } from '../env.js';
 import type { CheckContext, CheckResult, VerificationCheck } from '../types.js';
 import { CheckKind, CheckStatus } from '../types.js';
 
-const OUTPUT_CAP = 64 * 1024;
-
 // `pnpm exec` resets the child's cwd to the package root (§6 pitfall), which
 // would make `-p .` point at *our* tsconfig instead of the worktree's. Resolve
 // the `tsc` CLI directly through the workspace install and drive it via `node`.
@@ -31,10 +30,11 @@ const TSC_BIN = require.resolve('typescript/bin/tsc');
 
 interface TscRun {
   readonly code: number | null;
+  /** Full (uncapped) stdout/stderr — the `evidenceBody` source of truth. */
   readonly output: string;
 }
 
-/** Spawn `tsc --noEmit` over `worktreePath` and collect its capped output. */
+/** Spawn `tsc --noEmit` over `worktreePath` and collect its full output. */
 function runTsc(worktreePath: string): Promise<TscRun> {
   const proc: ChildProcess = spawn(process.execPath, [TSC_BIN, '--noEmit', '-p', worktreePath], {
     cwd: worktreePath,
@@ -42,16 +42,8 @@ function runTsc(worktreePath: string): Promise<TscRun> {
   });
 
   let output = '';
-  let truncated = false;
   const onData = (chunk: Buffer): void => {
-    if (truncated) {
-      return;
-    }
     output += chunk.toString('utf8');
-    if (output.length > OUTPUT_CAP) {
-      output = output.slice(0, OUTPUT_CAP);
-      truncated = true;
-    }
   };
   proc.stdout?.on('data', onData);
   proc.stderr?.on('data', onData);
@@ -59,7 +51,7 @@ function runTsc(worktreePath: string): Promise<TscRun> {
   return new Promise<TscRun>((resolve, reject) => {
     proc.on('error', reject);
     proc.on('close', (code) => {
-      resolve({ code, output: truncated ? output + '\n...[truncated]' : output });
+      resolve({ code, output });
     });
   });
 }
@@ -81,9 +73,10 @@ export class CompileCheck implements VerificationCheck {
         status: code === 0 ? CheckStatus.PASSED : CheckStatus.FAILED,
         durationMs: Date.now() - started,
         output: truncateOutput(output),
+        evidenceBody: output,
       };
     } catch (error) {
-      // Spawn failure (e.g. `pnpm` not on PATH) is a check-infra error → FAILED
+      // Spawn failure (e.g. `tsc` not on PATH) is a check-infra error → FAILED
       // with the underlying message, never a throw that kills sibling checks.
       return {
         checkKind: this.kind,

@@ -10,6 +10,7 @@ export * from './types.js';
 export * from './timeout.js';
 export * from './env.js';
 export * from './parse-vitest-json.js';
+export * from './evidence-store.js';
 export * from './verification-engine.js';
 export { CompileCheck } from './checks/compile-check.js';
 export { TestCheck } from './checks/test-check.js';

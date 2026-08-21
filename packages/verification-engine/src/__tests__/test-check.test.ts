@@ -27,6 +27,7 @@ function passRun(): VitestRun {
   return {
     code: 0,
     output: 'Test Files 1 passed (1)',
+    evidenceBody: 'Test Files 1 passed (1)',
     results: [{ testFile: TEST_FILE, testName: 'add > ok', status: 'PASSED', durationMs: 1 }],
     timedOut: false,
   };
@@ -36,6 +37,7 @@ function failRun(): VitestRun {
   return {
     code: 1,
     output: 'Test Files 1 failed (1)',
+    evidenceBody: 'Test Files 1 failed (1)',
     results: [
       {
         testFile: TEST_FILE,
@@ -50,7 +52,13 @@ function failRun(): VitestRun {
 }
 
 function timedOutRun(): VitestRun {
-  return { code: null, output: '...[test timed out]', results: [], timedOut: true };
+  return {
+    code: null,
+    output: '...[test timed out]',
+    evidenceBody: '...[test timed out]',
+    results: [],
+    timedOut: true,
+  };
 }
 
 /**

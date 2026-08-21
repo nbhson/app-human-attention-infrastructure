@@ -40,6 +40,7 @@ import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 
 import { readInt } from './env.js';
+import { EvidenceKind, EvidenceStore, EvidenceSubjectKind } from './evidence-store.js';
 import { CheckTimeoutError, RequestTimeoutError, withTimeout } from './timeout.js';
 import type {
   CheckContext,
@@ -68,6 +69,7 @@ export class VerificationEngine {
     private readonly db: DrizzleDB,
     private readonly bus: IEventBus,
     private readonly options: VerificationEngineOptions,
+    private readonly evidenceStore: EvidenceStore,
   ) {}
 
   private get requestTimeoutMs(): number {
@@ -163,6 +165,15 @@ export class VerificationEngine {
       });
       for (const check of report.checks) {
         const checkResultId = uuidv7();
+        // Day 17: full (uncapped) check output is stored as CHECK_OUTPUT evidence
+        // first, then linked to this check-result row via `evidence_id`. The
+        // inline `output` column stays capped; the evidence row holds the whole.
+        const evidenceRecord = await this.evidenceStore.record(
+          tx,
+          EvidenceKind.CheckOutput,
+          check.evidenceBody ?? check.output,
+          [{ subjectKind: EvidenceSubjectKind.CheckResult, subjectId: checkResultId }],
+        );
         await tx.insert(verificationCheckResults).values({
           id: checkResultId,
           report_id: report.id,
@@ -170,7 +181,18 @@ export class VerificationEngine {
           status: check.status,
           duration_ms: check.durationMs,
           output: check.output,
+          evidence_id: evidenceRecord.id,
         });
+        // TEST checks also carry a structured TEST_RESULTS blob (their per-test
+        // leaves, serialised) — a second evidence record linked to the same row.
+        if ((check.testResults?.length ?? 0) > 0) {
+          await this.evidenceStore.record(
+            tx,
+            EvidenceKind.TestResults,
+            JSON.stringify(check.testResults),
+            [{ subjectKind: EvidenceSubjectKind.CheckResult, subjectId: checkResultId }],
+          );
+        }
         // Day 16: TEST checks carry per-test leaves; persist one row per test,
         // linked to the check-result row just above (the FK §2.3 requires it).
         for (const test of check.testResults ?? []) {

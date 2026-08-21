@@ -14,6 +14,7 @@ export const TOKENS = {
   ArtifactCaptureSubscriber: 'ArtifactCaptureSubscriber',
   SnapshotStore: 'SnapshotStore',
   ChangeStatusSubscriber: 'ChangeStatusSubscriber',
+  EvidenceStore: 'EvidenceStore',
   TaskStateMachine: 'TaskStateMachine',
   TaskService: 'TaskService',
   Dispatcher: 'Dispatcher',

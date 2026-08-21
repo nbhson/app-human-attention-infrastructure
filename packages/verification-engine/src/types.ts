@@ -58,6 +58,8 @@ export interface CheckResult {
   readonly output: string;
   /** Set on Day 17 when the full output moves to evidence storage. */
   readonly evidenceId?: string;
+  /** Day 17: the full, uncapped output — stored as `CHECK_OUTPUT` evidence. */
+  readonly evidenceBody?: string;
   /** TEST check only (day-16): per-test leaf results persisted by the engine. */
   readonly testResults?: ParsedTestResult[];
   /** TEST check only (day-16): true when the flaky retry was exercised. */

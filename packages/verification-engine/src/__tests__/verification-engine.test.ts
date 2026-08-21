@@ -17,6 +17,8 @@ import {
   agentRuns,
   artifacts,
   changes,
+  evidence,
+  evidenceLinks,
   projects,
   tasks,
   verificationCheckResults,
@@ -27,6 +29,7 @@ import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 
 import { CompileCheck } from '../checks/compile-check.js';
+import { EvidenceStore } from '../evidence-store.js';
 import { VerificationEngine } from '../verification-engine.js';
 import { CheckKind, CheckStatus } from '../types.js';
 import type { CheckResult, VerificationCheck } from '../types.js';
@@ -54,6 +57,8 @@ beforeEach(async () => {
   await db.delete(verificationTestResults);
   await db.delete(verificationCheckResults);
   await db.delete(verificationReports);
+  await db.delete(evidenceLinks);
+  await db.delete(evidence);
   await db.delete(changes);
   await db.delete(artifacts);
   await db.delete(agentRuns);
@@ -118,7 +123,12 @@ function hangingCheck(kind: CheckKind, timeoutMs: number): VerificationCheck {
 describe('VerificationEngine', () => {
   it('persists a PASSED report and publishes verification.completed', async () => {
     const changeId = await seedChange(`${FIXTURES}/compile-pass`);
-    const engine = new VerificationEngine(db, bus, { checks: [new CompileCheck(60_000)] });
+    const engine = new VerificationEngine(
+      db,
+      bus,
+      { checks: [new CompileCheck(60_000)] },
+      new EvidenceStore(),
+    );
 
     const report = await engine.verify(changeId);
 
@@ -151,7 +161,12 @@ describe('VerificationEngine', () => {
 
   it('fails a broken change and lists failedChecks in the report and event', async () => {
     const changeId = await seedChange(`${FIXTURES}/compile-fail`);
-    const engine = new VerificationEngine(db, bus, { checks: [new CompileCheck(60_000)] });
+    const engine = new VerificationEngine(
+      db,
+      bus,
+      { checks: [new CompileCheck(60_000)] },
+      new EvidenceStore(),
+    );
 
     const report = await engine.verify(changeId);
 
@@ -163,10 +178,15 @@ describe('VerificationEngine', () => {
 
   it('records TIMED_OUT when a single check exceeds its own budget', async () => {
     const changeId = await seedChange(`${FIXTURES}/compile-pass`);
-    const engine = new VerificationEngine(db, bus, {
-      checks: [hangingCheck(CheckKind.TEST, 20)],
-      requestTimeoutMs: 5_000,
-    });
+    const engine = new VerificationEngine(
+      db,
+      bus,
+      {
+        checks: [hangingCheck(CheckKind.TEST, 20)],
+        requestTimeoutMs: 5_000,
+      },
+      new EvidenceStore(),
+    );
 
     const report = await engine.verify(changeId);
 
@@ -178,10 +198,15 @@ describe('VerificationEngine', () => {
 
   it('records every check TIMED_OUT when the request budget elapses first', async () => {
     const changeId = await seedChange(`${FIXTURES}/compile-pass`);
-    const engine = new VerificationEngine(db, bus, {
-      checks: [hangingCheck(CheckKind.COMPILE, 100), hangingCheck(CheckKind.LINT, 100)],
-      requestTimeoutMs: 20,
-    });
+    const engine = new VerificationEngine(
+      db,
+      bus,
+      {
+        checks: [hangingCheck(CheckKind.COMPILE, 100), hangingCheck(CheckKind.LINT, 100)],
+        requestTimeoutMs: 20,
+      },
+      new EvidenceStore(),
+    );
 
     const report = await engine.verify(changeId);
 
@@ -193,10 +218,15 @@ describe('VerificationEngine', () => {
 
   it('persists check results for a TIMED_OUT verification too', async () => {
     const changeId = await seedChange(`${FIXTURES}/compile-pass`);
-    const engine = new VerificationEngine(db, bus, {
-      checks: [hangingCheck(CheckKind.TEST, 20)],
-      requestTimeoutMs: 5_000,
-    });
+    const engine = new VerificationEngine(
+      db,
+      bus,
+      {
+        checks: [hangingCheck(CheckKind.TEST, 20)],
+        requestTimeoutMs: 5_000,
+      },
+      new EvidenceStore(),
+    );
 
     const report = await engine.verify(changeId);
 
@@ -232,7 +262,7 @@ describe('VerificationEngine', () => {
         retried: true,
       }),
     };
-    const engine = new VerificationEngine(db, bus, { checks: [flakyCheck] });
+    const engine = new VerificationEngine(db, bus, { checks: [flakyCheck] }, new EvidenceStore());
 
     const report = await engine.verify(changeId);
 
@@ -267,5 +297,89 @@ describe('VerificationEngine', () => {
         }),
       ]),
     );
+  });
+
+  it('persists CHECK_OUTPUT evidence linked to every check result', async () => {
+    const changeId = await seedChange(`${FIXTURES}/compile-pass`);
+    const engine = new VerificationEngine(
+      db,
+      bus,
+      { checks: [new CompileCheck(60_000)] },
+      new EvidenceStore(),
+    );
+
+    const report = await engine.verify(changeId);
+    expect(report.overall).toBe('PASSED');
+
+    const checkRows = await db.select().from(verificationCheckResults);
+    expect(checkRows).toHaveLength(1);
+    const evidenceId = checkRows[0]?.evidence_id;
+    expect(evidenceId).toBeTruthy();
+
+    const evidenceRows = await db.select().from(evidence);
+    expect(evidenceRows).toHaveLength(1);
+    expect(evidenceRows[0]).toMatchObject({ id: evidenceId, kind: 'CHECK_OUTPUT' });
+
+    const links = await db.select().from(evidenceLinks);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({
+      evidence_id: evidenceId,
+      subject_kind: 'check_result',
+      subject_id: checkRows[0]?.id,
+    });
+  });
+
+  it('stores the full evidence body even when the inline output is capped', async () => {
+    const changeId = await seedChange(`${FIXTURES}/compile-pass`);
+    const full = 'a'.repeat(70 * 1024 + 1); // just over the 64 KB inline cap
+    const capped = `${'b'.repeat(100)}\n...[truncated]`;
+    const check: VerificationCheck = {
+      kind: CheckKind.COMPILE,
+      timeoutMs: 60_000,
+      run: async () => ({
+        checkKind: CheckKind.COMPILE,
+        status: CheckStatus.PASSED,
+        durationMs: 1,
+        output: capped,
+        evidenceBody: full,
+      }),
+    };
+    const engine = new VerificationEngine(db, bus, { checks: [check] }, new EvidenceStore());
+    await engine.verify(changeId);
+
+    const checkRows = await db.select().from(verificationCheckResults);
+    expect(checkRows[0]?.output).toBe(capped);
+
+    const evidenceRows = await db.select().from(evidence);
+    expect(evidenceRows).toHaveLength(1);
+    expect(evidenceRows[0]?.body).toBe(full);
+    expect(evidenceRows[0]?.body.length).toBe(full.length);
+    expect(evidenceRows[0]?.body.length).toBeGreaterThan(64 * 1024);
+  });
+
+  it('stores a TEST_RESULTS evidence blob when a TEST check carries per-test leaves', async () => {
+    const changeId = await seedChange(`${FIXTURES}/compile-pass`);
+    const testCheck: VerificationCheck = {
+      kind: CheckKind.TEST,
+      timeoutMs: 60_000,
+      run: async () => ({
+        checkKind: CheckKind.TEST,
+        status: CheckStatus.PASSED,
+        durationMs: 5,
+        output: '1 passed',
+        testResults: [
+          { testFile: 'a.test.ts', testName: 'a > ok', status: 'PASSED', durationMs: 1 },
+        ],
+      }),
+    };
+    const engine = new VerificationEngine(db, bus, { checks: [testCheck] }, new EvidenceStore());
+    await engine.verify(changeId);
+
+    const evidenceRows = await db.select().from(evidence);
+    const kinds = evidenceRows.map((row) => row.kind).sort();
+    expect(kinds).toEqual(['CHECK_OUTPUT', 'TEST_RESULTS']);
+
+    const testResultsRow = evidenceRows.find((row) => row.kind === 'TEST_RESULTS');
+    expect(testResultsRow?.body).toContain('a > ok');
   });
 });

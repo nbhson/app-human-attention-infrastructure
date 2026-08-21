@@ -100,6 +100,24 @@ export const humanDecisionTypes = [
   'ESCALATED',
 ] as const;
 
+/**
+ * Evidence record kinds (day-17 §2.1). Plain-text copies of the
+ * engine-local `EvidenceKind` in `@harness/verification-engine` — `db` may not
+ * import a sibling engine (boundary R4), so the lists live here, mirroring how
+ * `checkStatuses` above tracks the engine's `CheckStatus`.
+ */
+export const evidenceKinds = [
+  'CHECK_OUTPUT',
+  'TEST_RESULTS',
+  'SNAPSHOT',
+  'LLM_TRANSCRIPT',
+  'DIFF',
+  'HUMAN_NOTE',
+] as const;
+
+/** What an evidence record is *linked to* via `evidence_links` (day-17 §2.1). */
+export const evidenceSubjectKinds = ['check_result', 'artifact', 'report', 'agent_run'] as const;
+
 /** `tasks.state`. */
 export const taskStateCheck = inList('tasks_state_check', 'state', taskStates);
 
@@ -155,4 +173,14 @@ export const humanDecisionTypeCheck = inList(
   'decisions_decision_check',
   'decision',
   humanDecisionTypes,
+);
+
+/** `evidence.kind`. */
+export const evidenceKindCheck = inList('evidence_kind_check', 'kind', evidenceKinds);
+
+/** `evidence_links.subject_kind`. */
+export const evidenceSubjectKindCheck = inList(
+  'evidence_links_subject_kind_check',
+  'subject_kind',
+  evidenceSubjectKinds,
 );

@@ -27,7 +27,6 @@ import { parseVitestJson } from '../parse-vitest-json.js';
 import type { CheckContext, CheckResult, ParsedTestResult, VerificationCheck } from '../types.js';
 import { CheckKind, CheckStatus } from '../types.js';
 
-const OUTPUT_CAP = 64 * 1024;
 const require = createRequire(import.meta.url);
 const DEFAULT_VITEST_BIN = require.resolve('vitest/vitest.mjs');
 
@@ -37,6 +36,8 @@ export interface VitestRun {
   readonly code: number | null;
   /** Capped human stdout/stderr (the `output` field, §6). */
   readonly output: string;
+  /** Full, uncapped stdout/stderr — stored as `CHECK_OUTPUT` evidence (Day 17). */
+  readonly evidenceBody: string;
   /** Per-test rows parsed from the JSON reporter's `--outputFile`. */
   readonly results: ParsedTestResult[];
   /** True when the level-1 budget elapsed and the process group was killed. */
@@ -64,6 +65,7 @@ export class TestCheck implements VerificationCheck {
         status: CheckStatus.PASSED,
         durationMs: Date.now() - started,
         output: first.output,
+        evidenceBody: first.evidenceBody,
         testResults: first.results,
       };
     }
@@ -78,6 +80,7 @@ export class TestCheck implements VerificationCheck {
         status: CheckStatus.TIMED_OUT,
         durationMs,
         output: second.output,
+        evidenceBody: second.evidenceBody,
       };
     }
 
@@ -87,6 +90,7 @@ export class TestCheck implements VerificationCheck {
       status: flaky ? CheckStatus.FLAKY : CheckStatus.FAILED,
       durationMs,
       output: (flaky ? second : first).output,
+      evidenceBody: (flaky ? second : first).evidenceBody,
       testResults: (flaky ? second : first).results,
       retried: true,
     };
@@ -119,16 +123,8 @@ export class TestCheck implements VerificationCheck {
     );
 
     let output = '';
-    let truncated = false;
     const onData = (chunk: Buffer): void => {
-      if (truncated) {
-        return;
-      }
       output += chunk.toString('utf8');
-      if (output.length > OUTPUT_CAP) {
-        output = output.slice(0, OUTPUT_CAP);
-        truncated = true;
-      }
     };
     proc.stdout?.on('data', onData);
     proc.stderr?.on('data', onData);
@@ -146,12 +142,11 @@ export class TestCheck implements VerificationCheck {
         } catch {
           // Group already gone (e.g. the parent exited between timeout and kill).
         }
-        const resolvedOutput = truncated ? output + '\n...[truncated]' : output;
+        const full = output + `\n...[test timed out after ${this.timeoutMs}ms]`;
         resolve({
           code: null,
-          output: truncateOutput(
-            resolvedOutput + `\n...[test timed out after ${this.timeoutMs}ms]`,
-          ),
+          output: truncateOutput(full),
+          evidenceBody: full,
           results: [],
           timedOut: true,
         });
@@ -163,9 +158,11 @@ export class TestCheck implements VerificationCheck {
         }
         settled = true;
         clearTimeout(timer);
+        const full = output + `\n...[test spawn error: ${String(error)}]`;
         resolve({
           code: null,
-          output: truncateOutput(output + `\n...[test spawn error: ${String(error)}]`),
+          output: truncateOutput(full),
+          evidenceBody: full,
           results: [],
           timedOut: false,
         });
@@ -181,7 +178,8 @@ export class TestCheck implements VerificationCheck {
           .then((raw) => {
             resolve({
               code,
-              output: truncated ? output + '\n...[truncated]' : truncateOutput(output),
+              output: truncateOutput(output),
+              evidenceBody: output,
               results: parseVitestJson(raw),
               timedOut: code === null,
             });
@@ -190,7 +188,8 @@ export class TestCheck implements VerificationCheck {
             // Killed before writing the reporter file — no leaf rows, never throw.
             resolve({
               code,
-              output: truncated ? output + '\n...[truncated]' : truncateOutput(output),
+              output: truncateOutput(output),
+              evidenceBody: output,
               results: [],
               timedOut: code === null,
             });
