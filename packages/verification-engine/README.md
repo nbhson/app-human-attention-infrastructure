@@ -18,7 +18,13 @@ Nói nôm na: AI bảo "xong rồi" thì chưa tính; gói này chạy test & bu
 - `src/timeout.ts` — `withTimeout`, `CheckTimeoutError`, `RequestTimeoutError`.
 - `src/env.ts` — `sanitizedEnv`, `readInt`, `truncateOutput`.
 
-**Còn lại:** Day 16 (`TestCheck` + flaky), Day 17 (evidence storage), Day 22+ (human review hand-off).
+**Day 16 hoàn thành:**
+
+- `src/checks/test-check.ts` — `TestCheck` chạy `vitest run --root <worktree>` (JSON reporter), retry-once flaky rule (fail→pass = `FLAKY`), giết cả process group (`process.kill(-pid, 'SIGKILL')`) khi timeout level-1.
+- `src/parse-vitest-json.ts` — parser thuần parse JSON reporter → `ParsedTestResult[]`.
+- `verification_test_results` table + `verification_reports.flaky` — mỗi test là một dòng evidence, kèm `was_retried`.
+
+**Còn lại:** Day 17 (evidence storage), Day 18 (attention scoring), Day 22+ (human review hand-off).
 
 ---
 

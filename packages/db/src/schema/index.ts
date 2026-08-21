@@ -22,3 +22,4 @@ export * from './verification-requests.js';
 export * from './verification-results.js';
 export * from './verification-reports.js';
 export * from './verification-check-results.js';
+export * from './verification-test-results.js';

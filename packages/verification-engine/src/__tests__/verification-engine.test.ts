@@ -21,6 +21,7 @@ import {
   tasks,
   verificationCheckResults,
   verificationReports,
+  verificationTestResults,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
@@ -50,6 +51,7 @@ beforeEach(async () => {
     completed.push(event.payload);
   });
 
+  await db.delete(verificationTestResults);
   await db.delete(verificationCheckResults);
   await db.delete(verificationReports);
   await db.delete(changes);
@@ -205,5 +207,65 @@ describe('VerificationEngine', () => {
       check_kind: 'TEST',
       status: 'TIMED_OUT',
     });
+  });
+
+  it('reports FLAKY as passed-but-flagged and persists per-test rows (was_retried)', async () => {
+    const changeId = await seedChange(`${FIXTURES}/compile-pass`);
+    const flakyCheck: VerificationCheck = {
+      kind: CheckKind.TEST,
+      timeoutMs: 60_000,
+      run: async () => ({
+        checkKind: CheckKind.TEST,
+        status: CheckStatus.FLAKY,
+        durationMs: 42,
+        output: '1 failed, retried ok',
+        testResults: [
+          { testFile: 'a.test.ts', testName: 'a > flaky', status: 'PASSED', durationMs: 5 },
+          {
+            testFile: 'a.test.ts',
+            testName: 'a > still fails',
+            status: 'FAILED',
+            durationMs: 7,
+            error: 'boom',
+          },
+        ],
+        retried: true,
+      }),
+    };
+    const engine = new VerificationEngine(db, bus, { checks: [flakyCheck] });
+
+    const report = await engine.verify(changeId);
+
+    expect(report.overall).toBe('PASSED');
+    expect(report.flaky).toBe(true);
+    expect(report.failedChecks).toEqual([]);
+    expect(completed[0]?.status).toBe('PASSED');
+
+    const reportRows = await db.select().from(verificationReports);
+    expect(reportRows[0]?.flaky).toBe(true);
+
+    const checkRows = await db.select().from(verificationCheckResults);
+    expect(checkRows).toHaveLength(1);
+    expect(checkRows[0]?.status).toBe('FLAKY');
+
+    const testRows = await db.select().from(verificationTestResults);
+    expect(testRows).toHaveLength(2);
+    expect(testRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          check_result_id: checkRows[0]?.id,
+          test_name: 'a > flaky',
+          status: 'PASSED',
+          was_retried: true,
+        }),
+        expect.objectContaining({
+          check_result_id: checkRows[0]?.id,
+          test_name: 'a > still fails',
+          status: 'FAILED',
+          error: 'boom',
+          was_retried: true,
+        }),
+      ]),
+    );
   });
 });

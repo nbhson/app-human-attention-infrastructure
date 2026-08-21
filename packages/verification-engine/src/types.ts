@@ -32,6 +32,20 @@ export type CheckStatus = (typeof CheckStatus)[keyof typeof CheckStatus];
 /** The aggregate report verdict. A report is PASSED iff every check PASSED. */
 export type OverallVerdict = 'PASSED' | 'FAILED';
 
+/** The leaf outcome of one test inside a TEST check (day-16 §2.4). */
+export interface ParsedTestResult {
+  /** The test file's path (Vitest `assertionResults[].name`). */
+  readonly testFile: string;
+  /** The fully-qualified test name. */
+  readonly testName: string;
+  /** Per-test status, narrowed to the three persisted states. */
+  readonly status: 'PASSED' | 'FAILED' | 'SKIPPED';
+  /** Test duration in milliseconds. */
+  readonly durationMs: number;
+  /** Failure message + stack, truncated to 8 KB. */
+  readonly error?: string;
+}
+
 /** The outcome of one check. */
 export interface CheckResult {
   /** Which check produced this. */
@@ -44,6 +58,10 @@ export interface CheckResult {
   readonly output: string;
   /** Set on Day 17 when the full output moves to evidence storage. */
   readonly evidenceId?: string;
+  /** TEST check only (day-16): per-test leaf results persisted by the engine. */
+  readonly testResults?: ParsedTestResult[];
+  /** TEST check only (day-16): true when the flaky retry was exercised. */
+  readonly retried?: boolean;
 }
 
 /** The environment a check runs against (day-15 §2.1). */
@@ -70,10 +88,12 @@ export interface VerificationReport {
   readonly id: VerificationResultID;
   readonly changeId: ChangeID;
   readonly taskId: TaskID;
-  /** PASSED iff every check is PASSED. */
+  /** PASSED iff every check is PASSED or FLAKY. */
   readonly overall: OverallVerdict;
   readonly durationMs: number;
   readonly checks: CheckResult[];
-  /** Kinds of checks that did not pass (for REWORK rationale). */
+  /** True when at least one check ran FLAKY (day-16 §2.2). */
+  readonly flaky: boolean;
+  /** Kinds of checks that did not pass (for REWORK rationale); excludes FLAKY. */
   readonly failedChecks: CheckKind[];
 }

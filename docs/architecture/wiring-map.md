@@ -36,7 +36,7 @@ This table records the object graph built by `buildContainer()` (`apps/api/src/b
 | `ContextEngine` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (real impl Day 07+) |
 | `ArtifactTracker` | `ArtifactTracker(db, SnapshotStore)` | Day 14 | `ArtifactCaptureSubscriber` |
 | `AttentionEngine` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (real impl later) |
-| `VerificationEngine` | `VerificationEngine(db, EventBus, { checks: [new CompileCheck()] })` | Day 15 | VERIFY step handler of `WorkflowRunner` (drives `verify()` → publishes `verification.completed`) |
+| `VerificationEngine` | `VerificationEngine(db, EventBus, { checks: [new CompileCheck(), new TestCheck()] })` | Day 15 (`CompileCheck`) / Day 16 (`TestCheck`) | VERIFY step handler of `WorkflowRunner` (drives `verify()` → publishes `verification.completed`) |
 
 ## Bootstrap order (topological)
 

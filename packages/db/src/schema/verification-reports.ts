@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { changes } from './changes.js';
 import { reportOverallCheck } from './enums.js';
@@ -25,6 +25,7 @@ export const verificationReports = pgTable(
       .references(() => tasks.id),
     overall: text('overall').notNull(),
     duration_ms: integer('duration_ms').notNull(),
+    flaky: boolean('flaky').notNull().default(false),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   () => [reportOverallCheck],

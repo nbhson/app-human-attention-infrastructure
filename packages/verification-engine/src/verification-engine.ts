@@ -33,6 +33,7 @@ import {
   tasks,
   verificationCheckResults,
   verificationReports,
+  verificationTestResults,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createEvent } from '@harness/event-bus';
@@ -158,16 +159,32 @@ export class VerificationEngine {
         task_id: report.taskId,
         overall: report.overall,
         duration_ms: report.durationMs,
+        flaky: report.flaky,
       });
       for (const check of report.checks) {
+        const checkResultId = uuidv7();
         await tx.insert(verificationCheckResults).values({
-          id: uuidv7(),
+          id: checkResultId,
           report_id: report.id,
           check_kind: check.checkKind,
           status: check.status,
           duration_ms: check.durationMs,
           output: check.output,
         });
+        // Day 16: TEST checks carry per-test leaves; persist one row per test,
+        // linked to the check-result row just above (the FK §2.3 requires it).
+        for (const test of check.testResults ?? []) {
+          await tx.insert(verificationTestResults).values({
+            id: uuidv7(),
+            check_result_id: checkResultId,
+            test_file: test.testFile,
+            test_name: test.testName,
+            status: test.status,
+            duration_ms: test.durationMs,
+            error: test.error ?? null,
+            was_retried: check.retried ?? false,
+          });
+        }
       }
     });
   }
@@ -190,14 +207,22 @@ export class VerificationEngine {
   }
 }
 
-/** Assemble a report: PASSED iff every check PASSED (FLAKY/TIMED_OUT/SKIPPED fail). */
+/**
+ * Assemble a report (day-16 §2.2): PASSED iff every check is PASSED or FLAKY —
+ * a flaky check counts as passed-but-flagged (`report.flaky = true`), never as a
+ * silent failure. TIMED_OUT/SKIPPED/FAILED still fail the whole report, and only
+ * those land in `failedChecks` (FLAKY is excluded so REWORK rationale is honest).
+ */
 function buildReport(
   changeId: ChangeID,
   taskId: TaskID,
   checks: CheckResult[],
   durationMs: number,
 ): VerificationReport {
-  const overall: OverallVerdict = checks.every((check) => check.status === CheckStatus.PASSED)
+  const flaky = checks.some((check) => check.status === CheckStatus.FLAKY);
+  const overall: OverallVerdict = checks.every(
+    (check) => check.status === CheckStatus.PASSED || check.status === CheckStatus.FLAKY,
+  )
     ? 'PASSED'
     : 'FAILED';
   return {
@@ -207,8 +232,9 @@ function buildReport(
     overall,
     durationMs,
     checks,
+    flaky,
     failedChecks: checks
-      .filter((check) => check.status !== CheckStatus.PASSED)
+      .filter((check) => check.status !== CheckStatus.PASSED && check.status !== CheckStatus.FLAKY)
       .map((check) => check.checkKind),
   };
 }

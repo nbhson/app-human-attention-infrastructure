@@ -1,0 +1,42 @@
+{
+  "numTotalTestSuites": 1,
+  "numPassedTestSuites": 0,
+  "numFailedTestSuites": 1,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 2,
+  "numPassedTests": 1,
+  "numFailedTests": 1,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "startTime": 1700000000000,
+  "success": false,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["add"],
+          "fullName": "add > sums two numbers",
+          "status": "passed",
+          "title": "sums two numbers",
+          "duration": 2,
+          "failureMessages": []
+        },
+        {
+          "ancestorTitles": ["add"],
+          "fullName": "add > rejects overflow",
+          "status": "failed",
+          "title": "rejects overflow",
+          "duration": 4,
+          "failureMessages": [
+            "AssertionError: expected Infinity not to be 1\n\n- Expected\n+ Received\n\n- Infinity\n+ 1\n    at /worktree/src/add.test.ts:12:3"
+          ]
+        }
+      ],
+      "startTime": 1700000000001,
+      "endTime": 1700000000008,
+      "status": "failed",
+      "message": "",
+      "name": "/worktree/src/add.test.ts"
+    }
+  ]
+}

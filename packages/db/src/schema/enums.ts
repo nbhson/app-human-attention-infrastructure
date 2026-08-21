@@ -85,6 +85,9 @@ export const priorityLabels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
  */
 export const checkStatuses = ['PASSED', 'FAILED', 'FLAKY', 'TIMED_OUT', 'SKIPPED'] as const;
 
+/** Per-test result status (day-16 §2.3): the leaf outcome inside a TEST check. */
+export const testResultStatuses = ['PASSED', 'FAILED', 'SKIPPED'] as const;
+
 /** `verification_reports.overall` — the two possible aggregate verdicts. */
 export const reportOverallStatuses = ['PASSED', 'FAILED'] as const;
 
@@ -128,6 +131,13 @@ export const checkStatusCheck = inList(
   'verification_check_results_status_check',
   'status',
   checkStatuses,
+);
+
+/** `verification_test_results.status`. */
+export const testResultStatusCheck = inList(
+  'verification_test_results_status_check',
+  'status',
+  testResultStatuses,
 );
 
 /** `verification_reports.overall`. */

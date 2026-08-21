@@ -6,3 +6,4 @@ coverage/
 *.log
 .DS_Store
 *.tsbuildinfo
+.vitest-out.json

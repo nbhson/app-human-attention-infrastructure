@@ -52,7 +52,7 @@ import {
   WorkflowRunner,
 } from '@harness/orchestrator';
 import type { StepHandler } from '@harness/orchestrator';
-import { CompileCheck, VerificationEngine } from '@harness/verification-engine';
+import { CompileCheck, TestCheck, VerificationEngine } from '@harness/verification-engine';
 
 /** Engine tokens registered as stubs until their build day (Days 06+). */
 const ENGINE_STUB_TOKENS = [
@@ -216,11 +216,12 @@ export function buildContainer(): Container {
 
   // Day 15: the Verification Engine — full/parallel strategy, two-level timeouts,
   // and the first real check (CompileCheck). Resolved by the VERIFY step handler.
+  // Day 16: TestCheck joins the registry with retry-once flaky handling.
   c.register(TOKENS.VerificationEngine, (container) => {
     return new VerificationEngine(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<IEventBus>(TOKENS.EventBus),
-      { checks: [new CompileCheck()] },
+      { checks: [new CompileCheck(), new TestCheck()] },
     );
   });
 

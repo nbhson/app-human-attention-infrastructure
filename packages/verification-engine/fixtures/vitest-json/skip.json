@@ -1,0 +1,40 @@
+{
+  "numTotalTestSuites": 1,
+  "numPassedTestSuites": 0,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 1,
+  "numTotalTests": 2,
+  "numPassedTests": 0,
+  "numFailedTests": 0,
+  "numPendingTests": 2,
+  "numTodoTests": 0,
+  "startTime": 1700000000000,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["subtract"],
+          "fullName": "subtract > subtracts two numbers",
+          "status": "pending",
+          "title": "subtracts two numbers",
+          "duration": 0,
+          "failureMessages": []
+        },
+        {
+          "ancestorTitles": ["subtract"],
+          "fullName": "subtract > a TODO test",
+          "status": "todo",
+          "title": "a TODO test",
+          "duration": 0,
+          "failureMessages": []
+        }
+      ],
+      "startTime": 1700000000001,
+      "endTime": 1700000000002,
+      "status": "pending",
+      "message": "",
+      "name": "/worktree/src/subtract.test.ts"
+    }
+  ]
+}
