@@ -22,6 +22,7 @@ import {
   agentRuns,
   artifacts,
   changes,
+  contexts,
   eventLog,
   projects,
   retryLog,
@@ -78,6 +79,7 @@ beforeEach(async () => {
   await db.delete(artifacts);
   await db.delete(agentRuns);
   await db.delete(taskStateHistory);
+  await db.delete(contexts);
   await db.delete(tasks);
   await db.delete(projects);
   await db.delete(eventLog);

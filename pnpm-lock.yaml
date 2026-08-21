@@ -56,6 +56,9 @@ importers:
       '@harness/attention-engine':
         specifier: workspace:*
         version: link:../../packages/attention-engine
+      '@harness/context-engine':
+        specifier: workspace:*
+        version: link:../../packages/context-engine
       '@harness/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -207,7 +210,20 @@ importers:
         version: 2.1.9(@types/node@22.20.1)
 
   packages/context-engine:
+    dependencies:
+      '@harness/db':
+        specifier: workspace:^
+        version: link:../db
+      '@harness/domain':
+        specifier: workspace:^
+        version: link:../domain
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.1
       typescript:
         specifier: ^5.6.3
         version: 5.9.3

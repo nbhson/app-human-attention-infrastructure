@@ -19,6 +19,7 @@ container.resolve(TOKENS.ArtifactCaptureSubscriber);
 container.resolve(TOKENS.ChangeStatusSubscriber);
 container.resolve(TOKENS.AttentionSubscriber);
 container.resolve(TOKENS.AttentionRouter);
+container.resolve(TOKENS.ContextEngine);
 
 // Start the pull-based dispatch loop (§2.5). The interval is configurable via
 // env so it never needs to be hardcoded here.

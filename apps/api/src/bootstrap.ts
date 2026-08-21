@@ -35,6 +35,7 @@ import {
   SnapshotStore,
 } from '@harness/artifact-tracker';
 import { AttentionRouter, AttentionSubscriber } from '@harness/attention-engine';
+import { ContextEngine, extractFileReferences, FileCollector } from '@harness/context-engine';
 import { Container, TOKENS } from '@harness/di';
 import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -64,7 +65,6 @@ import {
 const ENGINE_STUB_TOKENS = [
   TOKENS.Orchestrator,
   TOKENS.AgentRuntime,
-  TOKENS.ContextEngine,
   TOKENS.AttentionEngine,
 ] as const;
 
@@ -164,6 +164,43 @@ function makeVerifyHandler(container: Container): StepHandler {
   };
 }
 
+/**
+ * The COLLECT_CONTEXT step handler (day-20 §2.5).
+ *
+ * Owns the first step of the linear workflow: it resolves a ranked, budgeted
+ * context snapshot for the task and puts its id in the step output so a later
+ * step can consume it. The engine persists the snapshot into `contexts` for
+ * provenance (day-20 §1). Target files are parsed out of the task description —
+ * `TaskRecord` has no separate `target_files` column yet.
+ */
+function makeCollectContextHandler(container: Container): StepHandler {
+  return async (stepCtx) => {
+    const taskService = container.resolve<TaskService>(TOKENS.TaskService);
+    const engine = container.resolve<ContextEngine>(TOKENS.ContextEngine);
+
+    const task = await taskService.getTask(stepCtx.taskId);
+    if (!task) {
+      return {
+        ok: false,
+        error: 'task not found',
+        failureClass: FailureClass.PERMANENT,
+        retriable: false,
+      };
+    }
+
+    const description = task.description ?? task.title;
+    const snapshot = await engine.resolveContext({
+      taskId: stepCtx.taskId,
+      taskDescription: description,
+      requirements: '',
+      targetFiles: extractFileReferences(description),
+      maxTokens: Number(process.env.CONTEXT_MAX_TOKENS ?? '8000'),
+    });
+
+    return { ok: true, output: { contextSnapshotId: snapshot.id } };
+  };
+}
+
 /** Build the full container, wiring every token in dependency order. */
 export function buildContainer(): Container {
   const c = new Container();
@@ -243,6 +280,17 @@ export function buildContainer(): Container {
     return router;
   });
 
+  // Day 20: the Context Engine. Resolves ranked, budgeted context for a task and
+  // persists the snapshot into `contexts`. The FileCollector scans the sandbox
+  // root the agent operates in, guarded by the same resolveSafe path check as the
+  // Day-13 file tools (day-20 §2.2).
+  c.register(TOKENS.ContextEngine, (container) => {
+    return new ContextEngine(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      new FileCollector(sandboxRoot),
+    );
+  });
+
   // Day 15: the Verification Engine — full/parallel strategy, two-level timeouts,
   // and the first real check (CompileCheck). Resolved by the VERIFY step handler.
   // Day 16: TestCheck joins the registry with retry-once flaky handling.
@@ -294,12 +342,13 @@ export function buildContainer(): Container {
     return new DispatchLoop(container.resolve<Dispatcher>(TOKENS.Dispatcher));
   });
 
-  // Day 09: the linear workflow runner. COLLECT_CONTEXT/EXECUTE are Phase-1
-  // stubs (context lands Day 20; EXECUTE is driven by RuntimePollLoop's AgentRunner
-  // handoff, not this handler); VERIFY is the real Verification Engine (Day 15).
+  // Day 09: the linear workflow runner. COLLECT_CONTEXT is the real Context
+  // Engine (Day 20); EXECUTE is a Phase-1 stub (driven by RuntimePollLoop's
+  // AgentRunner handoff, not this handler); VERIFY is the real Verification
+  // Engine (Day 15).
   c.register(TOKENS.WorkflowRunner, (container) => {
     const handlers = new Map<StepKind, StepHandler>([
-      [StepKind.COLLECT_CONTEXT, async () => ({ ok: true, output: { stub: true } })],
+      [StepKind.COLLECT_CONTEXT, makeCollectContextHandler(container)],
       [StepKind.EXECUTE, async () => ({ ok: true, output: { stub: true } })],
       [StepKind.VERIFY, makeVerifyHandler(container)],
     ]);
