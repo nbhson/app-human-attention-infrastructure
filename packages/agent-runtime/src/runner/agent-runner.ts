@@ -46,6 +46,7 @@ import { TokenBudget, TokenBudgetExceededError } from '../llm/token-budget.js';
 import { ReActLoop } from '../react/react-loop.js';
 import type { ReActResult } from '../react/react-loop.js';
 import type { ToolRegistry } from '../tools/tool-registry.js';
+import { TrajectoryRecorder } from '../trajectory/trajectory-recorder.js';
 
 /** Default per-run token ceiling (day-12 §2.4 / §6). */
 export const DEFAULT_TOKEN_BUDGET = 50_000;
@@ -95,6 +96,7 @@ export class AgentRunner {
     private readonly handoff: CompletionHandoff,
     private readonly maxSteps: number = DEFAULT_MAX_STEPS,
     private readonly tokenLimit: number = DEFAULT_TOKEN_BUDGET,
+    private readonly recorder: TrajectoryRecorder = new TrajectoryRecorder(db),
   ) {}
 
   /** Execute one task: claim, run the loop, terminate, and hand off (day-12 §2.4). */
@@ -126,11 +128,12 @@ export class AgentRunner {
       this.tools,
       new TokenBudget(this.tokenLimit),
       this.maxSteps,
+      this.recorder,
     );
 
     let result: ReActResult;
     try {
-      result = await loop.run(SYSTEM_PROMPT, buildUserMessage(task));
+      result = await loop.run(SYSTEM_PROMPT, buildUserMessage(task), runId);
     } catch (error) {
       if (error instanceof TokenBudgetExceededError) {
         await this.escalate(taskId, runId, 'TOKEN_BUDGET_EXCEEDED', startedAt);

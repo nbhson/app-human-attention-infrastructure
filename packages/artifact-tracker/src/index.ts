@@ -1,1 +1,1 @@
-export const artifactTracker = 'artifact-tracker';
+export * from './capture/artifact-capture-subscriber.js';

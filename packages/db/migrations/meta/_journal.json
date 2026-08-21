@@ -50,6 +50,13 @@
       "when": 1787323953231,
       "tag": "0006_luxuriant_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787325738818,
+      "tag": "0007_rainy_kat_farrell",
+      "breakpoints": true
     }
   ]
 }

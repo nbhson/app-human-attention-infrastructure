@@ -5,10 +5,11 @@ import { TokenBudget, TokenBudgetExceededError } from '../llm/token-budget.js';
 import { ReActLoop } from '../react/react-loop.js';
 import type { ReActResult } from '../react/react-loop.js';
 import { ToolRegistry, noopTool } from '../tools/tool-registry.js';
+import { ToolAllowlist } from '../tools/tool-allowlist.js';
 
-/** A loop wired with the `noop` tool registered. */
+/** A loop wired with the `noop` tool registered (and allowed). */
 function makeLoop(llm: MockLLM, budget: TokenBudget, maxSteps: number): ReActLoop {
-  const tools = new ToolRegistry();
+  const tools = new ToolRegistry(new ToolAllowlist(new Set(['noop'])));
   tools.register(noopTool);
   return new ReActLoop(llm, tools, budget, maxSteps);
 }
@@ -67,7 +68,7 @@ describe('ReActLoop', () => {
     await expect(loop.run('system', 'go')).rejects.toBeInstanceOf(TokenBudgetExceededError);
   });
 
-  it('records an unknown tool as a TOOL_NOT_FOUND observation and keeps looping', async () => {
+  it('records a disallowed tool as a TOOL_NOT_ALLOWED observation and keeps looping', async () => {
     const llm = new MockLLM([
       mockToolCallResponse('nonexistent', 'c1', {}),
       mockTextResponse('recovered'),
@@ -79,6 +80,6 @@ describe('ReActLoop', () => {
     expect(result.stopReason).toBe('end_turn');
     expect(result.finalAnswer).toBe('recovered');
     expect(result.steps).toHaveLength(1);
-    expect(result.steps[0]?.observation).toBe('TOOL_NOT_FOUND: nonexistent');
+    expect(result.steps[0]?.observation).toBe('TOOL_NOT_ALLOWED: nonexistent');
   });
 });

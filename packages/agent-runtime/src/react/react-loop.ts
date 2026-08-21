@@ -12,9 +12,12 @@
  * response that carries no actual call.
  */
 
+import type { AgentRunID } from '@harness/domain';
+
 import type { LLMMessage, LLMProvider, LLMToolCall } from '../llm/llm-provider.js';
 import { TokenBudget } from '../llm/token-budget.js';
 import type { ToolRegistry } from '../tools/tool-registry.js';
+import type { TrajectoryRecorder } from '../trajectory/trajectory-recorder.js';
 
 /** One iteration of the loop (day-12 §2.2). */
 export interface ReActStep {
@@ -48,9 +51,14 @@ export class ReActLoop {
     private readonly tools: ToolRegistry,
     private readonly budget: TokenBudget,
     private readonly maxSteps: number,
+    private readonly recorder?: TrajectoryRecorder,
   ) {}
 
-  async run(systemPrompt: string, userMessage: string): Promise<ReActResult> {
+  async run(
+    systemPrompt: string,
+    userMessage: string,
+    agentRunId?: AgentRunID,
+  ): Promise<ReActResult> {
     const messages: LLMMessage[] = [{ role: 'user', content: userMessage }];
     const steps: ReActStep[] = [];
 
@@ -71,8 +79,18 @@ export class ReActLoop {
       }
 
       for (const call of response.toolCalls) {
-        const observation = await this.execute(call);
-        steps.push({ stepNumber: i, thought: response.content, toolCall: call, observation });
+        const observation = await this.execute(call, agentRunId);
+        const step: ReActStep = {
+          stepNumber: i,
+          thought: response.content,
+          toolCall: call,
+          observation,
+        };
+        steps.push(step);
+        // Record the step to the trajectory only when a run is being tracked.
+        if (this.recorder && agentRunId) {
+          await this.recorder.record(agentRunId, step);
+        }
         messages.push(
           { role: 'assistant', content: response.content },
           { role: 'user', content: `[Tool result for ${call.name}]: ${observation}` },
@@ -84,9 +102,9 @@ export class ReActLoop {
   }
 
   /** Run one tool call, converting a thrown error into its observation (day-12 §3.7). */
-  private async execute(call: LLMToolCall): Promise<string> {
+  private async execute(call: LLMToolCall, agentRunId?: AgentRunID): Promise<string> {
     try {
-      return await this.tools.execute(call);
+      return await this.tools.execute(call, agentRunId);
     } catch (error) {
       return error instanceof Error ? error.message : String(error);
     }

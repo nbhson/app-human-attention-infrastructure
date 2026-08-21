@@ -10,16 +10,23 @@
  * else that needs the bus must `resolve(TOKENS.EventBus)`.
  */
 
+import { mkdirSync } from 'node:fs';
+
 import {
   AgentRunner,
   AnthropicProvider,
   LoggingLLMProvider,
+  makeListDirectoryTool,
+  makeReadFileTool,
+  makeWriteFileTool,
   MockLLM,
-  noopTool,
   RuntimePollLoop,
+  ToolAllowlist,
   ToolRegistry,
+  TrajectoryRecorder,
 } from '@harness/agent-runtime';
 import type { LLMProvider } from '@harness/agent-runtime';
+import { ArtifactCaptureSubscriber } from '@harness/artifact-tracker';
 import { Container, TOKENS } from '@harness/di';
 import { EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -70,6 +77,10 @@ function notYetImplemented(token: string): object {
 export function buildContainer(): Container {
   const c = new Container();
 
+  // Day 13: the sandbox root must exist before any file tool runs (§6).
+  const sandboxRoot = process.env.SANDBOX_ROOT ?? './sandbox';
+  mkdirSync(sandboxRoot, { recursive: true });
+
   c.register(TOKENS.EventBus, () => new InProcessEventBus());
 
   c.register(TOKENS.Db, () => {
@@ -86,6 +97,14 @@ export function buildContainer(): Container {
     const writer = new EventLogWriter(container.resolve(TOKENS.Db));
     writer.subscribeTo(container.resolve<IEventBus>(TOKENS.EventBus));
     return writer;
+  });
+
+  // Day 13: every write_file publishes artifact.created; this subscriber turns it
+  // into an artifacts row (lightweight stub — the full Tracker lands Day 14).
+  c.register(TOKENS.ArtifactCaptureSubscriber, (container) => {
+    const subscriber = new ArtifactCaptureSubscriber(container.resolve<DrizzleDB>(TOKENS.Db));
+    subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
+    return subscriber;
   });
 
   // Day 11: the LLM provider abstraction. A real Anthropic adapter when a key is
@@ -138,12 +157,25 @@ export function buildContainer(): Container {
     );
   });
 
-  // Day 12: the tool catalogue. `noop` is the Phase-1 stand-in (day-12 §6);
-  // real read_file/write_file/run_command tools land on Day 13.
-  c.register(TOKENS.ToolRegistry, () => {
-    const registry = new ToolRegistry();
-    registry.register(noopTool);
+  // Day 13: the tool catalogue — three real sandbox tools behind an allowlist.
+  // `ToolRegistry` carries the bus so `write_file` can publish `artifact.created`.
+  c.register(TOKENS.ToolRegistry, (container) => {
+    const allowed = new Set(
+      (process.env.AGENT_ALLOWED_TOOLS ?? 'read_file,write_file,list_directory').split(','),
+    );
+    const registry = new ToolRegistry(
+      new ToolAllowlist(allowed),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+    );
+    registry.register(makeReadFileTool(sandboxRoot));
+    registry.register(makeWriteFileTool(sandboxRoot));
+    registry.register(makeListDirectoryTool(sandboxRoot));
     return registry;
+  });
+
+  // Day 13: the per-step audit trail, injected into the AgentRunner's ReAct loop.
+  c.register(TOKENS.TrajectoryRecorder, (container) => {
+    return new TrajectoryRecorder(container.resolve<DrizzleDB>(TOKENS.Db));
   });
 
   // Day 12: the AgentRunner owns one task's execution. `TaskService` is injected
@@ -162,6 +194,7 @@ export function buildContainer(): Container {
       { runLinearWorkflow: (taskId) => workflowRunner.run(taskId, LINEAR_WORKFLOW_V1) },
       maxSteps,
       tokenLimit,
+      container.resolve<TrajectoryRecorder>(TOKENS.TrajectoryRecorder),
     );
   });
 

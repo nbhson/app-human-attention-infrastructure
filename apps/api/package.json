@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@harness/agent-runtime": "workspace:*",
+    "@harness/artifact-tracker": "workspace:*",
     "@harness/db": "workspace:*",
     "@harness/di": "workspace:*",
     "@harness/domain": "workspace:*",

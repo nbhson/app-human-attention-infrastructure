@@ -6,15 +6,29 @@
  * the list of {@link LLMToolDefinition}s to advertise to the model, then routes a
  * returned {@link LLMToolCall} back through {@link execute}. Tools are pure
  * string-in / string-out from the loop's perspective, which keeps the loop free
- * of any file-system or shell coupling (day-13 adds real tools behind the same
- * interface).
+ * of any file-system or shell coupling.
  *
- * An unknown tool name is an explicit error (`TOOL_NOT_FOUND`), not a silent
- * no-op. The ReAct loop treats that error as the tool's observation and keeps
- * looping, so a hallucinated call never kills the run.
+ * Day 13 adds two gates to the same interface:
+ * - a {@link ToolAllowlist}, checked before dispatch (unknown *and* forbidden
+ *   tools both refuse; the loop logs the message and keeps running), and
+ * - a {@link ToolExecutionContext}, threaded through `execute`, that carries the
+ *   invoking {@link AgentRunID} and the {@link IEventBus} so `write_file` can
+ *   emit `artifact.created` without importing the Tracker.
  */
 
+import type { AgentRunID } from '@harness/domain';
+import type { IEventBus } from '@harness/event-bus';
+
 import type { LLMToolCall, LLMToolDefinition } from '../llm/llm-provider.js';
+import { ToolAllowlist } from './tool-allowlist.js';
+
+/** Ambient state a tool may read while executing (day-13 §3.4). */
+export interface ToolExecutionContext {
+  /** The agent run invoking the tool (absent for standalone/noop use). */
+  readonly agentRunId?: AgentRunID;
+  /** The event bus, for tools that emit domain events (write_file → artifact.created). */
+  readonly bus?: IEventBus;
+}
 
 /** A callable tool (day-12 §3.2). `execute` returns its observation as text. */
 export interface Tool {
@@ -22,11 +36,16 @@ export interface Tool {
   readonly description: string;
   /** JSON Schema describing the input (advertised to the model). */
   readonly inputSchema: Record<string, unknown>;
-  execute(input: Record<string, unknown>): Promise<string>;
+  execute(input: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string>;
 }
 
 export class ToolRegistry {
   private readonly tools = new Map<string, Tool>();
+
+  constructor(
+    private readonly allowlist: ToolAllowlist,
+    private readonly bus?: IEventBus,
+  ) {}
 
   /** Add (or replace) a tool, keyed by its name. */
   register(tool: Tool): void {
@@ -42,20 +61,29 @@ export class ToolRegistry {
     }));
   }
 
-  /** Run a model-requested tool call, throwing `TOOL_NOT_FOUND` for unknown names. */
-  async execute(call: LLMToolCall): Promise<string> {
+  /**
+   * Run a model-requested tool call. Throws `TOOL_NOT_ALLOWED` for a forbidden
+   * name and `TOOL_NOT_FOUND` for an unregistered one; both become the tool's
+   * observation in the loop rather than killing the run.
+   */
+  async execute(call: LLMToolCall, agentRunId?: AgentRunID): Promise<string> {
+    this.allowlist.assertAllowed(call.name);
     const tool = this.tools.get(call.name);
     if (!tool) {
       throw new Error(`TOOL_NOT_FOUND: ${call.name}`);
     }
-    return tool.execute(call.input);
+    const ctx: ToolExecutionContext = {
+      ...(agentRunId !== undefined ? { agentRunId } : {}),
+      ...(this.bus !== undefined ? { bus: this.bus } : {}),
+    };
+    return tool.execute(call.input, ctx);
   }
 }
 
 /**
  * The Phase-1 stand-in tool (day-12 §6). Always succeeds; replaced by real
- * `read_file`/`write_file`/`run_command` tools on Day 13. Kept as a standalone
- * value so bootstrap and tests register the same instance shape.
+ * `read_file`/`write_file`/`list_directory` tools on Day 13. Kept as a standalone
+ * value so tests can register the same instance shape without a file system.
  */
 export const noopTool: Tool = {
   name: 'noop',

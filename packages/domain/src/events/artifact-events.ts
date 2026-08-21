@@ -18,3 +18,15 @@ export interface ArtifactChangedPayload {
   /** The agent run that produced the change. */
   readonly agent_run_id: AgentRunID;
 }
+
+/** Payload for {@link import('./event-types.js').EventType.ArtifactCreated}. */
+export interface ArtifactCreatedPayload {
+  /** The agent run that wrote the file. */
+  readonly agent_run_id: AgentRunID;
+  /** The sandbox-relative path of the written file. */
+  readonly file_path: string;
+  /** SHA-256 of the file content. */
+  readonly content_hash: string;
+  /** Byte size of the file content (UTF-8). */
+  readonly size_bytes: number;
+}

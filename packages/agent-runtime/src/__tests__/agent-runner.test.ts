@@ -10,7 +10,7 @@ import type {
   TaskTrigger,
 } from '@harness/domain';
 import type { EventHandler, IEventBus, UnsubscribeFn } from '@harness/event-bus';
-import { agentRuns, projects, tasks } from '@harness/db';
+import { agentRuns, projects, tasks, trajectorySteps } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 
@@ -22,6 +22,7 @@ import type {
   TaskTransitionService,
 } from '../runner/agent-runner.js';
 import { ToolRegistry, noopTool } from '../tools/tool-registry.js';
+import { ToolAllowlist } from '../tools/tool-allowlist.js';
 
 /** A bus that records every published envelope, for spy assertions. */
 class RecordingBus implements IEventBus {
@@ -75,6 +76,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await testDb.db.delete(trajectorySteps);
   await testDb.db.delete(agentRuns);
   await testDb.db.delete(tasks);
   await testDb.db.delete(projects);
@@ -117,7 +119,7 @@ function buildRunner(
   handoff: CompletionHandoff,
 ): { runner: AgentRunner; bus: RecordingBus } {
   const bus = new RecordingBus();
-  const tools = new ToolRegistry();
+  const tools = new ToolRegistry(new ToolAllowlist(new Set(['noop'])));
   tools.register(noopTool);
   const runner = new AgentRunner(
     testDb.db,
