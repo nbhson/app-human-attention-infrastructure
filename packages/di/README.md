@@ -4,173 +4,62 @@
 
 **Nhiệm vụ:** "người nối dây" — dependency injection container nối các package lại với nhau lúc khởi động.
 
-Nói nôm na: các package chỉ nhận *interface*, không biết nhau cụ thể. Gói này cắm dây cho chúng lúc startup, để sau này swap cái nào cũng chỉ đổi ở một chỗ.
-
----
-
-## Trạng thái hiện tại
-
-**Package chưa tồn tại** — cần tạo mới.
+Nói nôm na: các package chỉ nhận *interface*, không biết nhau cụ thể. Gói này cung cấp `Container` + `TOKENS` để `buildContainer()` (trong `apps/api`) cắm dây cho chúng lúc startup — swap cái gì chỉ đổi ở một chỗ.
 
 ---
 
 ## Mục đích
 
-Wire các package lại với nhau tại startup. Cung cấp interface-based injection — engines nhận interface, không phải concrete implementation.
+- `Container` — registry nội bộ (hand-rolled, ~40 dòng, không dùng thư viện DI).
+- `TOKENS` — string constants dùng làm key đăng ký/resolve.
+- `ContainerError` — lỗi khi resolve token chưa đăng ký.
+
+Wire các package lại tại startup. Engines nhận `IEventBus` (interface), không phải `InProcessEventBus` (concrete).
 
 ---
 
-## Công việc cần làm (Day 05)
-
-### 1. Container implementation
+## API
 
 ```typescript
-// packages/di/src/container.ts
-export class Container {
-  private readonly registry = new Map<symbol, () => unknown>();
-  private readonly singletons = new Map<symbol, unknown>();
+import { Container, TOKENS, ContainerError } from '@harness/di';
 
-  register<T>(token: symbol, factory: () => T): void {
-    this.registry.set(token, factory);
-  }
+const c = new Container();
 
-  resolve<T>(token: symbol): T {
-    if (this.singletons.has(token)) {
-      return this.singletons.get(token) as T;
-    }
-    const factory = this.registry.get(token);
-    if (!factory) throw new Error(`No registration for ${token.toString()}`);
-    const instance = factory();
-    this.singletons.set(token, instance);
-    return instance;
-  }
-}
+c.register(TOKENS.EventBus, () => new InProcessEventBus()); // lazy: factory chỉ chạy ở lần resolve đầu
+const bus = c.resolve(TOKENS.EventBus);                    // cache singleton
+c.has(TOKENS.EventBus);                                     // true
+c.reset();                                                  // xoá instances, giữ registrations
 ```
 
-### 2. Token definitions
+**Tại sao dùng string token, không dùng Symbol/class reference?** Class-reference DI đòi class tồn tại lúc đăng ký → tạo import cycle. String token tách registration khỏi resolution, và log/đọc được.
 
-```typescript
-// packages/di/src/tokens.ts
-export const TOKENS = {
-  EventBus: Symbol.for('IEventBus'),
-  Db: Symbol.for('Db'),
-  TaskService: Symbol.for('TaskService'),
-  VerificationEngine: Symbol.for('IVerificationEngine'),
-  AttentionEngine: Symbol.for('IAttentionEngine'),
-  ContextEngine: Symbol.for('IContextEngine'),
-  ReviewService: Symbol.for('ReviewService'),
-  DispatchLoop: Symbol.for('DispatchLoop'),
-} as const;
-```
-
-### 3. Bootstrap wiring
-
-```typescript
-// packages/di/src/bootstrap.ts
-export function buildContainer(): Container {
-  const container = new Container();
-
-  // Infrastructure (inward dependencies first)
-  container.register(TOKENS.EventBus, () => new InProcessEventBus());
-  container.register(TOKENS.Db, () => new DrizzleDB(process.env.DATABASE_URL!));
-
-  // Domain services
-  container.register(TOKENS.TaskService, () => new TaskService(
-    container.resolve(TOKENS.Db),
-    container.resolve(TOKENS.EventBus),
-  ));
-
-  // Engines (receive interfaces, not implementations)
-  container.register(TOKENS.VerificationEngine, () => new VerificationEngine(
-    container.resolve(TOKENS.Db),
-    container.resolve(TOKENS.EventBus),
-  ));
-
-  container.register(TOKENS.AttentionEngine, () => new AttentionEngine(
-    container.resolve(TOKENS.Db),
-    container.resolve(TOKENS.EventBus),
-  ));
-
-  container.register(TOKENS.ContextEngine, () => new ContextEngine(
-    container.resolve(TOKENS.Db),
-  ));
-
-  container.register(TOKENS.ReviewService, () => new ReviewService(
-    container.resolve(TOKENS.Db),
-    container.resolve(TOKENS.EventBus),
-    container.resolve(TOKENS.AttentionEngine),
-  ));
-
-  // Orchestrator
-  container.register(TOKENS.DispatchLoop, () => new DispatchLoop(
-    container.resolve(TOKENS.TaskService),
-    container.resolve(TOKENS.EventBus),
-  ));
-
-  return container;
-}
-```
-
-### 4. Boundary enforcement
-
-ESLint rule trong `eslint.config.mjs`:
-
-```javascript
-// packages/orchestrator cannot import packages/verification-engine directly
-{
-  rules: {
-    'boundary-enforcement/enforce': [{
-      from: 'packages/orchestrator',
-      not: ['packages/verification-engine', 'packages/attention-engine', 'packages/context-engine'],
-    }],
-  }
-}
-```
-
-### 5. apps/api/src/index.ts — Startup
-
-```typescript
-import { buildContainer } from '@harness/di';
-
-const container = buildContainer();
-const taskService  = container.resolve<TaskService>(TOKENS.TaskService);
-const bus          = container.resolve<IEventBus>(TOKENS.EventBus);
-const db           = container.resolve<DrizzleDB>(TOKENS.Db);
-const dispatchLoop = container.resolve<DispatchLoop>(TOKENS.DispatchLoop);
-
-// Start dispatch loop on boot
-dispatchLoop.start();
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  dispatchLoop.stop();
-  await db.destroy();
-  process.exit(0);
-});
-```
-
----
-
-## Dependency rule
-
-```
-packages/di → import @harness/domain, @harness/event-bus, @harness/db
-            → KHÔNG import các engine packages (chỉ wire chúng, không depend)
-```
-
----
-
-## Files cần tạo
+## Files
 
 ```
 packages/di/
 ├── package.json
 ├── tsconfig.json
-├── src/
-│   ├── index.ts
-│   ├── container.ts          # Container class
-│   ├── tokens.ts             # Symbol tokens
-│   └── bootstrap.ts          # Wiring all packages
-└── __tests__/
-    └── container.test.ts
+├── README.md
+└── src/
+    ├── index.ts                 # barrel
+    ├── container.ts             # Container class + Factory<T>
+    ├── tokens.ts                # TOKENS (string constants) + Token type
+    ├── errors.ts                # ContainerError
+    ├── container.test.ts        # lazy, cache-once, ContainerError, reset, has
+    └── __tests__/
+        └── architecture.test.ts # asserts R1–R4 against package.json
 ```
+
+## Dependency rule (Spec 1 §5)
+
+```
+packages/di → KHÔNG import các engine packages (chỉ wire chúng, không depend)
+```
+
+`di` có quyền import `@harness/domain` / `@harness/event-bus` / `@harness/db` (thực tế hiện chưa cần — `Container`/`TOKENS` hoàn toàn pure TS).
+
+## Ghi chú
+
+- `buildContainer()` **không nằm ở đây** — nó nằm ở `apps/api/src/bootstrap.ts`, vì việc wire `InProcessEventBus`/`createDb` thuộc về application layer, còn `@harness/di` giữ thuần container.
+- `new InProcessEventBus()` chỉ được phép xuất hiện đúng một chỗ: `apps/api/src/bootstrap.ts`.
+- ESLint boundary rule (`eslint.config.mjs`) + `architecture.test.ts` cùng enforce R1–R4.
