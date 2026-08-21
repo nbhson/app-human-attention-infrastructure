@@ -16,13 +16,14 @@ This table records the object graph built by `buildContainer()` (`apps/api/src/b
 | Token | Concrete class / factory | Registered on | Resolved by |
 |---|---|---|---|
 | `EventBus` | `InProcessEventBus` | Day 03 (built) / Day 05 (registered) | `EventLogWriter`, `TaskService`, all engines |
-| `Db` | `createDb(process.env.DATABASE_URL)` | Day 04 (built) / Day 05 (registered) | `EventLogWriter`, `TaskService`, `ArtifactTracker`, `ContextEngine`, `VerificationEngine`, `AttentionEngine`, `Orchestrator`, Review API |
+| `Db` | `createDb(process.env.DATABASE_URL)` | Day 04 (built) / Day 05 (registered) | `EventLogWriter`, `TaskService`, `LLMProvider` (via `LoggingLLMProvider`), `ArtifactTracker`, `ContextEngine`, `VerificationEngine`, `AttentionEngine`, `Orchestrator`, Review API |
 | `EventLogWriter` | `EventLogWriter(db)` + `subscribeTo(EventBus)` | Day 04 (built) / Day 05 (registered) | bootstrap (side effect: forwards bus events into `event_log`) |
 | `TaskStateMachine` | `TaskStateMachine` (pure transition table, no deps) | Day 06 | `TaskService` |
 | `TaskService` | `TaskService(db, EventBus, TaskStateMachine)` | Day 06 | Review API, `Dispatcher`, `WorkflowRunner` |
 | `Dispatcher` | `Dispatcher(db, TaskService)` | Day 08 | `DispatchLoop` (drives `PENDING`/`REWORK` → `QUEUED`/`FAILED`) |
 | `DispatchLoop` | `DispatchLoop(Dispatcher)` | Day 08 | `apps/api` startup (start/stop on SIGTERM/SIGINT) |
 | `WorkflowRunner` | `WorkflowRunner(db, TaskService, step handlers)` | Day 09 | Agent Runtime completion handler (Day 12) |
+| `LLMProvider` | `LoggingLLMProvider(AnthropicProvider(apiKey) \| MockLLM([]), db)` | Day 11 | Agent Runtime ReAct loop (Day 12) |
 | `Orchestrator` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (real impl Day 09+: linear workflow) |
 | `AgentRuntime` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (real impl Day 06+) |
 | `ContextEngine` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (real impl Day 07+) |
@@ -40,7 +41,8 @@ This table records the object graph built by `buildContainer()` (`apps/api/src/b
 6. `Dispatcher` — needs `Db`, `TaskService`.
 7. `DispatchLoop` — needs `Dispatcher`.
 8. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (Phase 1 stubs).
-9. Engine slots — registered as stubs today; wired to `IEventBus`/`Db` on their build days.
+9. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter; falls back to an empty `MockLLM`.
+10. Engine slots — registered as stubs today; wired to `IEventBus`/`Db` on their build days.
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 

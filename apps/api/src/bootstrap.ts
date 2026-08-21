@@ -10,6 +10,7 @@
  * else that needs the bus must `resolve(TOKENS.EventBus)`.
  */
 
+import { AnthropicProvider, LoggingLLMProvider, MockLLM } from '@harness/agent-runtime';
 import { Container, TOKENS } from '@harness/di';
 import { EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -75,6 +76,16 @@ export function buildContainer(): Container {
     const writer = new EventLogWriter(container.resolve(TOKENS.Db));
     writer.subscribeTo(container.resolve<IEventBus>(TOKENS.EventBus));
     return writer;
+  });
+
+  // Day 11: the LLM provider abstraction. A real Anthropic adapter when a key is
+  // set; otherwise an empty MockLLM so the graph builds but any live call fails
+  // loudly (day-11 §6). Wrapped in LoggingLLMProvider for provenance.
+  c.register(TOKENS.LLMProvider, (container) => {
+    const raw = process.env.ANTHROPIC_API_KEY
+      ? new AnthropicProvider(process.env.ANTHROPIC_API_KEY)
+      : new MockLLM([]);
+    return new LoggingLLMProvider(raw, container.resolve<DrizzleDB>(TOKENS.Db));
   });
 
   // Day 06: the canonical state machine + its public service.

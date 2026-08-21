@@ -1,0 +1,30 @@
+{
+  "id": "msg_01J00000000000000000000002",
+  "container": null,
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_01TestToolUseId00001",
+      "caller": { "type": "direct" },
+      "input": { "command": "ls -la" },
+      "name": "runCommand"
+    }
+  ],
+  "model": "claude-sonnet-4-6",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+    "cache_creation": null,
+    "cache_creation_input_tokens": null,
+    "cache_read_input_tokens": null,
+    "inference_geo": "us",
+    "input_tokens": 20,
+    "output_tokens": 15,
+    "output_tokens_details": null,
+    "server_tool_use": null,
+    "service_tier": null
+  }
+}
