@@ -4,6 +4,7 @@
  */
 export * from './agent-runs.js';
 export * from './artifacts.js';
+export * from './assessment-feedback.js';
 export * from './assessments.js';
 export * from './changes.js';
 export * from './contexts.js';
@@ -14,6 +15,7 @@ export * from './evidence.js';
 export * from './llm-call-log.js';
 export * from './projects.js';
 export * from './retry-log.js';
+export * from './review-queue.js';
 export * from './snapshots.js';
 export * from './task-state-history.js';
 export * from './task-step-log.js';

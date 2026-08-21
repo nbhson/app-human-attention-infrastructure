@@ -15,6 +15,9 @@ export const EventType = {
   ArtifactRollbackRequested: 'artifact.rollback_requested',
   VerificationCompleted: 'verification.completed',
   AssessmentCreated: 'attention.assessment_created',
+  AttentionItemRouted: 'attention.item_routed',
+  AttentionThresholdAdjusted: 'attention.threshold_adjusted',
+  AttentionInflationDetected: 'attention.inflation_detected',
   DecisionSubmitted: 'review.decision_submitted',
 } as const;
 /** A domain event type string. */

@@ -75,6 +75,17 @@ export const verificationStatuses = [
 
 export const priorityLabels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 
+/** `review_queue.action` — the routing decision (attention spec §4). */
+export const routingActions = [
+  'REVIEW_REQUIRED',
+  'REVIEW_RECOMMENDED',
+  'AUTO_APPROVABLE',
+  'ESCALATE',
+] as const;
+
+/** `review_queue.status` — the persistence-level queue state (attention spec §4). */
+export const reviewQueueStatuses = ['QUEUED', 'CLAIMED', 'DECIDED', 'DROPPED'] as const;
+
 /**
  * Per-check result status (day-15 §2.1, engine-local `CheckStatus`). Distinct
  * from the overall `verificationStatuses` above: `TIMED_OUT` names a single
@@ -167,6 +178,16 @@ export const reportOverallCheck = inList(
 
 /** `assessments.label`. */
 export const priorityLabelCheck = inList('assessments_label_check', 'label', priorityLabels);
+
+/** `review_queue.action`. */
+export const routingActionCheck = inList('review_queue_action_check', 'action', routingActions);
+
+/** `review_queue.status`. */
+export const reviewQueueStatusCheck = inList(
+  'review_queue_status_check',
+  'status',
+  reviewQueueStatuses,
+);
 
 /** `decisions.decision`. */
 export const humanDecisionTypeCheck = inList(

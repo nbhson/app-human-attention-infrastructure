@@ -80,6 +80,10 @@ export type ClaimID = Brand<string, 'ClaimID'>;
 export type ReviewerID = Brand<string, 'ReviewerID'>;
 /** Identifies a causal event chain traceable to one origin (orchestrator spec §8). */
 export type CorrelationID = Brand<string, 'CorrelationID'>;
+/** Identifies a review-queue entry (attention spec §4 policy & routing). */
+export type ReviewQueueItemID = Brand<string, 'ReviewQueueItemID'>;
+/** Identifies a reviewer's usefulness feedback on an assessment (attention spec §4.1). */
+export type AssessmentFeedbackID = Brand<string, 'AssessmentFeedbackID'>;
 
 // --- UUIDv7 generation ----------------------------------------------------
 
@@ -158,3 +162,8 @@ export const newClaimID = (): ClaimID => newBrandedId('ClaimID');
 export const newReviewerID = (): ReviewerID => newBrandedId('ReviewerID');
 /** Generate a new {@link CorrelationID}. */
 export const newCorrelationID = (): CorrelationID => newBrandedId('CorrelationID');
+/** Generate a new {@link ReviewQueueItemID}. */
+export const newReviewQueueItemID = (): ReviewQueueItemID => newBrandedId('ReviewQueueItemID');
+/** Generate a new {@link AssessmentFeedbackID}. */
+export const newAssessmentFeedbackID = (): AssessmentFeedbackID =>
+  newBrandedId('AssessmentFeedbackID');

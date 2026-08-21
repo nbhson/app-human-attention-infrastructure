@@ -61,6 +61,20 @@ export type ReviewQueueItemStatus =
   (typeof ReviewQueueItemStatus)[keyof typeof ReviewQueueItemStatus];
 
 /**
+ * The persistence-level state of a `review_queue` row (attention spec §4). This
+ * is the lifecycle the routing engine and the review API drive — distinct from
+ * the presentation-facing {@link ReviewQueueItemStatus} above.
+ */
+export const ReviewQueueStatus = {
+  Queued: 'QUEUED',
+  Claimed: 'CLAIMED',
+  Decided: 'DECIDED',
+  Dropped: 'DROPPED',
+} as const;
+/** A persistence-level review-queue status. */
+export type ReviewQueueStatus = (typeof ReviewQueueStatus)[keyof typeof ReviewQueueStatus];
+
+/**
  * An entry in the human review queue.
  *
  * This is a presentation-facing read-model assembled from an

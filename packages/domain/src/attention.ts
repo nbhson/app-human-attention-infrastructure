@@ -17,6 +17,20 @@ export const PriorityLabel = {
 /** A review priority label. */
 export type PriorityLabel = (typeof PriorityLabel)[keyof typeof PriorityLabel];
 
+/**
+ * What should *happen* to an assessment once priority is known (attention spec
+ * §4 policy & routing). The scoring engine (Day 18) says *how urgent*; the policy
+ * rules map that to a *routing decision*.
+ */
+export const RoutingAction = {
+  ReviewRequired: 'REVIEW_REQUIRED',
+  ReviewRecommended: 'REVIEW_RECOMMENDED',
+  AutoApprovable: 'AUTO_APPROVABLE',
+  Escalate: 'ESCALATE',
+} as const;
+/** A routing decision produced by the attention policy. */
+export type RoutingAction = (typeof RoutingAction)[keyof typeof RoutingAction];
+
 /** The suggested depth of human review (attention spec §2.1). */
 export const SuggestReviewDepth = {
   Quick: 'QUICK',

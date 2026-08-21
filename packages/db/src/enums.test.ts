@@ -7,6 +7,8 @@ import {
   FileChangeType,
   HumanDecisionType,
   PriorityLabel,
+  ReviewQueueStatus,
+  RoutingAction,
   TaskStatus,
   VerificationStatus,
 } from '@harness/domain';
@@ -18,6 +20,8 @@ import {
   fileChangeTypes,
   humanDecisionTypes,
   priorityLabels,
+  reviewQueueStatuses,
+  routingActions,
   taskStates,
   verificationStatuses,
 } from './schema/enums.js';
@@ -58,5 +62,13 @@ describe('schema enum drift guards', () => {
 
   it('humanDecisionTypes match HumanDecisionType', () => {
     expect(humanDecisionTypes).toEqual(Object.values(HumanDecisionType));
+  });
+
+  it('routingActions match RoutingAction', () => {
+    expect(routingActions).toEqual(Object.values(RoutingAction));
+  });
+
+  it('reviewQueueStatuses match ReviewQueueStatus', () => {
+    expect(reviewQueueStatuses).toEqual(Object.values(ReviewQueueStatus));
   });
 });

@@ -31,6 +31,7 @@ export const TOKENS = {
   ArtifactTracker: 'ArtifactTracker',
   AttentionEngine: 'AttentionEngine',
   AttentionSubscriber: 'AttentionSubscriber',
+  AttentionRouter: 'AttentionRouter',
   VerificationEngine: 'VerificationEngine',
 } as const;
 

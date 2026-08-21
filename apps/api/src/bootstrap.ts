@@ -34,7 +34,7 @@ import {
   ChangeStatusSubscriber,
   SnapshotStore,
 } from '@harness/artifact-tracker';
-import { AttentionSubscriber } from '@harness/attention-engine';
+import { AttentionRouter, AttentionSubscriber } from '@harness/attention-engine';
 import { Container, TOKENS } from '@harness/di';
 import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -229,6 +229,18 @@ export function buildContainer(): Container {
     const subscriber = new AttentionSubscriber(container.resolve<DrizzleDB>(TOKENS.Db));
     subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
     return subscriber;
+  });
+
+  // Day 19: the Attention Engine's routing service. On
+  // `attention.assessment_created` it matches policy, applies §4.1 fatigue
+  // controls, enqueues into `review_queue`, and publishes `attention.item_routed`.
+  c.register(TOKENS.AttentionRouter, (container) => {
+    const router = new AttentionRouter(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+    );
+    router.subscribe();
+    return router;
   });
 
   // Day 15: the Verification Engine — full/parallel strategy, two-level timeouts,
