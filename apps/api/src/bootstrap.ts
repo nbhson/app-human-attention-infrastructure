@@ -15,7 +15,15 @@ import { EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import { Dispatcher, DispatchLoop, TaskService, TaskStateMachine } from '@harness/orchestrator';
+import {
+  Dispatcher,
+  DispatchLoop,
+  StepKind,
+  TaskService,
+  TaskStateMachine,
+  WorkflowRunner,
+} from '@harness/orchestrator';
+import type { StepHandler } from '@harness/orchestrator';
 
 /** Engine tokens registered as stubs until their build day (Days 06+). */
 const ENGINE_STUB_TOKENS = [
@@ -92,6 +100,21 @@ export function buildContainer(): Container {
 
   c.register(TOKENS.DispatchLoop, (container) => {
     return new DispatchLoop(container.resolve<Dispatcher>(TOKENS.Dispatcher));
+  });
+
+  // Day 09: the linear workflow runner. Step handlers are Phase-1 stubs here
+  // (real engines land on Days 12/15/20); the runner is orchestration-only.
+  c.register(TOKENS.WorkflowRunner, (container) => {
+    const handlers = new Map<StepKind, StepHandler>([
+      [StepKind.COLLECT_CONTEXT, async () => ({ ok: true, output: { stub: true } })],
+      [StepKind.EXECUTE, async () => ({ ok: true, output: { stub: true } })],
+      [StepKind.VERIFY, async () => ({ ok: true, output: { stub: true } })],
+    ]);
+    return new WorkflowRunner(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<TaskService>(TOKENS.TaskService),
+      handlers,
+    );
   });
 
   // Engines are wired on their own build days; until then each token resolves

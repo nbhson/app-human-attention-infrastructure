@@ -21,4 +21,9 @@ export type { DispatchResult } from './dispatch/dispatcher.js';
 export { DispatchLoop } from './dispatch/dispatch-loop.js';
 export type { DispatchLoopLogger } from './dispatch/dispatch-loop.js';
 
+export { StepKind, LINEAR_WORKFLOW_V1 } from './workflow/workflow-definition.js';
+export type { WorkflowDefinition, WorkflowStep } from './workflow/workflow-definition.js';
+export type { StepContext, StepHandler, StepResult } from './workflow/step-handler.js';
+export { WorkflowRunner } from './workflow/workflow-runner.js';
+
 export type { CreateTaskParams, TaskRecord, TaskStateHistoryEntry } from './types.js';

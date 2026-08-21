@@ -15,6 +15,7 @@ export const TOKENS = {
   TaskService: 'TaskService',
   Dispatcher: 'Dispatcher',
   DispatchLoop: 'DispatchLoop',
+  WorkflowRunner: 'WorkflowRunner',
   Orchestrator: 'Orchestrator',
   AgentRuntime: 'AgentRuntime',
   ContextEngine: 'ContextEngine',
