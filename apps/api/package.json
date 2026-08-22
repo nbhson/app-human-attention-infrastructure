@@ -19,6 +19,7 @@
     "@harness/db": "workspace:*",
     "@harness/di": "workspace:*",
     "@harness/domain": "workspace:*",
+    "@harness/evaluation": "workspace:*",
     "@harness/event-bus": "workspace:*",
     "@harness/orchestrator": "workspace:*",
     "@harness/observability": "workspace:*",

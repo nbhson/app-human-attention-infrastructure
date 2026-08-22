@@ -95,4 +95,13 @@ describe('dependency rules (Spec 1 §5)', () => {
       expect(harnessDependencies(engine)).toContain('@harness/observability');
     }
   });
+
+  it('R9: @harness/evaluation depends only on domain, db, di, observability — never an engine', () => {
+    // Offline pipeline scoring sits at the same depth as shared infra: it reads
+    // types (domain), the append-only store (db), the logger (di), and pushes
+    // gauges (observability). It must never pull in an engine.
+    expect(harnessDependencies('evaluation').sort()).toEqual(
+      ['@harness/domain', '@harness/db', '@harness/di', '@harness/observability'].sort(),
+    );
+  });
 });

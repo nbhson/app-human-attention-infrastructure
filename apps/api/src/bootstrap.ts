@@ -54,6 +54,7 @@ import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { brand, ChangeStatus, TaskStatus } from '@harness/domain';
 import type { ChangeID, TaskID } from '@harness/domain';
+import { MetricsComputer } from '@harness/evaluation';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import {
@@ -562,6 +563,14 @@ export function buildContainer(): Container {
       container.resolve<Logger>(TOKENS.Logger),
     );
   });
+
+  // Day 06: the offline metric evaluator. `MetricsComputer` is a stateless, pure
+  // class (no Date.now/env/DB in `compute()`), so it registers with no deps. It is
+  // *not* resolved on the hot path today — the standalone `pnpm eval:metrics` CLI
+  // constructs it directly. The registration exists so the Day-07 report
+  // generator (`EVAL_REPORT_SCHEDULE` cron) can resolve it in-process and push the
+  // computed window onto the scraped register on a schedule.
+  c.register(TOKENS.MetricsComputer, () => new MetricsComputer());
 
   // Engines are wired on their own build days; until then each token resolves
   // to a stub so the architecture test can build the graph end-to-end.

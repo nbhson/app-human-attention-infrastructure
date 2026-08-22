@@ -41,6 +41,7 @@ export const TOKENS = {
   GitAdapter: 'GitAdapter',
   MergeService: 'MergeService',
   ReworkService: 'ReworkService',
+  MetricsComputer: 'MetricsComputer',
 } as const;
 
 /** The string union of every known token. */

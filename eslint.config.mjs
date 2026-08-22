@@ -31,6 +31,7 @@ const elements = [
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
+  { type: 'evaluation', pattern: 'packages/evaluation/**' },
   ...ENGINE_TYPES.map((type) => ({ type, pattern: `packages/${type}/**` })),
   { type: 'app', pattern: 'apps/**' },
 ];
@@ -53,8 +54,18 @@ const elementTypesRules = [
     // trace write-through needs the db schema for the mapping row.
     allow: [...SHARED, 'observability'],
   },
+  {
+    from: 'evaluation',
+    // Offline pipeline scoring: reads types (domain) and the append-only store
+    // (db), uses the structured logger (di), and pushes gauges (observability).
+    // Never an engine.
+    allow: [...SHARED, 'observability', 'evaluation'],
+  },
   ...ENGINE_TYPES.map((type) => ({ from: type, allow: [...SHARED, 'observability', type] })),
-  { from: 'app', allow: [...SHARED, 'auth', 'review', 'observability', ...ENGINE_TYPES, 'app'] },
+  {
+    from: 'app',
+    allow: [...SHARED, 'auth', 'review', 'observability', 'evaluation', ...ENGINE_TYPES, 'app'],
+  },
 ];
 
 export default tseslint.config(
@@ -99,6 +110,7 @@ export default tseslint.config(
       'packages/db/src/migrate.ts',
       'packages/db/src/seed.ts',
       'packages/db/src/audit-orphans.ts',
+      'packages/evaluation/src/cli.ts',
       '**/*.test.ts',
       '**/__tests__/**',
     ],

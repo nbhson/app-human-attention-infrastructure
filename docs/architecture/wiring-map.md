@@ -47,6 +47,7 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `TrajectoryRecorder` | `TrajectoryRecorder(db)` | Day 13 | `AgentRunner` (per-step audit trail into `trajectory_steps`) |
 | `AgentRunner` | `AgentRunner(db, EventBus, LLMProvider, ToolRegistry, TaskService, {runLinearWorkflow}, maxSteps, tokenLimit, TrajectoryRecorder)` | Day 12 | `RuntimePollLoop` |
 | `RuntimePollLoop` | `RuntimePollLoop(db, AgentRunner, logger)` | Day 12 | `apps/api` startup (start/stop on SIGTERM/SIGINT) |
+| `MetricsComputer` | `MetricsComputer()` (stateless, pure — offline) | Day 06 | Day 07 report generator (`EVAL_REPORT_SCHEDULE` cron); the `pnpm eval:metrics` CLI constructs it directly (out-of-band) today |
 | `Orchestrator` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (the real work landed in `Dispatcher` + `DispatchLoop` + `WorkflowRunner`) |
 | `AgentRuntime` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (the real work landed in `AgentRunner` + `RuntimePollLoop`) |
 | `AttentionEngine` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (the real work landed in `AttentionSubscriber` + `AttentionRouter`) |
@@ -86,6 +87,21 @@ human|auto_approvable) and `ReviewService.decide` (`harness_review_dwell_seconds
 `harness_assessment_usefulness_total`). Offline gauges (precision/recall/leakage/
 inflation/false-pass) are *set* by `@harness/evaluation` on Day 06, never
 incremented on the hot path.
+
+### Offline evaluation (`MetricsComputer`) — registered but never on the hot path
+
+Day 06 adds `TOKENS.MetricsComputer` to `packages/di/src/tokens.ts` and registers
+it in `buildContainer()` as a plain `new MetricsComputer()` (it is stateless and
+pure — no `Date.now()`, no env, no DB in `compute()` — so it takes no deps). It is
+**not** resolved by `bootContainer()` and never runs on a request path: the
+standalone `pnpm eval:metrics --from --to` CLI (`packages/evaluation/src/cli.ts`)
+constructs it directly from a `loadMetricsInput(db, window)` read over the
+append-only store. That is what keeps a window's numbers byte-identical in CI and
+the A/B harness (Day 09). The token exists so Day 07's in-process report generator
+(`EVAL_REPORT_SCHEDULE` cron inside `apps/api`) can resolve the same computer and
+push the computed window onto the scraped register on a schedule; today the CLI's
+`applyGauges` writes to *its own* process's register, which nobody scrapes — the
+CLI's artifact is the printed JSON, not the gauge.
 
 **Week-1 checkpoint (day-05):** the full identity + observability stack is
 registered and resolvable — `OidcProvider` (`MockOidcProvider`|`OpenIdClientProvider`)
