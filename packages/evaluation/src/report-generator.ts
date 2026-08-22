@@ -161,6 +161,12 @@ export class ReportGenerator {
       window: { from: current.window.from, to: current.window.to },
       generatedAt: generatedAt.toISOString(),
       lines,
+      // Day-25 (§3.2): shadow/infra ride as top-level sections — never metric
+      // lines — so the stable five-line `lines` array above is untouched. The
+      // ranking invariant is rendered visibly rather than merely assumed.
+      shadow: current.shadow ?? { comparisons: 0 },
+      infra: current.infra ?? {},
+      rankMethod: current.rankMethod ?? 'keyword',
     };
   }
 }

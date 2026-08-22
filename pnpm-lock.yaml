@@ -215,6 +215,9 @@ importers:
       '@harness/object-store':
         specifier: workspace:^
         version: link:../object-store
+      '@harness/observability':
+        specifier: workspace:^
+        version: link:../observability
       diff:
         specifier: ^9.0.0
         version: 9.0.0

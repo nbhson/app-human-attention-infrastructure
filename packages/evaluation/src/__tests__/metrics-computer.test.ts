@@ -13,7 +13,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { gauges, register, setGauge } from '@harness/observability';
 
 import { applyGauges, MetricsComputer } from '../metrics-computer.js';
-import type { DecisionRow, MetricsInput, ReworkRow, RouteRow } from '../report.js';
+import type {
+  DecisionRow,
+  InfraCounters,
+  MetricsInput,
+  ReworkRow,
+  RouteRow,
+  ShadowRow,
+} from '../report.js';
 
 const T0 = new Date('2026-08-01T00:00:00Z');
 
@@ -228,5 +235,65 @@ describe('applyGauges (day-06 §3.4)', () => {
     );
     const text = await register.metrics();
     expect(text).toContain('harness_routing_precision 0.5');
+  });
+});
+
+describe('MetricsComputer day-25 shadow/infra/rankMethod (§3.2)', () => {
+  const computer = new MetricsComputer();
+
+  it('always reports rankMethod keyword and honest default sections', () => {
+    const report = computer.compute(fixture());
+    expect(report.rankMethod).toBe('keyword');
+    expect(report.shadow).toEqual({ comparisons: 0 });
+    expect(report.infra).toEqual({});
+  });
+
+  it('collapses shadow comparisons to a mean Kendall tau (null rows skipped)', () => {
+    const shadowLog: ShadowRow[] = [
+      { comparisonId: 's1', rankCorrelation: 0.5 },
+      { comparisonId: 's2', rankCorrelation: 0.9 },
+      { comparisonId: 's3', rankCorrelation: null },
+    ];
+    const report = computer.compute({ ...fixture(), shadowLog });
+
+    expect(report.shadow?.comparisons).toBe(3);
+    expect(report.shadow?.meanRankCorrelation).toBeCloseTo(0.7, 10);
+    expect(report.rankMethod).toBe('keyword');
+  });
+
+  it('derives infra ratios from a cumulative counter snapshot', () => {
+    const infraCounters: InfraCounters = {
+      cacheHits: 9,
+      cacheMisses: 1,
+      sandboxRuns: 8,
+      sandboxFallbacks: 2,
+      sandboxDurationMs: 16000,
+      objectIntegrityErrors: 3,
+    };
+    const report = computer.compute({ ...fixture(), infraCounters });
+
+    expect(report.infra?.cacheHitRatio).toBeCloseTo(0.9, 10);
+    expect(report.infra?.sandboxFallbackRate).toBeCloseTo(0.2, 10);
+    expect(report.infra?.sandboxAvgDurationMs).toBe(2000);
+    expect(report.infra?.objectIntegrityErrors).toBe(3);
+  });
+
+  it('omits infra ratios whose denominators are empty (honest holes)', () => {
+    const report = computer.compute({
+      ...fixture(),
+      infraCounters: {
+        cacheHits: 0,
+        cacheMisses: 0,
+        sandboxRuns: 0,
+        sandboxFallbacks: 0,
+        sandboxDurationMs: 0,
+        objectIntegrityErrors: 0,
+      },
+    });
+
+    expect(report.infra?.cacheHitRatio).toBeUndefined();
+    expect(report.infra?.sandboxFallbackRate).toBeUndefined();
+    expect(report.infra?.sandboxAvgDurationMs).toBeUndefined();
+    expect(report.infra?.objectIntegrityErrors).toBeUndefined();
   });
 });

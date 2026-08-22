@@ -101,6 +101,21 @@ human|auto_approvable) and `ReviewService.decide` (`harness_review_dwell_seconds
 inflation/false-pass) are *set* by `@harness/evaluation` on Day 06, never
 incremented on the hot path.
 
+Day 25 adds the continuous **Week-5 infra counters** and their recorder sites:
+`SandboxedCheck.run` (`verification-engine`) records `harness_sandbox_run_total` +
+`harness_sandbox_duration_seconds` on every container completion and
+`harness_sandbox_fallback_total` on every `SandboxInfraError` before the
+in-process parity fallback; `DiffEngine.contentFor` (`artifact-tracker`, which
+now depends on `@harness/observability`) records
+`harness_object_store_integrity_error_total` on a `ContentIntegrityError` before
+rethrow. The cache hit/miss pair (Day 20) and these new counters **double-write a
+plain in-process accumulator** (`snapshotInfraCounters`), because the report
+generator wants a plain-number snapshot, not prom-client aggregation types. The
+Day-07 report reads that snapshot (via `MetricsComputer`'s `infra` section, fed by
+`loadMetricsInput.shadowLog` from `shadow_rank_comparisons` for the `shadow`
+section, plus a literal `rankMethod: 'keyword'`) — see the "Offline evaluation"
+note below.
+
 ### Offline evaluation (`MetricsComputer`) — registered but never on the hot path
 
 Day 06 adds `TOKENS.MetricsComputer` to `packages/di/src/tokens.ts` and registers
@@ -115,6 +130,17 @@ the A/B harness (Day 09). The token exists so Day 07's in-process report generat
 push the computed window onto the scraped register on a schedule; today the CLI's
 `applyGauges` writes to *its own* process's register, which nobody scrapes — the
 CLI's artifact is the printed JSON, not the gauge.
+
+**Day-25 report sections.** `ReportGenerator.generate` now emits three top-level
+sections alongside the stable five-line `lines` array: `shadow` (from
+`MetricsInput.shadowLog`, loaded by `loadMetricsInput` from
+`shadow_rank_comparisons` over the window), `infra` (from `MetricsInput.infraCounters`,
+a `snapshotInfraCounters()` read the CLI/report-cli inject — cache-hit ratio,
+sandbox fallback rate + latency, object-integrity errors, each an honest
+`undefined` when its denominator is zero), and `rankMethod: 'keyword'` (the served
+keyword-vs-semantic invariant made visible). New `MetricsInput`/`MetricsReport`
+fields are **optional** so the prior Phase-1 report shape still typechecks, and
+the `lines` array is untouched.
 
 **Week-1 checkpoint (day-05):** the full identity + observability stack is
 registered and resolvable — `OidcProvider` (`MockOidcProvider`|`OpenIdClientProvider`)

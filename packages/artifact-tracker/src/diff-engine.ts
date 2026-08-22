@@ -20,8 +20,10 @@ import { diffLines, FILE_HEADERS_ONLY, formatPatch, structuredPatch } from 'diff
 import { artifacts, changes, snapshots } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import type { ChangeID } from '@harness/domain';
+import { ContentIntegrityError } from '@harness/object-store';
 import type { ContentStore } from '@harness/object-store';
 import { streamToString } from '@harness/object-store';
+import { recordObjectIntegrityError } from '@harness/observability';
 
 /** The unified diff of one file plus the line-count stats derived from it. */
 export interface FileDiff {
@@ -88,9 +90,19 @@ export class DiffEngine {
       return '';
     }
     if (row.content_backend === 'object' && this.contentStore !== undefined) {
-      return streamToString(
-        await this.contentStore.get({ hash: row.content_hash, backend: 'object' }),
-      );
+      try {
+        return streamToString(
+          await this.contentStore.get({ hash: row.content_hash, backend: 'object' }),
+        );
+      } catch (error) {
+        // Day-25 §3.2: an object-store read-back whose digest drifted is a data
+        // integrity event worth counting — surface it on the report, then rethrow
+        // so the caller never renders a silently-wrong diff.
+        if (error instanceof ContentIntegrityError) {
+          recordObjectIntegrityError();
+        }
+        throw error;
+      }
     }
     return row.content ?? '';
   }

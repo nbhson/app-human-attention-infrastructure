@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 import { config } from 'dotenv';
 
 import { createDb } from '@harness/db';
+import { snapshotInfraCounters } from '@harness/observability';
 
 import { loadMetricsInput } from './loader.js';
 import { applyGauges, MetricsComputer } from './metrics-computer.js';
@@ -69,7 +70,10 @@ async function main(): Promise<void> {
   const db = createDb(connectionString);
   try {
     const input = await loadMetricsInput(db, { from: fromDate, to: toDate });
-    const report = new MetricsComputer().compute(input);
+    const report = new MetricsComputer().compute({
+      ...input,
+      infraCounters: snapshotInfraCounters(),
+    });
     applyGauges(report);
     console.log(JSON.stringify(report, null, 2));
   } finally {

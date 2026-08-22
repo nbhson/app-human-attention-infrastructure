@@ -12,12 +12,19 @@
 
 import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 
-import { assessments, decisions, eventLog, reviewQueue, taskStateHistory } from '@harness/db';
+import {
+  assessments,
+  decisions,
+  eventLog,
+  reviewQueue,
+  shadowRankComparisons,
+  taskStateHistory,
+} from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import type { AttentionItemRoutedPayload } from '@harness/domain';
 import { EventType } from '@harness/domain';
 
-import type { DecisionRow, MetricsInput, ReworkRow, RouteRow } from './report.js';
+import type { DecisionRow, MetricsInput, ReworkRow, RouteRow, ShadowRow } from './report.js';
 
 const DEFECT_STATES: readonly string[] = ['REWORK', 'AWAITING_HUMAN_INTERVENTION'];
 
@@ -33,13 +40,14 @@ export async function loadMetricsInput(
 ): Promise<MetricsInput> {
   const { from, to } = window;
 
-  const [decisionLog, reworkLog, routeLog] = await Promise.all([
+  const [decisionLog, reworkLog, routeLog, shadowLog] = await Promise.all([
     loadDecisions(db, from, to),
     loadRework(db, from, to),
     loadRoutes(db, from, to),
+    loadShadowComparisons(db, from, to),
   ]);
 
-  return { from, to, decisionLog, reworkLog, routeLog };
+  return { from, to, decisionLog, reworkLog, routeLog, shadowLog };
 }
 
 async function loadDecisions(db: DrizzleDB, from: Date, to: Date): Promise<DecisionRow[]> {
@@ -146,4 +154,27 @@ async function loadRoutes(db: DrizzleDB, from: Date, to: Date): Promise<RouteRow
     const label = labelById.get(route.assessmentId);
     return label !== undefined ? { ...route, label } : route;
   });
+}
+
+/**
+ * Shadow rank-comparison rows (day-18 §2.4), windowed by their write time. This
+ * is the day-25 report's windowed shadow signal — the *only* Week-5 telemetry
+ * with DB history; cache/sandbox/object-store counters are continuous and come in
+ * via `infraCounters` (a live snapshot), not the store.
+ */
+async function loadShadowComparisons(db: DrizzleDB, from: Date, to: Date): Promise<ShadowRow[]> {
+  const rows = await db
+    .select({
+      comparisonId: shadowRankComparisons.id,
+      rankCorrelation: shadowRankComparisons.rank_correlation,
+    })
+    .from(shadowRankComparisons)
+    .where(
+      and(gte(shadowRankComparisons.created_at, from), lte(shadowRankComparisons.created_at, to)),
+    );
+
+  return rows.map((row) => ({
+    comparisonId: row.comparisonId,
+    rankCorrelation: row.rankCorrelation === null ? null : Number(row.rankCorrelation),
+  }));
 }

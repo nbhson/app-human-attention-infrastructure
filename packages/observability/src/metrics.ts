@@ -71,6 +71,35 @@ export const cacheMiss = new Counter({
   registers: [register],
 });
 
+/** Sandboxed verification run that completed inside the container. */
+export const sandboxRun = new Counter({
+  name: 'harness_sandbox_run_total',
+  help: 'Sandboxed verification runs that completed inside the container.',
+  registers: [register],
+});
+
+/** Sandboxed verification run that fell back to in-process (infra trouble). */
+export const sandboxFallback = new Counter({
+  name: 'harness_sandbox_fallback_total',
+  help: 'Sandbox runs that fell back to in-process verification (SandboxInfraError).',
+  registers: [register],
+});
+
+/** Sandboxed verification latency, in seconds. */
+export const sandboxDuration = new Histogram({
+  name: 'harness_sandbox_duration_seconds',
+  help: 'Sandboxed verification run latency, in seconds.',
+  buckets: [1, 5, 10, 30, 60, 120, 300],
+  registers: [register],
+});
+
+/** Object-store read-back integrity failures (SHA-256 drift). */
+export const objectIntegrityError = new Counter({
+  name: 'harness_object_store_integrity_error_total',
+  help: 'Object-store read-backs whose SHA-256 drifted (ContentIntegrityError).',
+  registers: [register],
+});
+
 /**
  * Offline gauges, **set** (not incremented) by `@harness/evaluation` on Day 06.
  * Registered here so `/metrics` HELP lines exist for the whole Spec-11 inventory
@@ -122,12 +151,95 @@ export function recordUsefulness(wasUseful: boolean | undefined): void {
   usefulness.inc({ was_useful: wasUseful === undefined ? 'unknown' : String(wasUseful) });
 }
 
+/**
+ * In-process mirror of the continuous infra counters, for the Day-25 report.
+ *
+ * The report generator needs *snapshots*, not prom-client aggregation types:
+ * reading a `Counter.get()` value back out fights the generic `MetricValue`
+ * typing, and the `--once` CLI is a fresh process with empty prom counters
+ * anyway. So each recorder below also writes a plain numeric accumulator the
+ * report reads via {@link snapshotInfraCounters}. The prom counters remain the
+ * alertable surface; this accumulator is only the report's read path.
+ */
+interface InfraAccumulator {
+  cacheHits: number;
+  cacheMisses: number;
+  sandboxRuns: number;
+  sandboxFallbacks: number;
+  sandboxDurationMs: number;
+  objectIntegrityErrors: number;
+}
+
+const infraAccumulator: InfraAccumulator = {
+  cacheHits: 0,
+  cacheMisses: 0,
+  sandboxRuns: 0,
+  sandboxFallbacks: 0,
+  sandboxDurationMs: 0,
+  objectIntegrityErrors: 0,
+};
+
+/**
+ * A point-in-time read of the continuous infra counters. Its field shape is the
+ * structural twin of `@harness/evaluation`'s `InfraCounters`, so the snapshot
+ * drops straight into `MetricsComputer.compute`.
+ */
+export interface InfraCountersSnapshot {
+  readonly cacheHits: number;
+  readonly cacheMisses: number;
+  readonly sandboxRuns: number;
+  readonly sandboxFallbacks: number;
+  readonly sandboxDurationMs: number;
+  readonly objectIntegrityErrors: number;
+}
+
+/** Read the current infra counter values for the report snapshot. */
+export function snapshotInfraCounters(): InfraCountersSnapshot {
+  return { ...infraAccumulator };
+}
+
+/** Zero the accumulator (tests, and long-lived report processes starting a fresh window). */
+export function resetInfraCounters(): void {
+  infraAccumulator.cacheHits = 0;
+  infraAccumulator.cacheMisses = 0;
+  infraAccumulator.sandboxRuns = 0;
+  infraAccumulator.sandboxFallbacks = 0;
+  infraAccumulator.sandboxDurationMs = 0;
+  infraAccumulator.objectIntegrityErrors = 0;
+}
+
 /** Count a context-cache hit (a source served without a file read). */
 export function recordCacheHit(): void {
   cacheHit.inc();
+  infraAccumulator.cacheHits += 1;
 }
 
 /** Count a context-cache miss (a source read from disk and stored). */
 export function recordCacheMiss(): void {
   cacheMiss.inc();
+  infraAccumulator.cacheMisses += 1;
+}
+
+/** A sandboxed verification run completed inside the container. */
+export function recordSandboxRun(): void {
+  sandboxRun.inc();
+  infraAccumulator.sandboxRuns += 1;
+}
+
+/** A sandboxed verification run fell back to in-process verification. */
+export function recordSandboxFallback(): void {
+  sandboxFallback.inc();
+  infraAccumulator.sandboxFallbacks += 1;
+}
+
+/** Observe a sandboxed run's latency (already in seconds). */
+export function observeSandboxDuration(seconds: number): void {
+  sandboxDuration.observe(seconds);
+  infraAccumulator.sandboxDurationMs += seconds * 1000;
+}
+
+/** An object-store read-back drifted its SHA-256. */
+export function recordObjectIntegrityError(): void {
+  objectIntegrityError.inc();
+  infraAccumulator.objectIntegrityErrors += 1;
 }

@@ -37,6 +37,11 @@ function report(from: string, to: string, precision: number): EvaluationReport {
         trend: 'UNKNOWN',
       },
     ],
+    // Day-25 sections are always present on a generated report; a hand-built
+    // fixture just uses the honest empty defaults.
+    shadow: { comparisons: 0 },
+    infra: {},
+    rankMethod: 'keyword',
   };
 }
 

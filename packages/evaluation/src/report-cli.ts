@@ -14,6 +14,7 @@ import { config } from 'dotenv';
 
 import { createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
+import { snapshotInfraCounters } from '@harness/observability';
 
 import { loadMetricsInput } from './loader.js';
 import { MetricsComputer } from './metrics-computer.js';
@@ -77,7 +78,10 @@ async function buildAndPersist(
   to: Date,
   version: string,
 ): Promise<EvaluationReport> {
-  const current = new MetricsComputer().compute(await loadMetricsInput(db, { from, to }));
+  const current = new MetricsComputer().compute({
+    ...(await loadMetricsInput(db, { from, to })),
+    infraCounters: snapshotInfraCounters(),
+  });
   const windowLengthMs = to.getTime() - from.getTime();
   const priorReports = await store.listByWindow(new Date(from.getTime() - windowLengthMs), from);
   const previousLines = priorReports.at(-1)?.report.lines;

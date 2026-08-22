@@ -18,9 +18,13 @@ import { hasLaterDefect, isHumanRoute, isRejection } from './labels.js';
 import type {
   DecisionRow,
   EfficiencyMetrics,
+  InfraCounters,
+  InfraMetrics,
   MetricsInput,
   MetricsReport,
   RoutingMetrics,
+  ShadowMetrics,
+  ShadowRow,
 } from './report.js';
 
 const INFLATED_LABELS: ReadonlySet<string> = new Set(['CRITICAL', 'HIGH']);
@@ -99,8 +103,49 @@ export class MetricsComputer {
       window: { from: input.from.toISOString(), to: input.to.toISOString() },
       routing,
       efficiency,
+      shadow: computeShadow(input.shadowLog ?? []),
+      infra: computeInfra(input.infraCounters),
+      rankMethod: 'keyword',
     };
   }
+}
+
+/**
+ * Collapse the window's shadow comparisons into one signal: how many ran, and the
+ * mean Kendall tau over the overlapping orderings (§3.2). `meanRankCorrelation`
+ * is omitted when no comparison produced a tau (fewer than 2 shared items).
+ */
+function computeShadow(rows: readonly ShadowRow[]): ShadowMetrics {
+  const correlations = rows
+    .filter((row) => row.rankCorrelation !== null)
+    .map((row) => row.rankCorrelation as number);
+  const mean =
+    correlations.length > 0
+      ? correlations.reduce((sum, value) => sum + value, 0) / correlations.length
+      : undefined;
+  return {
+    comparisons: rows.length,
+    ...(mean !== undefined ? { meanRankCorrelation: mean } : {}),
+  };
+}
+
+/** Derive the day-25 infra ratios from a cumulative counter snapshot (§3.2). */
+function computeInfra(counters: InfraCounters | undefined): InfraMetrics {
+  if (counters === undefined) {
+    return {};
+  }
+  const cacheTotal = counters.cacheHits + counters.cacheMisses;
+  const sandboxTotal = counters.sandboxRuns + counters.sandboxFallbacks;
+  return {
+    ...(cacheTotal > 0 ? { cacheHitRatio: counters.cacheHits / cacheTotal } : {}),
+    ...(sandboxTotal > 0 ? { sandboxFallbackRate: counters.sandboxFallbacks / sandboxTotal } : {}),
+    ...(counters.sandboxRuns > 0
+      ? { sandboxAvgDurationMs: counters.sandboxDurationMs / counters.sandboxRuns }
+      : {}),
+    ...(counters.objectIntegrityErrors > 0
+      ? { objectIntegrityErrors: counters.objectIntegrityErrors }
+      : {}),
+  };
 }
 
 /** Push a report's defined metrics onto the Day-04 Prometheus gauges. */

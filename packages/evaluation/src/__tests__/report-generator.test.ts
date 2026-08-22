@@ -155,3 +155,42 @@ describe('ReportGenerator (day-07 §2.1–2.2)', () => {
     ).toThrow(EmptyWindowError);
   });
 });
+
+describe('ReportGenerator day-25 shadow/infra/rankMethod rendering (§3.2)', () => {
+  it('renders shadow + infra + rankMethod as top-level sections, not metric lines', () => {
+    const report = generator.generate({
+      ...currentReport(BASE),
+      shadow: { comparisons: 2, meanRankCorrelation: 0.6 },
+      infra: {
+        cacheHitRatio: 0.9,
+        sandboxFallbackRate: 0.2,
+        sandboxAvgDurationMs: 2000,
+        objectIntegrityErrors: 1,
+      },
+      rankMethod: 'keyword',
+    });
+
+    expect(report.shadow).toEqual({ comparisons: 2, meanRankCorrelation: 0.6 });
+    expect(report.infra.cacheHitRatio).toBeCloseTo(0.9, 10);
+    expect(report.infra.sandboxFallbackRate).toBeCloseTo(0.2, 10);
+    expect(report.infra.sandboxAvgDurationMs).toBe(2000);
+    expect(report.infra.objectIntegrityErrors).toBe(1);
+    expect(report.rankMethod).toBe('keyword');
+
+    // The stable five-line `lines` array is untouched by the new sections.
+    expect(report.lines.map((line) => line.key)).toEqual([
+      'routing.precision',
+      'routing.recall',
+      'routing.escalationLeakage',
+      'efficiency.humanMinutesPerAccept',
+      'efficiency.inflationRatio',
+    ]);
+  });
+
+  it('defaults shadow + infra + rankMethod when a bare metrics report omits them', () => {
+    const report = generator.generate(currentReport(BASE));
+    expect(report.shadow).toEqual({ comparisons: 0 });
+    expect(report.infra).toEqual({});
+    expect(report.rankMethod).toBe('keyword');
+  });
+});

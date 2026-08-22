@@ -11,14 +11,25 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   gauges,
+  objectIntegrityError,
   observeReviewDwell,
+  observeSandboxDuration,
+  recordCacheHit,
+  recordCacheMiss,
+  recordObjectIntegrityError,
   recordRouted,
+  recordSandboxFallback,
+  recordSandboxRun,
   recordUsefulness,
   register,
+  resetInfraCounters,
   resupply,
   reviewDwell,
   routed,
+  sandboxFallback,
+  sandboxRun,
   setGauge,
+  snapshotInfraCounters,
   usefulness,
 } from '../index.js';
 
@@ -40,6 +51,10 @@ beforeEach(() => {
   usefulness.reset();
   reviewDwell.reset();
   resupply.reset();
+  sandboxRun.reset();
+  sandboxFallback.reset();
+  objectIntegrityError.reset();
+  resetInfraCounters();
   for (const gauge of gauges.values()) {
     gauge.reset();
   }
@@ -140,5 +155,47 @@ describe('prometheus text format', () => {
     for (const name of names) {
       expect(text).toContain(name);
     }
+  });
+});
+
+describe('day-25 infra counters + snapshot', () => {
+  it('sandbox run/fallback/duration counters mirror into the snapshot', async () => {
+    recordSandboxRun();
+    recordSandboxRun();
+    observeSandboxDuration(0.5); // 500ms
+    observeSandboxDuration(1.5); // 1500ms
+    recordSandboxFallback();
+
+    const text = await register.metrics();
+    expect(text).toContain('harness_sandbox_run_total 2');
+    expect(text).toContain('harness_sandbox_fallback_total 1');
+    expect(text).toContain('harness_sandbox_duration_seconds_bucket');
+
+    expect(snapshotInfraCounters()).toEqual({
+      cacheHits: 0,
+      cacheMisses: 0,
+      sandboxRuns: 2,
+      sandboxFallbacks: 1,
+      sandboxDurationMs: 2000,
+      objectIntegrityErrors: 0,
+    });
+  });
+
+  it('object-integrity errors land on the counter and the snapshot', async () => {
+    recordObjectIntegrityError();
+    recordObjectIntegrityError();
+
+    expect(await register.metrics()).toContain('harness_object_store_integrity_error_total 2');
+    expect(snapshotInfraCounters().objectIntegrityErrors).toBe(2);
+  });
+
+  it('cache hit/miss mirror into the snapshot', () => {
+    recordCacheHit();
+    recordCacheHit();
+    recordCacheMiss();
+
+    const snapshot = snapshotInfraCounters();
+    expect(snapshot.cacheHits).toBe(2);
+    expect(snapshot.cacheMisses).toBe(1);
   });
 });

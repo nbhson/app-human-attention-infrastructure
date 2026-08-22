@@ -14,6 +14,11 @@
  */
 
 import type { Logger } from '@harness/di';
+import {
+  observeSandboxDuration,
+  recordSandboxFallback,
+  recordSandboxRun,
+} from '@harness/observability';
 import { SandboxInfraError, computeWorkdirManifest } from '@harness/sandbox';
 import type { Sandbox, SandboxLimits, SandboxResult } from '@harness/sandbox';
 
@@ -60,6 +65,10 @@ export class SandboxedCheck implements VerificationCheck {
       });
     } catch (error) {
       if (error instanceof SandboxInfraError) {
+        // Day-25 §6: the fallback rate is the single best liveness signal for the
+        // whole week — record it before degrading, so the report can show whether
+        // the isolation is actually being used.
+        recordSandboxFallback();
         this.options.logger?.warn('sandbox unavailable — falling back to in-process verification', {
           event_type: 'verification.sandbox_fallback',
           check_kind: this.kind,
@@ -69,6 +78,9 @@ export class SandboxedCheck implements VerificationCheck {
       }
       throw error;
     }
+
+    recordSandboxRun();
+    observeSandboxDuration(result.durationMs / 1000);
 
     const combined = `${result.stdout}${result.stderr}`;
     return {
