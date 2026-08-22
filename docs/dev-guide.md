@@ -64,7 +64,7 @@ What each command actually does:
   per-suite `harness_test_*` schemas, so they never touch your dev database.
 
 > **Why there is no `pnpm db:migrate` / `pnpm db:reset` / `pnpm setup`:** those
-> conveniences are on the Phase-2 backlog, not yet wired. The canonical commands
+> conveniences are still not wired (a carried backlog item). The canonical commands
 > above are the source of truth; if they feel long, the fix is a `pnpm setup`
 > meta-script (a tracked backlog item), not a longer guide.
 

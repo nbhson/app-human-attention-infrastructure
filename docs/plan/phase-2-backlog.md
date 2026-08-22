@@ -1,5 +1,12 @@
 # Phase 2 Backlog
 
+> **Status (2026-08-23):** Phase 2 is complete and tagged `v0.2.0-harness`. The P0
+> machinery (SSO/OIDC, the weight-fit pipeline, auto-approve, semantic shadow,
+> OTel) and the container sandbox plus the Spec 8/10 promotions all shipped. Two
+> items stayed open — **coverage tooling** and the `pnpm setup`/`db:migrate`
+> meta-script convenience — and are carried forward (see the [metrics
+> checkpoint](../retros/phase2-metrics.md) and the [Phase-3 backlog](../plan/phase-3/backlog.md)).
+
 Prioritized by **trust-leverage** — does it make human attention better spent? —
 not by coolness. Each item is one paragraph: what it is, a rough size, and the
 Phase-1 evidence that motivates it. The P0/P1 items are non-negotiable ordering:

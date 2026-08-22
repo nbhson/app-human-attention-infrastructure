@@ -5,7 +5,7 @@ The build is delivered in three phases. Each phase is an independent plan direct
 | Phase | Directory | Theme | Estimate | Status |
 |-------|-----------|-------|----------|--------|
 | 1 | [phase-1/](phase-1/README.md) | Prove the Core Loop — vertical slice, evidence before confidence | 30 days | ✅ Complete — tagged v0.1.0-harness |
-| 2 | [phase-2/](phase-2/README.md) | Calibrate & Close the Measurement Loop — evaluation, calibration, semantic infra (shadow) | 30 days | 🔲 Not started |
+| 2 | [phase-2/](phase-2/README.md) | Calibrate & Close the Measurement Loop — evaluation, calibration, semantic infra (shadow) | 30 days | ✅ Complete — tagged v0.2.0-harness |
 | 3 | [phase-3/](phase-3/README.md) | Learn & Automate Under Guardrails — memory, hybrid default, multi-agent, closed loop | 40 days | 🔲 Not started |
 
 **Total: ~100 working days.**
@@ -215,15 +215,20 @@ packages/
 
 ### Phase 2 Exit Criteria (Phase 2 → 3)
 
-- [ ] Routing precision/recall metrics computed and reviewed against a real decision log.
-- [ ] Attention weights fitted from real `was_useful` data; inflation-monitor shows improvement over placeholders.
-- [ ] A/B shadow harness replays a recorded trajectory and reports a head-to-head comparison with no production effect.
-- [ ] Semantic infra (pgvector + Embedder) live in **shadow**: `rank_method` column retains `keyword` as default; semantic rank is logged and measurable via the harness.
-- [ ] SSO/OIDC login + reviewer roles enforced; audit trail carries real identity.
-- [ ] Auto-approve enabled only behind a flag + sampling audit, gated on the calibration threshold.
-- [ ] Spec 8 (Human Review Interface) and Spec 10 (Observability/Governance) promoted to standalone specs.
-- [ ] Container sandbox for verification and Code Mode demonstrable; large artifacts stored via `ContentStore`.
-- [ ] `pnpm test && pnpm lint && pnpm e2e` green under the full Phase-2 stack.
+Phase 2 is complete and tagged `v0.2.0-harness`. Eight of nine criteria are met;
+the one honest gap is that the fitted attention weights did *not* beat the
+Phase-1 placeholder (log-loss 0.316 vs 0.262), so the placeholder stays — see the
+[metrics checkpoint](../retros/phase2-metrics.md).
+
+- [x] Routing precision/recall metrics computed and reviewed against a real decision log — precision 0.333 / recall 0.5 / escalation-leakage 1.0 (N=4).
+- [ ] Attention weights fitted from real `was_useful` data; inflation-monitor shows improvement over placeholders — **fitted, not improved** (held back to the placeholder).
+- [x] A/B shadow harness replays a recorded trajectory and reports a head-to-head comparison with no production effect — day-29 `rank_correlation = [-1.0, -1.0]`, guardrail HELD.
+- [x] Semantic infra (pgvector + Embedder) live in **shadow**: `rank_method` column retains `keyword` as default; semantic rank is logged and measurable via the harness.
+- [x] SSO/OIDC login + reviewer roles enforced; audit trail carries real identity.
+- [x] Auto-approve enabled only behind a flag + sampling audit, gated on the calibration threshold — flag OFF at rest, kill-switch armed.
+- [x] Spec 8 (Human Review Interface) and Spec 10 (Observability/Governance) promoted to standalone specs.
+- [x] Container sandbox for verification and Code Mode demonstrable; large artifacts stored via `ContentStore`.
+- [x] `pnpm test && pnpm lint && pnpm e2e` green under the full Phase-2 stack.
 
 ### Phase 2 vs Phase 1: Từ Placeholder Sang Measured
 
@@ -244,7 +249,7 @@ packages/
 
 ```
                     ┌────────────────────────────────────────────┐
-Phase 2 result     │  Pipeline đo được, weights calibrated,     │
+Phase 2 result     │  Pipeline đo được, weights chưa thắng,     │
                    │  nhưng vẫn cần con người review từng       │
                    │  item, context ranking chưa tối ưu,        │
                    │  verification chạy full-suite              │

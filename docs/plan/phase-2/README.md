@@ -1,7 +1,8 @@
 # HAI Harness — Phase 2 Implementation Plan
 
-**Version:** v0.1
+**Version:** v0.2
 **Created:** 2026-08-20
+**Status:** ✅ **Complete** — tagged `v0.2.0-harness` (8/9 §7 exit criteria met; see the [metrics checkpoint](../retros/phase2-metrics.md)).
 **Prerequisite:** Phase 1 complete (`docs/plan/phase-1/`), loop demonstrable end-to-end, evidence queryable, `v0.1.0-harness` tagged.
 **Specs:** `docs/core/1..7, 9, 11` (as-built v0.2) + promote Spec 8 (Human Review Interface) and Spec 10 (Observability/Governance) to standalone specs.
 
@@ -133,15 +134,15 @@ Each day has its own file with objectives, tasks, deliverables, and acceptance c
 
 ## 7. Exit Criteria (Phase 2 → 3, from Architecture §24.3)
 
-- [ ] Routing precision/recall metrics computed and reviewed against a real decision log.
-- [ ] Attention weights fitted from real `was_useful` data; inflation-monitor shows improvement over placeholders.
-- [ ] A/B shadow harness replays a recorded trajectory and reports a head-to-head comparison with no production effect.
-- [ ] Semantic infra (pgvector + Embedder) live in **shadow**: `rank_method` column retains `keyword` as default; semantic rank is logged and measurable via the harness.
-- [ ] SSO/OIDC login + reviewer roles enforced; audit trail carries real identity.
-- [ ] Auto-approve enabled only behind a flag + sampling audit, gated on the calibration threshold.
-- [ ] Spec 8 (Human Review Interface) and Spec 10 (Observability/Governance) promoted to standalone specs.
-- [ ] Container sandbox for verification and Code Mode demonstrable; large artifacts stored via `ContentStore`.
-- [ ] `pnpm test && pnpm lint && pnpm e2e` green under the full Phase-2 stack.
+- [x] Routing precision/recall metrics computed and reviewed against a real decision log — precision 0.333 / recall 0.5 / escalation-leakage 1.0 (N=4).
+- [ ] Attention weights fitted from real `was_useful` data; inflation-monitor shows improvement over placeholders — **fitted, not improved** (held back to the placeholder).
+- [x] A/B shadow harness replays a recorded trajectory and reports a head-to-head comparison with no production effect — day-29 `rank_correlation = [-1.0, -1.0]`, guardrail HELD.
+- [x] Semantic infra (pgvector + Embedder) live in **shadow**: `rank_method` column retains `keyword` as default; semantic rank is logged and measurable via the harness.
+- [x] SSO/OIDC login + reviewer roles enforced; audit trail carries real identity.
+- [x] Auto-approve enabled only behind a flag + sampling audit, gated on the calibration threshold — flag OFF at rest, kill-switch armed.
+- [x] Spec 8 (Human Review Interface) and Spec 10 (Observability/Governance) promoted to standalone specs.
+- [x] Container sandbox for verification and Code Mode demonstrable; large artifacts stored via `ContentStore`.
+- [x] `pnpm test && pnpm lint && pnpm e2e` green under the full Phase-2 stack.
 
 ---
 
