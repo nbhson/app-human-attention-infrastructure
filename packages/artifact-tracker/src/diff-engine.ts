@@ -20,6 +20,8 @@ import { diffLines, FILE_HEADERS_ONLY, formatPatch, structuredPatch } from 'diff
 import { artifacts, changes, snapshots } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import type { ChangeID } from '@harness/domain';
+import type { ContentStore } from '@harness/object-store';
+import { streamToString } from '@harness/object-store';
 
 /** The unified diff of one file plus the line-count stats derived from it. */
 export interface FileDiff {
@@ -36,7 +38,10 @@ export interface FileDiff {
 }
 
 export class DiffEngine {
-  constructor(private readonly db: DrizzleDB) {}
+  constructor(
+    private readonly db: DrizzleDB,
+    private readonly contentStore?: ContentStore,
+  ) {}
 
   /**
    * Compute the diff of the file written by `changeId`. Returns an empty array
@@ -70,11 +75,24 @@ export class DiffEngine {
   /** The full body of the snapshot whose SHA-256 is `hash`. */
   private async contentFor(hash: string): Promise<string> {
     const rows = await this.db
-      .select({ content: snapshots.content })
+      .select({
+        content: snapshots.content,
+        content_hash: snapshots.content_hash,
+        content_backend: snapshots.content_backend,
+      })
       .from(snapshots)
       .where(eq(snapshots.content_hash, hash))
       .limit(1);
-    return rows[0]?.content ?? '';
+    const row = rows[0];
+    if (row === undefined) {
+      return '';
+    }
+    if (row.content_backend === 'object' && this.contentStore !== undefined) {
+      return streamToString(
+        await this.contentStore.get({ hash: row.content_hash, backend: 'object' }),
+      );
+    }
+    return row.content ?? '';
   }
 
   /** The previous write to `artifactId` (before `createdAt`), if any. */

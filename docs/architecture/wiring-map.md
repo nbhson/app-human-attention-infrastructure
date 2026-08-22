@@ -24,11 +24,12 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `OidcProvider` | `MockOidcProvider \| OpenIdClientProvider` (env-driven; `OIDC_MOCK`) | Day 30 | `AuthService` (browser login/callback exchange) |
 | `SessionService` | `SessionService(db, ttlMs)` | Day 30 | `AuthService` (create/revoke/touch sessions) |
 | `AuthService` | `AuthService(db, SessionService, {jwtSecret})` | Day 30 | `routes/auth.ts`, `apps/api/src/auth.ts` (hook decodes JWT + session) |
-| `SnapshotStore` | `SnapshotStore()` (content-addressed dedup) | Day 14 | `ArtifactTracker` |
+| `ContentStore` | `ObjectStoreContentStore(AwsS3ClientPort(...))` when `OBJECT_STORE_ENDPOINT` is set, else `InMemoryContentStore('object')` (ephemeral dev fallback) | Day 21 | `SnapshotStore` (large-content offload), `DiffEngine` / `AttentionSubscriber` / `MergeService` (read-back of offloaded snapshots) |
+| `SnapshotStore` | `SnapshotStore(ContentStore, threshold)` (content-addressed dedup; `content` stays inline at/under the threshold, offloads above it — `content_backend` `'db'`/`'object'`) | Day 14 (seam: Day 21) | `ArtifactTracker` |
 | `ArtifactTracker` | `ArtifactTracker(db, SnapshotStore)` | Day 14 | `ArtifactCaptureSubscriber` |
 | `ArtifactCaptureSubscriber` | `ArtifactCaptureSubscriber(ArtifactTracker, logger)` + `subscribe(EventBus)` | Day 14 | eager-resolved at boot (side effect: `artifact.created` → tracker capture) |
 | `ChangeStatusSubscriber` | `ChangeStatusSubscriber(db, logger)` + `subscribe(EventBus)` | Day 14 | eager-resolved at boot (side effect: **sole writer** of `changes.status` — `PENDING→VERIFIED→REVIEWED`, any→`ROLLED_BACK`) |
-| `AttentionSubscriber` | `AttentionSubscriber(db, logger, WeightsProvider)` + `subscribe(EventBus)` | Day 18 (WeightsProvider seam: Day 12) | eager-resolved at boot (side effect: `task.state_changed`→`AWAITING_REVIEW` scores the five factors → `assessments` row → `attention.assessment_created`) |
+| `AttentionSubscriber` | `AttentionSubscriber(db, logger, WeightsProvider, ContentStore)` + `subscribe(EventBus)` | Day 18 (WeightsProvider seam: Day 12) | eager-resolved at boot (side effect: `task.state_changed`→`AWAITING_REVIEW` scores the five factors → `assessments` row → `attention.assessment_created`) |
 | `AttentionRouter` | `AttentionRouter(db, EventBus, ATTENTION_POLICY_V1, logger)` + `subscribe()` | Day 19 | eager-resolved at boot (side effect: `attention.assessment_created` → policy match + fatigue controls → `review_queue` → `attention.item_routed`); `ReviewService` (feedback seam) |
 | `AutoApproveGate` | `AutoApproveGate({ maxRisk, inflationCeiling })` (pure evaluator, no deps) | Day 14 | `AutoApproveExecutor` (the three-part gate — calibration green ∧ flag on ∧ under the bar) |
 | `AutoApproveKillSwitch` | `AutoApproveKillSwitch(db)` (single-row `auto_approve_kill_switch`) | Day 14 | `AutoApproveExecutor` (reads flag/kill on every decision); `routes/admin.ts` (flag flip / kill) |
@@ -50,7 +51,7 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `TaskService` | `TaskService(db, EventBus, TaskStateMachine)` | Day 06 | `ReviewService` (transition seam), `MergeService`, `ReworkService`, `Dispatcher`, `WorkflowRunner`, `AgentRunner`, verify/context handlers |
 | `ReviewService` | `ReviewService(db, EventBus, {transitionTask, reportAssessmentFeedback, diffChange}, logger)` | Day 22 | `routes/review.ts` (claim/decide/drop); `DiffEngine` is constructed inline to back `diffChange` |
 | `GitAdapter` | `ShellGitAdapter(process.env.WORKING_REPO_ROOT)` | Day 24 | `MergeService` |
-| `MergeService` | `MergeService(db, EventBus, GitAdapter, TaskService, logger)` + `subscribe()` | Day 24 | eager-resolved at boot (side effect: APPROVED → merge → `artifact.merged`) |
+| `MergeService` | `MergeService(db, EventBus, GitAdapter, TaskService, logger, ContentStore)` + `subscribe()` | Day 24 (seam: Day 21) | eager-resolved at boot (side effect: APPROVED → merge → `artifact.merged`) |
 | `ReworkService` | `ReworkService(db, EventBus, TaskService, logger)` + `subscribe()` | Day 24 | eager-resolved at boot (side effect: REJECTED → REWORK) |
 | `Dispatcher` | `Dispatcher(db, TaskService, EventBus)` | Day 08 | `DispatchLoop` (drives `PENDING`/`REWORK` → `QUEUED`/`FAILED`) |
 | `DispatchLoop` | `DispatchLoop(Dispatcher, logger)` | Day 08 | `apps/api` startup (start/stop on SIGTERM/SIGINT) |
@@ -151,12 +152,12 @@ The two loops (`DispatchLoop`, `RuntimePollLoop`) are **not** resolved here — 
 5. `OidcProvider` — needs `OIDC_MOCK` to pick mock vs real; the real adapter needs `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`.
 6. `SessionService` — needs `Db`, plus `SESSION_TTL_MS`.
 7. `AuthService` — needs `Db`, `SessionService`, `JWT_SECRET`.
-8. `SnapshotStore` — no deps.
+8. `ContentStore` — needs `OBJECT_STORE_ENDPOINT` (plus bucket/creds) for a real S3/MinIO backend, else an ephemeral `InMemoryContentStore` fallback with offload disabled. `SnapshotStore` — needs `ContentStore` and the offload threshold (`OBJECT_STORE_THRESHOLD_BYTES`, default 1 MiB).
 9. `ArtifactTracker` — needs `Db`, `SnapshotStore`.
 10. `ArtifactCaptureSubscriber` — needs `ArtifactTracker`, `Logger`, `EventBus`.
 11. `ChangeStatusSubscriber` — needs `Db`, `Logger`, `EventBus`.
 12. `WeightsProvider` — no deps (returns the Phase-1 placeholder via `StaticWeightsAdapter`; not flipped until Day 13/14).
-13. `AttentionSubscriber` — needs `Db`, `Logger`, `WeightsProvider`, `EventBus`.
+13. `AttentionSubscriber` — needs `Db`, `Logger`, `WeightsProvider`, `ContentStore`, `EventBus`.
 14. `AttentionRouter` — needs `Db`, `EventBus`, `ATTENTION_POLICY_V1`, `Logger`.
 15. `AutoApproveGate` — needs `ATTENTION_POLICY_V1` (static tuning; pure evaluator, no container deps).
 16. `AutoApproveKillSwitch` — needs `Db`.
@@ -177,7 +178,7 @@ The two loops (`DispatchLoop`, `RuntimePollLoop`) are **not** resolved here — 
 31. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
 32. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
 33. `GitAdapter` — needs `WORKING_REPO_ROOT`.
-34. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
+34. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`, `ContentStore`.
 35. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
 36. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
 37. `DispatchLoop` — needs `Dispatcher`, `Logger`.

@@ -1,5 +1,5 @@
 {
-  "name": "@harness/artifact-tracker",
+  "name": "@harness/object-store",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,22 +11,14 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --root ../.. packages/artifact-tracker"
+    "test": "vitest run --root ../.. packages/object-store"
   },
   "dependencies": {
-    "@harness/db": "workspace:^",
-    "@harness/di": "workspace:^",
-    "@harness/domain": "workspace:^",
-    "@harness/event-bus": "workspace:^",
-    "@harness/object-store": "workspace:^",
-    "diff": "^9.0.0",
-    "drizzle-orm": "^0.45.2"
+    "@aws-sdk/client-s3": "^3.600.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

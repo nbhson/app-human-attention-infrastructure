@@ -34,6 +34,8 @@ import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { withSpan } from '@harness/observability';
 import type { Logger } from '@harness/di';
+import type { ContentStore } from '@harness/object-store';
+import { streamToString } from '@harness/object-store';
 
 import {
   extractComplexity,
@@ -61,6 +63,7 @@ export class AttentionSubscriber {
     private readonly db: DrizzleDB,
     private readonly logger?: Logger,
     private readonly weightsProvider: WeightsProvider = new StaticWeightsAdapter(),
+    private readonly contentStore?: ContentStore,
   ) {}
 
   /** Attach the AWAITING_REVIEW handler; returns nothing (fire-and-forget). */
@@ -278,10 +281,23 @@ export class AttentionSubscriber {
 
   private async contentFor(hash: string): Promise<string> {
     const rows = await this.db
-      .select({ content: snapshots.content })
+      .select({
+        content: snapshots.content,
+        content_hash: snapshots.content_hash,
+        content_backend: snapshots.content_backend,
+      })
       .from(snapshots)
       .where(eq(snapshots.content_hash, hash))
       .limit(1);
-    return rows[0]?.content ?? '';
+    const row = rows[0];
+    if (row === undefined) {
+      return '';
+    }
+    if (row.content_backend === 'object' && this.contentStore !== undefined) {
+      return streamToString(
+        await this.contentStore.get({ hash: row.content_hash, backend: 'object' }),
+      );
+    }
+    return row.content ?? '';
   }
 }

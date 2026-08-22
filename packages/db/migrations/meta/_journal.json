@@ -190,6 +190,13 @@
       "when": 1787405768094,
       "tag": "0026_daily_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1787407775034,
+      "tag": "0027_black_ken_ellis",
+      "breakpoints": true
     }
   ]
 }

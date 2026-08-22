@@ -39,5 +39,22 @@ services:
     depends_on:
       - prometheus
 
+  # S3-compatible object store for day-21 large-artifact offload. The API only
+  # talks to it when OBJECT_STORE_ENDPOINT is set; left running otherwise it is
+  # inert.
+  minio:
+    image: minio/minio:latest
+    container_name: harness-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # console
+    volumes:
+      - miniodata:/data
+
 volumes:
   pgdata:
+  miniodata:

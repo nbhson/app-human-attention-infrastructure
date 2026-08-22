@@ -12,6 +12,7 @@ import type { ArtifactID, ChangeID } from '@harness/domain';
 import { artifacts, changes, snapshots } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
+import { InMemoryContentStore } from '@harness/object-store';
 
 import { DiffEngine } from '../diff-engine.js';
 import { sha256 } from '../snapshot-store.js';
@@ -173,5 +174,65 @@ describe('DiffEngine', () => {
 
   it('returns an empty array for an unknown change id', async () => {
     await expect(new DiffEngine(db).diffChange(newChangeID())).resolves.toEqual([]);
+  });
+
+  it('resolves object-backed (offloaded) snapshot content through the ContentStore', async () => {
+    const seed = await seedRun(db, 'diff-object');
+    const artifactId = await createArtifact(db, seed, 'src/large.ts');
+
+    const baseContent = 'base line\n';
+    const baseHash = sha256(baseContent);
+    const baseChangeId = newChangeID();
+    await db.insert(changes).values({
+      id: baseChangeId,
+      artifact_id: artifactId,
+      agent_run_id: seed.runId,
+      change_type: FileChangeType.Created,
+      status: ChangeStatus.Pending,
+      content_hash: baseHash,
+      diff_summary: 'created',
+      created_at: new Date('2026-01-01T00:00:00Z'),
+    });
+    await db.insert(snapshots).values({
+      id: newSnapshotID(),
+      change_id: baseChangeId,
+      content_hash: baseHash,
+      content: baseContent,
+      content_backend: 'db',
+      generation: 1,
+    });
+
+    const tailContent = 'base line\noffloaded tail\n';
+    const tailHash = sha256(tailContent);
+    const tailChangeId = newChangeID();
+    await db.insert(changes).values({
+      id: tailChangeId,
+      artifact_id: artifactId,
+      agent_run_id: seed.runId,
+      change_type: FileChangeType.Modified,
+      status: ChangeStatus.Pending,
+      content_hash: tailHash,
+      diff_summary: 'modified',
+      created_at: new Date('2026-01-02T00:00:00Z'),
+    });
+    await db.insert(snapshots).values({
+      id: newSnapshotID(),
+      change_id: tailChangeId,
+      content_hash: tailHash,
+      content: null,
+      content_backend: 'object',
+      generation: 1,
+    });
+
+    const objectStore = new InMemoryContentStore('object');
+    await objectStore.put(Buffer.from(tailContent, 'utf8'), {
+      contentHash: tailHash,
+      sizeBytes: Buffer.byteLength(tailContent, 'utf8'),
+    });
+
+    const diffs = await new DiffEngine(db, objectStore).diffChange(tailChangeId);
+
+    expect(diffs).toHaveLength(1);
+    expect(diffs[0]?.hunks).toContain('+offloaded tail');
   });
 });

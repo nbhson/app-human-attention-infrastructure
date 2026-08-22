@@ -116,4 +116,12 @@ describe('dependency rules (Spec 1 §5)', () => {
       ['@harness/domain', '@harness/db', '@harness/event-bus'].sort(),
     );
   });
+
+  it('R11: @harness/object-store depends on no @harness/* package', () => {
+    // Day-21 §2.1: the object-store seam is a pure, content-addressed byte store
+    // (its only runtime dependency is the S3 SDK, which is external). Keeping it
+    // free of @harness deps means every other package — engines included — may
+    // import the seam without creating a cycle or a new shared-infra boundary.
+    expect(harnessDependencies('object-store')).toEqual([]);
+  });
 });

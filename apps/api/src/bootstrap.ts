@@ -32,6 +32,7 @@ import {
   ArtifactCaptureSubscriber,
   ArtifactTracker,
   ChangeStatusSubscriber,
+  DEFAULT_OBJECT_STORE_THRESHOLD_BYTES,
   DiffEngine,
   SnapshotStore,
 } from '@harness/artifact-tracker';
@@ -93,6 +94,12 @@ import {
   WorkflowRunner,
 } from '@harness/orchestrator';
 import type { StepHandler } from '@harness/orchestrator';
+import type { ContentStore } from '@harness/object-store';
+import {
+  AwsS3ClientPort,
+  InMemoryContentStore,
+  ObjectStoreContentStore,
+} from '@harness/object-store';
 import { ReviewService } from '@harness/review';
 import {
   CompileCheck,
@@ -339,12 +346,51 @@ export function buildContainer(): Container {
     );
   });
 
+  // Day 21 (object store): the content-addressing seam. Large snapshot content
+  // is offloaded through `TOKENS.ContentStore` when an S3/MinIO endpoint is
+  // configured (`OBJECT_STORE_ENDPOINT`); without one, the store falls back to
+  // an ephemeral in-memory backend *and* the offload threshold is `Infinity`, so
+  // no bytes ever leave `snapshots` — the Phase-1 inline path stays the default.
+  c.register(TOKENS.ContentStore, () => {
+    const endpoint = process.env.OBJECT_STORE_ENDPOINT;
+    if (!endpoint) {
+      return new InMemoryContentStore('object');
+    }
+    const bucket = process.env.OBJECT_STORE_BUCKET ?? 'harness-artifacts';
+    const region = process.env.OBJECT_STORE_REGION;
+    const accessKeyId = process.env.OBJECT_STORE_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.OBJECT_STORE_SECRET_ACCESS_KEY;
+    return new ObjectStoreContentStore(
+      new AwsS3ClientPort({
+        bucket,
+        endpoint,
+        ...(region !== undefined ? { region } : {}),
+        ...(accessKeyId !== undefined
+          ? { accessKeyId, secretAccessKey: secretAccessKey ?? '' }
+          : {}),
+      }),
+      process.env.OBJECT_STORE_PREFIX ?? 'artifacts/',
+    );
+  });
+
+  const objectStoreConfigured = Boolean(process.env.OBJECT_STORE_ENDPOINT);
+  const objectStoreThreshold = objectStoreConfigured
+    ? Number(
+        process.env.OBJECT_STORE_THRESHOLD_BYTES ?? String(DEFAULT_OBJECT_STORE_THRESHOLD_BYTES),
+      )
+    : Infinity;
+
   // Day 14: the full Artifact Tracker. `SnapshotStore` is content-addressed
   // storage; `ArtifactTracker.capture` is the transactional
   // get-or-create-artifact → change → snapshot writer. The Day-13 capture
   // subscriber now forwards `artifact.created` into the tracker instead of doing
-  // its own inline insert.
-  c.register(TOKENS.SnapshotStore, () => new SnapshotStore());
+  // its own inline insert. Day-21 wires the `ContentStore` seam into the
+  // snapshot writer as its Storage Manager for large content.
+  c.register(
+    TOKENS.SnapshotStore,
+    (container) =>
+      new SnapshotStore(container.resolve<ContentStore>(TOKENS.ContentStore), objectStoreThreshold),
+  );
 
   c.register(TOKENS.ArtifactTracker, (container) => {
     return new ArtifactTracker(
@@ -390,6 +436,7 @@ export function buildContainer(): Container {
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<Logger>(TOKENS.Logger),
       container.resolve<StaticWeightsAdapter>(TOKENS.WeightsProvider),
+      container.resolve<ContentStore>(TOKENS.ContentStore),
     );
     subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
     return subscriber;
@@ -598,7 +645,10 @@ export function buildContainer(): Container {
   c.register(TOKENS.ReviewService, (container) => {
     const taskService = container.resolve<TaskService>(TOKENS.TaskService);
     const attentionRouter = container.resolve<AttentionRouter>(TOKENS.AttentionRouter);
-    const diffEngine = new DiffEngine(container.resolve<DrizzleDB>(TOKENS.Db));
+    const diffEngine = new DiffEngine(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<ContentStore>(TOKENS.ContentStore),
+    );
     return new ReviewService(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<IEventBus>(TOKENS.EventBus),
@@ -630,6 +680,7 @@ export function buildContainer(): Container {
       container.resolve<GitAdapter>(TOKENS.GitAdapter),
       container.resolve<TaskService>(TOKENS.TaskService),
       container.resolve<Logger>(TOKENS.Logger),
+      container.resolve<ContentStore>(TOKENS.ContentStore),
     );
     service.subscribe();
     return service;

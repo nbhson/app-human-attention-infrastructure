@@ -40,6 +40,7 @@ export const TOKENS = {
   SemanticRetriever: 'SemanticRetriever',
   SemanticRanker: 'SemanticRanker',
   ArtifactTracker: 'ArtifactTracker',
+  ContentStore: 'ContentStore',
   AttentionEngine: 'AttentionEngine',
   AttentionSubscriber: 'AttentionSubscriber',
   AttentionRouter: 'AttentionRouter',

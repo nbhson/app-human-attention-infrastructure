@@ -29,6 +29,7 @@ const elements = [
   { type: 'db', pattern: 'packages/db/**' },
   { type: 'di', pattern: 'packages/di/**' },
   { type: 'embeddings', pattern: 'packages/embeddings/**' },
+  { type: 'object-store', pattern: 'packages/object-store/**' },
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
@@ -46,6 +47,12 @@ const elementTypesRules = [
   { from: 'domain', allow: ['domain'] },
   { from: 'event-bus', allow: ['domain', 'event-bus'] },
   { from: 'db', allow: ['domain', 'event-bus', 'db'] },
+  {
+    from: 'object-store',
+    // A pure content-addressed byte store: depends on no @harness package (the
+    // S3 SDK is external, not a boundary element). Everything may import it.
+    allow: ['object-store'],
+  },
   { from: 'di', allow: [...SHARED, 'di'] },
   {
     from: 'embeddings',
@@ -72,7 +79,7 @@ const elementTypesRules = [
   },
   ...ENGINE_TYPES.map((type) => ({
     from: type,
-    allow: [...SHARED, 'observability', 'embeddings', type],
+    allow: [...SHARED, 'observability', 'embeddings', 'object-store', type],
   })),
   {
     from: 'app',
@@ -83,6 +90,7 @@ const elementTypesRules = [
       'observability',
       'evaluation',
       'embeddings',
+      'object-store',
       ...ENGINE_TYPES,
       'app',
     ],
