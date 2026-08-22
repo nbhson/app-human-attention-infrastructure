@@ -35,7 +35,8 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `AutoApproveSampler` | `AutoApproveSampler(db, EventBus, logger)` + `subscribe()` | Day 14 | eager-resolved at boot (side effect: `decision.submitted` REJECTED on a sampled control → `attention.escalation_leakage`) |
 | `AutoApproveExecutor` | `AutoApproveExecutor(db, EventBus, gate, killSwitch, sampler, taskTransition, policy, DbAutoApproveLoader(db), logger)` + `subscribe()` | Day 14 | eager-resolved at boot (side effect: `attention.item_routed` `AUTO_APPROVABLE` → gate → `AUTO_APPROVED` decision, `actor_id IS NULL`, task `AWAITING_REVIEW→APPROVED` under `triggered_by 'auto_approve'`) |
 | `WeightsProvider` | `StaticWeightsAdapter()` (returns the Phase-1 placeholder) | Day 12 | `AttentionSubscriber` (threads the active vector into `computePriority`; **not flipped** — the Day-15 fit did not beat the placeholder) |
-| `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot))` | Day 20 | `COLLECT_CONTEXT` step handler |
+| `Embedder` | `StubEmbedder()` (default) \| `OpenAICompatibleEmbedder({baseUrl, apiKey, model})` when `EMBEDDINGS_BASE_URL` is set | Day 16 | `ContextEngine` (reserved for the Day-18 semantic retriever; the keyword path never reads it — shadow-negative test asserts zero calls) |
+| `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot), KeywordDependencyRanker(), ApproxTokenizer(), Embedder)` | Day 20 (embedder seam: Day 16) | `COLLECT_CONTEXT` step handler |
 | `EvidenceStore` | `EvidenceStore()` | Day 17 | `VerificationEngine` |
 | `VerificationEngine` | `VerificationEngine(db, EventBus, {CompileCheck, TestCheck}, EvidenceStore)` | Day 15 (`CompileCheck`) / 16 (`TestCheck`) / 17 (`EvidenceStore`) | `VERIFY` step handler (publishes `verification.completed`) |
 | `LLMProvider` | `LoggingLLMProvider(AnthropicProvider(key) \| MockLLM(script), db)` | Day 11 | `AgentRunner` |
@@ -153,24 +154,25 @@ The two loops (`DispatchLoop`, `RuntimePollLoop`) are **not** resolved here — 
 16. `AutoApproveKillSwitch` — needs `Db`.
 17. `AutoApproveSampler` — needs `Db`, `EventBus`, `Logger`.
 18. `AutoApproveExecutor` — needs `Db`, `EventBus`, `AutoApproveGate`, `AutoApproveKillSwitch`, `AutoApproveSampler`, `ATTENTION_POLICY_V1`, `DbAutoApproveLoader(Db)`, and the `taskTransition` seam onto `TaskService` (lazy-resolved — registered before `TaskService`, wired at boot).
-19. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`.
-20. `EvidenceStore` — no deps.
-21. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
-22. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).
-23. `TaskStateMachine` — no deps.
-24. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
-25. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
-26. `GitAdapter` — needs `WORKING_REPO_ROOT`.
-27. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
-28. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
-29. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
-30. `DispatchLoop` — needs `Dispatcher`, `Logger`.
-31. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT` real, `EXECUTE` stub, `VERIFY` real).
-32. `ToolRegistry` — needs `EventBus`, `AGENT_ALLOWED_TOOLS`, `SANDBOX_ROOT`.
-33. `TrajectoryRecorder` — needs `Db`.
-34. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, the `runLinearWorkflow` handoff, `maxSteps`, `tokenLimit`, `TrajectoryRecorder`.
-35. `RuntimePollLoop` — needs `Db`, `AgentRunner`, `Logger`.
-36. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
+19. `Embedder` — no deps (`StubEmbedder` default; `OpenAICompatibleEmbedder` when `EMBEDDINGS_BASE_URL` is set).
+20. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`, `KeywordDependencyRanker()`, `ApproxTokenizer()`, `Embedder`.
+21. `EvidenceStore` — no deps.
+22. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
+23. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).
+24. `TaskStateMachine` — no deps.
+25. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
+26. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
+27. `GitAdapter` — needs `WORKING_REPO_ROOT`.
+28. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
+29. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
+30. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
+31. `DispatchLoop` — needs `Dispatcher`, `Logger`.
+32. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT` real, `EXECUTE` stub, `VERIFY` real).
+33. `ToolRegistry` — needs `EventBus`, `AGENT_ALLOWED_TOOLS`, `SANDBOX_ROOT`.
+34. `TrajectoryRecorder` — needs `Db`.
+35. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, the `runLinearWorkflow` handoff, `maxSteps`, `tokenLimit`, `TrajectoryRecorder`.
+36. `RuntimePollLoop` — needs `Db`, `AgentRunner`, `Logger`.
+37. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 

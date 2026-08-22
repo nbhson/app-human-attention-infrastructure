@@ -137,6 +137,22 @@ export const evidenceKinds = [
 /** What an evidence record is *linked to* via `evidence_links` (day-17 §2.1). */
 export const evidenceSubjectKinds = ['check_result', 'artifact', 'report', 'agent_run'] as const;
 
+/**
+ * `context_source_embeddings.source_type` (day-16 §2.1) — the provenance
+ * category of an embedded context source, mirroring `@harness/domain`'s
+ * `ContextSourceType` (context-engine spec §2.2, §5.1).
+ */
+export const contextSourceTypes = [
+  'FILE',
+  'SYMBOL',
+  'GIT_HISTORY',
+  'DOCUMENTATION',
+  'ARCHITECTURE',
+  'TEST',
+  'DECISION',
+  'EVIDENCE',
+] as const;
+
 /** `tasks.state`. */
 export const taskStateCheck = inList('tasks_state_check', 'state', taskStates);
 
@@ -215,4 +231,11 @@ export const evidenceSubjectKindCheck = inList(
   'evidence_links_subject_kind_check',
   'subject_kind',
   evidenceSubjectKinds,
+);
+
+/** `context_source_embeddings.source_type`. */
+export const contextSourceTypeCheck = inList(
+  'context_source_embeddings_source_type_check',
+  'source_type',
+  contextSourceTypes,
 );

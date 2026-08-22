@@ -54,13 +54,21 @@ import {
   OpenIdClientProvider,
   SessionService,
 } from '@harness/auth';
-import { ContextEngine, extractFileReferences, FileCollector } from '@harness/context-engine';
+import {
+  ApproxTokenizer,
+  ContextEngine,
+  extractFileReferences,
+  FileCollector,
+  KeywordDependencyRanker,
+} from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
 import type { Logger } from '@harness/di';
 import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { brand, ChangeStatus, TaskStatus } from '@harness/domain';
 import type { ChangeID, TaskID } from '@harness/domain';
+import { OpenAICompatibleEmbedder, StubEmbedder } from '@harness/embeddings';
+import type { Embedder } from '@harness/embeddings';
 import { MetricsComputer } from '@harness/evaluation';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
@@ -439,6 +447,22 @@ export function buildContainer(): Container {
     return executor;
   });
 
+  // Day 16: the text-embedding seam. Stub by default so the graph builds with no
+  // external provider; a real OpenAI-compatible endpoint when `EMBEDDINGS_BASE_URL`
+  // is set. The default ContextEngine keyword path never reads this token — the
+  // mechanical shadow-then-default guarantee (day-16 §2.3).
+  c.register(TOKENS.Embedder, () => {
+    const baseUrl = process.env.EMBEDDINGS_BASE_URL;
+    if (!baseUrl) {
+      return new StubEmbedder();
+    }
+    return new OpenAICompatibleEmbedder({
+      baseUrl,
+      apiKey: process.env.EMBEDDINGS_API_KEY ?? '',
+      model: process.env.EMBEDDINGS_MODEL ?? 'text-embedding-3-small',
+    });
+  });
+
   // Day 20: the Context Engine. Resolves ranked, budgeted context for a task and
   // persists the snapshot into `contexts`. The FileCollector scans the sandbox
   // root the agent operates in, guarded by the same resolveSafe path check as the
@@ -447,6 +471,9 @@ export function buildContainer(): Container {
     return new ContextEngine(
       container.resolve<DrizzleDB>(TOKENS.Db),
       new FileCollector(sandboxRoot),
+      new KeywordDependencyRanker(),
+      new ApproxTokenizer(),
+      container.resolve<Embedder>(TOKENS.Embedder),
     );
   });
 

@@ -36,9 +36,16 @@ export async function createTestDb(schemaName: string): Promise<TestDb> {
 
   await sql.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
   await sql.unsafe(`CREATE SCHEMA "${schemaName}"`);
+  // pgvector's `vector` type is a per-database extension object, not a table we
+  // can shard. Install it once into `public` and resolve it from the isolated
+  // schema via the public fallback in search_path — if a prior `createTestDb` (or
+  // prod `migrate`) already installed it, `IF NOT EXISTS` no-ops here. Without
+  // the `public` fallback, the migration's `vector(1536)` column type throws
+  // "type vector does not exist" on every test schema after the first.
+  await sql.unsafe(`CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public`);
   // Migration SQL is unqualified (`CREATE TABLE "tasks" ...`); route it into the
   // isolated schema via search_path on this sole pooled connection.
-  await sql.unsafe(`SET search_path TO "${schemaName}"`);
+  await sql.unsafe(`SET search_path TO "${schemaName}", public`);
 
   const db = drizzle(sql, { schema });
 
@@ -68,7 +75,7 @@ export async function destroyTestDb(testDb: TestDb, schemaName: string): Promise
  */
 export async function openTestDbConnection(schemaName: string): Promise<TestDb> {
   const sql = postgres(testConnectionString(), { max: 1, onnotice: () => {} });
-  await sql.unsafe(`SET search_path TO "${schemaName}"`);
+  await sql.unsafe(`SET search_path TO "${schemaName}", public`);
   const db = drizzle(sql, { schema });
   return { sql, db };
 }

@@ -31,6 +31,7 @@ jobs:
           - packages/db
           - packages/di
           - packages/domain
+          - packages/embeddings
           - packages/evaluation
           - packages/event-bus
           - packages/observability
@@ -41,7 +42,7 @@ jobs:
           - apps/web
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: harness
           POSTGRES_PASSWORD: harness
@@ -80,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: harness
           POSTGRES_PASSWORD: harness

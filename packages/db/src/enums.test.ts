@@ -4,6 +4,7 @@ import {
   AgentRunStatus,
   ArtifactStatus,
   ChangeStatus,
+  ContextSourceType,
   FileChangeType,
   HumanDecisionType,
   PriorityLabel,
@@ -18,6 +19,7 @@ import {
   agentRunStatuses,
   artifactStatuses,
   changeStatuses,
+  contextSourceTypes,
   fileChangeTypes,
   humanDecisionTypes,
   priorityLabels,
@@ -76,5 +78,9 @@ describe('schema enum drift guards', () => {
 
   it('reviewQueueStatuses match ReviewQueueStatus', () => {
     expect(reviewQueueStatuses).toEqual(Object.values(ReviewQueueStatus));
+  });
+
+  it('contextSourceTypes match ContextSourceType', () => {
+    expect(contextSourceTypes).toEqual(Object.values(ContextSourceType));
   });
 });

@@ -77,7 +77,7 @@ placeholder stays active and auto-approve stays disabled by default.
   and the numbers-first [Week-3 retrospective](docs/retros/week-03.md). Auto-approve
   ships **OFF**; the demo proves the path, then restores the safe default.
 
-Next up: [Day 16 — pgvector migration & `Embedder` interface](docs/plan/phase-2/day-16.md).
+Next up: [Day 17 — Index Population: Embed Sources/Artifacts, Re-embed on Change](docs/plan/phase-2/day-17.md).
 
 ## Quickstart
 

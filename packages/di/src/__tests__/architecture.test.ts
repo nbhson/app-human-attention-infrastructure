@@ -104,4 +104,16 @@ describe('dependency rules (Spec 1 §5)', () => {
       ['@harness/domain', '@harness/db', '@harness/di', '@harness/observability'].sort(),
     );
   });
+
+  it('R10: @harness/embeddings depends only on @harness/domain — never db, di, or an engine', () => {
+    // Day-16 §2.4: the text-embedding seam is infra of the same tier as
+    // db/di/observability, but it has no persistence or logging of its own (a
+    // failing provider returns a typed EmbedError the caller logs), so it may
+    // read domain types and nothing else. Today the Embedder keys by `string` /
+    // `number[]` only and imports no domain symbol, so the dependency set is
+    // empty — a strict subset of "domain at most". The eslint element permits
+    // `domain` for the day-17 index-population job if it lands here.
+    const deps = harnessDependencies('embeddings');
+    expect(deps.filter((dep) => dep !== '@harness/domain')).toEqual([]);
+  });
 });

@@ -16,6 +16,7 @@ import {
   newContextID,
 } from '@harness/domain';
 import type { ContextSnapshot } from '@harness/domain';
+import type { Embedder } from '@harness/embeddings';
 
 import { FileCollector } from './collect.js';
 import { checkFreshness, sha256 } from './freshness.js';
@@ -33,6 +34,11 @@ export class ContextEngine {
     private readonly collector: FileCollector,
     private readonly ranker: Ranker = new KeywordDependencyRanker(),
     private readonly tokenizer: Tokenizer = new ApproxTokenizer(),
+    // Reserved for the Day-18 semantic retriever behind the Ranker seam. The
+    // default keyword path (`resolveContext` / `resolveFresh`) never reads it —
+    // that is exactly the shadow-then-default guarantee the shadow-negative test
+    // (day-16 §3.5) asserts.
+    private readonly embedder?: Embedder,
   ) {}
 
   /** Resolve, budget, and persist the context for one task (day-20 §2.5). */

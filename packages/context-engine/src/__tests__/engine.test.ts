@@ -9,10 +9,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { contexts, projects, tasks } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
+import type { Embedder } from '@harness/embeddings';
 import { newProjectID, newTaskID } from '@harness/domain';
 
 import { FileCollector } from '../collect.js';
 import { ContextEngine } from '../engine.js';
+import { ApproxTokenizer, KeywordDependencyRanker } from '../index.js';
 
 const SCHEMA = 'harness_test_context_engine';
 
@@ -145,5 +147,56 @@ describe('ContextEngine.resolveFresh', () => {
     const patchedLogging = patched.sources.find((s) => s.sourceId === 'src/logging.ts');
     expect(patchedLogging?.content).toBe(originalLogging!.content);
     expect(patchedLogging?.metadata.refreshed).toBeUndefined();
+  });
+});
+
+/** A counting Embedder seam for the shadow-only guarantee (day-16 §3.5). */
+function makeCountingEmbedder(): {
+  embedder: Embedder;
+  embedCalls: () => number;
+  queryCalls: () => number;
+} {
+  let embedCalls = 0;
+  let queryCalls = 0;
+  const embedder: Embedder = {
+    dimensions: 16,
+    model: 'counting-proxy',
+    async embed() {
+      embedCalls += 1;
+      return { ok: true, vectors: [] };
+    },
+    async embedQuery() {
+      queryCalls += 1;
+      return { ok: true, vector: [] };
+    },
+  };
+  return { embedder, embedCalls: () => embedCalls, queryCalls: () => queryCalls };
+}
+
+describe('ContextEngine shadow-only guarantee (day-16 §3.5)', () => {
+  it('resolveContext makes zero Embedder calls on the default keyword path', async () => {
+    const taskId = (await seedTask()) as ReturnType<typeof newTaskID>;
+    const counter = makeCountingEmbedder();
+    const engine = new ContextEngine(
+      db,
+      new FileCollector(tmpRoot),
+      new KeywordDependencyRanker(),
+      new ApproxTokenizer(),
+      counter.embedder,
+    );
+
+    await engine.resolveContext({
+      taskId,
+      taskDescription: 'Fix bug in PaymentService.ts',
+      requirements: '',
+      targetFiles: ['src/PaymentService.ts'],
+      maxTokens: 4000,
+    });
+
+    // The embedder is injected but the keyword path never reads it — this is the
+    // mechanical shadow-then-default guarantee: a semantic call must not sneak
+    // into the default ranker without tripping this assertion.
+    expect(counter.embedCalls()).toBe(0);
+    expect(counter.queryCalls()).toBe(0);
   });
 });

@@ -28,6 +28,7 @@ const elements = [
   { type: 'event-bus', pattern: 'packages/event-bus/**' },
   { type: 'db', pattern: 'packages/db/**' },
   { type: 'di', pattern: 'packages/di/**' },
+  { type: 'embeddings', pattern: 'packages/embeddings/**' },
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
@@ -46,6 +47,14 @@ const elementTypesRules = [
   { from: 'event-bus', allow: ['domain', 'event-bus'] },
   { from: 'db', allow: ['domain', 'event-bus', 'db'] },
   { from: 'di', allow: [...SHARED, 'di'] },
+  {
+    from: 'embeddings',
+    // R10 (day-16 §2.4): a text-embedding seam is infra, imported by engines as
+    // a tier with `db`/`di`/`observability`. It may read domain types only —
+    // never a sibling engine, never db/di (it has no persistence or logging of
+    // its own beyond returning a typed error the caller logs).
+    allow: ['domain', 'embeddings'],
+  },
   { from: 'review', allow: [...SHARED, 'observability', 'review'] },
   { from: 'auth', allow: [...SHARED, 'auth'] },
   {
@@ -61,10 +70,22 @@ const elementTypesRules = [
     // Never an engine.
     allow: [...SHARED, 'observability', 'evaluation'],
   },
-  ...ENGINE_TYPES.map((type) => ({ from: type, allow: [...SHARED, 'observability', type] })),
+  ...ENGINE_TYPES.map((type) => ({
+    from: type,
+    allow: [...SHARED, 'observability', 'embeddings', type],
+  })),
   {
     from: 'app',
-    allow: [...SHARED, 'auth', 'review', 'observability', 'evaluation', ...ENGINE_TYPES, 'app'],
+    allow: [
+      ...SHARED,
+      'auth',
+      'review',
+      'observability',
+      'evaluation',
+      'embeddings',
+      ...ENGINE_TYPES,
+      'app',
+    ],
   },
 ];
 
