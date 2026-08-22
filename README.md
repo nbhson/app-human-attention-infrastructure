@@ -28,7 +28,8 @@ artifact tracking, verification, attention routing, review, and observability.
 - **What works:** follow the [Developer Guide](docs/dev-guide.md) to go from
   `git clone` to a green `pnpm e2e` in ~15 minutes.
 - **What's deferred:** runtime confines, targeted verification, semantic ranking,
-  calibration — see the [Day-30 backlog](docs/plan/phase-1/day-30.md).
+  calibration — see the [Phase 2 backlog](docs/plan/phase-2-backlog.md).
+- **How it went:** the honest, numbers-first [Phase 1 retrospective](docs/retros/phase-1.md).
 - **Boundaries:** see [limitations.md](docs/runbook/limitations.md) before you
   "fix" something that's a deliberate Phase-1 scope cut.
 

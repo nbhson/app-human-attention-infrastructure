@@ -4,7 +4,7 @@ The build is delivered in three phases. Each phase is an independent plan direct
 
 | Phase | Directory | Theme | Estimate | Status |
 |-------|-----------|-------|----------|--------|
-| 1 | [phase-1/](phase-1/README.md) | Prove the Core Loop — vertical slice, evidence before confidence | 30 days (complete) | ✅ Foundation + Execution Core done; W3–W4 pending |
+| 1 | [phase-1/](phase-1/README.md) | Prove the Core Loop — vertical slice, evidence before confidence | 30 days | ✅ Complete — tagged v0.1.0-harness |
 | 2 | [phase-2/](phase-2/README.md) | Calibrate & Close the Measurement Loop — evaluation, calibration, semantic infra (shadow) | 30 days | 🔲 Not started |
 | 3 | [phase-3/](phase-3/README.md) | Learn & Automate Under Guardrails — memory, hybrid default, multi-agent, closed loop | 40 days | 🔲 Not started |
 
@@ -91,17 +91,22 @@ Not a production system — a **correctly-architected, tested, end-to-end demons
 | 27 | [day-27.md](phase-1/day-27.md) | Observability: logs, correlation IDs, audit queries | apps/api | ⚠️ |
 | 28 | [day-28.md](phase-1/day-28.md) | Hardening: concurrency, failure injection, load smoke | apps/api | ⚠️ |
 | 29 | [day-29.md](phase-1/day-29.md) | Documentation: specs → v0.2, dev guide, runbook | docs | ✅ |
-| 30 | [day-30.md](phase-1/day-30.md) | **Final demo + retrospective + tag `v0.1.0-harness`** | root | ⚠️ |
+| 30 | [day-30.md](phase-1/day-30.md) | **Final demo + retrospective + tag `v0.1.0-harness`** | root | ✅ |
 
 ### Phase 1 Exit Criteria (Day 30)
 
-- [ ] `docker compose up && pnpm dev` starts the whole system with one fixture project.
-- [ ] Scripted demo: create task → agent executes → change verified → scored → reviewed in UI → approved → merged, with provenance chain queryable end-to-end.
-- [ ] Reject path demo: verification failure → task REWORK → retry limit → AWAITING_HUMAN_INTERVENTION.
-- [ ] All packages ≥ 70% line coverage on core logic.
-- [ ] Specs updated to v0.2 reflecting as-built reality; known gaps documented as Phase 2 backlog.
-- [ ] Spec 9 (Memory/Evidence) preserved: evidence store is append-only and queryable end-to-end.
-- [ ] Spec 11 (Evaluation Engine) left as a Phase-2 seam only.
+Phase 1 is complete and tagged `v0.1.0-harness`. Review is driven through the
+review API (the web UI calls the same endpoints). One criterion is honestly
+**not met** — coverage was never measurable — and is the first Phase-2 backlog
+item (see the [retro](../retros/phase-1.md)).
+
+- [x] `docker compose up && pnpm dev` starts the whole system with one fixture project.
+- [x] Scripted demo: create task → agent executes → change verified → scored → reviewed → approved → merged, with provenance chain queryable end-to-end.
+- [x] Reject path demo: verification failure → task REWORK → retry limit → AWAITING_HUMAN_INTERVENTION.
+- [ ] All packages ≥ 70% line coverage on core logic — **not measured** (no coverage tooling); backlogged.
+- [x] Specs updated to v0.2 reflecting as-built reality; known gaps documented as Phase 2 backlog.
+- [x] Spec 9 (Memory/Evidence) preserved: evidence store is append-only and queryable end-to-end.
+- [x] Spec 11 (Evaluation Engine) left as a Phase-2 seam only.
 
 ---
 

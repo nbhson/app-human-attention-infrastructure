@@ -1,3 +1,8 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { config } from 'dotenv';
+
 import type { RuntimePollLoop } from '@harness/agent-runtime';
 import type { DrizzleDB } from '@harness/db';
 import { TOKENS } from '@harness/di';
@@ -8,6 +13,20 @@ import type { DispatchLoop, TaskService } from '@harness/orchestrator';
 import { buildApp } from './app.js';
 import { bootContainer, buildContainer } from './bootstrap.js';
 import { reconcileOrphans } from './reconcile.js';
+
+// Best-effort `.env` loading (mirrors packages/db/src/env.ts): `pnpm dev` runs
+// with cwd `apps/api`, so `../../.env` points at the repo root where `.env`
+// lives. Without this, `cp .env.example .env && pnpm dev` would fail fast in
+// `buildContainer` with "DATABASE_URL is not set" — the db package only loads
+// the file for its own migrate/seed scripts, not for the API entrypoint. An
+// externally-exported DATABASE_URL still wins: dotenv never overrides.
+for (const candidate of ['.env', '../../.env']) {
+  const path = resolve(process.cwd(), candidate);
+  if (existsSync(path)) {
+    config({ path });
+    break;
+  }
+}
 
 // Build the object graph and resolve the core infrastructure eagerly so a
 // missing DATABASE_URL or broken wiring fails fast at boot, not on first use.

@@ -301,12 +301,24 @@ async function main(): Promise<void> {
     // few ms; poll rather than assert-once.
     await waitFor(() => assessmentExists(db, taskId), 10_000, 'assessment created');
 
-    // 4. The task was routed into the review queue via the engine.
-    const queueRes = await app.inject({ method: 'GET', url: '/api/review/queue' });
-    assert(queueRes.statusCode === 200, `GET /api/review/queue → ${queueRes.statusCode}`);
-    const queue = queueRes.json() as QueueItemJson[];
-    const item = queue.find((entry) => entry.taskId === taskId);
-    assert(item, 'task was not routed into the review queue');
+    // 4. The task was routed into the review queue via the engine. `AttentionRouter`
+    //    enqueues on `attention.assessment_created`, which `AttentionSubscriber`
+    //    publishes fire-and-forget a hop *after* the assessment row commits — so
+    //    poll the queue item, exactly as we poll the assessment above, rather than
+    //    asserting it once (the once-only assert raced this and flaked).
+    let item: QueueItemJson | undefined;
+    await waitFor(
+      async () => {
+        const queueRes = await app.inject({ method: 'GET', url: '/api/review/queue' });
+        assert(queueRes.statusCode === 200, `GET /api/review/queue → ${queueRes.statusCode}`);
+        const queue = queueRes.json() as QueueItemJson[];
+        item = queue.find((entry) => entry.taskId === taskId);
+        return item !== undefined;
+      },
+      10_000,
+      'task routed into the review queue',
+    );
+    assert(item !== undefined, 'task was not routed into the review queue');
     assert(item.ruleId.length > 0, 'queue item missing rule_id');
 
     // 5. Drive the human decision: claim, then approve.
