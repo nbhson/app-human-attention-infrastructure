@@ -29,6 +29,7 @@ const elements = [
   { type: 'db', pattern: 'packages/db/**' },
   { type: 'di', pattern: 'packages/di/**' },
   { type: 'review', pattern: 'packages/review/**' },
+  { type: 'auth', pattern: 'packages/auth/**' },
   ...ENGINE_TYPES.map((type) => ({ type, pattern: `packages/${type}/**` })),
   { type: 'app', pattern: 'apps/**' },
 ];
@@ -44,8 +45,9 @@ const elementTypesRules = [
   { from: 'db', allow: ['domain', 'event-bus', 'db'] },
   { from: 'di', allow: [...SHARED, 'di'] },
   { from: 'review', allow: [...SHARED, 'review'] },
+  { from: 'auth', allow: [...SHARED, 'auth'] },
   ...ENGINE_TYPES.map((type) => ({ from: type, allow: [...SHARED, type] })),
-  { from: 'app', allow: [...SHARED, 'review', ...ENGINE_TYPES, 'app'] },
+  { from: 'app', allow: [...SHARED, 'auth', 'review', ...ENGINE_TYPES, 'app'] },
 ];
 
 export default tseslint.config(

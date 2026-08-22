@@ -40,6 +40,13 @@ import {
   AttentionSubscriber,
   ATTENTION_POLICY_V1,
 } from '@harness/attention-engine';
+import {
+  AuthService,
+  MockOidcProvider,
+  mockOidcConfigFromEnv,
+  OpenIdClientProvider,
+  SessionService,
+} from '@harness/auth';
 import { ContextEngine, extractFileReferences, FileCollector } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
 import type { Logger } from '@harness/di';
@@ -72,6 +79,9 @@ import { ShellGitAdapter } from './services/git-adapter.js';
 import type { GitAdapter } from './services/git-adapter.js';
 import { MergeService } from './services/merge.js';
 import { ReworkService } from './services/rework.js';
+
+/** Default session lifetime (7 days), overridable via `SESSION_TTL_MS` (day-01 §2.2). */
+const SECRET_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Engine tokens registered as stubs until their build day (Days 06+). */
 const ENGINE_STUB_TOKENS = [
@@ -265,6 +275,42 @@ export function buildContainer(): Container {
     );
     writer.subscribeTo(container.resolve<IEventBus>(TOKENS.EventBus));
     return writer;
+  });
+
+  // Day-01: identity. The OIDC provider is env-driven — a mock for the local
+  // demo/tests, a real `openid-client` adapter when an issuer is configured.
+  c.register(TOKENS.OidcProvider, () => {
+    if (process.env.OIDC_MOCK === 'true') {
+      return new MockOidcProvider(mockOidcConfigFromEnv(process.env));
+    }
+    const issuerUrl = process.env.OIDC_ISSUER_URL;
+    const clientId = process.env.OIDC_CLIENT_ID;
+    const clientSecret = process.env.OIDC_CLIENT_SECRET;
+    if (!issuerUrl || !clientId || !clientSecret) {
+      throw new Error(
+        'set OIDC_MOCK=true, or OIDC_ISSUER_URL + OIDC_CLIENT_ID + OIDC_CLIENT_SECRET for a real IdP',
+      );
+    }
+    return new OpenIdClientProvider({ issuerUrl, clientId, clientSecret });
+  });
+
+  c.register(TOKENS.SessionService, (container) => {
+    const ttlMs = Number(process.env.SESSION_TTL_MS ?? SECRET_SESSION_TTL_MS);
+    return new SessionService(container.resolve<DrizzleDB>(TOKENS.Db), ttlMs);
+  });
+
+  c.register(TOKENS.AuthService, (container) => {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret || jwtSecret === 'dev-only-insecure-secret') {
+      container
+        .resolve<Logger>(TOKENS.Logger)
+        .warn('JWT_SECRET is unset or the insecure dev default — do not use in production');
+    }
+    return new AuthService(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<SessionService>(TOKENS.SessionService),
+      { jwtSecret: jwtSecret ?? 'dev-only-insecure-secret-change-me' },
+    );
   });
 
   // Day 14: the full Artifact Tracker. `SnapshotStore` is content-addressed

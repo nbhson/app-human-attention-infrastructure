@@ -11,7 +11,7 @@ This table records the object graph built by `buildContainer()` (`apps/api/src/b
 - **Registered on** — day the registration (or its stub) first appeared.
 - **Resolved by** — who pulls this token out of the container.
 
-## Current graph (Phase 1 final — Day 29)
+## Current graph (Phase 2 — Day 30)
 
 Ordered as `buildContainer()` registers them, i.e. topologically.
 
@@ -21,6 +21,9 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `EventBus` | `InProcessEventBus(handler)` | Day 05 | `EventLogWriter`, every subscriber (`ArtifactCapture`/`ChangeStatus`/`Attention`), `AttentionRouter`, `TaskService`, `VerificationEngine`, `ToolRegistry`, `AgentRunner`, `Dispatcher`, `WorkflowRunner` |
 | `Db` | `createDb(process.env.DATABASE_URL)` | Day 05 | everything that persists — `EventLogWriter`, `ArtifactTracker`, `ChangeStatusSubscriber`, `AttentionSubscriber`, `AttentionRouter`, `ContextEngine`, `VerificationEngine`, `LoggingLLMProvider`, `TaskService`, `ReviewService` (+ `DiffEngine`), `MergeService`, `ReworkService`, `Dispatcher`, `WorkflowRunner`, `AgentRunner`, `TrajectoryRecorder`, `RuntimePollLoop` |
 | `EventLogWriter` | `EventLogWriter(db, logger)` + `subscribeTo(EventBus)` | Day 05 | eager-resolved at boot (side effect: forwards bus events into `event_log`) |
+| `OidcProvider` | `MockOidcProvider \| OpenIdClientProvider` (env-driven; `OIDC_MOCK`) | Day 30 | `AuthService` (browser login/callback exchange) |
+| `SessionService` | `SessionService(db, ttlMs)` | Day 30 | `AuthService` (create/revoke/touch sessions) |
+| `AuthService` | `AuthService(db, SessionService, {jwtSecret})` | Day 30 | `routes/auth.ts`, `apps/api/src/auth.ts` (hook decodes JWT + session) |
 | `SnapshotStore` | `SnapshotStore()` (content-addressed dedup) | Day 14 | `ArtifactTracker` |
 | `ArtifactTracker` | `ArtifactTracker(db, SnapshotStore)` | Day 14 | `ArtifactCaptureSubscriber` |
 | `ArtifactCaptureSubscriber` | `ArtifactCaptureSubscriber(ArtifactTracker, logger)` + `subscribe(EventBus)` | Day 14 | eager-resolved at boot (side effect: `artifact.created` → tracker capture) |
@@ -85,29 +88,32 @@ The two loops (`DispatchLoop`, `RuntimePollLoop`) are **not** resolved here — 
 2. `EventBus` — needs `Logger` (error handler).
 3. `Db` — needs `DATABASE_URL`.
 4. `EventLogWriter` — needs `Db`, `Logger`, `EventBus`.
-5. `SnapshotStore` — no deps.
-6. `ArtifactTracker` — needs `Db`, `SnapshotStore`.
-7. `ArtifactCaptureSubscriber` — needs `ArtifactTracker`, `Logger`, `EventBus`.
-8. `ChangeStatusSubscriber` — needs `Db`, `Logger`, `EventBus`.
-9. `AttentionSubscriber` — needs `Db`, `Logger`, `EventBus`.
-10. `AttentionRouter` — needs `Db`, `EventBus`, `ATTENTION_POLICY_V1`, `Logger`.
-11. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`.
-12. `EvidenceStore` — no deps.
-13. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
-14. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).
-15. `TaskStateMachine` — no deps.
-16. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
-17. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
-18. `GitAdapter` — needs `WORKING_REPO_ROOT`.
-19. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
-20. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
-21. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
-22. `DispatchLoop` — needs `Dispatcher`, `Logger`.
-23. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT` real, `EXECUTE` stub, `VERIFY` real).
-24. `ToolRegistry` — needs `EventBus`, `AGENT_ALLOWED_TOOLS`, `SANDBOX_ROOT`.
-25. `TrajectoryRecorder` — needs `Db`.
-26. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, the `runLinearWorkflow` handoff, `maxSteps`, `tokenLimit`, `TrajectoryRecorder`.
-27. `RuntimePollLoop` — needs `Db`, `AgentRunner`, `Logger`.
+5. `OidcProvider` — needs `OIDC_MOCK` to pick mock vs real; the real adapter needs `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`.
+6. `SessionService` — needs `Db`, plus `SESSION_TTL_MS`.
+7. `AuthService` — needs `Db`, `SessionService`, `JWT_SECRET`.
+8. `SnapshotStore` — no deps.
+9. `ArtifactTracker` — needs `Db`, `SnapshotStore`.
+10. `ArtifactCaptureSubscriber` — needs `ArtifactTracker`, `Logger`, `EventBus`.
+11. `ChangeStatusSubscriber` — needs `Db`, `Logger`, `EventBus`.
+12. `AttentionSubscriber` — needs `Db`, `Logger`, `EventBus`.
+13. `AttentionRouter` — needs `Db`, `EventBus`, `ATTENTION_POLICY_V1`, `Logger`.
+14. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`.
+15. `EvidenceStore` — no deps.
+16. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
+17. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).
+18. `TaskStateMachine` — no deps.
+19. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
+20. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
+21. `GitAdapter` — needs `WORKING_REPO_ROOT`.
+22. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
+23. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
+24. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
+25. `DispatchLoop` — needs `Dispatcher`, `Logger`.
+26. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT` real, `EXECUTE` stub, `VERIFY` real).
+27. `ToolRegistry` — needs `EventBus`, `AGENT_ALLOWED_TOOLS`, `SANDBOX_ROOT`.
+28. `TrajectoryRecorder` — needs `Db`.
+29. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, the `runLinearWorkflow` handoff, `maxSteps`, `tokenLimit`, `TrajectoryRecorder`.
+30. `RuntimePollLoop` — needs `Db`, `AgentRunner`, `Logger`.
 28. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.

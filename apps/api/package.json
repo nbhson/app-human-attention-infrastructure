@@ -13,6 +13,7 @@
     "@harness/agent-runtime": "workspace:*",
     "@harness/artifact-tracker": "workspace:*",
     "@harness/attention-engine": "workspace:*",
+    "@harness/auth": "workspace:*",
     "@harness/context-engine": "workspace:*",
     "@harness/db": "workspace:*",
     "@harness/di": "workspace:*",

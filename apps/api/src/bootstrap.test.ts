@@ -16,6 +16,10 @@ afterEach(() => {
 describe('buildContainer', () => {
   it('resolves the full graph in dependency order without throwing', () => {
     process.env.DATABASE_URL = DATABASE_URL;
+    // The full graph includes the OIDC provider seam, which fails fast when
+    // neither mock nor a real IdP is configured (mock OIDC is deliberately
+    // opt-in — it trusts any code). Day-01 auth added it to the graph.
+    process.env.OIDC_MOCK = 'true';
     const container = buildContainer();
 
     // Resolving every token proves the graph is complete. postgres.js opens no

@@ -84,6 +84,10 @@ export type CorrelationID = Brand<string, 'CorrelationID'>;
 export type ReviewQueueItemID = Brand<string, 'ReviewQueueItemID'>;
 /** Identifies a reviewer's usefulness feedback on an assessment (attention spec §4.1). */
 export type AssessmentFeedbackID = Brand<string, 'AssessmentFeedbackID'>;
+/** Identifies a registered user (identity model, Phase 2 day-01 §2.1). */
+export type UserID = Brand<string, 'UserID'>;
+/** Identifies a session row (identity model, Phase 2 day-01 §2.2). */
+export type SessionID = Brand<string, 'SessionID'>;
 
 // --- UUIDv7 generation ----------------------------------------------------
 
@@ -167,3 +171,7 @@ export const newReviewQueueItemID = (): ReviewQueueItemID => newBrandedId('Revie
 /** Generate a new {@link AssessmentFeedbackID}. */
 export const newAssessmentFeedbackID = (): AssessmentFeedbackID =>
   newBrandedId('AssessmentFeedbackID');
+/** Generate a new {@link UserID}. */
+export const newUserID = (): UserID => newBrandedId('UserID');
+/** Generate a new {@link SessionID}. */
+export const newSessionID = (): SessionID => newBrandedId('SessionID');

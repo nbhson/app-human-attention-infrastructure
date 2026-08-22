@@ -18,6 +18,8 @@ import { registerReviewRoutes } from './routes/review.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { registerProvenanceRoutes } from './routes/provenance.js';
 import { registerOpsRoutes } from './routes/ops.js';
+import { registerAuthRoutes } from './routes/auth.js';
+import { registerAuthHook } from './auth.js';
 
 /** Build the Fastify app over an already-wired container. */
 export function buildApp(container: Container, opts?: { readonly logger?: boolean }) {
@@ -25,6 +27,10 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
 
   app.get('/health', async () => ({ status: 'ok' }));
 
+  // Identity first: every handler may read `request.auth` (day-01 §3.4).
+  registerAuthHook(app, container);
+
+  registerAuthRoutes(app, container);
   registerReviewRoutes(app, container.resolve<ReviewService>(TOKENS.ReviewService));
   registerTaskRoutes(app, container);
   registerProvenanceRoutes(app, container);

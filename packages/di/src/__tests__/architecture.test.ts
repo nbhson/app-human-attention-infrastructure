@@ -64,4 +64,10 @@ describe('dependency rules (Spec 1 §5)', () => {
       expect(forbidden, `${engine} imports a sibling engine package directly`).toEqual([]);
     }
   });
+
+  it('R7: @harness/auth depends only on @harness/domain, @harness/db, @harness/di', () => {
+    expect(harnessDependencies('auth').sort()).toEqual(
+      ['@harness/domain', '@harness/db', '@harness/di'].sort(),
+    );
+  });
 });

@@ -20,6 +20,9 @@ export * from './verification.js';
 export * from './attention.js';
 export * from './review.js';
 
+// Identity model (Phase 2 day-01).
+export * from './identity.js';
+
 // Read-models.
 export * from './provenance.js';
 
