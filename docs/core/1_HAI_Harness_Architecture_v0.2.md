@@ -1,7 +1,7 @@
 # Human Attention Infrastructure (HAI) Harness
 ## Architecture Specification — Starting From Zero
 
-**Status:** Draft v0.1  
+**Status:** Draft v0.2  
 **Purpose:** Define the architectural foundation for an AI-native software development harness focused on optimizing Human Attention.
 
 ---
@@ -297,7 +297,13 @@ It is the foundation that defines how the other ten subsystems interact.
 
 The **Evaluation Engine** closes the loop. Verification (7) answers "is this change correct?"; Evaluation (11) answers "is our pipeline — model, prompt, context, ranking, weights — actually good?", and feeds calibration back into Attention (6) and Context (4). Without it, the critical milestone's final step, *Learning*, has no owner.
 
-**Specification status (v0.1):** Subsystems 1–7, 9, and 11 have dedicated specifications in `docs/core/` (`9_Memory_Evidence_System_v0.2.md`, `11_Evaluation_Engine_v0.2.md`). Subsystem 8 (Human Review Interface) and 10 (Observability / Governance) are designed inside `docs/plan/phase-1/day-22..27` and are promoted to standalone specs in Phase 2.
+**Specification status (v0.2):** Subsystems 1–7, 9, and 11 have dedicated specifications in `docs/core/`. All seven Phase-1 specs (1–7) are at `v0.2` as of Day 29, reconciled against the built system. Subsystem 8 (Human Review Interface) and 10 (Observability / Governance) are implemented inside `docs/plan/phase-1/day-22..27` and are promoted to standalone specs in Phase 2.
+
+**As-built Phase 1 additions not in the original eleven:** three cross-cutting runtime pieces shipped in Days 27–28 and are documented here because they cut across almost every subsystem:
+
+- **Startup reconciler** (`apps/api/src/reconcile.ts`, Day 28) — a one-shot boot step that escorts tasks stranded in `EXECUTING`/`VERIFYING` by a non-graceful crash to `AWAITING_HUMAN_INTERVENTION` (reason `PROCESS_DIED`), publishing `task.orphan_recovered`. It is the *only* sanctioned auto-repair in the system (see the Operators Runbook, `docs/runbook/README.md`).
+- **Ops API** (`GET /api/ops/health`, `GET /api/ops/metrics`, Day 27) — the database is the dashboard; these endpoints expose task-state tallies, review-queue depth, and the orphan-alarm count.
+- **Operations Runbook** (`docs/runbook/`, Day 29) — incident-oriented procedures R1–R8, the audit-query cookbook, and the known-limitations list.
 
 ---
 
@@ -847,6 +853,7 @@ hai-harness/
 ├── docs/
 │   ├── architecture/
 │   ├── decisions/
+│   ├── runbook/      # operators runbook (R1–R8), audit-query cookbook, limitations
 │   └── specifications/
 │
 ├── tests/
@@ -1095,3 +1102,18 @@ Once this loop works reliably, the Harness has a real core.
   evaluation harness can compare two pipeline variants head-to-head.
 - **Phase 3:** The *Learning* step closes the loop automatically — evaluation
   results and review decisions feed back into calibration and context ranking.
+
+---
+
+## Changelog
+
+### v0.2 (Day 29)
+- Reconciled against the built Phase-1 system (Days 1–28). The seven Phase-1
+  specs (1–7) are now all `v0.2`.
+- §5 — documented the three as-built runtime additions not in the original eleven:
+  the startup reconciler (`task.orphan_recovered`, `PROCESS_DIED`), the Ops API
+  (`/api/ops/health`, `/api/ops/metrics`), and the Operators Runbook.
+- §19 — added `docs/runbook/` to the repository layout.
+- Clarified the realized Phase-1 repository layout (packages `@harness/*`) lives in
+  `docs/dev-guide.md`; the sketch in §19 remains the conceptual target, not the
+  literal tree.

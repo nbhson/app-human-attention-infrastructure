@@ -90,7 +90,7 @@ Not a production system — a **correctly-architected, tested, end-to-end demons
 | 26 | [day-26.md](phase-1/day-26.md) | E2E — failure paths + provenance query UI | apps/api | ⚠️ |
 | 27 | [day-27.md](phase-1/day-27.md) | Observability: logs, correlation IDs, audit queries | apps/api | ⚠️ |
 | 28 | [day-28.md](phase-1/day-28.md) | Hardening: concurrency, failure injection, load smoke | apps/api | ⚠️ |
-| 29 | [day-29.md](phase-1/day-29.md) | Documentation: specs → v0.2, dev guide, runbook | docs | ⚠️ |
+| 29 | [day-29.md](phase-1/day-29.md) | Documentation: specs → v0.2, dev guide, runbook | docs | ✅ |
 | 30 | [day-30.md](phase-1/day-30.md) | **Final demo + retrospective + tag `v0.1.0-harness`** | root | ⚠️ |
 
 ### Phase 1 Exit Criteria (Day 30)

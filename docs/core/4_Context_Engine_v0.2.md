@@ -2,7 +2,7 @@
 ## Specification v0.2 – Selecting and Preparing Context for AI Agents
 
 **Status:** Draft v0.2  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
 **Purpose:** Define how the Harness selects, ranks, compresses, and delivers relevant context to AI Agents — ensuring Agents receive the right information without overwhelming the model's context window.
 
 ---
@@ -54,7 +54,8 @@ ContextSnapshot
 │   │   └── metadata: Map[string, any]
 │   └── ...
 ├── total_tokens: int
-├── rank_method: string
+├── rank_method: string (Phase 1 literal: `"phase1-keyword-dependency"`)
+├── metadata: Map[string, any] (carries `tokenizer`, `targetFiles`, and `freshness_events` — see §8)
 └── summary: string (optional compressed summary)
 ```
 
@@ -444,6 +445,8 @@ default.
 > **Tokenizer strategy:** Token counting is model-dependent. The Engine counts tokens through a `Tokenizer` interface (Phase 1: approximate counter, e.g. `chars / 4`; Phase 2+: exact tokenizer such as `tiktoken`/provider-specific). `max_tokens` budgets are always interpreted using the tokenizer of the target model configured in the request, never a global constant.
 
 > **Freshness / invalidation:** A `ContextSnapshot` is a point-in-time view. Files may change between `resolveContext()` and agent execution (another task, a human edit). Each source records `content_hash` at collection time; before dispatch the Engine re-hashes `target_files` and marks the snapshot `STALE` if any changed. Consumers may still use a STALE snapshot (with a warning in the trajectory) or request re-resolution — the Orchestrator's policy decides (default: re-resolve target files only, keep the rest).
+>
+> **As-built `metadata` shape (Day 29):** the snapshot `metadata` records `tokenizer: 'approx-4'` plus the request's `targetFiles`, `taskDescription`, and `requirements`. Each STALE re-resolve appends a `freshness_events` entry of the form `{ at: <ISO-8601>, stale: string[] }` (repo-relative paths of every source whose `content_hash` changed), so the freshness history becomes part of the provenance record itself.
 
 ---
 
@@ -545,3 +548,17 @@ The Context Engine is Phase 1 complete when:
 - [ ] Step 3: Implement basic ContextPackager that returns file contents as a string
 - [ ] Step 4: Write unit tests for file scanning and token budgeting
 - [ ] Step 5: Integrate with Task Orchestrator (call ContextEngine.resolveContext before Agent execution)
+
+---
+
+## Changelog
+
+### v0.2 (Day 29)
+- §2.2 — pinned `rank_method` to the shipped literal `"phase1-keyword-dependency"`
+  (removing the v0.1 ambiguity of a free-form string).
+- §8 — documented the persisted `metadata` shape: `tokenizer: 'approx-4'`,
+  `targetFiles`/`taskDescription`/`requirements`, and the `freshness_events`
+  array (`{ at, stale }` appended per STALE re-resolve).
+- Confirmed the Phase-1 keyword→dependency ranker ({@link §5}) is unchanged; the
+  hybrid/embeddings path remains a Phase 3 seam behind the `Retriever` interface.
+- No code divergences found.

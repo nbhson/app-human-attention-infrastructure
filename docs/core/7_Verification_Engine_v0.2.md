@@ -2,7 +2,7 @@
 ## Specification v0.2 – Independently Validating AI-Generated Changes
 
 **Status:** Draft v0.2  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
 **Purpose:** Define how the Harness independently validates AI-generated outputs — running compilation, tests, static analysis, and security scans — ensuring that verification is separated from generation to prevent bias and false confidence.
 
 ---
@@ -221,6 +221,17 @@ Verification must run against an **isolated, reproducible copy** of the code —
 - **Reference model (Phase 2+, from the reference skills framework):** the container/worktree isolation above is the same pattern as the framework's "Code Mode" vm sandbox and its **Minimal Benchmark Harness** (a container with only `bash` + a file-editor tool, so an untrusted run can do nothing outside its declared surface). Adoption rule: the sandbox exposes a *minimal, explicit* tool surface — verification runs a command and reads output, nothing more — which is what keeps a verification result attributable and tamper-evident.
 - **Rule:** A verification result is only meaningful if the exact content verified is identified by content hash and recorded in the VerificationResult (link to Change via `change_id`).
 
+> **Output cap & environment sanitization (as built, Day 29):**
+> - Each check result's inline `output` (stdout/stderr) is truncated at **64 KB**
+>   (`truncateOutput`, appends a `...[truncated]` marker) — `tsc` can dump megabytes
+>   on a broken tree; the cap keeps evidence rows bounded.
+> - Every spawned check process receives a **sanitized environment** (`sanitizedEnv`):
+>   `DATABASE_URL` and `DATABASE_URL_UNPOOLED` are always removed; any key matching
+>   `/(secret|token|password|api[_-]?key|credential)/i` is removed; only
+>   `PATH`, `HOME`, `PWD`, `NODE_ENV`, and `npm_config_user_agent` are preserved
+>   unconditionally. A parent-process `ANTHROPIC_API_KEY` can therefore never leak
+>   into a `tsc`/`vitest` child.
+
 # 5.6 Flaky Test Handling
 
 Test flakiness must not silently fail or pass a verification:
@@ -401,3 +412,16 @@ The Verification Engine is Phase 1 complete when:
 - [ ] Step 3: Implement RequestHandler and ResultAggregator
 - [ ] Step 4: Write unit tests for compilation verification scenarios
 - [ ] Step 5: Integrate with Task Orchestrator (trigger verification after agent execution)
+
+---
+
+## Changelog
+
+### v0.2 (Day 29)
+- §5.5 — documented the built 64 KB inline-output cap (`truncateOutput`) and the
+  `sanitizedEnv()` allowlist/blocklist (secret-pattern key removal; always-block
+  `DATABASE_URL*`; always-preserve `PATH`/`HOME`/`PWD`/`NODE_ENV`/`npm_config_user_agent`).
+- §5.6 — confirmed the flaky retry-once rule as built: exactly one retry on a
+  non-passing first run; pass-on-retry → `FLAKY` (stored, not a failure), fail-again →
+  `FAILED`; the `was_retried` flag is persisted per test row. No divergence from v0.1.
+- No code divergences found.

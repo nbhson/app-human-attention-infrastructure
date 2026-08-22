@@ -1,8 +1,8 @@
 # Attention Engine
 ## Specification v0.1 – Assessing Risk, Impact, and Review Priority
 
-**Status:** Draft v0.1  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
+**Status:** Draft v0.2  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
 **Purpose:** Define how the Harness intelligently determines whether a change requires human attention, and if so, at what priority level — transforming human attention from a passive bottleneck into an optimized resource.
 
 ---
@@ -110,6 +110,8 @@ The Attention Engine combines multiple signals into a unified assessment:
 ```
 
 > **All weights and thresholds in this section are initial placeholders.** They must be calibrated with real project data before being trusted in production. Treat them as starting defaults, not validated constants.
+>
+> **As-built (Day 29):** the shipped `PRIORITY_WEIGHTS` are `risk 0.35 · impact 0.25 · novelty 0.15 · complexity 0.10 · confidence 0.15` (sum = 1.0), and the `confidence` factor enters the combined priority as `w_confidence · (1 − confidence_score)` — *low* confidence *raises* priority (§3.4). These values are **untuned: do not change them without fitted data.** Phase-2 calibration (fitting from `assessment_feedback.was_useful`) is the only sanctioned tuning path; before then the placeholders are the definition of correct.
 
 > **Data dependencies per phase:** Factors that require historical or learned data — *historical bug frequency*, *similar task success*, blast radius from a dependency graph — depend on the Memory/Evidence system and a code index (Phase 3). Until those exist (Phase 1–2), these factors use a neutral default of `0.5` and their weight is redistributed proportionally to the available factors. The scoring pipeline must treat "factor unavailable" as an explicit state, not silently as zero.
 
@@ -221,7 +223,7 @@ Priority labels:
 An attention system that cries wolf destroys its own purpose. The Attention Engine must actively manage review load:
 
 1. **Daily review budget:** Each project configures a maximum number of human reviews per day (e.g., 20). When the budget is exhausted, remaining MEDIUM/LOW items are queued for the next day (CRITICAL/HIGH always go through).
-2. **Adaptive thresholds:** If the approval rate for a priority band exceeds ~95% over a rolling window, the band's threshold is raised (fewer items promoted). If rejection/rework rates rise, thresholds are lowered. All adaptations are logged and reversible.
+2. **Adaptive thresholds:** If the approval rate for a priority band exceeds ~95% over a rolling window, the band's threshold is raised (fewer items promoted). If rejection/rework rates rise, thresholds are lowered. All adaptations are logged and reversible. **As built (Day 29):** the HIGH threshold auto-adjustment nudges by `+0.05` when >80% of the last week's HIGH items were judged "not useful", and is clamped to **[0.60, 0.80]** (an `attention.threshold_adjusted` event records before/after).
 3. **Priority inflation monitoring:** Track the distribution of priority labels over time. If CRITICAL/HIGH share grows beyond a configured ceiling (e.g., 30% of all assessments), emit a governance alert — either the scoring model is miscalibrated or the codebase risk profile genuinely changed.
 4. **Feedback loop:** Every human decision (approve/reject/rework) is reported back via `reportAssessmentFeedback` and stored by Memory/Evidence to recalibrate factor weights in Phase 3.
 
@@ -399,3 +401,17 @@ The Attention Engine is Phase 1 complete when:
 - [ ] Step 3: Implement PriorityCalculator with configurable weights
 - [ ] Step 4: Write unit tests for risk assessment scenarios
 - [ ] Step 5: Integrate with Task Orchestrator (trigger assessment after verification)
+
+---
+
+## Changelog
+
+### v0.2 (Day 29)
+- §3 — pinned the shipped `PRIORITY_WEIGHTS` (risk 0.35 / impact 0.25 / novelty 0.15
+  / complexity 0.10 / confidence 0.15), stated explicitly **untuned — do not tune
+  without fitted data**, and confirmed the confidence *deficit* (`1 − confidence`)
+  inversion from §3.4.
+- §4.1 — documented the built adaptive-threshold nudge: HIGH threshold `+0.05` on an
+  ">80% not useful over the last week" signal, clamped to **[0.60, 0.80]**, emitting
+  `attention.threshold_adjusted`.
+- No code divergences found.

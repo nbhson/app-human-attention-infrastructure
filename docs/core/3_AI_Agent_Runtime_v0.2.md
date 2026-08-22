@@ -2,7 +2,7 @@
 ## Specification v0.2 – Running and Coordinating AI Agents
 
 **Status:** Draft v0.2  
-**Dependencies:** Architecture (`1_HAI_Harness_Architecture_v0.1.md`), Task Orchestrator (`2_Task_Work_Orchestrator_v0.2.md`)  
+**Dependencies:** Architecture (`1_HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`2_Task_Work_Orchestrator_v0.2.md`)  
 **Purpose:** Define how the Harness initializes, executes, monitors, and records AI Agent activities when performing a specific `Task`.
 
 ---
@@ -439,7 +439,12 @@ Follow this order to avoid being overwhelmed:
 
 **Sandbox:** In Phase 1, Runtime runs in the same process as the Monolith. From Phase 2, consider running Agents in a separate Container or Worker to prevent Agents from reading sensitive system files.
 
-**Token Costs:** Trajectory logs everything and will consume significant memory. Limit the number of steps (Max Steps) for Agents, e.g., maximum 10 loops, auto-fail if exceeded.
+**Token Costs:** Trajectory logs everything and will consume significant memory. Two hard ceilings bound a run, both configurable by env and both escalating the run to `AWAITING_HUMAN_INTERVENTION` when exceeded:
+
+- **Max steps** — `AGENT_MAX_STEPS`, default **10** (also the `AgentExecutionRequest.maxSteps` default). Exceeded → `agent_runs` status `ESCALATED` with `escalation_reason = MAX_STEPS_EXCEEDED`.
+- **Token budget** — per-run token ceiling, `DEFAULT_TOKEN_BUDGET = 50_000`. Exceeded → `escalation_reason = TOKEN_BUDGET_EXCEEDED`.
+
+Both escalation reasons are classified as `FailureClass.RESOURCE` by the Orchestrator's failure taxonomy (see Orchestrator §7): a quota/capacity limit, retried only after a cooldown — never as a `PERMANENT` logic failure.
 
 **Hallucination:** Runtime does not evaluate code quality (that is the Verification Engine's job). Runtime only validates whether the Agent called the correct Tool.
 
@@ -476,3 +481,16 @@ or container, with tool calls batched against the sandbox instead of leaked into
 process. This is the *same* isolation boundary as Verification §5.5 — the Runtime and the
 Verification Engine share one sandbox abstraction so verification is genuinely
 independent of generation, not just a different call site.
+
+---
+
+## Changelog
+
+### v0.2 (Day 29)
+- §11 — `maxSteps` default confirmed as **10** (`AGENT_MAX_STEPS` /
+  `DEFAULT_MAX_STEPS`), and `DEFAULT_TOKEN_BUDGET = 50_000` documented.
+- §14 — documented the two escalation reasons (`MAX_STEPS_EXCEEDED`,
+  `TOKEN_BUDGET_EXCEEDED`) and that both classify as `FailureClass.RESOURCE`
+  (cooldown retry) in the shared failure taxonomy — a v0.1 ambiguity.
+- No code divergences found: the ReAct loop, `TokenBudget`, trajectory recording,
+  and escalation behavior match this spec as built.

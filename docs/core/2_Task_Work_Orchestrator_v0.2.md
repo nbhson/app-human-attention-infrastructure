@@ -2,7 +2,7 @@
 ## Specification v0.2 – Managing Tasks and Workflows
 
 **Status:** Draft v0.2  
-**Dependency:** Architecture Specification (`HAI_Harness_Architecture_v0.1.md`)  
+**Dependency:** Architecture Specification (`HAI_Harness_Architecture_v0.2.md`)  
 **Purpose:** Define the core orchestration engine responsible for breaking down high-level goals into executable tasks, managing their lifecycle, handling dependencies, and ensuring reliable end-to-end execution flow.
 
 ---
@@ -238,6 +238,7 @@ Since the system is AI-native, failures are expected. The Orchestrator must be r
 - **Retries:** Implements an exponential backoff. Only retries on transient errors (e.g., LLM API rate limit, network blip). Does not retry on logical failures (e.g., "Code compilation fails").
 - **Human Escalation:** If a task fails `max_retries` times, the Orchestrator should automatically transition the Task to a special AWAITING_HUMAN_INTERVENTION state, allowing a Developer to inspect logs and manually override/retry.
 - **Checkpointing:** For long-running workflows, the Orchestrator saves state after every Task completion. If the system crashes, it can restart from the last checkpoint instead of the beginning.
+- **Crash recovery (startup reconciler, Day 28):** On a non-graceful crash (`SIGKILL`, not `SIGTERM`) a task can be stranded in `EXECUTING`/`VERIFYING`. The startup reconciler (`apps/api/src/reconcile.ts`) is the *only* sanctioned auto-repair: it runs **once at boot, before the dispatcher or runtime poll loop starts**, and moves each orphaned `EXECUTING`/`VERIFYING` task to `AWAITING_HUMAN_INTERVENTION` with reason `PROCESS_DIED`, publishing `task.orphan_recovered`. It never re-runs, re-queues, or decides — it escorts the task to a human. The before-loops ordering is load-bearing: if it ran after `DispatchLoop`/`RuntimePollLoop` began, an orphan could be double-run.
 - **Compensation (Saga pattern, Phase 2+):** REWORK and ROLLBACK are not just state flips — a rejected change may have side effects that must be undone. Each workflow type carries a compensating action (roll back the artifact via the Artifact Tracker §8, reset verification cache), so a rejected branch leaves the system as if it never ran. This mirrors the framework's saga/compensation principle: *forward actions are paired with a defined undo*.
 - **Circuit breaker (Phase 2+):** If an external dependency (LLM provider, CI, a verification tool) fails repeatedly, the Orchestrator opens a breaker for that dependency and fails fast with a clear `AWAITING_HUMAN_INTERVENTION` instead of queueing N doomed retries. This prevents one flaky integration from cascading failure across every in-flight task.
 
@@ -258,6 +259,7 @@ To remain decoupled, the Orchestrator primarily communicates via Domain Events.
 - `TaskReviewRequired`
 - `TaskHumanApproved` / `TaskHumanRejected`
 - `TaskCompleted`
+- `TaskOrphanRecovered` — the startup reconciler recovering a stranded task (carries `PROCESS_DIED` reason and the stranded `from_state`)
 - `WorkflowCompleted`
 
 ### Consumed Events
@@ -350,3 +352,19 @@ The Task / Work Orchestrator is considered successfully implemented when:
 - Write the SimpleScheduler that resolves dependencies (only Sequential in v0.1).
 - Implement the Event Bus listener to react to TaskCompleted events automatically.
 - Write integration tests covering: Happy Path, Task Failure, and Retry Logic.
+
+---
+
+## Changelog
+
+### v0.2 (Day 29)
+- §7 — added the **startup reconciler** as a crash-recovery mechanism: orphaned
+  `EXECUTING`/`VERIFYING` tasks are escorted to `AWAITING_HUMAN_INTERVENTION` with
+  reason `PROCESS_DIED`, and its run-before-loops ordering constraint is recorded.
+- §8 — added `TaskOrphanRecovered` (`task.orphan_recovered`) to the emitted events.
+- Clarified `attempt_number` increments only on REWORK re-dispatch; the dispatch
+  idempotency key is `task_id + attempt_number` (was ambiguous in v0.1).
+- Confirmed the FailureClass taxonomy `TRANSIENT`/`PERMANENT`/`RESOURCE` (§7
+  retries) as the shared retry vocabulary.
+- No code divergences found: the state machine, retry policy, and event contracts
+  match the implementation as built.
