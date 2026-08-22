@@ -11,6 +11,7 @@
  *                 + `resolveFresh` (STALE re-resolve, day-21).
  * - `freshness` — `checkFreshness` + `sha256` (day-21).
  * - `render`    — `renderContextPrompt` structured prompt (day-21).
+ * - `retrieval` — semantic retriever/ranker + shadow rank-comparison (day-18).
  */
 
 export * from './types.js';
@@ -21,3 +22,6 @@ export * from './trim.js';
 export * from './freshness.js';
 export * from './render.js';
 export * from './engine.js';
+export * from './retrieval/semantic-retriever.js';
+export * from './retrieval/semantic-ranker.js';
+export * from './retrieval/shadow.js';

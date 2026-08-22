@@ -77,7 +77,7 @@ placeholder stays active and auto-approve stays disabled by default.
   and the numbers-first [Week-3 retrospective](docs/retros/week-03.md). Auto-approve
   ships **OFF**; the demo proves the path, then restores the safe default.
 
-Next up: [Day 18 — Semantic Retriever in Shadow](docs/plan/phase-2/day-18.md).
+Next up: [Day 19 — Exact Tokenizer: tiktoken Replaces `chars/4`](docs/plan/phase-2/day-19.md).
 
 ## Quickstart
 

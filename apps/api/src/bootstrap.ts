@@ -60,6 +60,8 @@ import {
   extractFileReferences,
   FileCollector,
   KeywordDependencyRanker,
+  SemanticRanker,
+  SemanticRetriever,
 } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
 import type { Logger } from '@harness/di';
@@ -492,10 +494,32 @@ export function buildContainer(): Container {
     return listener;
   });
 
+  // Day 18: the semantic retrieval path, registered OUT of the default resolve
+  // path. `SemanticRetriever` is the cosine-similarity primitive over the Day-17
+  // index; `SemanticRanker` wraps it with the freshness guard + target-file rule.
+  // Neither is read by `makeCollectContextHandler` (which calls `resolveContext`),
+  // so the live rank_method stays keyword unless a caller opts into
+  // `resolveWithShadow`.
+  c.register(TOKENS.SemanticRetriever, (container) => {
+    return new SemanticRetriever(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<Embedder>(TOKENS.Embedder),
+    );
+  });
+
+  c.register(TOKENS.SemanticRanker, (container) => {
+    return new SemanticRanker(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<Embedder>(TOKENS.Embedder),
+      container.resolve<SemanticRetriever>(TOKENS.SemanticRetriever),
+    );
+  });
+
   // Day 20: the Context Engine. Resolves ranked, budgeted context for a task and
   // persists the snapshot into `contexts`. The FileCollector scans the sandbox
   // root the agent operates in, guarded by the same resolveSafe path check as the
-  // Day-13 file tools (day-20 §2.2).
+  // Day-13 file tools (day-20 §2.2). The Day-18 semantic ranker is wired as the
+  // 6th arg but only reachable via `resolveWithShadow` (opt-in per request).
   c.register(TOKENS.ContextEngine, (container) => {
     return new ContextEngine(
       container.resolve<DrizzleDB>(TOKENS.Db),
@@ -503,6 +527,7 @@ export function buildContainer(): Container {
       new KeywordDependencyRanker(),
       new ApproxTokenizer(),
       container.resolve<Embedder>(TOKENS.Embedder),
+      container.resolve<SemanticRanker>(TOKENS.SemanticRanker),
     );
   });
 

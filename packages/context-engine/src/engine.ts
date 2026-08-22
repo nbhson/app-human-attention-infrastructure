@@ -19,10 +19,13 @@ import type { ContextSnapshot } from '@harness/domain';
 import type { Embedder } from '@harness/embeddings';
 
 import { FileCollector } from './collect.js';
+import type { CollectedFile } from './collect.js';
 import { checkFreshness, sha256 } from './freshness.js';
 import type { FreshnessResult } from './freshness.js';
 import { KeywordDependencyRanker } from './rank.js';
-import type { Ranker } from './rank.js';
+import type { Ranker, RankedFile } from './rank.js';
+import { SemanticRanker } from './retrieval/semantic-ranker.js';
+import { ShadowRankWriter } from './retrieval/shadow.js';
 import { tokenize } from './tokenizer.js';
 import { applyBudget, DEFAULT_CONTEXT_POLICY, RANK_METHOD } from './trim.js';
 import { ApproxTokenizer } from './types.js';
@@ -39,10 +42,50 @@ export class ContextEngine {
     // that is exactly the shadow-then-default guarantee the shadow-negative test
     // (day-16 §3.5) asserts.
     private readonly embedder?: Embedder,
+    // Day-18 semantic ranker. Referenced ONLY by `resolveWithShadow`, which is
+    // opt-in via `request.semanticShadowEnabled`; `resolveContext` stays
+    // keyword-only and embed-free whether or not this is wired.
+    private readonly semanticRanker?: SemanticRanker,
   ) {}
 
   /** Resolve, budget, and persist the context for one task (day-20 §2.5). */
   async resolveContext(request: ContextRequest): Promise<ContextSnapshot> {
+    return (await this.resolveKeyword(request)).snapshot;
+  }
+
+  /**
+   * Shadow resolve (day-18 §2.2): run the live keyword pipeline, and — only when
+   * the request opts in AND a semantic ranker is wired — rank semantically and
+   * record the comparison. The served snapshot is **always** the keyword one;
+   * the semantic ranking reaches `shadowRankComparisons` and nothing on the live
+   * path (§2.3 invariant).
+   */
+  async resolveWithShadow(request: ContextRequest): Promise<ContextSnapshot> {
+    const { snapshot, ranked, files } = await this.resolveKeyword(request);
+    if (request.semanticShadowEnabled && this.semanticRanker) {
+      const query = `${request.taskDescription} ${request.requirements}`;
+      const semantic = await this.semanticRanker.rank(query, request.targetFiles, files);
+      await new ShadowRankWriter(this.db).write({
+        taskId: request.taskId,
+        contextId: snapshot.id,
+        keywordOrder: ranked.map((file) => file.sourceId),
+        semanticOrder: semantic.map((file) => file.sourceId),
+        topK: snapshot.sources.length,
+      });
+    }
+    return snapshot;
+  }
+
+  /**
+   * The shared keyword pipeline (day-18 §2.2): collect → keyword-rank → budget →
+   * persist. `resolveContext` and `resolveWithShadow` both delegate here, so the
+   * shadow path is *exactly* the live path plus a logged-only semantic ranking.
+   */
+  private async resolveKeyword(request: ContextRequest): Promise<{
+    snapshot: ContextSnapshot;
+    ranked: readonly RankedFile[];
+    files: readonly CollectedFile[];
+  }> {
     const taskKeywords = tokenize(`${request.taskDescription} ${request.requirements}`);
     const files = await this.collector.collect();
     const ranked = this.ranker.rank(taskKeywords, request.targetFiles, files);
@@ -76,7 +119,7 @@ export class ContextEngine {
       metadata: snapshot.metadata,
     });
 
-    return snapshot;
+    return { snapshot, ranked, files };
   }
 
   /**

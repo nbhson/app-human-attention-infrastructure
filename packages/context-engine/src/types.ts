@@ -43,4 +43,10 @@ export interface ContextRequest {
   readonly maxTokens: number;
   /** Optional policy override. */
   readonly policy?: ContextPolicy;
+  /**
+   * Per-request opt-in for the semantic shadow (day-18 §3.3). Default OFF: when
+   * absent, {@link ContextEngine.resolveWithShadow} serves keyword-only and makes
+   * zero embedding calls (the default-off test asserts exactly that).
+   */
+  readonly semanticShadowEnabled?: boolean;
 }

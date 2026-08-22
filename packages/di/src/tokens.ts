@@ -35,6 +35,8 @@ export const TOKENS = {
   Embedder: 'Embedder',
   EmbeddingIndexer: 'EmbeddingIndexer',
   ReembedListener: 'ReembedListener',
+  SemanticRetriever: 'SemanticRetriever',
+  SemanticRanker: 'SemanticRanker',
   ArtifactTracker: 'ArtifactTracker',
   AttentionEngine: 'AttentionEngine',
   AttentionSubscriber: 'AttentionSubscriber',
