@@ -87,6 +87,14 @@ human|auto_approvable) and `ReviewService.decide` (`harness_review_dwell_seconds
 inflation/false-pass) are *set* by `@harness/evaluation` on Day 06, never
 incremented on the hot path.
 
+**Week-1 checkpoint (day-05):** the full identity + observability stack is
+registered and resolvable — `OidcProvider` (`MockOidcProvider`|`OpenIdClientProvider`)
+→ `SessionService` → `AuthService` hook (`apps/api/src/auth.ts`), all under the
+per-request `http.request` root span; metrics on the process-global
+prom-client `register` served by `GET /metrics`. Nothing here is a DI token —
+tracing/metrics are `@harness/observability` module singletons, surfaced via
+`initApiTracing(container)` (see above).
+
 ## Eager resolution (`bootContainer`)
 
 Registrations are lazy, but bus subscriptions are **side effects** — so

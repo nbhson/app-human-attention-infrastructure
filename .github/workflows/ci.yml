@@ -5,8 +5,77 @@ on:
   push:
     branches: [main]
 
+env:
+  # The OIDC provider is an *in-process* mock (packages/auth/src/oidc/mock-provider.ts),
+  # so there is no separate IdP service container to spin up: OIDC_MOCK=true
+  # activates the real authorization-code exchange for tests and e2e. The e2e
+  # scripts also self-set it; the env default keeps every package's tests honest.
+  OIDC_MOCK: "true"
+
 jobs:
-  ci:
+  # Per-package test matrix (Phase-2 day-05 §3.3): every package runs its own
+  # vitest pass in an isolated job, which makes @harness/auth and
+  # @harness/observability first-class lanes instead of hidden inside one
+  # aggregate `pnpm test` run. Each job gets its own Postgres service container.
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        path:
+          - packages/agent-runtime
+          - packages/artifact-tracker
+          - packages/attention-engine
+          - packages/auth
+          - packages/context-engine
+          - packages/db
+          - packages/di
+          - packages/domain
+          - packages/event-bus
+          - packages/observability
+          - packages/orchestrator
+          - packages/review
+          - packages/verification-engine
+          - apps/api
+          - apps/web
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: harness
+          POSTGRES_PASSWORD: harness
+          POSTGRES_DB: harness
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U harness"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://harness:harness@localhost:5432/harness
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      # Workspace deps resolve to their built dist/, so build once topologically
+      # before the per-package test pass.
+      - run: pnpm build
+
+      - name: Test ${{ matrix.path }}
+        run: pnpm vitest run ${{ matrix.path }}
+
+  # Top-level gate: lint, typecheck, and the end-to-end suite (which owns its own
+  # migrate). The architecture/boundaries R4/R7/R8 rules are asserted by a test in
+  # the unit job's packages/di lane.
+  gate:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -38,5 +107,4 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
-      - run: pnpm test
       - run: pnpm e2e

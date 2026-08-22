@@ -10,7 +10,7 @@
  * Day 02 adds authorization: every mutating (and the queue/detail) route is
  * wrapped in {@link requireRole}, and the reviewer/actor identity comes from the
  * authenticated principal (`request.auth.user`), never from a header or body —
- * the Phase-1 `X-Reviewer-Id` / body `reviewerId` path is gone.
+ * the Phase-1 reviewer-id header / body `reviewerId` path is gone.
  */
 
 import type { FastifyInstance, FastifyReply } from 'fastify';

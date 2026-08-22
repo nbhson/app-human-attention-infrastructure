@@ -33,6 +33,24 @@ artifact tracking, verification, attention routing, review, and observability.
 - **Boundaries:** see [limitations.md](docs/runbook/limitations.md) before you
   "fix" something that's a deliberate Phase-1 scope cut.
 
+### Phase 2 · Week 1 complete — Identity & Observability
+
+The first Phase-2 week (days 01–05) hardens *who is acting* and *what can we
+see* before Week 2 starts measuring. All five days verified: lint, typecheck,
+92 test files (384 tests), and the e2e happy-path + 8 failure scenarios green.
+
+- **Identity** — SSO logins keyed on the provider-stable OIDC `sub`
+  (not email), revocable JWT sessions, role-gated review routes (`ADMIN ⊇
+  REVIEWER ⊇ OPERATOR`) where `audit identity` comes from the authenticated
+  principal — the Phase-1 reviewer-id header is gone.
+- **Observability** — OTel spans with a `trace_id ↔ correlation_id` join, plus a
+  Prometheus `/metrics` scrape (routing, review dwell, usefulness) with
+  dashboards-in-code under `infra/`.
+- **Checkpoint** — the scripted [Week-1 demo](scripts/demo/week1.md) and the
+  numbers-first [Week-1 retrospective](docs/retros/week-01.md).
+
+Next up: [Day 06 — evaluation metrics](docs/plan/phase-2/day-06.md).
+
 ## Quickstart
 
 ```sh

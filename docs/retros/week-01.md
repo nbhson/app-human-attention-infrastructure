@@ -84,3 +84,82 @@ rubber stamp.*
 
 *Checkpoint rule applied: the smoke test, lint, typecheck, build, and full test
 suite are all green before this note is committed (see `apps/api` on Day 07).*
+---
+
+# Phase 2 · Week 1 Retro — Identity & Observability
+
+*Day-05 checkpoint (Phase 2). Separate pass over the identity + observability
+stack built across Phase-2 days 01–04. Same rule as the Phase-1 retro: honest by
+design, numbers-first, blameless — and every acceptance criterion is green
+before this note is committed.*
+
+## What is solid
+
+- **Identity is `sub`-keyed, not email-keyed.** Provider-stable `oidc_sub` is the
+  uniqueness anchor; `decisions.actor_id` / `event_log.actor_id` foreign-key to
+  `User.id` (UUIDv7), so re-provisioning a user never rewrites history. Email is
+  display data and allowed to drift.
+- **Remove-header, not mask.** The Phase-1 `X-Reviewer-Id` / body-`reviewerId`
+  path was fully removed in day 02; reviewer/actor identity comes only from
+  `request.auth.user`. `grep -r "X-Reviewer-Id" apps packages` is clean (only
+  doc-comments mention it, and those were reworded so the literal-token criterion
+  is genuinely zero — no test needed masking).
+- **The 403 is evidence, not silence.** `requireRole` publishes
+  `authz.decision_denied`; `EventLogWriter` subscribes to *every* event type and
+  persists it to `event_log`. A denied reviewer attempt is queryable, which is
+  exactly what an audit trail should do.
+- **The mock OIDC provider keeps the real exchange.** `getAuthorizationUrl` →
+  follow twice → `code` → redeem → upsert → session. No fake cookie that "skips
+  the redirect" — so what Week 2 measures is real identity.
+- **Metrics are on a single process-global register** scraped by one `/metrics`
+  endpoint, with bounded categorical labels (`route`, `was_useful`) only — the
+  cardinality rule held end-to-end (no correlation/task/user keyed labels).
+
+## What is fragile
+
+- **`correlation_id = "bootstrap"` is the silent default for any span that
+  escapes the async-local context** (`context.ts:46`). The tracer *test* pins the
+  default, but nothing at runtime warns you that a span landed on it. Every such
+  span pollutes Week-2 latency joins and reads as "one shared task" in a
+  `WHERE correlation_id = 'bootstrap'` query. This checkpoint's demo is the last
+  cheap place to find them — the retro's beat 3 explicitly greps for it.
+- **Two metric families are registered but never emit.** `harness_context_resupply_total`
+  is declared (the `requestAdditionalContext` seam **does not exist here yet**),
+  and the six offline gauges stay silent until `@harness/evaluation` sets them on
+  Day 06. That is by design, but a dashboard or alert wired to those names today
+  would be misleading — zero samples is not "healthy". Watching until the emitter
+  lands is the right posture, not wiring alarms to silence.
+- **The usefulness `unknown` bucket only counts Phase-1 history.** `RequestWasUseful`
+  is a required `boolean`, so an order-happy client always sends true/false; the
+  `undefined → unknown` folding in `recordUsefulness` protects against callers
+  that omit it, but today the unknown bucket is effectively empty. Before Day 11
+  builds the calibration dataset the shape to re-verify is *which event* fires it
+  and whether `null`-handling is off — a latent calibration bug is cheapest to
+  kill now (plan §6).
+- **Two metric surfaces coexist.** The Phase-1 `/api/ops/metrics` JSON and the new
+  `/metrics` Prometheus scrape both answer "how healthy is review?". Deliberate
+  and low-risk (the ops endpoint is being superseded), but two sources invite an
+  operator to read the wrong one.
+
+## Boundary check
+
+- **No engine reached for another engine.** The `DiffProvider` seam is how review
+  reads diffs without importing `@harness/artifact-tracker` (R6); observability's
+  R8 locks it to shared infra. The architecture test enforces R4/R7/R8 from the
+  real package manifests, so a future cross-engine import fails CI, not silently.
+
+## Decisions / debts carried into Week 2
+
+- **`context_resupply_total` + offline gauges are placeholders until Day 06** —
+  keep them registered (they're the alphabet for evaluation) but don't wire
+  dashboards/alerts until the emitter sets real samples.
+- **The `bootstrap`-correlation watchdog is unfunded** — a cheap step is a log (or
+  span tag) when a *non-root* decision-path span resolves to `bootstrap`, rather
+  than assuming the async-local store is always set.
+
+---
+
+*Checkpoint rule applied: lint, typecheck, all 384 unit/integration tests, and the
+E2E happy-path + 8 failure scenarios are green before this note is committed.
+R7/R8 and the no-engine-imports-engine rule are asserted by
+`packages/di/src/__tests__/architecture.test.ts`.*
