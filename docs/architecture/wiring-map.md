@@ -61,6 +61,16 @@ This table records the object graph built by `buildContainer()` (`apps/api/src/b
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 
+### Startup recovery (not a token)
+
+Before any loop starts, `apps/api/src/index.ts` calls
+`reconcileOrphans(db, TaskService, EventBus, Logger)` (imported from
+`apps/api/src/reconcile.ts`, **Day 28**). It is deliberately *not* a container
+token: it is a one-shot, single-writer boot step, not a resolvable dependency.
+Order matters — `reconcileOrphans` must run before `dispatchLoop.start()` /
+`runtimePollLoop.start()`, or an orphaned `EXECUTING`/`VERIFYING` row could be
+double-run (day-28 §6).
+
 ## Dependency rules enforced
 
 | Rule | Constraint | Enforced by |

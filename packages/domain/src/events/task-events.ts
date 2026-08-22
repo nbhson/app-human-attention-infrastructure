@@ -56,3 +56,13 @@ export interface TaskFailedPayload {
   /** Why the task failed (e.g. `MAX_ATTEMPTS_EXHAUSTED`). */
   readonly reason: string;
 }
+
+/** Payload for {@link import('./event-types.js').EventType.TaskOrphanRecovered}. */
+export interface TaskOrphanRecoveredPayload {
+  /** The task recovered from an orphaned in-flight state. */
+  readonly task_id: TaskID;
+  /** The state it was stuck in (`EXECUTING` or `VERIFYING`). */
+  readonly from_state: TaskStatus;
+  /** Why it was recovered (always `PROCESS_DIED` in Phase 1). */
+  readonly reason: string;
+}

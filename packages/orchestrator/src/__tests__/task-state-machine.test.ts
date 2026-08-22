@@ -20,6 +20,9 @@ const LEGAL: ReadonlyArray<readonly [TaskStatus, TaskStatus]> = [
   [TaskStatus.Verifying, TaskStatus.AwaitingReview],
   [TaskStatus.Verifying, TaskStatus.Rework],
   [TaskStatus.Verifying, TaskStatus.Failed],
+  // Day-28 recovery path: the startup reconciler moves a VERIFYING task stranded
+  // by a crash to human attention, mirroring EXECUTING → AWH.
+  [TaskStatus.Verifying, TaskStatus.AwaitingHumanIntervention],
   [TaskStatus.AwaitingReview, TaskStatus.Approved],
   [TaskStatus.AwaitingReview, TaskStatus.Rejected],
   [TaskStatus.Rework, TaskStatus.Queued],

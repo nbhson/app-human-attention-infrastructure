@@ -26,7 +26,14 @@ const TRANSITIONS: ReadonlyMap<TaskState, ReadonlySet<TaskState>> = new Map([
   ],
   [
     TaskStatus.Verifying,
-    new Set([TaskStatus.AwaitingReview, TaskStatus.Rework, TaskStatus.Failed]),
+    new Set([
+      TaskStatus.AwaitingReview,
+      TaskStatus.Rework,
+      TaskStatus.Failed,
+      // Recovery path (day-28 F4): a VERIFYING task orphaned by a crash is moved
+      // to human attention by the startup reconciler, mirroring EXECUTING → AHI.
+      TaskStatus.AwaitingHumanIntervention,
+    ]),
   ],
   [TaskStatus.AwaitingReview, new Set([TaskStatus.Approved, TaskStatus.Rejected])],
   // APPROVED → AWAITING_HUMAN_INTERVENTION is the merge-failure escape hatch

@@ -144,6 +144,31 @@ CLI wrapper (same window, wired as an exit-code alarm):
 pnpm audit:orphans
 ```
 
+## Q9 — Orphan recoveries ("what did the boot reconciler rescue?")
+
+Only the startup reconciler may *act* on an orphan (limitations.md §3). This lists
+every `task.orphan_recovered` event — the `reason` is always `PROCESS_DIED`, and
+`payload->>'from_state'` names where the task was stranded.
+
+```sql
+SELECT occurred_at, correlation_id, payload->>'task_id'  AS task_id,
+       payload->>'from_state' AS from_state,
+       payload->>'reason'     AS reason
+FROM event_log
+WHERE event_type = 'task.orphan_recovered'
+ORDER BY occurred_at;
+```
+
+Count recoveries per boot window (recoveries cluster right after a restart):
+
+```sql
+SELECT date_trunc('hour', occurred_at) AS hour, count(*)
+FROM event_log
+WHERE event_type = 'task.orphan_recovered'
+GROUP BY 1
+ORDER BY 1 DESC;
+```
+
 ---
 
 ## Sample output (fresh E2E run)

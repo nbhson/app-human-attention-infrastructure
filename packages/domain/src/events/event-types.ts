@@ -11,6 +11,7 @@ export const EventType = {
   TaskStateChanged: 'task.state_changed',
   TaskExecutionFinished: 'task.execution_finished',
   TaskFailed: 'task.failed',
+  TaskOrphanRecovered: 'task.orphan_recovered',
   ArtifactChanged: 'artifact.changed',
   ArtifactCreated: 'artifact.created',
   ArtifactRollbackRequested: 'artifact.rollback_requested',

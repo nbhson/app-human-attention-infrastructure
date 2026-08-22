@@ -7,6 +7,9 @@ import postgres, { type Sql } from 'postgres';
 
 import * as schema from './schema/index.js';
 
+export { FaultyDb } from './faults.js';
+export type { Fault, FaultOp } from './faults.js';
+
 // Both `src/` and the compiled `dist/` live one directory below `packages/db`,
 // so a single `..` reaches `packages/db` and `migrations` resolves correctly
 // whether this module is imported from source (vitest) or from `dist` (a

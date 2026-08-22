@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "e2e": "pnpm --filter @harness/db migrate && pnpm --filter @harness/api exec tsx scripts/e2e-happy-path.ts && pnpm --filter @harness/api exec tsx scripts/e2e-failure-paths.ts",
+    "load:smoke": "pnpm --filter @harness/db migrate && pnpm --filter @harness/api exec tsx scripts/load-smoke.ts",
     "audit:orphans": "pnpm --filter @harness/db audit:orphans",
     "dev": "turbo run dev",
     "prepare": "simple-git-hooks"
