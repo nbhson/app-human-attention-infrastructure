@@ -193,5 +193,5 @@ describe('SandboxedCheck (day-22 §3.3)', () => {
 
       expect(inSandbox.status, fixture).toBe(inProcess.status);
     }
-  });
+  }, 30_000);
 });

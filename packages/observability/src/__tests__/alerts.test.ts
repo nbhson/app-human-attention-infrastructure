@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -9,8 +9,6 @@ import { describe, expect, it } from 'vitest';
  * config (`rule_files`). A fallback that pages is "loud"; a counter nobody
  * alerts on is just a nice hat on a silent failure (Spec 10).
  */
-
-const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 const ALERTS = fileURLToPath(new URL('../../../../infra/prometheus/alerts.yml', import.meta.url));
 const PROMETHEUS = fileURLToPath(
@@ -56,7 +54,13 @@ describe('Day-26 fallback-rate alerting (§3.5)', () => {
 
   it('resolves the repo root (guarding against a moved file)', () => {
     // If this directory ever moves, the relative paths above break loudly here
-    // rather than silently reading the wrong (or no) file.
-    expect(ROOT).toContain('harness-human-attention-infrastructure');
+    // rather than silently reading the wrong (or no) file. Anchor on a marker
+    // file that lives at the monorepo root regardless of the checkout directory's
+    // name (a local clone is `harness-human-attention-infrastructure`, CI checks
+    // out `human-attention-infrastructure-harness`), so the guard survives the
+    // name mismatch.
+    expect(existsSync(fileURLToPath(new URL('../../../../package.json', import.meta.url)))).toBe(
+      true,
+    );
   });
 });
