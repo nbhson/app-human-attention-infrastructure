@@ -1,131 +1,91 @@
 # HAI Harness — Human-Attention Infrastructure
 
 A control plane for **human attention in AI-native development**. AI produces the
-work; the harness decides what a human must actually look at. An Orchestrator
-moves tasks through a canonical state machine (`PENDING → … → COMPLETED`) while
-dedicated engines gather context, run an agent, track artifacts, verify with real
-tooling, and route the result to a human for review — every step recorded in an
-append-only event log so the whole trail can be replayed and audited.
+work; the harness decides what a human must actually look at — verifying,
+scoring, and routing each change so a reviewer sees only what matters, never the
+flood. Every step is recorded in an append-only event log, so the whole trail can
+be replayed and audited.
 
-> **Hiểu nhanh:** AI viết code, hệ thống chạy kiểm tra tự động rồi quyết định
-> cái gì *thực sự* cần con người xem, và ghi lại mọi bước để truy vết.
+> **Hiểu nhanh:** AI viết code, hệ thống tự chạy kiểm tra rồi quyết định cái gì
+> *thực sự* cần con người xem — và ghi lại mọi bước để truy vết.
+
+**Status** · `Phase 2 complete` · `v0.2.0-harness` tagged · `build ✔ typecheck ✔ lint ✔ 695 tests ✔ e2e ✔`
+
+---
+
+## What it does
+
+Tasks move through a canonical state machine while dedicated engines do the work:
+
+```text
+  Orchestrator        Context Engine       Agent Runtime      Verification
+  task lifecycle  →  gather + rank      →  plan + execute   →  compile + test
+  (PENDING…DONE)     context (keyword)     agent steps         (real tooling)
+
+                                        ↓
+                     Attention Engine — score + budget human attention
+                                        ↓
+                        Review — a human APPROVES / REJECTS every change
+                                        ↓
+                          Merge — artifact merged, trail retained
+```
+
+Each engine is a `@harness/*` package wired by one DI container
+(`apps/api/src/bootstrap.ts`) — see the [wiring map](docs/architecture/wiring-map.md).
+No engine imports another.
 
 ## Principles
 
-- **Evidence before confidence** — a claim is not evidence; the harness verifies
+- **Evidence before confidence** — a claim is not evidence. The harness verifies
   (compile + tests) before anything is routed to a human.
 - **Human attention is the scarce resource** — the Attention Engine scores and
-  budgets approval so a reviewer only sees what matters, never the flood.
+  budgets approval so a reviewer sees what matters, never the flood.
 - **Full provenance** — every state change, LLM call, and decision lands in the
   append-only `event_log`, joined by one `correlation_id`.
+- **Shadow-then-default** — a new signal (semantic retrieval, fitted weights)
+  earns the default by winning a measured comparison, never by being newer.
 
 ## Status
 
-**Phase 1 complete** (Days 01–30). What built: the full vertical slice from task
-creation to verified, human-merged change — orchestrator, agent runtime, context,
-artifact tracking, verification, attention routing, review, and observability.
-
-- **What works:** follow the [Developer Guide](docs/dev-guide.md) to go from
-  `git clone` to a green `pnpm e2e` in ~15 minutes.
-- **What's deferred:** runtime confines, targeted verification, semantic ranking,
-  calibration — see the [Phase 2 backlog](docs/plan/phase-2-backlog.md).
-- **How it went:** the honest, numbers-first [Phase 1 retrospective](docs/retros/phase-1.md).
-- **Boundaries:** see [limitations.md](docs/runbook/limitations.md) before you
-  "fix" something that's a deliberate Phase-1 scope cut.
-
-### Phase 2 · Week 1 complete — Identity & Observability
-
-The first Phase-2 week (days 01–05) hardens *who is acting* and *what can we
-see* before Week 2 starts measuring. All five days verified: lint, typecheck,
-92 test files (384 tests), and the e2e happy-path + 8 failure scenarios green.
-
-- **Identity** — SSO logins keyed on the provider-stable OIDC `sub`
-  (not email), revocable JWT sessions, role-gated review routes (`ADMIN ⊇
-  REVIEWER ⊇ OPERATOR`) where `audit identity` comes from the authenticated
-  principal — the Phase-1 reviewer-id header is gone.
-- **Observability** — OTel spans with a `trace_id ↔ correlation_id` join, plus a
-  Prometheus `/metrics` scrape (routing, review dwell, usefulness) with
-  dashboards-in-code under `infra/`.
-- **Checkpoint** — the scripted [Week-1 demo](scripts/demo/week1.md) and the
-  numbers-first [Week-1 retrospective](docs/retros/week-01.md).
-
-### Phase 2 · Week 2 complete — Evaluation & Governance
-
-Days 06–10 put the pipeline *under measurement*: offline routing metrics
-(precision/recall/escalation-leakage), a scheduled report generator, trajectory
-replay, and a read-only A/B shadow harness. The honest checkpoint read
-(`docs/retros/week-02.md`) is that the pipeline is now *measured but not yet
-calibrated* — every gauge resolves to a real value, and escalation leakage (1.0
-on the N=4 window) is the number Week 3 exists to move.
-
-### Phase 2 · Week 3 complete — Calibration & Auto-Approve
-
-Days 11–15 closed the loop the Week-2 retro called for: a frozen calibration
-dataset → real weight fitting → adaptive thresholds → a gated auto-approve path
-with flag, kill-switch, and sampling audit. The checkpoint was a **hard** one,
-and the honest result is red: the fitted weights (log-loss **0.316**) did *not*
-beat the Phase-1 placeholder (log-loss **0.262**) on the held-out set, so the
-placeholder stays active and auto-approve stays disabled by default.
-
-- **Calibration** — `eval:make-dataset` extracts a hash-sealed snapshot of the
-  decision log; `eval:fit` trains five weights and prints a before/after report
-  with an `improvement` verdict + governance note (never auto-promotes a regress).
-- **Auto-approve** — an ADMIN-gated flag + kill-switch behind a three-part gate
-  (calibration green ∧ flag on ∧ under the bar); machine decisions record
-  `AUTO_APPROVED` with `actor_id IS NULL`; a 10% silent-human sample audits leakage.
-- **Checkpoint** — the scripted [Week-3 demo](scripts/demo/week3-calibration.md)
-  and the numbers-first [Week-3 retrospective](docs/retros/week-03.md). Auto-approve
-  ships **OFF**; the demo proves the path, then restores the safe default.
-
-### Phase 2 · Week 4 complete — Semantic infra (in shadow)
-
-Days 16–20 installed the semantic substrate *without touching the default path*:
-pgvector, an `Embedder` provider seam, the index + re-embed listener, a semantic
-retriever/ranker that only runs behind the `resolveWithShadow` opt-in, an exact
-tiktoken tokenizer, and a context source cache. The week's honest invariant —
-`rank_method` stays `keyword` for the served snapshot while `shadow_rank_comparisons`
-records the semantic order — is asserted end-to-end in the checkpoint.
-
-- **Exact tokenizer** — `TiktokenTokenizer` behind the `Tokenizer` seam replaces
-  the Phase-1 `chars/4` heuristic (`count`/`truncate` with UTF-8-safe backoff).
-- **Context cache** — a Postgres-backed leaf keyed by `source_id + content_hash`;
-  the hash is the truth, a `(mtime, size)` stat fast-path serves hits with zero
-  file reads, and `artifact.changed` invalidates. Snapshot is never cached.
-- **Checkpoint** — the scripted [Week-4 demo](scripts/demo/week4-shadow.md) and the
-  numbers-first [Week-4 retrospective](docs/retros/week-04.md).
-
-### Phase 2 · Week 5 complete — Sandbox, object store, Spec 8
-
-Days 21–25 widened the *storage and isolation* substrate behind the seams Phase
-1 declared: a content-addressed `ContentStore` (S3/MinIO `ObjectStoreContentStore`
-with an in-memory dev fallback, large snapshots offloaded past a threshold), a
-container `SandboxedCheck` for verification with an in-process parity fallback, and
-Spec 8 (`docs/core/8_Human_Review_Interface_v0.1.md`) promoted. The **Week-5
-checkpoint** (day-25) wired the sandbox-fallback / object-integrity / cache-hit
-counters into the offline report so the new infra is *measured*, not just present.
-
-### Phase 2 · Week 6 complete — Harden, A/B dry-run, exit review
-
-Days 26–30 hardened the new infra (failure injection + concurrency), re-ran the
-full E2E under the Phase-2 stack, then closed the loop the phase existed to close.
-The **Week-6 A/B dry-run** (day-29) ran keyword vs semantic context ranking
-head-to-head behind the shadow harness: the ranks genuinely disagree
-(`rank_correlation = [-1.0, -1.0]`), the outcome is a toss-up, the guardrail HELD,
-and the honest call is *promote to a real A/B, not to the default*.
-
-### Phase 2 complete — metrics checkpoint & `v0.2.0-harness` tag
-
 **Phase 2 is complete** (Days 01–30, tagged `v0.2.0-harness`). The exit review
-([`docs/retros/phase2-metrics.md`](docs/retros/phase2-metrics.md)) marks 8 of 9 §7
-exit criteria ✓ with the ninth △: routing is measured (precision 0.333 / recall 0.5
-/ escalation-leakage 1.0 over N=4), the A/B harness reports a real head-to-head with
-no production effect, `rank_method` stays `keyword` by construction, auth + review +
-sanbox + object-store + Spec 8/10 are all green — but the fitted attention weights
-(log-loss 0.316) did *not* beat the Phase-1 placeholder (0.262), so calibration is
-carried into Phase 3 as backlog rather than claimed done. The full record of what
-held and what drifted is the [Week-6 retrospective](docs/retros/week-06.md).
+([`docs/retros/phase2-metrics.md`](docs/retros/phase2-metrics.md)) marks **8 of 9**
+§7 exit criteria met, the ninth partial. The loop is now **measured**: routing
+precision **0.333** / recall **0.5** / escalation-leakage **1.0** (N=4), the A/B
+harness reports a real head-to-head with no production effect, `rank_method`
+stays `keyword` by construction, and auth + review + sandbox + object-store +
+Spec 8/10 are all green. The one honest gap: the fitted attention weights
+(log-loss **0.316**) did *not* beat the Phase-1 placeholder (**0.262**), so
+calibration is carried into Phase 3 as backlog rather than claimed done.
 
-Next up: [Phase 3 — Learn & Automate Under Guardrails](docs/plan/phase-3/README.md), starting from the [Phase-3 backlog](docs/plan/phase-3/backlog.md).
+The decision is **go-with-caveats** — the full record of what held and what
+drifted is the [Week-6 retrospective](docs/retros/week-06.md).
+
+### Phase 2 milestones
+
+| Week | Theme | Honest result | Checkpoint |
+|---|---|---|---|
+| W1 · D01–05 | Identity & observability | OIDC `sub`-keyed SSO, revocable JWT sessions, role gate (`ADMIN ⊇ REVIEWER ⊇ OPERATOR`); OTel `trace_id ↔ correlation_id` + Prometheus `/metrics` | [repo](docs/retros/week-01.md) · [demo](scripts/demo/week1.md) |
+| W2 · D06–10 | Evaluation & governance | Offline routing metrics, report scheduler, trajectory replay, read-only A/B shadow harness | [repo](docs/retros/week-02.md) |
+| W3 · D11–15 | Calibration & auto-approve | `eval:fit` from real data; auto-approve behind flag + kill-switch + sampling audit. **Fit lost to placeholder (0.316 vs 0.262)** → placeholder kept | [repo](docs/retros/week-03.md) · [demo](scripts/demo/week3-calibration.md) |
+| W4 · D16–20 | Semantic infra (shadow) | pgvector + `Embedder`, semantic retriever behind `resolveWithShadow`, exact tiktoken tokenizer, context cache. `rank_method` stays `keyword` | [repo](docs/retros/week-04.md) · [demo](scripts/demo/week4-shadow.md) |
+| W5 · D21–25 | Sandbox, object store, Spec 8 | `ContentStore` (S3/MinIO), container `SandboxedCheck`, Spec 8 promoted | — |
+| W6 · D26–30 | Harden + exit review | Failure injection, E2E under Phase-2 stack, A/B dry-run (`tau = [-1, -1]`, guardrail HELD → *promote to a real A/B*), exit review + tag | [repo](docs/retros/week-06.md) · [A/B results](docs/retros/week6-ab-results.md) |
+
+<details>
+<summary>Phase 1 (complete) — the vertical slice</summary>
+
+Days 01–30 of Phase 1 built the full vertical slice: orchestrator, agent runtime,
+context, artifact tracking, verification, attention routing, review, and
+observability. It proved the loop end-to-end but was **unmeasured and
+uncalibrated** — a single `X-Reviewer-Id` header, placeholder weights, keyword-only
+ranking. The honest numbers-first record is the
+[Phase 1 retrospective](docs/retros/phase-1.md); deliberate Phase-1 scope cuts are
+documented in [limitations.md](docs/runbook/limitations.md).
+
+</details>
+
+**Next up:** [Phase 3 — Learn & Automate Under Guardrails](docs/plan/phase-3/README.md),
+starting from the [Phase-3 backlog](docs/plan/phase-3/backlog.md).
 
 ## Quickstart
 
@@ -143,14 +103,14 @@ pnpm e2e                           # full vertical slice (<3 min)
 Requirements: Node.js ≥ 20, pnpm ≥ 9 (pinned `9.15.4`), Docker. Full walkthrough
 in the [Developer Guide](docs/dev-guide.md).
 
-## Map
+## Documentation
 
 | What | Where |
 | --- | --- |
-| **Specifications** — what the system *is* (v0.2, reconciled with the code) | [`docs/core/`](docs/core/) |
-| **Build plan** — the day-by-day plan (Phases 1–3) and backlog | [`docs/plan/`](docs/plan/README.md) |
+| **Specifications** — what the system *is* (as-built specs v0.1–v0.3) | [`docs/core/`](docs/core/) |
+| **Build plan** — day-by-day plans (Phases 1–3) and backlog | [`docs/plan/`](docs/plan/README.md) |
 | **Operations runbook** — incidents, exact commands, escalation rules | [`docs/runbook/`](docs/runbook/README.md) |
-| **Developer guide** — clone-to-green in 15 minutes | [`docs/dev-guide.md`](docs/dev-guide.md) |
+| **Developer guide** — clone-to-green in ~15 minutes | [`docs/dev-guide.md`](docs/dev-guide.md) |
 | **Wiring map** — the DI object graph | [`docs/architecture/wiring-map.md`](docs/architecture/wiring-map.md) |
 | **Retrospectives** — honest weekly post-mortems | [`docs/retros/`](docs/retros/) |
 
@@ -158,10 +118,10 @@ in the [Developer Guide](docs/dev-guide.md).
 
 | Path | What's in it |
 | --- | --- |
-| `packages/` | The engines and shared libraries (`@harness/*`) |
+| `packages/` | 17 engines and shared libraries (`@harness/*`) |
 | `apps/api` | Fastify API + the single DI bootstrap (`bootstrap.ts`) + reconcile |
 | `apps/web` | React + Vite review UI |
-| `docs/core/` | Specification documents (v0.2) this implements |
+| `docs/core/` | Specification documents (v0.1–v0.3) this implements |
 | `docs/plan/` | Day-by-day build plans (Phase 1 / 2 / 3) |
 | `docs/architecture/` | Wiring map and living architecture notes |
 | `docs/runbook/` | Audit query cookbook + operational runbook + limitations |
