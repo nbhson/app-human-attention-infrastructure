@@ -55,14 +55,17 @@ import {
   SessionService,
 } from '@harness/auth';
 import {
+  CacheInvalidationListener,
   ContextEngine,
   extractFileReferences,
   FileCollector,
   KeywordDependencyRanker,
+  PostgresContextCache,
   SemanticRanker,
   SemanticRetriever,
   TiktokenTokenizer,
 } from '@harness/context-engine';
+import type { ContextCache } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
 import type { Logger } from '@harness/di';
 import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
@@ -515,6 +518,25 @@ export function buildContainer(): Container {
     );
   });
 
+  // Day 20: the context source cache — a read-optimization leaf between the
+  // collector and the filesystem. Postgres-backed (no Redis: the modular-monolith
+  // rule keeps a single store). Hit/miss counters mirror onto the Day-04
+  // Prometheus registry; the invalidation listener keeps the stat fast-path
+  // honest by dropping a row the moment its artifact changes (day-20 §2.2).
+  c.register(TOKENS.ContextCache, (container) => {
+    return new PostgresContextCache(container.resolve<DrizzleDB>(TOKENS.Db));
+  });
+
+  c.register(TOKENS.CacheInvalidationListener, (container) => {
+    const listener = new CacheInvalidationListener(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<ContextCache>(TOKENS.ContextCache),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+    listener.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
+    return listener;
+  });
+
   // Day 20: the Context Engine. Resolves ranked, budgeted context for a task and
   // persists the snapshot into `contexts`. The FileCollector scans the sandbox
   // root the agent operates in, guarded by the same resolveSafe path check as the
@@ -523,7 +545,7 @@ export function buildContainer(): Container {
   c.register(TOKENS.ContextEngine, (container) => {
     return new ContextEngine(
       container.resolve<DrizzleDB>(TOKENS.Db),
-      new FileCollector(sandboxRoot),
+      new FileCollector(sandboxRoot, container.resolve<ContextCache>(TOKENS.ContextCache)),
       new KeywordDependencyRanker(),
       new TiktokenTokenizer(),
       container.resolve<Embedder>(TOKENS.Embedder),

@@ -183,6 +183,13 @@
       "when": 1787402593406,
       "tag": "0025_flowery_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787405768094,
+      "tag": "0026_daily_master_chief",
+      "breakpoints": true
     }
   ]
 }

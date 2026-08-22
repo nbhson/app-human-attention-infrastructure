@@ -32,6 +32,8 @@ export const TOKENS = {
   Orchestrator: 'Orchestrator',
   AgentRuntime: 'AgentRuntime',
   ContextEngine: 'ContextEngine',
+  ContextCache: 'ContextCache',
+  CacheInvalidationListener: 'CacheInvalidationListener',
   Embedder: 'Embedder',
   EmbeddingIndexer: 'EmbeddingIndexer',
   ReembedListener: 'ReembedListener',

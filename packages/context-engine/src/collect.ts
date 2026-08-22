@@ -10,6 +10,8 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 
+import { sha256 } from './freshness.js';
+import type { ContextCache } from './cache/context-cache.js';
 import { resolveSafe } from './resolve-safe.js';
 
 /** Directory names the collector never descends into (day-20 §2.2). */
@@ -78,7 +80,11 @@ export function isExcludedPath(sourceId: string): boolean {
 }
 
 export class FileCollector {
-  constructor(private readonly rootDir: string) {}
+  constructor(
+    private readonly rootDir: string,
+    /** Read-optimization leaf (day-20 §2.1); omitted means always re-read. */
+    private readonly cache?: ContextCache,
+  ) {}
 
   /** The project root this collector reads from (exposed for freshness checks). */
   get root(): string {
@@ -104,15 +110,44 @@ export class FileCollector {
       if (isExcludedPath(sourceId)) continue;
       try {
         const absPath = resolveSafe(this.rootDir, sourceId);
-        const info = await stat(absPath);
-        if (info.size > MAX_FILE_SIZE_BYTES) continue;
-        const content = await readFile(absPath, 'utf8');
+        const content = await this.readSource(absPath, sourceId);
+        if (content === null) continue;
         out.push({ sourceId, content });
       } catch {
         // vanished or unreadable — omitting keeps the stale entry flagged.
       }
     }
     return out;
+  }
+
+  /**
+   * Read one eligible source through the cache (day-20 §5.1). The stat fast-path
+   * serves a `(sourceId, mtime, size)` hit with zero file reads; a miss reads,
+   * hashes (`sha256` — the truth, §2.2), and stores. Returns `null` when the
+   * file is missing or oversized, so callers silently drop it.
+   */
+  private async readSource(absPath: string, sourceId: string): Promise<string | null> {
+    const info = await stat(absPath);
+    if (info.size > MAX_FILE_SIZE_BYTES) return null;
+
+    if (this.cache) {
+      const hit = await this.cache.getByStat(sourceId, info.mtimeMs, info.size);
+      if (hit !== null) {
+        return hit.content;
+      }
+    }
+
+    const content = await readFile(absPath, 'utf8');
+    if (this.cache) {
+      await this.cache.set({
+        sourceId,
+        contentHash: sha256(content),
+        content,
+        mtimeMs: info.mtimeMs,
+        size: info.size,
+      });
+    }
+    return content;
   }
 
   private async walk(relDir: string, out: CollectedFile[]): Promise<void> {
@@ -136,10 +171,9 @@ export class FileCollector {
       if (isExcludedPath(sourceId)) continue;
 
       const absPath = resolveSafe(this.rootDir, relPath);
-      const info = await stat(absPath);
-      if (info.size > MAX_FILE_SIZE_BYTES) continue;
+      const content = await this.readSource(absPath, sourceId);
+      if (content === null) continue;
 
-      const content = await readFile(absPath, 'utf8');
       out.push({ sourceId, content });
     }
   }

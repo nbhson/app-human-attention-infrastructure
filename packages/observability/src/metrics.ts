@@ -57,6 +57,20 @@ export const resupply = new Counter({
   registers: [register],
 });
 
+/** Context source cache hit — a source served without re-reading from disk (§3.4). */
+export const cacheHit = new Counter({
+  name: 'harness_context_cache_hit_total',
+  help: 'Context source cache hits (source served from the (source_id, content_hash) cache).',
+  registers: [register],
+});
+
+/** Context source cache miss — a source was read from disk and (re)stored. */
+export const cacheMiss = new Counter({
+  name: 'harness_context_cache_miss_total',
+  help: 'Context source cache misses (source read from disk).',
+  registers: [register],
+});
+
 /**
  * Offline gauges, **set** (not incremented) by `@harness/evaluation` on Day 06.
  * Registered here so `/metrics` HELP lines exist for the whole Spec-11 inventory
@@ -106,4 +120,14 @@ export function observeReviewDwell(seconds: number): void {
  */
 export function recordUsefulness(wasUseful: boolean | undefined): void {
   usefulness.inc({ was_useful: wasUseful === undefined ? 'unknown' : String(wasUseful) });
+}
+
+/** Count a context-cache hit (a source served without a file read). */
+export function recordCacheHit(): void {
+  cacheHit.inc();
+}
+
+/** Count a context-cache miss (a source read from disk and stored). */
+export function recordCacheMiss(): void {
+  cacheMiss.inc();
 }

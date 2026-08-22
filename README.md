@@ -77,7 +77,24 @@ placeholder stays active and auto-approve stays disabled by default.
   and the numbers-first [Week-3 retrospective](docs/retros/week-03.md). Auto-approve
   ships **OFF**; the demo proves the path, then restores the safe default.
 
-Next up: [Day 20 — Context Cache: `source_id + content_hash`, TTL & Freshness (+ Week 4 Checkpoint)](docs/plan/phase-2/day-20.md).
+### Phase 2 · Week 4 complete — Semantic infra (in shadow)
+
+Days 16–20 installed the semantic substrate *without touching the default path*:
+pgvector, an `Embedder` provider seam, the index + re-embed listener, a semantic
+retriever/ranker that only runs behind the `resolveWithShadow` opt-in, an exact
+tiktoken tokenizer, and a context source cache. The week's honest invariant —
+`rank_method` stays `keyword` for the served snapshot while `shadow_rank_comparisons`
+records the semantic order — is asserted end-to-end in the checkpoint.
+
+- **Exact tokenizer** — `TiktokenTokenizer` behind the `Tokenizer` seam replaces
+  the Phase-1 `chars/4` heuristic (`count`/`truncate` with UTF-8-safe backoff).
+- **Context cache** — a Postgres-backed leaf keyed by `source_id + content_hash`;
+  the hash is the truth, a `(mtime, size)` stat fast-path serves hits with zero
+  file reads, and `artifact.changed` invalidates. Snapshot is never cached.
+- **Checkpoint** — the scripted [Week-4 demo](scripts/demo/week4-shadow.md) and the
+  numbers-first [Week-4 retrospective](docs/retros/week-04.md).
+
+Next up: [Day 21 — Object Store: S3/MinIO `ContentStore` (Spec 5 §4.2)](docs/plan/phase-2/day-21.md).
 
 ## Quickstart
 

@@ -11,6 +11,7 @@ export * from './attention-thresholds.js';
 export * from './auto-approve-kill-switch.js';
 export * from './calibration.js';
 export * from './changes.js';
+export * from './context-source-cache.js';
 export * from './context-source-embeddings.js';
 export * from './contexts.js';
 export * from './decisions.js';

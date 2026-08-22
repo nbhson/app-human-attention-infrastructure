@@ -26,6 +26,8 @@ export * from './trim.js';
 export * from './freshness.js';
 export * from './render.js';
 export * from './engine.js';
+export * from './cache/context-cache.js';
+export * from './cache/cache-invalidating-listener.js';
 export * from './retrieval/semantic-retriever.js';
 export * from './retrieval/semantic-ranker.js';
 export * from './retrieval/shadow.js';

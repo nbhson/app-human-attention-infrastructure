@@ -33,8 +33,12 @@ export {
   usefulness,
   reviewDwell,
   resupply,
+  cacheHit,
+  cacheMiss,
   setGauge,
   recordRouted,
   observeReviewDwell,
   recordUsefulness,
+  recordCacheHit,
+  recordCacheMiss,
 } from './metrics.js';

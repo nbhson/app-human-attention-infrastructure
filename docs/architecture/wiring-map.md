@@ -19,7 +19,7 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 |---|---|---|---|
 | `Logger` | `createRootLogger()` (pino) | Day 27 | `EventBus`, `EventLogWriter`, all subscribers, both loops, `ReviewService`, `MergeService`, `ReworkService`, `AttentionRouter`, `Dispatcher`/`DispatchLoop`, `RuntimePollLoop`, `AgentRunner` |
 | `EventBus` | `InProcessEventBus(handler)` | Day 05 | `EventLogWriter`, every subscriber (`ArtifactCapture`/`ChangeStatus`/`Attention`), `AttentionRouter`, `TaskService`, `VerificationEngine`, `ToolRegistry`, `AgentRunner`, `Dispatcher`, `WorkflowRunner` |
-| `Db` | `createDb(process.env.DATABASE_URL)` | Day 05 | everything that persists — `EventLogWriter`, `ArtifactTracker`, `ChangeStatusSubscriber`, `AttentionSubscriber`, `AttentionRouter`, `ContextEngine`, `VerificationEngine`, `LoggingLLMProvider`, `TaskService`, `ReviewService` (+ `DiffEngine`), `MergeService`, `ReworkService`, `Dispatcher`, `WorkflowRunner`, `AgentRunner`, `TrajectoryRecorder`, `RuntimePollLoop` |
+| `Db` | `createDb(process.env.DATABASE_URL)` | Day 05 | everything that persists — `EventLogWriter`, `ArtifactTracker`, `ChangeStatusSubscriber`, `AttentionSubscriber`, `AttentionRouter`, `ContextEngine`, `ContextCache`, `CacheInvalidationListener`, `VerificationEngine`, `LoggingLLMProvider`, `TaskService`, `ReviewService` (+ `DiffEngine`), `MergeService`, `ReworkService`, `Dispatcher`, `WorkflowRunner`, `AgentRunner`, `TrajectoryRecorder`, `RuntimePollLoop` |
 | `EventLogWriter` | `EventLogWriter(db, logger)` + `subscribeTo(EventBus)` | Day 05 | eager-resolved at boot (side effect: forwards bus events into `event_log`) |
 | `OidcProvider` | `MockOidcProvider \| OpenIdClientProvider` (env-driven; `OIDC_MOCK`) | Day 30 | `AuthService` (browser login/callback exchange) |
 | `SessionService` | `SessionService(db, ttlMs)` | Day 30 | `AuthService` (create/revoke/touch sessions) |
@@ -40,7 +40,9 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `ReembedListener` | `ReembedListener(db, EmbeddingIndexer, Logger)` + `subscribe(EventBus)` | Day 17 | eager-resolved at boot (side effect: `artifact.created`/`artifact.changed` → re-embed the FILE source keyed on `content_hash`; publishes nothing — day-17 §6) |
 | `SemanticRetriever` | `SemanticRetriever(db, Embedder)` | Day 18 | cosine similarity over the populated index; **not** on the default resolve path (only reachable via `resolveWithShadow`) |
 | `SemanticRanker` | `SemanticRanker(db, Embedder, SemanticRetriever)` | Day 18 | wraps the retriever with the freshness guard (day-17 §2.4) + target-file rule; **not** on the default resolve path |
-| `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot), KeywordDependencyRanker(), TiktokenTokenizer(), Embedder, SemanticRanker)` | Day 20 (embedder seam: Day 16, semantic shadow: Day 18) | `COLLECT_CONTEXT` step handler (default `resolveContext`, keyword-only); `resolveWithShadow` is opt-in via `semanticShadowEnabled` |
+| `ContextCache` | `PostgresContextCache(db)` | Day 20 | read-optimization leaf for the collector; `get(sourceId, contentHash)` is the truth, `getByStat(sourceId, mtime, size)` is the zero-read fast-path (§5.1); hit/miss mirrored onto `harness_context_cache_{hit,miss}_total` |
+| `CacheInvalidationListener` | `CacheInvalidationListener(db, ContextCache, Logger)` + `subscribe(EventBus)` | Day 20 | eager-resolved at boot (side effect: `artifact.created` (inline `file_path`) / `artifact.changed` (resolves `artifact_id`→`file_path` via `artifacts`) → `invalidate`; publishes nothing) |
+| `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot, ContextCache), KeywordDependencyRanker(), TiktokenTokenizer(), Embedder, SemanticRanker)` | Day 20 (embedder seam: Day 16, semantic shadow: Day 18) | `COLLECT_CONTEXT` step handler (default `resolveContext`, keyword-only); `resolveWithShadow` is opt-in via `semanticShadowEnabled` |
 | `EvidenceStore` | `EvidenceStore()` | Day 17 | `VerificationEngine` |
 | `VerificationEngine` | `VerificationEngine(db, EventBus, {CompileCheck, TestCheck}, EvidenceStore)` | Day 15 (`CompileCheck`) / 16 (`TestCheck`) / 17 (`EvidenceStore`) | `VERIFY` step handler (publishes `verification.completed`) |
 | `LLMProvider` | `LoggingLLMProvider(AnthropicProvider(key) \| MockLLM(script), db)` | Day 11 | `AgentRunner` |
@@ -133,6 +135,7 @@ EventLogWriter   ArtifactCaptureSubscriber   ChangeStatusSubscriber
 AttentionSubscriber   AttentionRouter   AutoApproveSampler   AutoApproveExecutor
 ContextEngine
 ReembedListener
+CacheInvalidationListener
 ReviewService   MergeService   ReworkService
 ```
 
@@ -164,24 +167,26 @@ The two loops (`DispatchLoop`, `RuntimePollLoop`) are **not** resolved here — 
 21. `ReembedListener` — needs `Db`, `EmbeddingIndexer`, `Logger`, `EventBus`; `subscribe(EventBus)` at registration (side effect).
 22. `SemanticRetriever` — needs `Db`, `Embedder`.
 23. `SemanticRanker` — needs `Db`, `Embedder`, `SemanticRetriever`.
-24. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`, `KeywordDependencyRanker()`, `TiktokenTokenizer()`, `Embedder`, `SemanticRanker`.
-25. `EvidenceStore` — no deps.
-26. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
-27. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).
-28. `TaskStateMachine` — no deps.
-29. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
-30. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
-31. `GitAdapter` — needs `WORKING_REPO_ROOT`.
-32. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
-33. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
-34. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
-35. `DispatchLoop` — needs `Dispatcher`, `Logger`.
-36. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT` real, `EXECUTE` stub, `VERIFY` real).
-37. `ToolRegistry` — needs `EventBus`, `AGENT_ALLOWED_TOOLS`, `SANDBOX_ROOT`.
-38. `TrajectoryRecorder` — needs `Db`.
-39. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, the `runLinearWorkflow` handoff, `maxSteps`, `tokenLimit`, `TrajectoryRecorder`.
-40. `RuntimePollLoop` — needs `Db`, `AgentRunner`, `Logger`.
-39. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
+24. `ContextCache` — needs `Db` (Postgres-backed `context_source_cache`; no Redis — modular-monolith rule).
+25. `CacheInvalidationListener` — needs `Db`, `ContextCache`, `Logger`, `EventBus`; `subscribe(EventBus)` at registration (side effect).
+26. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot, ContextCache)`, `KeywordDependencyRanker()`, `TiktokenTokenizer()`, `Embedder`, `SemanticRanker`.
+27. `EvidenceStore` — no deps.
+28. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
+29. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).
+30. `TaskStateMachine` — no deps.
+31. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
+32. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
+33. `GitAdapter` — needs `WORKING_REPO_ROOT`.
+34. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
+35. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
+36. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
+37. `DispatchLoop` — needs `Dispatcher`, `Logger`.
+38. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT` real, `EXECUTE` stub, `VERIFY` real).
+39. `ToolRegistry` — needs `EventBus`, `AGENT_ALLOWED_TOOLS`, `SANDBOX_ROOT`.
+40. `TrajectoryRecorder` — needs `Db`.
+41. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, the `runLinearWorkflow` handoff, `maxSteps`, `tokenLimit`, `TrajectoryRecorder`.
+42. `RuntimePollLoop` — needs `Db`, `AgentRunner`, `Logger`.
+43. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 
