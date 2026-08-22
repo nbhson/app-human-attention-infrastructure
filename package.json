@@ -17,6 +17,7 @@
     "audit:orphans": "pnpm --filter @harness/db audit:orphans",
     "eval:metrics": "pnpm --filter @harness/evaluation eval:metrics",
     "eval:report": "pnpm --filter @harness/evaluation eval:report",
+    "eval:replay": "pnpm --filter @harness/evaluation eval:replay",
     "dev": "turbo run dev",
     "prepare": "simple-git-hooks"
   },

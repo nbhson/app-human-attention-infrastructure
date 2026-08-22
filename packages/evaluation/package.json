@@ -17,7 +17,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. packages/evaluation",
     "eval:metrics": "tsx src/cli.ts",
-    "eval:report": "tsx src/report-cli.ts"
+    "eval:report": "tsx src/report-cli.ts",
+    "eval:replay": "tsx src/replay-cli.ts"
   },
   "dependencies": {
     "@harness/domain": "workspace:^",

@@ -1,0 +1,58 @@
+{
+  "runId": "run-coding-add-email-validation",
+  "sourceHash": "b2a1286a550399848bcaedf35acf7231f0eea3162ced9cf5a4e5fa56c85a4239",
+  "trajectory": {
+    "id": "run-coding-add-email-validation",
+    "taskId": "task-add-email-validation",
+    "agentType": "CODING_AGENT",
+    "modelUsed": "claude-sonnet-4-6",
+    "status": "COMPLETED",
+    "startTimestamp": "2026-08-19T00:00:00.000Z",
+    "endTimestamp": "2026-08-19T00:00:14.000Z",
+    "totalTokensUsed": 1840,
+    "steps": [
+      {
+        "type": "THOUGHT",
+        "stepIndex": 0,
+        "timestamp": "2026-08-19T00:00:00.000Z",
+        "content": "I need to add email validation. I'll create src/utils/validators.ts with an isValidEmail function and keep existing callers untouched.",
+        "modelUsed": "claude-sonnet-4-6",
+        "promptHash": "sha256:9f2e6e1b3c4d5e6f7a8b9c0d1e2f3a4b"
+      },
+      {
+        "type": "TOOL_CALL",
+        "stepIndex": 1,
+        "timestamp": "2026-08-19T00:00:03.000Z",
+        "toolName": "read_file",
+        "toolInput": { "path": "src/utils/validators.ts" },
+        "toolOutput": ""
+      },
+      {
+        "type": "TOOL_CALL",
+        "stepIndex": 2,
+        "timestamp": "2026-08-19T00:00:07.000Z",
+        "toolName": "write_file",
+        "toolInput": {
+          "path": "src/utils/validators.ts",
+          "content": "export function isValidEmail(v: string): boolean { return /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(v); }"
+        },
+        "toolOutput": "wrote src/utils/validators.ts (4 lines)"
+      },
+      {
+        "type": "OBSERVATION",
+        "stepIndex": 3,
+        "timestamp": "2026-08-19T00:00:08.000Z",
+        "content": "validators.ts now exists and exports isValidEmail."
+      },
+      {
+        "type": "THOUGHT",
+        "stepIndex": 4,
+        "timestamp": "2026-08-19T00:00:11.000Z",
+        "content": "isValidEmail is in place; no callers need migration. Task complete.",
+        "modelUsed": "claude-sonnet-4-6"
+      }
+    ],
+    "finalOutput": "Added isValidEmail to src/utils/validators.ts",
+    "artifactsChanged": ["src/utils/validators.ts"]
+  }
+}
