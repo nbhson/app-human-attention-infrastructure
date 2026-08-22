@@ -11,7 +11,7 @@ This table records the object graph built by `buildContainer()` (`apps/api/src/b
 - **Registered on** — day the registration (or its stub) first appeared.
 - **Resolved by** — who pulls this token out of the container.
 
-## Current graph (Phase 2 — Day 30)
+## Current graph (Phase 2 — complete, `v0.2.0-harness`)
 
 Ordered as `buildContainer()` registers them, i.e. topologically.
 

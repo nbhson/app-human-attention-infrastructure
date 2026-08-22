@@ -94,7 +94,38 @@ records the semantic order — is asserted end-to-end in the checkpoint.
 - **Checkpoint** — the scripted [Week-4 demo](scripts/demo/week4-shadow.md) and the
   numbers-first [Week-4 retrospective](docs/retros/week-04.md).
 
-Next up: [Day 21 — Object Store: S3/MinIO `ContentStore` (Spec 5 §4.2)](docs/plan/phase-2/day-21.md).
+### Phase 2 · Week 5 complete — Sandbox, object store, Spec 8
+
+Days 21–25 widened the *storage and isolation* substrate behind the seams Phase
+1 declared: a content-addressed `ContentStore` (S3/MinIO `ObjectStoreContentStore`
+with an in-memory dev fallback, large snapshots offloaded past a threshold), a
+container `SandboxedCheck` for verification with an in-process parity fallback, and
+Spec 8 (`docs/core/8_Human_Review_Interface_v0.1.md`) promoted. The **Week-5
+checkpoint** (day-25) wired the sandbox-fallback / object-integrity / cache-hit
+counters into the offline report so the new infra is *measured*, not just present.
+
+### Phase 2 · Week 6 complete — Harden, A/B dry-run, exit review
+
+Days 26–30 hardened the new infra (failure injection + concurrency), re-ran the
+full E2E under the Phase-2 stack, then closed the loop the phase existed to close.
+The **Week-6 A/B dry-run** (day-29) ran keyword vs semantic context ranking
+head-to-head behind the shadow harness: the ranks genuinely disagree
+(`rank_correlation = [-1.0, -1.0]`), the outcome is a toss-up, the guardrail HELD,
+and the honest call is *promote to a real A/B, not to the default*.
+
+### Phase 2 complete — metrics checkpoint & `v0.2.0-harness` tag
+
+**Phase 2 is complete** (Days 01–30, tagged `v0.2.0-harness`). The exit review
+([`docs/retros/phase2-metrics.md`](docs/retros/phase2-metrics.md)) marks 8 of 9 §7
+exit criteria ✓ with the ninth △: routing is measured (precision 0.333 / recall 0.5
+/ escalation-leakage 1.0 over N=4), the A/B harness reports a real head-to-head with
+no production effect, `rank_method` stays `keyword` by construction, auth + review +
+sanbox + object-store + Spec 8/10 are all green — but the fitted attention weights
+(log-loss 0.316) did *not* beat the Phase-1 placeholder (0.262), so calibration is
+carried into Phase 3 as backlog rather than claimed done. The full record of what
+held and what drifted is the [Week-6 retrospective](docs/retros/week-06.md).
+
+Next up: [Phase 3 — Learn & Automate Under Guardrails](docs/plan/phase-3/README.md), starting from the [Phase-3 backlog](docs/plan/phase-3/backlog.md).
 
 ## Quickstart
 
