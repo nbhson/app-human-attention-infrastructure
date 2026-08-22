@@ -24,6 +24,10 @@ for (const candidate of ['.env', '../../.env']) {
   }
 }
 
+/** The postgres.js handle `createDb` wraps; `DrizzleDB` drops it, so the CLI drains
+ * the pool here to let the process exit (parity with `report-cli.ts`). */
+type ClosableDb = { $client: { end: () => Promise<unknown> } };
+
 interface CliArgs {
   readonly from?: string;
   readonly to?: string;
@@ -63,10 +67,14 @@ async function main(): Promise<void> {
   }
 
   const db = createDb(connectionString);
-  const input = await loadMetricsInput(db, { from: fromDate, to: toDate });
-  const report = new MetricsComputer().compute(input);
-  applyGauges(report);
-  console.log(JSON.stringify(report, null, 2));
+  try {
+    const input = await loadMetricsInput(db, { from: fromDate, to: toDate });
+    const report = new MetricsComputer().compute(input);
+    applyGauges(report);
+    console.log(JSON.stringify(report, null, 2));
+  } finally {
+    await (db as unknown as ClosableDb).$client.end();
+  }
 }
 
 void main();

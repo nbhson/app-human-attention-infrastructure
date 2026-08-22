@@ -113,6 +113,7 @@ export default tseslint.config(
       'packages/evaluation/src/cli.ts',
       'packages/evaluation/src/report-cli.ts',
       'packages/evaluation/src/replay-cli.ts',
+      'packages/evaluation/src/ab-cli.ts',
       '**/*.test.ts',
       '**/__tests__/**',
     ],

@@ -297,7 +297,7 @@ It is the foundation that defines how the other ten subsystems interact.
 
 The **Evaluation Engine** closes the loop. Verification (7) answers "is this change correct?"; Evaluation (11) answers "is our pipeline — model, prompt, context, ranking, weights — actually good?", and feeds calibration back into Attention (6) and Context (4). Without it, the critical milestone's final step, *Learning*, has no owner.
 
-**Specification status (v0.2):** Subsystems 1–7, 9, and 11 have dedicated specifications in `docs/core/`. All seven Phase-1 specs (1–7) are at `v0.2` as of Day 29, reconciled against the built system. Subsystem 8 (Human Review Interface) and 10 (Observability / Governance) are implemented inside `docs/plan/phase-1/day-22..27` and are promoted to standalone specs in Phase 2.
+**Specification status (v0.2):** Subsystems 1–7, 9, and 11 have dedicated specifications in `docs/core/`. All seven Phase-1 specs (1–7) are at `v0.2` as of Day 29, reconciled against the built system. Subsystem 10 (Observability / Governance) was promoted to `docs/core/10_Observability_Governance_v0.1.md` on Day 10, authored from the as-built Weeks 1–2 code (identity, spans, metrics, audit, policy). Subsystem 8 (Human Review Interface) is implemented inside `docs/plan/phase-1/day-22..27` and is promoted to a standalone spec on Day 24.
 
 **As-built Phase 1 additions not in the original eleven:** three cross-cutting runtime pieces shipped in Days 27–28 and are documented here because they cut across almost every subsystem:
 

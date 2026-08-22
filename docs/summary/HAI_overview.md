@@ -93,10 +93,10 @@ Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (qua
 | 7 | **Verification Engine** | `docs/core/7_...` | Xác minh độc lập với AI: compile, test, lint — kèm evidence |
 | 8 | **Human Review Interface** | *(Phase 2 standalone)* | UI quyết định: APPROVE/REJECT + rationale (thiết kế trong `day-22..27`) |
 | 9 | **Memory/Evidence System** | `docs/core/9_...` | Claim ≠ Evidence; evidence append-only, bất biến, có content hash; Phase 3: versioned memory + write-back (forget/update cross-checked) |
-| 10 | **Observability/Governance** | *(Phase 2 standalone)* | Audit trail, metrics, policy enforcement |
+| 10 | **Observability/Governance** | `docs/core/10_...` | Audit trail, metrics, policy enforcement — Spec 10 được promote trên Day 10 (v0.1) |
 | 11 | **Evaluation Engine** 🔁 | `docs/core/11_...` | Đo pipeline (routing precision/recall, attention efficiency), A/B harness, calibration; Phase 3: benchmark corpus (gold labels) + LLM-as-judge (rubric-scored) → đóng loop Learning |
 
-Specs 1–7, 9, 11 đã có spec riêng. Spec 8 (Human Review Interface) và Spec 10 (Observability/Governance) được thiết kế chi tiết trong `docs/plan/phase-1/day-22..27` và sẽ được promote thành spec standalone trong Phase 2.
+Specs 1–7, 9, 11 đã có spec riêng. Spec 10 (Observability/Governance) được promote thành `docs/core/10_Observability_Governance_v0.1.md` trên Day 10. Spec 8 (Human Review Interface) được thiết kế chi tiết trong `docs/plan/phase-1/day-22..27` và sẽ được promote thành spec standalone trong Phase 2 (Day 24).
 
 > **Đối chiếu kỹ thuật nguồn:** xem `docs/summary/harness-fit-analysis.md` — bản đồ từ `AI-coding-skills-framework/harness` (11 chuyên đề + 4 mẫu DeepSeek Harness) sang 11 subsystem HAI: phần nào *đã hấp thụ*, phần nào *bổ sung* (kèm spec + phase), phần nào *tham khảo / loại*.
 
