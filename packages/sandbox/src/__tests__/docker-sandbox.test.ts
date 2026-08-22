@@ -26,7 +26,7 @@ import { appendFileSync } from 'node:fs';
 const argv = process.argv.slice(2);
 const log = process.env.FAKE_DOCKER_LOG;
 if (log) appendFileSync(log, JSON.stringify(argv) + '\\n');
-if (argv[0] === 'kill') process.exit(0);
+if (argv[0] === 'rm') process.exit(0);
 const mode = process.env.FAKE_DOCKER_MODE;
 if (mode === 'exit0') { process.stdout.write('compile ok\\n'); process.exit(0); }
 if (mode === 'exit3') { process.stderr.write('TS2322: boom\\n'); process.exit(3); }
@@ -113,7 +113,7 @@ describe('DockerSandbox.run (day-22 §3.2)', () => {
     await expect(sandbox.run(makeRun())).rejects.toBeInstanceOf(SandboxInfraError);
   });
 
-  it('reports timedOut and kills the container when the command hangs', async () => {
+  it('reports timedOut and force-removes the container when the command hangs', async () => {
     const { log, sandbox } = stubDocker('hang');
     const result = await sandbox.run(
       makeRun({ limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 0.2 } }),
@@ -123,10 +123,11 @@ describe('DockerSandbox.run (day-22 §3.2)', () => {
     expect(result.exitCode).toBe(137);
     expect(result.stderr).toContain('sandbox timed out after 0.2s');
 
-    // The container was killed by name (not left orphaned).
+    // The container was force-removed by name (not left orphaned) — day-26 §3.3.
     const args = readArgs(log);
-    const kill = args.find((argv) => argv[0] === 'kill');
-    expect(kill?.[1]).toMatch(/^harness-verify-/);
+    const rm = args.find((argv) => argv[0] === 'rm');
+    expect(rm?.[1]).toBe('-f');
+    expect(rm?.[2]).toMatch(/^harness-verify-/);
   });
 
   it('rejects with SandboxInfraError when the docker binary is missing', async () => {

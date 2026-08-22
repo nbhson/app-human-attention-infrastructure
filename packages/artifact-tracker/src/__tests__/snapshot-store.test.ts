@@ -1,8 +1,16 @@
+import type { Readable } from 'node:stream';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { agentRuns, artifacts, changes, projects, snapshots, tasks } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
-import { InMemoryContentStore, streamToString } from '@harness/object-store';
+import {
+  InMemoryContentStore,
+  ObjectStoreUnavailableError,
+  streamToString,
+} from '@harness/object-store';
+import type { ContentRef, ContentStore } from '@harness/object-store';
+import { resetInfraCounters, snapshotInfraCounters } from '@harness/observability';
 
 import { SnapshotStore, sha256 } from '../snapshot-store.js';
 import { insertChange, seedRun } from './helpers.js';
@@ -20,6 +28,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  resetInfraCounters();
   await testDb.db.delete(snapshots); // references changes
   await testDb.db.delete(changes); // references artifacts, agent_runs
   await testDb.db.delete(artifacts);
@@ -119,5 +128,68 @@ describe('SnapshotStore object-store offload (day-21 §3.4)', () => {
     expect(first.deduped).toBe(false);
     expect(second.deduped).toBe(true);
     expect(await testDb.db.select().from(snapshots)).toHaveLength(1);
+  });
+});
+
+describe('SnapshotStore object-store failure injection (day-26 §3.2)', () => {
+  /** An object backend that is down: every write throws the typed error. */
+  class DownObjectStore implements ContentStore {
+    async put(): Promise<ContentRef> {
+      throw new ObjectStoreUnavailableError('minio down');
+    }
+
+    async get(): Promise<Readable> {
+      throw new ObjectStoreUnavailableError('minio down');
+    }
+
+    async delete(): Promise<void> {}
+
+    async exists(): Promise<boolean> {
+      return false;
+    }
+  }
+
+  /** An object backend that fails with a *plain* error (not an availability event). */
+  class BugObjectStore implements ContentStore {
+    async put(): Promise<ContentRef> {
+      throw new Error('unexpected bug');
+    }
+
+    async get(): Promise<Readable> {
+      throw new Error('unexpected bug');
+    }
+
+    async delete(): Promise<void> {}
+
+    async exists(): Promise<boolean> {
+      return false;
+    }
+  }
+
+  it('fails closed on ObjectStoreUnavailableError, loud and without a partial snapshot row', async () => {
+    const seed = await seedRun(testDb.db);
+    const { changeId } = await insertChange(testDb.db, seed);
+    const store = new SnapshotStore(new DownObjectStore(), 10);
+    const content = 'a'.repeat(64); // over the tiny threshold → object path
+
+    await expect(store.save(testDb.db, changeId, content)).rejects.toBeInstanceOf(
+      ObjectStoreUnavailableError,
+    );
+
+    // Loud (Spec 10) and fail-closed: the error is counted and nothing is inserted.
+    expect(snapshotInfraCounters().objectStoreErrors).toBe(1);
+    expect(await testDb.db.select().from(snapshots)).toHaveLength(0);
+  });
+
+  it('does not count a plain bug as an object-store outage', async () => {
+    const seed = await seedRun(testDb.db);
+    const { changeId } = await insertChange(testDb.db, seed);
+    const store = new SnapshotStore(new BugObjectStore(), 10);
+    const content = 'a'.repeat(64);
+
+    await expect(store.save(testDb.db, changeId, content)).rejects.toThrow(/unexpected bug/);
+
+    expect(snapshotInfraCounters().objectStoreErrors).toBe(0);
+    expect(await testDb.db.select().from(snapshots)).toHaveLength(0);
   });
 });

@@ -153,6 +153,27 @@ describe('SandboxedCheck (day-22 §3.3)', () => {
     expect(warns[0]).toContain('falling back');
   });
 
+  it('rejects a redirect-reentrant fallback (inner is itself a SandboxedCheck)', () => {
+    const nested = new SandboxedCheck({
+      inner: innerPassing(),
+      sandbox: new FixedSandbox(result({ exitCode: 0 })),
+      image: 'harness-verify:node20',
+      buildCommand: () => ['bash', '-lc', 'tsc'],
+      limits: LIMITS,
+    });
+
+    expect(
+      () =>
+        new SandboxedCheck({
+          inner: nested,
+          sandbox: new FixedSandbox(new SandboxInfraError('Cannot connect to the Docker daemon')),
+          image: 'harness-verify:node20',
+          buildCommand: () => ['bash', '-lc', 'tsc'],
+          limits: LIMITS,
+        }),
+    ).toThrow(/redirect-reentrant/);
+  });
+
   it('parity: sandboxed and in-process verdicts agree on the same fixtures', async () => {
     const inner = new CompileCheck(60_000);
     const sandboxed = new SandboxedCheck({

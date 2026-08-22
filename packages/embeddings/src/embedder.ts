@@ -23,6 +23,21 @@ export interface EmbedError {
   readonly retryable: boolean;
 }
 
+/**
+ * The provider seam is contractually non-throwing (day-16 §2.2): unavailability
+ * is a typed {@link EmbedError}, never an exception. A *misbehaving* embedder —
+ * or a failure-injection fake — throws this, and the semantic retriever (day-26
+ * §3.1) converts it back into a graceful degrade: keyword is served, the shadow
+ * is skipped, and `context_semantic_fallback_total` is bumped.
+ */
+export class EmbeddingUnavailableError extends Error {
+  override readonly name = 'EmbeddingUnavailableError';
+
+  constructor(message = 'embedding provider unavailable') {
+    super(message);
+  }
+}
+
 /** The result of a batched {@link Embedder.embed}: success carries one vector
  * per input in the input's own order (callers rely on index alignment);
  * failure carries a typed error instead of a rejection. */

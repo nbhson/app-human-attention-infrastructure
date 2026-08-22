@@ -15,7 +15,8 @@
 
 import { contextSourceEmbeddings } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import type { Embedder } from '@harness/embeddings';
+import type { EmbedQueryResult, Embedder } from '@harness/embeddings';
+import { recordSemanticFallback } from '@harness/observability';
 
 /** One ranked neighbour: the stored row plus its cosine similarity to the query. */
 export interface SemanticCandidate {
@@ -52,9 +53,21 @@ export class SemanticRetriever {
 
   /** Embed `query` and return all populated candidates, best-match first. */
   async retrieve(query: string): Promise<SemanticCandidate[]> {
-    const queryResult = await this.embedder.embedQuery(query);
+    let queryResult: EmbedQueryResult;
+    try {
+      queryResult = await this.embedder.embedQuery(query);
+    } catch {
+      // Day-26 §3.1: a misbehaving embedder that violates the never-throw contract
+      // (or a failure-injection fake) degrades exactly like the typed `!ok` path —
+      // keyword is served, the shadow gets no semantic ranking, and the fallback is
+      // counted. Any throw means "semantic unavailable"; a flaky HTTP endpoint must
+      // never take down the keyword resolve.
+      recordSemanticFallback();
+      return [];
+    }
     if (!queryResult.ok) {
-      return []; // provider down → the shadow path degrades to an empty ranking
+      recordSemanticFallback(); // provider down (typed) → the shadow path degrades, counted.
+      return [];
     }
     const queryVector = queryResult.vector;
 

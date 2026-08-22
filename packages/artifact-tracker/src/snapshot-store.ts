@@ -33,7 +33,9 @@ import { brand, newSnapshotID } from '@harness/domain';
 import type { ChangeID, SnapshotID } from '@harness/domain';
 import { snapshots } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
+import { ObjectStoreUnavailableError } from '@harness/object-store';
 import type { ContentStore } from '@harness/object-store';
+import { recordObjectStoreError } from '@harness/observability';
 
 /** The query operations `save` needs: satisfied by both `DrizzleDB` and its transaction. */
 export type SnapshotExecutor = Pick<DrizzleDB, 'select' | 'insert'>;
@@ -88,10 +90,22 @@ export class SnapshotStore {
     let backend: SnapshotContentBackend = 'db';
     if (store !== undefined && sizeBytes > this.thresholdBytes) {
       backend = 'object';
-      await store.put(Buffer.from(content, 'utf8'), {
-        contentHash: hash,
-        sizeBytes,
-      });
+      try {
+        await store.put(Buffer.from(content, 'utf8'), {
+          contentHash: hash,
+          sizeBytes,
+        });
+      } catch (error) {
+        // Fail closed: the snapshot's bytes are its content-address — if they
+        // cannot be stored, the snapshot must not be recorded as if they were.
+        // An unavailable object store is the day-26 §3.2 failure surface, so it
+        // is *loud* (`object_store_error_total`) before it propagates. A plain
+        // bug or an integrity drift is not this signal, so it is merely rethrown.
+        if (error instanceof ObjectStoreUnavailableError) {
+          recordObjectStoreError();
+        }
+        throw error;
+      }
     }
 
     const id = newSnapshotID();

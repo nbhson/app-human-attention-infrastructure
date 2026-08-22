@@ -7,6 +7,13 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Day-26 §3.5: fallback-rate alerting lives beside the scrape config so a
+# degraded subsystem pages instead of quietly misbehaving (Spec 10). The whole
+# `infra/prometheus/` directory is bind-mounted at `/etc/prometheus`, so
+# `alerts.yml` resolves relative to this file.
+rule_files:
+  - alerts.yml
+
 scrape_configs:
   - job_name: harness
     metrics_path: /metrics

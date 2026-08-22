@@ -72,6 +72,8 @@ function toCachedSource(row: typeof contextSourceCache.$inferSelect): CachedSour
 export class PostgresContextCache implements ContextCache {
   private hits = 0;
   private misses = 0;
+  /** Day-26 §2.4: coalesce concurrent `set`s for the same (source, content). */
+  private readonly inFlightSets = new Map<string, Promise<void>>();
 
   constructor(private readonly db: DrizzleDB) {}
 
@@ -107,6 +109,25 @@ export class PostgresContextCache implements ContextCache {
   }
 
   async set(entry: CacheEntryInput): Promise<void> {
+    // Day-26 §2.4: coalesce concurrent sets for the same (source, content). The
+    // key includes the content_hash, so two *different* contents for one source
+    // still both write (last-wins on the upsert) while identical work dedupes.
+    const key = `${entry.sourceId}:${entry.contentHash}`;
+    const existing = this.inFlightSets.get(key);
+    if (existing) {
+      await existing;
+      return;
+    }
+    const write = this.writeEntry(entry);
+    this.inFlightSets.set(key, write);
+    try {
+      await write;
+    } finally {
+      this.inFlightSets.delete(key);
+    }
+  }
+
+  private async writeEntry(entry: CacheEntryInput): Promise<void> {
     await this.db
       .insert(contextSourceCache)
       .values({

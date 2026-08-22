@@ -17,9 +17,12 @@ import {
   recordCacheHit,
   recordCacheMiss,
   recordObjectIntegrityError,
+  recordObjectStoreError,
+  recordObjectStoreFallback,
   recordRouted,
   recordSandboxFallback,
   recordSandboxRun,
+  recordSemanticFallback,
   recordUsefulness,
   register,
   resetInfraCounters,
@@ -28,6 +31,9 @@ import {
   routed,
   sandboxFallback,
   sandboxRun,
+  semanticFallback,
+  objectStoreFallback,
+  objectStoreError,
   setGauge,
   snapshotInfraCounters,
   usefulness,
@@ -54,6 +60,9 @@ beforeEach(() => {
   sandboxRun.reset();
   sandboxFallback.reset();
   objectIntegrityError.reset();
+  semanticFallback.reset();
+  objectStoreFallback.reset();
+  objectStoreError.reset();
   resetInfraCounters();
   for (const gauge of gauges.values()) {
     gauge.reset();
@@ -178,6 +187,9 @@ describe('day-25 infra counters + snapshot', () => {
       sandboxFallbacks: 1,
       sandboxDurationMs: 2000,
       objectIntegrityErrors: 0,
+      semanticFallbacks: 0,
+      objectStoreFallbacks: 0,
+      objectStoreErrors: 0,
     });
   });
 
@@ -197,5 +209,27 @@ describe('day-25 infra counters + snapshot', () => {
     const snapshot = snapshotInfraCounters();
     expect(snapshot.cacheHits).toBe(2);
     expect(snapshot.cacheMisses).toBe(1);
+  });
+});
+
+describe('day-26 failure-injection counters (§3.1, §3.2)', () => {
+  it('semantic fallback lands on the counter and the snapshot', () => {
+    recordSemanticFallback();
+    recordSemanticFallback();
+
+    expect(snapshotInfraCounters().semanticFallbacks).toBe(2);
+    expect(register.getSingleMetric('harness_context_semantic_fallback_total')).toBeDefined();
+  });
+
+  it('object-store fallback and error counters mirror into the snapshot', () => {
+    recordObjectStoreFallback();
+    recordObjectStoreError();
+    recordObjectStoreError();
+
+    const snapshot = snapshotInfraCounters();
+    expect(snapshot.objectStoreFallbacks).toBe(1);
+    expect(snapshot.objectStoreErrors).toBe(2);
+    expect(register.getSingleMetric('harness_object_store_fallback_total')).toBeDefined();
+    expect(register.getSingleMetric('harness_object_store_error_total')).toBeDefined();
   });
 });

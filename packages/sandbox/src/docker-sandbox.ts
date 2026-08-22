@@ -111,9 +111,10 @@ export class DockerSandbox implements Sandbox {
       });
 
       const timer = setTimeout(() => {
-        // A SIGKILLed `docker run` parent leaves the container orphaned; kill it
-        // by name (the `--rm` flag then reclaims it) before reporting timeout.
-        void this.killContainer(containerName).finally(() => {
+        // A SIGKILLed `docker run` parent leaves the container orphaned; force-
+        // remove it by name (day-26 §3.3 — `rm -f` both kills and reclaims, so
+        // the `--rm` reaper's job is done even if the parent died first).
+        void this.harvestContainer(containerName).finally(() => {
           finish({
             exitCode: 137,
             stdout: cap(stdout),
@@ -151,11 +152,18 @@ export class DockerSandbox implements Sandbox {
     });
   }
 
-  private killContainer(name: string): Promise<void> {
+  /**
+   * Harvest a possibly-orphaned container by name (day-26 §3.3). `docker rm -f`
+   * force-stops and removes in one verb, so it is the single defensive step that
+   * covers the timeout path (and any future exit path) without relying on the
+   * parent `docker run` staying alive to honor `--rm`. Best-effort: a missing
+   * container or a down daemon resolves silently.
+   */
+  private harvestContainer(name: string): Promise<void> {
     return new Promise((resolve) => {
       let proc: ChildProcess;
       try {
-        proc = spawn(this.docker, ['kill', name], { stdio: 'ignore' });
+        proc = spawn(this.docker, ['rm', '-f', name], { stdio: 'ignore' });
       } catch {
         resolve();
         return;

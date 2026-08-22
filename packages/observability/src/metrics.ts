@@ -100,6 +100,27 @@ export const objectIntegrityError = new Counter({
   registers: [register],
 });
 
+/** Semantic shadow ranks that degraded to keyword (embedder unavailable, day-26 §3.1). */
+export const semanticFallback = new Counter({
+  name: 'harness_context_semantic_fallback_total',
+  help: 'Shadow semantic ranks that degraded to keyword because the embedder was unavailable.',
+  registers: [register],
+});
+
+/** Object-store writes that degraded to the inline db backend (day-26 §3.2). */
+export const objectStoreFallback = new Counter({
+  name: 'harness_object_store_fallback_total',
+  help: 'Object-store writes that degraded to the inline db backend (small enough to inline).',
+  registers: [register],
+});
+
+/** Object-store failures that surfaced as errors (day-26 §3.2). */
+export const objectStoreError = new Counter({
+  name: 'harness_object_store_error_total',
+  help: 'Object-store failures (unavailable) — the error_total side of the write path.',
+  registers: [register],
+});
+
 /**
  * Offline gauges, **set** (not incremented) by `@harness/evaluation` on Day 06.
  * Registered here so `/metrics` HELP lines exist for the whole Spec-11 inventory
@@ -168,6 +189,9 @@ interface InfraAccumulator {
   sandboxFallbacks: number;
   sandboxDurationMs: number;
   objectIntegrityErrors: number;
+  semanticFallbacks: number;
+  objectStoreFallbacks: number;
+  objectStoreErrors: number;
 }
 
 const infraAccumulator: InfraAccumulator = {
@@ -177,12 +201,17 @@ const infraAccumulator: InfraAccumulator = {
   sandboxFallbacks: 0,
   sandboxDurationMs: 0,
   objectIntegrityErrors: 0,
+  semanticFallbacks: 0,
+  objectStoreFallbacks: 0,
+  objectStoreErrors: 0,
 };
 
 /**
  * A point-in-time read of the continuous infra counters. Its field shape is the
  * structural twin of `@harness/evaluation`'s `InfraCounters`, so the snapshot
- * drops straight into `MetricsComputer.compute`.
+ * drops straight into `MetricsComputer.compute`. The Day-26 fields
+ * (`semanticFallbacks`, `objectStoreFallbacks`, `objectStoreErrors`) are the
+ * failure-injection liveness signals; evaluation may render or ignore them.
  */
 export interface InfraCountersSnapshot {
   readonly cacheHits: number;
@@ -191,6 +220,9 @@ export interface InfraCountersSnapshot {
   readonly sandboxFallbacks: number;
   readonly sandboxDurationMs: number;
   readonly objectIntegrityErrors: number;
+  readonly semanticFallbacks: number;
+  readonly objectStoreFallbacks: number;
+  readonly objectStoreErrors: number;
 }
 
 /** Read the current infra counter values for the report snapshot. */
@@ -206,6 +238,9 @@ export function resetInfraCounters(): void {
   infraAccumulator.sandboxFallbacks = 0;
   infraAccumulator.sandboxDurationMs = 0;
   infraAccumulator.objectIntegrityErrors = 0;
+  infraAccumulator.semanticFallbacks = 0;
+  infraAccumulator.objectStoreFallbacks = 0;
+  infraAccumulator.objectStoreErrors = 0;
 }
 
 /** Count a context-cache hit (a source served without a file read). */
@@ -242,4 +277,22 @@ export function observeSandboxDuration(seconds: number): void {
 export function recordObjectIntegrityError(): void {
   objectIntegrityError.inc();
   infraAccumulator.objectIntegrityErrors += 1;
+}
+
+/** A shadow semantic rank degraded to keyword (embedder unavailable, day-26 §3.1). */
+export function recordSemanticFallback(): void {
+  semanticFallback.inc();
+  infraAccumulator.semanticFallbacks += 1;
+}
+
+/** An object-store write degraded to the inline db backend (day-26 §3.2). */
+export function recordObjectStoreFallback(): void {
+  objectStoreFallback.inc();
+  infraAccumulator.objectStoreFallbacks += 1;
+}
+
+/** An object-store failure surfaced as an error (day-26 §3.2). */
+export function recordObjectStoreError(): void {
+  objectStoreError.inc();
+  infraAccumulator.objectStoreErrors += 1;
 }

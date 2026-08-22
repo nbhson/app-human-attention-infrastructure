@@ -47,6 +47,14 @@ export class SandboxedCheck implements VerificationCheck {
   readonly timeoutMs: number;
 
   constructor(private readonly options: SandboxedCheckOptions) {
+    // Day-26 §3.3: reject a redirect-reentrant fallback up front. If `inner` were
+    // itself a `SandboxedCheck`, a SandboxInfraError could loop fallback → fallback
+    // forever. The in-process parity path must be a plain VerificationCheck.
+    if (options.inner instanceof SandboxedCheck) {
+      throw new Error(
+        'SandboxedCheck.inner must not itself be a SandboxedCheck (redirect-reentrant fallback)',
+      );
+    }
     this.kind = options.inner.kind;
     this.timeoutMs = options.inner.timeoutMs;
   }

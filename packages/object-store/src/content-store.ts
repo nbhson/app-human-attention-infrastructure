@@ -43,6 +43,21 @@ export class ContentIntegrityError extends Error {
 }
 
 /**
+ * The object backend itself is unavailable (day-26 §3.2) — S3/MinIO down, a
+ * network drop, a missing bucket. Distinct from {@link ContentIntegrityError}
+ * (the store answered but the bytes drifted): an unavailable store may trigger a
+ * *degrade* (route to `db`) where a drifted object must *fail closed*. Consumers
+ * catch this to fall back; they never catch it to mask a data bug.
+ */
+export class ObjectStoreUnavailableError extends Error {
+  override readonly name = 'ObjectStoreUnavailableError';
+
+  constructor(message = 'object store unavailable') {
+    super(message);
+  }
+}
+
+/**
  * A content-addressed byte store. `get` returns a streaming, hash-verified
  * {@link Readable}; the caller owns draining it.
  */

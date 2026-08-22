@@ -8,6 +8,7 @@
  */
 
 import { readdir, readFile, stat } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
 import { join, sep } from 'node:path';
 
 import { sha256 } from './freshness.js';
@@ -80,6 +81,9 @@ export function isExcludedPath(sourceId: string): boolean {
 }
 
 export class FileCollector {
+  /** Day-26 §3.4 single-flight: coalesce concurrent reads of one sourceId. */
+  private readonly inFlight = new Map<string, Promise<string>>();
+
   constructor(
     private readonly rootDir: string,
     /** Read-optimization leaf (day-20 §2.1); omitted means always re-read. */
@@ -137,6 +141,24 @@ export class FileCollector {
       }
     }
 
+    // Day-26 §3.4 — single-flight the miss: concurrent collects of the same source
+    // coalesce onto one read+set. The cache fast-path above is untouched, so a stat
+    // hit still needs zero reads; only a genuine miss reaches the shared load.
+    const existing = this.inFlight.get(sourceId);
+    if (existing) {
+      return existing;
+    }
+    const load = this.loadSource(absPath, sourceId, info);
+    this.inFlight.set(sourceId, load);
+    try {
+      return await load;
+    } finally {
+      this.inFlight.delete(sourceId);
+    }
+  }
+
+  /** The shared miss path: read the file, hash it, and store once per source. */
+  private async loadSource(absPath: string, sourceId: string, info: Stats): Promise<string> {
     const content = await readFile(absPath, 'utf8');
     if (this.cache) {
       await this.cache.set({

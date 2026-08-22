@@ -1,6 +1,7 @@
 import type { Readable } from 'node:stream';
 
 import type { ContentRef, ContentStore, PutMeta } from './content-store.js';
+import { ObjectStoreUnavailableError } from './content-store.js';
 import { verifyOnRead } from './streams.js';
 
 /**
@@ -15,11 +16,20 @@ export interface S3ClientPort {
   deleteObject(key: string): Promise<void>;
 }
 
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * The S3/MinIO {@link ContentStore} backend (day-21 §2.4). Every object is
  * stored under its SHA-256 (`prefix + hash`), so identical bytes share exactly
  * one key — dedup for free. `get` streams the object back through a hash
  * verify, rejecting with `ContentIntegrityError` on drift.
+ *
+ * Day-26 §3.2: a port-level failure (network, missing bucket, daemon down) is
+ * surfaced as {@link ObjectStoreUnavailableError} so the routing store and
+ * `SnapshotStore` can degrade or fail closed — distinct from the
+ * {@link ContentIntegrityError} a *tampered* object raises on read.
  */
 export class ObjectStoreContentStore implements ContentStore {
   constructor(
@@ -28,21 +38,40 @@ export class ObjectStoreContentStore implements ContentStore {
   ) {}
 
   async put(content: Buffer, meta: PutMeta): Promise<ContentRef> {
-    await this.port.putObject(this.keyFor(meta.contentHash), content, meta.sizeBytes);
+    try {
+      await this.port.putObject(this.keyFor(meta.contentHash), content, meta.sizeBytes);
+    } catch (error) {
+      throw new ObjectStoreUnavailableError(`object store put failed: ${messageOf(error)}`);
+    }
     return { hash: meta.contentHash, backend: 'object' };
   }
 
   async get(ref: ContentRef): Promise<Readable> {
-    const body = await this.port.getObject(this.keyFor(ref.hash));
+    let body: Readable;
+    try {
+      body = await this.port.getObject(this.keyFor(ref.hash));
+    } catch (error) {
+      throw new ObjectStoreUnavailableError(`object store get failed: ${messageOf(error)}`);
+    }
+    // Integrity drift surfaces later, on drain, as ContentIntegrityError — a
+    // data event, not an availability event, so it is deliberately not wrapped.
     return verifyOnRead(body, ref.hash);
   }
 
   async delete(ref: ContentRef): Promise<void> {
-    await this.port.deleteObject(this.keyFor(ref.hash));
+    try {
+      await this.port.deleteObject(this.keyFor(ref.hash));
+    } catch (error) {
+      throw new ObjectStoreUnavailableError(`object store delete failed: ${messageOf(error)}`);
+    }
   }
 
   async exists(ref: ContentRef): Promise<boolean> {
-    return this.port.objectExists(this.keyFor(ref.hash));
+    try {
+      return await this.port.objectExists(this.keyFor(ref.hash));
+    } catch (error) {
+      throw new ObjectStoreUnavailableError(`object store exists failed: ${messageOf(error)}`);
+    }
   }
 
   private keyFor(hash: string): string {
