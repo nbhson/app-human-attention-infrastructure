@@ -38,6 +38,7 @@ import type {
 } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { withSpan } from '@harness/observability';
 import { agentRuns, taskStateHistory, trajectorySteps } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 
@@ -124,60 +125,73 @@ export class AgentRunner {
       throw new Error(`task not found: ${taskId}`);
     }
 
-    // Claim the task (QUEUED → EXECUTING) before creating the run row.
-    await this.taskService.transitionTask(taskId, TaskStatus.Executing, 'agent_runtime');
+    // Claim the task (QUEUED → EXECUTING) before creating the run row. The whole
+    // run is traced as one `agent.run` span bound to the task's correlation id —
+    // the runtime poll loop has no ambient context, so it is bound here (day-03
+    // §2.1). Child spans (llm.completion) form the lineage off this parent.
+    return withSpan<void>(
+      {
+        spanName: 'agent.run',
+        ctx: { correlationId: taskId, taskId },
+        attributes: { 'harness.agent.agent_type': 'react' },
+      },
+      async (span) => {
+        await this.taskService.transitionTask(taskId, TaskStatus.Executing, 'agent_runtime');
 
-    const runId = newAgentRunID();
-    await this.db.insert(agentRuns).values({
-      id: runId,
-      task_id: taskId,
-      correlation_id: taskId,
-      attempt_number: task.attemptNumber,
-      status: AgentRunStatus.Executing,
-      max_steps: this.maxSteps,
-      steps_used: 0,
-      current_step: 0,
-      escalation_reason: null,
-    });
+        const runId = newAgentRunID();
+        span.setAttribute('harness.agent.run_id', runId);
+        await this.db.insert(agentRuns).values({
+          id: runId,
+          task_id: taskId,
+          correlation_id: taskId,
+          attempt_number: task.attemptNumber,
+          status: AgentRunStatus.Executing,
+          max_steps: this.maxSteps,
+          steps_used: 0,
+          current_step: 0,
+          escalation_reason: null,
+        });
 
-    const loop = new ReActLoop(
-      this.llm,
-      this.tools,
-      new TokenBudget(this.tokenLimit),
-      this.maxSteps,
-      this.recorder,
+        const loop = new ReActLoop(
+          this.llm,
+          this.tools,
+          new TokenBudget(this.tokenLimit),
+          this.maxSteps,
+          this.recorder,
+        );
+
+        const systemPrompt = await this.buildSystemPrompt(task);
+
+        const previousRejection = await this.previousRejectionRationale(taskId);
+
+        let result: ReActResult;
+        try {
+          result = await loop.run(
+            systemPrompt,
+            buildUserMessage(task, previousRejection),
+            runId,
+            brand(taskId, 'CorrelationID'),
+          );
+        } catch (error) {
+          if (error instanceof TokenBudgetExceededError) {
+            await this.escalate(taskId, runId, 'TOKEN_BUDGET_EXCEEDED', startedAt);
+            return;
+          }
+          await this.db
+            .update(agentRuns)
+            .set({ status: AgentRunStatus.Failed, finished_at: new Date() })
+            .where(eq(agentRuns.id, runId));
+          throw error;
+        }
+
+        if (result.stopReason === 'end_turn') {
+          await this.complete(taskId, runId, result, startedAt);
+          return;
+        }
+
+        await this.escalate(taskId, runId, 'MAX_STEPS_EXCEEDED', startedAt);
+      },
     );
-
-    const systemPrompt = await this.buildSystemPrompt(task);
-
-    const previousRejection = await this.previousRejectionRationale(taskId);
-
-    let result: ReActResult;
-    try {
-      result = await loop.run(
-        systemPrompt,
-        buildUserMessage(task, previousRejection),
-        runId,
-        brand(taskId, 'CorrelationID'),
-      );
-    } catch (error) {
-      if (error instanceof TokenBudgetExceededError) {
-        await this.escalate(taskId, runId, 'TOKEN_BUDGET_EXCEEDED', startedAt);
-        return;
-      }
-      await this.db
-        .update(agentRuns)
-        .set({ status: AgentRunStatus.Failed, finished_at: new Date() })
-        .where(eq(agentRuns.id, runId));
-      throw error;
-    }
-
-    if (result.stopReason === 'end_turn') {
-      await this.complete(taskId, runId, result, startedAt);
-      return;
-    }
-
-    await this.escalate(taskId, runId, 'MAX_STEPS_EXCEEDED', startedAt);
   }
 
   /** Append any injected context prompt to the base system prompt (day-21 §2.2). */

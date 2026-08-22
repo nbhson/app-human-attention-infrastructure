@@ -21,6 +21,7 @@
     "@harness/domain": "workspace:*",
     "@harness/event-bus": "workspace:*",
     "@harness/orchestrator": "workspace:*",
+    "@harness/observability": "workspace:*",
     "@harness/review": "workspace:*",
     "@harness/verification-engine": "workspace:*",
     "drizzle-orm": "^0.45.2",

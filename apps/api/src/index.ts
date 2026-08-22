@@ -12,6 +12,7 @@ import type { DispatchLoop, TaskService } from '@harness/orchestrator';
 
 import { buildApp } from './app.js';
 import { bootContainer, buildContainer } from './bootstrap.js';
+import { initApiTracing } from './observability.js';
 import { reconcileOrphans } from './reconcile.js';
 
 // Best-effort `.env` loading (mirrors packages/db/src/env.ts): `pnpm dev` runs
@@ -31,6 +32,9 @@ for (const candidate of ['.env', '../../.env']) {
 // Build the object graph and resolve the core infrastructure eagerly so a
 // missing DATABASE_URL or broken wiring fails fast at boot, not on first use.
 const container = buildContainer();
+// Bootstrap the OpenTelemetry provider FIRST (day-03 §3.2) so the very first
+// `http.request` span — the earliest any code can touch — has a tracer ready.
+initApiTracing(container);
 const app = buildApp(container, { logger: true });
 for (const token of Object.values(TOKENS)) {
   app.log.info(`di: registered token "${token}"`);

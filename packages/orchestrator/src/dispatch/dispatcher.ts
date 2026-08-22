@@ -23,6 +23,7 @@ import { dispatchLog, tasks } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { withSpan } from '@harness/observability';
 
 import { TaskService } from '../task-service.js';
 
@@ -116,7 +117,17 @@ export class Dispatcher {
     for (const claim of claims) {
       const toState = claim.exhausted ? TaskStatus.Failed : TaskStatus.Queued;
       const taskId = brand(claim.id, 'TaskID');
-      await this.taskService.transitionTask(taskId, toState, 'orchestrator');
+      // `task.id` IS the correlation id (day-27 §2.2), and the dispatch loop
+      // runs off a poll timer with no ambient context, so bind it here (day-03
+      // §2.1 — the store leaks across await, but not across a loop tick).
+      await withSpan(
+        {
+          spanName: 'task.dispatch',
+          ctx: { correlationId: claim.id, taskId },
+          attributes: { 'harness.task.exhausted': claim.exhausted },
+        },
+        () => this.taskService.transitionTask(taskId, toState, 'orchestrator'),
+      );
       if (claim.exhausted) {
         // An exhausted REWORK reaching FAILED by max-attempts is a terminal
         // failure too (§2.4): publish `task.failed` so downstream observers

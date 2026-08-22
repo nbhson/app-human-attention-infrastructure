@@ -44,6 +44,7 @@ import type {
 } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { withSpan } from '@harness/observability';
 import type { Logger } from '@harness/di';
 
 import {
@@ -261,71 +262,86 @@ export class ReviewService {
       throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
     }
 
-    const decision =
-      input.decision === 'APPROVE' ? HumanDecisionType.Approved : HumanDecisionType.Rejected;
-    const target = input.decision === 'APPROVE' ? TaskStatus.Approved : TaskStatus.Rejected;
+    const correlationId = row.task_id;
+    return withSpan(
+      {
+        spanName: 'review.decide',
+        ctx: { correlationId, taskId: brand(row.task_id, 'TaskID') },
+        attributes: {
+          'harness.review.queue_id': queueId,
+          'harness.review.decision': input.decision,
+        },
+      },
+      async () => {
+        const decision =
+          input.decision === 'APPROVE' ? HumanDecisionType.Approved : HumanDecisionType.Rejected;
+        const target = input.decision === 'APPROVE' ? TaskStatus.Approved : TaskStatus.Rejected;
 
-    // 1. Guarded queue flip: CLAIMED → DECIDED (a second decide is a state error).
-    const flipped = await this.db
-      .update(reviewQueue)
-      .set({ status: ReviewQueueStatus.Decided })
-      .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)))
-      .returning({ id: reviewQueue.id });
-    if (flipped.length === 0) {
-      throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
-    }
+        // 1. Guarded queue flip: CLAIMED → DECIDED (a second decide is a state error).
+        const flipped = await this.db
+          .update(reviewQueue)
+          .set({ status: ReviewQueueStatus.Decided })
+          .where(
+            and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)),
+          )
+          .returning({ id: reviewQueue.id });
+        if (flipped.length === 0) {
+          throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
+        }
 
-    // 2. Record the decision (auditable, never silent).
-    const decisionId = newDecisionID();
-    const changeId = brand(row.change_id, 'ChangeID');
-    const assessmentId = brand(row.assessment_id, 'AssessmentID');
-    await this.db.insert(decisions).values({
-      id: decisionId,
-      correlation_id: row.task_id,
-      change_id: changeId,
-      assessment_id: assessmentId,
-      decision,
-      reviewer_id: input.reviewerId,
-      actor_id: input.actorId,
-      actor_email: input.actorEmail,
-      rationale: input.rationale,
-    });
+        // 2. Record the decision (auditable, never silent).
+        const decisionId = newDecisionID();
+        const changeId = brand(row.change_id, 'ChangeID');
+        const assessmentId = brand(row.assessment_id, 'AssessmentID');
+        await this.db.insert(decisions).values({
+          id: decisionId,
+          correlation_id: row.task_id,
+          change_id: changeId,
+          assessment_id: assessmentId,
+          decision,
+          reviewer_id: input.reviewerId,
+          actor_id: input.actorId,
+          actor_email: input.actorEmail,
+          rationale: input.rationale,
+        });
 
-    // 3. Drive the task transition (injected seam → TaskService).
-    await this.taskTransition.transitionTask(brand(row.task_id, 'TaskID'), target, 'human', {
-      rationale: input.rationale,
-      expectedFrom: TaskStatus.AwaitingReview,
-    });
+        // 3. Drive the task transition (injected seam → TaskService).
+        await this.taskTransition.transitionTask(brand(row.task_id, 'TaskID'), target, 'human', {
+          rationale: input.rationale,
+          expectedFrom: TaskStatus.AwaitingReview,
+        });
 
-    // 4. Publish the event; ChangeStatusSubscriber flips the change → REVIEWED.
-    //    event_version 2 (day-02 §2.4): `actor_id` added; `reviewer_id` kept so
-    //    Phase-1 consumers stay unbroken.
-    const payload: DecisionSubmittedPayload = {
-      decision_id: decisionId,
-      change_id: changeId,
-      decision,
-      reviewer_id: input.reviewerId,
-      actor_id: input.actorId,
-    };
-    this.bus.publish(
-      createEvent(EventType.DecisionSubmitted, brand(row.task_id, 'CorrelationID'), payload, 2),
+        // 4. Publish the event; ChangeStatusSubscriber flips the change → REVIEWED.
+        //    event_version 2 (day-02 §2.4): `actor_id` added; `reviewer_id` kept so
+        //    Phase-1 consumers stay unbroken.
+        const payload: DecisionSubmittedPayload = {
+          decision_id: decisionId,
+          change_id: changeId,
+          decision,
+          reviewer_id: input.reviewerId,
+          actor_id: input.actorId,
+        };
+        this.bus.publish(
+          createEvent(EventType.DecisionSubmitted, brand(row.task_id, 'CorrelationID'), payload, 2),
+        );
+
+        // 5. Feed the alert-fatigue loop — best-effort, must not roll back the decision.
+        try {
+          await this.reportFeedback.reportAssessmentFeedback(
+            assessmentId,
+            input.wasUseful,
+            input.comment,
+          );
+        } catch (error) {
+          this.logger?.error('review: record feedback failed (best-effort)', {
+            correlation_id: row.task_id,
+            error: String(error),
+          });
+        }
+
+        return this.getDetail(queueId);
+      },
     );
-
-    // 5. Feed the alert-fatigue loop — best-effort, must not roll back the decision.
-    try {
-      await this.reportFeedback.reportAssessmentFeedback(
-        assessmentId,
-        input.wasUseful,
-        input.comment,
-      );
-    } catch (error) {
-      this.logger?.error('review: record feedback failed (best-effort)', {
-        correlation_id: row.task_id,
-        error: String(error),
-      });
-    }
-
-    return this.getDetail(queueId);
   }
 
   /** Drop a QUEUED/CLAIMED item; the rationale is recorded, never silent (§2.1). */

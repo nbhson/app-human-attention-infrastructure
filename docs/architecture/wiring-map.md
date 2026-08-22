@@ -66,6 +66,19 @@ Order matters — `reconcileOrphans` must run before `dispatchLoop.start()` /
 `runtimePollLoop.start()`, or an orphaned `EXECUTING`/`VERIFYING` row could be
 double-run (day-28 §6).
 
+### Tracing bootstrap (not a DI token)
+
+Day-03's OpenTelemetry provider is deliberately **not** container-injected: the
+tracer/metric provider is a module-global singleton owned by
+`@harness/observability` (`initTracing` / `getTracer` / `getMeter`), so there are
+no `TOKENS.Tracer` / `TOKENS.Meter` entries. `apps/api/src/index.ts` calls
+`initApiTracing(container)` as its **first** line (after `buildContainer`) so a
+provider exists before the first request; it reads only `Db` to wire the
+`trace_correlation` write-through. `buildApp` then registers the `http.request`
+span hook (`apps/api/src/trace.ts`, `registerTraceHook`) ahead of the auth hook,
+so identity + handler work sit under one per-request root span. Engines get
+spans by importing `@harness/observability` directly — no token indirection.
+
 ## Eager resolution (`bootContainer`)
 
 Registrations are lazy, but bus subscriptions are **side effects** — so

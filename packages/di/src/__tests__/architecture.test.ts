@@ -73,4 +73,26 @@ describe('dependency rules (Spec 1 §5)', () => {
       ['@harness/domain', '@harness/db', '@harness/event-bus', '@harness/di'].sort(),
     );
   });
+
+  it('R8: @harness/observability depends only on domain, db, di — and every engine depends on observability', () => {
+    // Sandboxed to the shared infra + the db schema needed by the trace
+    // write-through. It must NOT pull in an engine.
+    const onlyShared = ['@harness/domain', '@harness/db', '@harness/di'].sort();
+    expect(harnessDependencies('observability').sort()).toEqual(onlyShared);
+
+    // Every *telemetry-carrying* engine instruments through the single
+    // observability package (their spans are what make a task traceable
+    // end-to-end), so each must declare the dependency. `context-engine` and
+    // `artifact-tracker` do not yet emit spans (day-03 scope), so they are not
+    // on this list.
+    const instrumenting = [
+      'orchestrator',
+      'agent-runtime',
+      'attention-engine',
+      'verification-engine',
+    ] as const;
+    for (const engine of instrumenting) {
+      expect(harnessDependencies(engine)).toContain('@harness/observability');
+    }
+  });
 });

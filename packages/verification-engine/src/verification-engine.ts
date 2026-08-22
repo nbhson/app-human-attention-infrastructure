@@ -38,6 +38,7 @@ import {
 import type { DrizzleDB } from '@harness/db';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { withSpan } from '@harness/observability';
 
 import { readInt } from './env.js';
 import { EvidenceKind, EvidenceStore, EvidenceSubjectKind } from './evidence-store.js';
@@ -79,6 +80,28 @@ export class VerificationEngine {
   /** Verify one change; returns the persisted + published report. */
   async verify(changeId: ChangeID): Promise<VerificationReport> {
     const ctx = await this.buildContext(changeId);
+    // One `verification.run` span per change, bound to the task's correlation id
+    // (== tasks.id, day-27 §2.2). buildContext already resolved the task, so the
+    // span's attributes are set once rather than inside every check.
+    return withSpan(
+      {
+        spanName: 'verification.run',
+        ctx: { correlationId: ctx.taskId, taskId: ctx.taskId },
+        attributes: {
+          'harness.verification.change_id': changeId,
+          'harness.verification.check_kind': this.options.checks
+            .map((check) => check.kind)
+            .join(','),
+        },
+      },
+      () => this.verifyInContext(ctx, changeId),
+    );
+  }
+
+  private async verifyInContext(
+    ctx: ResolvedContext,
+    changeId: ChangeID,
+  ): Promise<VerificationReport> {
     const started = Date.now();
 
     const runCheck = async (check: VerificationCheck): Promise<CheckResult> => {

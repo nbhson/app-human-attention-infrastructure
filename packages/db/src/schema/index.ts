@@ -22,6 +22,7 @@ export * from './task-state-history.js';
 export * from './task-step-log.js';
 export * from './tasks.js';
 export * from './trajectory-steps.js';
+export * from './trace-correlation.js';
 export * from './users.js';
 export * from './verification-requests.js';
 export * from './verification-results.js';

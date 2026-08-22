@@ -30,6 +30,7 @@ const elements = [
   { type: 'di', pattern: 'packages/di/**' },
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
+  { type: 'observability', pattern: 'packages/observability/**' },
   ...ENGINE_TYPES.map((type) => ({ type, pattern: `packages/${type}/**` })),
   { type: 'app', pattern: 'apps/**' },
 ];
@@ -44,10 +45,16 @@ const elementTypesRules = [
   { from: 'event-bus', allow: ['domain', 'event-bus'] },
   { from: 'db', allow: ['domain', 'event-bus', 'db'] },
   { from: 'di', allow: [...SHARED, 'di'] },
-  { from: 'review', allow: [...SHARED, 'review'] },
+  { from: 'review', allow: [...SHARED, 'observability', 'review'] },
   { from: 'auth', allow: [...SHARED, 'auth'] },
-  ...ENGINE_TYPES.map((type) => ({ from: type, allow: [...SHARED, type] })),
-  { from: 'app', allow: [...SHARED, 'auth', 'review', ...ENGINE_TYPES, 'app'] },
+  {
+    from: 'observability',
+    // Same depth as shared infra: reads types/ids from domain, and the
+    // trace write-through needs the db schema for the mapping row.
+    allow: [...SHARED, 'observability'],
+  },
+  ...ENGINE_TYPES.map((type) => ({ from: type, allow: [...SHARED, 'observability', type] })),
+  { from: 'app', allow: [...SHARED, 'auth', 'review', 'observability', ...ENGINE_TYPES, 'app'] },
 ];
 
 export default tseslint.config(

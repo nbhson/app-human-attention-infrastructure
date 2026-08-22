@@ -32,6 +32,7 @@ import { brand, EventType, newAssessmentID, TaskStatus } from '@harness/domain';
 import type { AssessmentCreatedPayload, TaskID, TaskStateChangedPayload } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { withSpan } from '@harness/observability';
 import type { Logger } from '@harness/di';
 
 import {
@@ -80,6 +81,25 @@ export class AttentionSubscriber {
    * re-score paths) can drive it directly without a bus event.
    */
   async assess(taskId: TaskID): Promise<AttentionAssessment | null> {
+    // The assess path runs off a bus subscriber callback (no ambient context),
+    // so bind the task's correlation here (day-03 §2.1).
+    return withSpan(
+      {
+        spanName: 'attention.assess',
+        ctx: { correlationId: taskId, taskId },
+      },
+      async (span) => {
+        const assessment = await this.assessCore(taskId);
+        if (assessment) {
+          span.setAttribute('harness.attention.change_id', assessment.changeId);
+          span.setAttribute('harness.attention.label', assessment.label);
+        }
+        return assessment;
+      },
+    );
+  }
+
+  private async assessCore(taskId: TaskID): Promise<AttentionAssessment | null> {
     const changeRows = await this.db
       .select({
         id: changes.id,
