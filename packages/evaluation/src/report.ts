@@ -79,3 +79,34 @@ export interface MetricsReport {
   readonly routing: RoutingMetrics;
   readonly efficiency: EfficiencyMetrics;
 }
+
+/**
+ * One flattened metric line in a generated report (day-07 §2.1): the current
+ * window value, its prior-window baseline, the delta, a direction, and — when a
+ * threshold is crossed — a human-readable guardrail note.
+ */
+export interface MetricLine {
+  /** Dotted metric key, e.g. `"routing.precision"`. */
+  readonly key: string;
+  /** Current-window value; `undefined` is the honest hole (no NaN/0 padding). */
+  readonly value: number | undefined;
+  /** Prior-window value; `undefined` when there is no baseline to compare. */
+  readonly previousValue: number | undefined;
+  /** `value - previousValue`; `undefined` when either side is missing. */
+  readonly delta: number | undefined;
+  /** Delta-derived direction — never model-derived (day-07 §2.1). */
+  readonly trend: 'UP' | 'DOWN' | 'FLAT' | 'UNKNOWN';
+  /** Human string emitted when a threshold is crossed (never an auto-action). */
+  readonly guardrail?: string;
+}
+
+/**
+ * The flat, human-readable report a generated window produces (day-07 §2.1).
+ * `lines` is the stable 5-metric flattening of a {@link MetricsReport}; `window`
+ * and `generatedAt` make every report self-describing and trend-attributable.
+ */
+export interface EvaluationReport {
+  readonly window: { readonly from: string; readonly to: string };
+  readonly generatedAt: string;
+  readonly lines: readonly MetricLine[];
+}

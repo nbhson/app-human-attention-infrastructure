@@ -16,6 +16,7 @@
     "load:smoke": "pnpm --filter @harness/db migrate && pnpm --filter @harness/api exec tsx scripts/load-smoke.ts",
     "audit:orphans": "pnpm --filter @harness/db audit:orphans",
     "eval:metrics": "pnpm --filter @harness/evaluation eval:metrics",
+    "eval:report": "pnpm --filter @harness/evaluation eval:report",
     "dev": "turbo run dev",
     "prepare": "simple-git-hooks"
   },

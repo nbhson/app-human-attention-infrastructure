@@ -12,3 +12,8 @@ export { MetricsComputer, applyGauges } from './metrics-computer.js';
 export * from './labels.js';
 export { loadMetricsInput } from './loader.js';
 export type { MetricsWindow } from './loader.js';
+export { ReportGenerator, EmptyWindowError } from './report-generator.js';
+export { ReportStore } from './report-store.js';
+export type { StoredReport } from './report-store.js';
+export { ReportScheduler, nodeCron, NOOP_CRON } from './scheduler.js';
+export type { CronLike, ReportTick } from './scheduler.js';

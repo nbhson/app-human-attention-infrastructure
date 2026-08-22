@@ -111,6 +111,7 @@ export default tseslint.config(
       'packages/db/src/seed.ts',
       'packages/db/src/audit-orphans.ts',
       'packages/evaluation/src/cli.ts',
+      'packages/evaluation/src/report-cli.ts',
       '**/*.test.ts',
       '**/__tests__/**',
     ],

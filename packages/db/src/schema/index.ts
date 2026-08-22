@@ -12,6 +12,7 @@ export * from './decisions.js';
 export * from './dispatch-log.js';
 export * from './event-log.js';
 export * from './evidence.js';
+export * from './evaluation-reports.js';
 export * from './llm-call-log.js';
 export * from './projects.js';
 export * from './retry-log.js';
