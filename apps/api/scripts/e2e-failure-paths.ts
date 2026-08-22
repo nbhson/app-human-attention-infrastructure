@@ -58,6 +58,7 @@ import {
   projects,
   tasks,
   trajectorySteps,
+  users,
   verificationReports,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -199,13 +200,14 @@ async function waitFor(
  */
 async function waitForQueueItem(
   app: ReturnType<typeof buildApp>,
+  cookie: string,
   taskId: string,
   label: string,
 ): Promise<QueueItemJson> {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const queue = (
-      await app.inject({ method: 'GET', url: '/api/review/queue' })
+      await app.inject({ method: 'GET', url: '/api/review/queue', headers: { cookie } })
     ).json() as QueueItemJson[];
     const item = queue.find((entry) => entry.taskId === taskId);
     if (item) {
@@ -255,6 +257,37 @@ async function truncateAll(db: DrizzleDB): Promise<void> {
       END LOOP;
     END $$;
   `);
+}
+
+// Day-02 guarding: every review route now rides a real authenticated session.
+// Each scenario truncates the public schema (wiping `users`), so the REVIEWER
+// principal is re-seeded and a fresh `sid` cookie minted per scenario.
+const E2E_SUB = 'e2e-reviewer';
+const E2E_USER_ID = 'e2e-user-0000-0000-0000-000000000001';
+
+/** Seed the REVIEWER principal the guarded review routes require. */
+async function seedReviewer(db: DrizzleDB): Promise<void> {
+  await db.insert(users).values({
+    id: E2E_USER_ID,
+    oidc_sub: E2E_SUB,
+    email: 'e2e@example.com',
+    display_name: 'E2E Reviewer',
+    roles: ['OPERATOR', 'REVIEWER'],
+  });
+}
+
+/** Complete the mock OIDC login and return the `sid` cookie. */
+async function mockLoginCookie(app: ReturnType<typeof buildApp>): Promise<string> {
+  const login = await app.inject({ method: 'GET', url: '/api/auth/login' });
+  const location = new URL(login.headers.location!);
+  const callback = await app.inject({
+    method: 'GET',
+    url: `/api/auth/callback?code=${location.searchParams.get('code')}&state=${location.searchParams.get('state')}`,
+  });
+  if (callback.statusCode !== 200) {
+    throw new Error(`[e2e] mock login failed: ${callback.statusCode}: ${callback.body}`);
+  }
+  return callback.headers['set-cookie']!.toString().split(';')[0]!;
 }
 
 /** Set scenario env vars; agent limits are reset per scenario (no leakage). */
@@ -531,6 +564,8 @@ async function scenario3(): Promise<void> {
   installProvider(container, new MockLLM(FIX_SCRIPT));
   bootContainer(container);
   const app = buildApp(container);
+  await seedReviewer(db);
+  const cookie = await mockLoginCookie(app);
   const dispatchLoop = container.resolve<DispatchLoop>(TOKENS.DispatchLoop);
   const runtimeLoop = container.resolve<RuntimePollLoop>(TOKENS.RuntimePollLoop);
 
@@ -549,7 +584,12 @@ async function scenario3(): Promise<void> {
     assert((await reportVerdict(db, taskId)) === 'PASSED', 's3: overall != PASSED');
     assert((await reportFlaky(db, taskId)) === true, 's3: report not flaky');
 
-    const item = await waitForQueueItem(app, taskId, 's3: task routed into the review queue');
+    const item = await waitForQueueItem(
+      app,
+      cookie,
+      taskId,
+      's3: task routed into the review queue',
+    );
     assert(item.ruleId === 'r3-flaky', `s3: rule = ${item.ruleId}`);
   } finally {
     dispatchLoop.stop();
@@ -651,6 +691,8 @@ async function scenario6(): Promise<void> {
   installProvider(container, mock);
   bootContainer(container);
   const app = buildApp(container);
+  await seedReviewer(db);
+  const cookie = await mockLoginCookie(app);
   const dispatchLoop = container.resolve<DispatchLoop>(TOKENS.DispatchLoop);
   const runtimeLoop = container.resolve<RuntimePollLoop>(TOKENS.RuntimePollLoop);
 
@@ -667,19 +709,25 @@ async function scenario6(): Promise<void> {
       's6: task → AWAITING_REVIEW (attempt 1)',
     );
 
-    const item = await waitForQueueItem(app, taskId, 's6: task routed into the review queue');
+    const item = await waitForQueueItem(
+      app,
+      cookie,
+      taskId,
+      's6: task routed into the review queue',
+    );
 
     const claim = await app.inject({
       method: 'POST',
       url: `/api/review/queue/${item.id}/claim`,
-      payload: { reviewerId: 'e2e-reviewer' },
+      headers: { cookie },
     });
     assert(claim.statusCode === 200, `s6: claim → ${claim.statusCode}: ${claim.body}`);
 
     const decide = await app.inject({
       method: 'POST',
       url: `/api/review/queue/${item.id}/decide`,
-      payload: { decision: 'REJECT', rationale, wasUseful: true, reviewerId: 'e2e-reviewer' },
+      headers: { cookie },
+      payload: { decision: 'REJECT', rationale, wasUseful: true },
     });
     assert(decide.statusCode === 200, `s6: decide → ${decide.statusCode}: ${decide.body}`);
 
@@ -714,6 +762,8 @@ async function scenario7(): Promise<void> {
   installProvider(container, new MockLLM(FIX_SCRIPT));
   bootContainer(container);
   const app = buildApp(container);
+  await seedReviewer(db);
+  const cookie = await mockLoginCookie(app);
   const dispatchLoop = container.resolve<DispatchLoop>(TOKENS.DispatchLoop);
   const runtimeLoop = container.resolve<RuntimePollLoop>(TOKENS.RuntimePollLoop);
 
@@ -728,7 +778,12 @@ async function scenario7(): Promise<void> {
       's7: task → AWAITING_REVIEW',
     );
 
-    const item = await waitForQueueItem(app, taskId, 's7: task routed into the review queue');
+    const item = await waitForQueueItem(
+      app,
+      cookie,
+      taskId,
+      's7: task routed into the review queue',
+    );
 
     // Dirty the working tree so the merge must refuse to commit.
     writeFileSync(join(workDir, 'dirty.txt'), 'uncommitted change\n');
@@ -736,18 +791,18 @@ async function scenario7(): Promise<void> {
     const claim = await app.inject({
       method: 'POST',
       url: `/api/review/queue/${item.id}/claim`,
-      payload: { reviewerId: 'e2e-reviewer' },
+      headers: { cookie },
     });
     assert(claim.statusCode === 200, `s7: claim → ${claim.statusCode}: ${claim.body}`);
 
     const decide = await app.inject({
       method: 'POST',
       url: `/api/review/queue/${item.id}/decide`,
+      headers: { cookie },
       payload: {
         decision: 'APPROVE',
         rationale: 'lgtm',
         wasUseful: true,
-        reviewerId: 'e2e-reviewer',
       },
     });
     assert(decide.statusCode === 200, `s7: decide → ${decide.statusCode}: ${decide.body}`);
@@ -835,6 +890,13 @@ async function main(): Promise<void> {
 
   // Force a deterministic agent for the whole suite.
   delete process.env.ANTHROPIC_API_KEY;
+
+  // Deterministic identity (day-02): mock OIDC with a fixed subject; each
+  // scenario re-seeds that principal (truncate wipes `users`) and logs in.
+  process.env.OIDC_MOCK = 'true';
+  process.env.MOCK_OIDC_SUB = E2E_SUB;
+  process.env.MOCK_OIDC_EMAIL = 'e2e@example.com';
+  process.env.MOCK_OIDC_NAME = 'E2E Reviewer';
 
   // One shared connection used only to reset the stack between scenarios. Each
   // scenario is self-contained, but its loop-based siblings (S3/S6/S7/S8) poll

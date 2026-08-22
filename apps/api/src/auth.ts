@@ -15,6 +15,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import { AuthService } from '@harness/auth';
 import type { AuthContext } from '@harness/domain';
+import { runWithActor } from '@harness/domain';
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 
@@ -50,23 +51,37 @@ export function randomToken(bytes = 32): string {
 
 /** Register the identity-establishing onRequest hook over the container. */
 export function registerAuthHook(app: FastifyInstance, container: Container): void {
-  app.addHook('onRequest', async (request: FastifyRequest) => {
-    const authService = container.resolve<AuthService>(TOKENS.AuthService);
-
-    const bearer = request.headers.authorization;
-    if (bearer && bearer.startsWith('Bearer ')) {
+  // `done`-style on purpose: `runWithActor(...)` wraps the rest of the request
+  // (downstream hooks + handler) in an AsyncLocalStorage context that seeds
+  // `event_log.actor_id` for every event emitted inside an authenticated request
+  // (day-02 §2.3). An async hook can't hold that context across the handler.
+  app.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
+    void (async () => {
       try {
-        request.auth = await authService.validateAccessToken(bearer.slice(7));
-      } catch {
-        request.auth = undefined; // an invalid token is treated as absent for this hook
-      }
-      return;
-    }
+        const authService = container.resolve<AuthService>(TOKENS.AuthService);
 
-    const sid = readCookie(request.headers.cookie, 'sid');
-    if (sid) {
-      request.auth =
-        (await authService.resolveSessionContext(sid as AuthContext['sid'])) ?? undefined;
-    }
+        const bearer = request.headers.authorization;
+        if (bearer && bearer.startsWith('Bearer ')) {
+          try {
+            request.auth = await authService.validateAccessToken(bearer.slice(7));
+          } catch {
+            request.auth = undefined; // an invalid token is treated as absent for this hook
+          }
+          return;
+        }
+
+        const sid = readCookie(request.headers.cookie, 'sid');
+        if (sid) {
+          request.auth =
+            (await authService.resolveSessionContext(sid as AuthContext['sid'])) ?? undefined;
+        } else {
+          request.auth = undefined;
+        }
+      } catch (error) {
+        done(error as Error);
+        return;
+      }
+      runWithActor(request.auth?.user.id, () => done());
+    })();
   });
 }

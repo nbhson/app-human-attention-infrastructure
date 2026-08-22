@@ -1,4 +1,4 @@
-import { EventType, type EventEnvelope } from '@harness/domain';
+import { EventType, currentActorId, type EventEnvelope } from '@harness/domain';
 import type { IEventBus } from '@harness/event-bus';
 
 import type { DrizzleDB } from './client.js';
@@ -28,6 +28,8 @@ export class EventLogWriter {
 
   /** Insert one event; a duplicate `event_id` is a silent no-op (idempotent). */
   async write<T>(event: EventEnvelope<T>): Promise<void> {
+    // The actor is envelope *metadata*, read from the request-scoped context
+    // (day-02 §2.3) — set only while an authenticated request is publishing.
     await this.db
       .insert(eventLog)
       .values({
@@ -36,6 +38,7 @@ export class EventLogWriter {
         event_version: event.event_version,
         occurred_at: event.occurred_at,
         correlation_id: event.correlation_id,
+        actor_id: currentActorId() ?? null,
         payload: event.payload,
       })
       .onConflictDoNothing();

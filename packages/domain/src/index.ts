@@ -22,6 +22,7 @@ export * from './review.js';
 
 // Identity model (Phase 2 day-01).
 export * from './identity.js';
+export * from './actor-context.js';
 
 // Read-models.
 export * from './provenance.js';

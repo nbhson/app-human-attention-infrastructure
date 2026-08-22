@@ -22,6 +22,7 @@ import {
   projects,
   reviewQueue,
   tasks,
+  users,
 } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 import {
@@ -35,6 +36,7 @@ import {
   newReviewQueueItemID,
   newReviewerID,
   newTaskID,
+  newUserID,
   ReviewQueueStatus,
   TaskStatus,
 } from '@harness/domain';
@@ -58,6 +60,10 @@ import {
 import type { FeedbackReporter, TaskTransition } from '../index.js';
 
 const SCHEMA = 'harness_test_review_pkg';
+
+// Day-02 actor identity: a stable principal every deciding call is attributed to.
+const ACTOR_ID = newUserID();
+const ACTOR_EMAIL = 'reviewer-a@example.com';
 
 let testDb: TestDb;
 let bus: IEventBus;
@@ -94,6 +100,17 @@ beforeEach(async () => {
   await testDb.db.delete(tasks);
   await testDb.db.delete(projects);
   await testDb.db.delete(eventLog);
+  // Seed (then re-seed across tests) the actor principal so that
+  // `decisions.actor_id`'s FK to users is satisfiable. Deleted last because
+  // decisions/event_log reference it.
+  await testDb.db.delete(users);
+  await testDb.db.insert(users).values({
+    id: ACTOR_ID,
+    oidc_sub: `mock|${ACTOR_ID}`,
+    email: ACTOR_EMAIL,
+    display_name: 'Reviewer A',
+    roles: ['REVIEWER'],
+  });
 });
 
 interface Seed {
@@ -230,6 +247,8 @@ describe('ReviewService', () => {
       wasUseful: true,
       comment: 'good',
       reviewerId: reviewer,
+      actorId: ACTOR_ID,
+      actorEmail: ACTOR_EMAIL,
     });
 
     expect(detail.status).toBe(ReviewQueueStatus.Decided);
@@ -255,6 +274,8 @@ describe('ReviewService', () => {
     expect(decisionRows[0]).toMatchObject({
       decision: 'APPROVED',
       reviewer_id: reviewer,
+      actor_id: ACTOR_ID,
+      actor_email: ACTOR_EMAIL,
       rationale: 'LGTM',
     });
   });
@@ -269,6 +290,8 @@ describe('ReviewService', () => {
       rationale: 'bad',
       wasUseful: false,
       reviewerId: reviewer,
+      actorId: ACTOR_ID,
+      actorEmail: ACTOR_EMAIL,
     });
 
     expect(transitionSpy).toHaveBeenCalledWith(taskId, TaskStatus.Rejected, 'human', {
@@ -286,6 +309,8 @@ describe('ReviewService', () => {
         rationale: 'x',
         wasUseful: true,
         reviewerId: newReviewerID(),
+        actorId: ACTOR_ID,
+        actorEmail: ACTOR_EMAIL,
       }),
     ).rejects.toBeInstanceOf(QueueStateError);
   });
@@ -294,7 +319,12 @@ describe('ReviewService', () => {
     const { queueId } = await seedQueuedItem();
 
     await expect(
-      service.drop(queueId, { rationale: '   ', reviewerId: newReviewerID() }),
+      service.drop(queueId, {
+        rationale: '   ',
+        reviewerId: newReviewerID(),
+        actorId: ACTOR_ID,
+        actorEmail: ACTOR_EMAIL,
+      }),
     ).rejects.toBeInstanceOf(MissingRationaleError);
   });
 
@@ -302,7 +332,12 @@ describe('ReviewService', () => {
     const { changeId, queueId } = await seedQueuedItem();
     const reviewer = newReviewerID();
 
-    await service.drop(queueId, { rationale: 'superseded', reviewerId: reviewer });
+    await service.drop(queueId, {
+      rationale: 'superseded',
+      reviewerId: reviewer,
+      actorId: ACTOR_ID,
+      actorEmail: ACTOR_EMAIL,
+    });
 
     const queueRows = await testDb.db.select().from(reviewQueue);
     expect(queueRows).toHaveLength(1);
@@ -314,6 +349,7 @@ describe('ReviewService', () => {
       decision: HumanDecisionType.Deferred,
       change_id: changeId,
       reviewer_id: reviewer,
+      actor_id: ACTOR_ID,
       rationale: 'superseded',
     });
   });
@@ -327,10 +363,17 @@ describe('ReviewService', () => {
       rationale: 'ok',
       wasUseful: true,
       reviewerId: reviewer,
+      actorId: ACTOR_ID,
+      actorEmail: ACTOR_EMAIL,
     });
 
     await expect(
-      service.drop(queueId, { rationale: 'x', reviewerId: reviewer }),
+      service.drop(queueId, {
+        rationale: 'x',
+        reviewerId: reviewer,
+        actorId: ACTOR_ID,
+        actorEmail: ACTOR_EMAIL,
+      }),
     ).rejects.toBeInstanceOf(QueueStateError);
   });
 });

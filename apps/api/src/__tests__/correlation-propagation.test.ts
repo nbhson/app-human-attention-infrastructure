@@ -35,6 +35,7 @@ import {
   projects,
   reviewQueue,
   tasks,
+  users,
   verificationReports,
   EventLogWriter,
 } from '@harness/db';
@@ -49,6 +50,7 @@ import {
   newChangeID,
   newProjectID,
   newReviewQueueItemID,
+  newUserID,
   ReviewQueueStatus,
   TaskStatus,
 } from '@harness/domain';
@@ -221,11 +223,21 @@ describe('correlation-id propagation', () => {
       },
       { reportAssessmentFeedback: async () => {} },
     );
+    const actorId = newUserID();
+    await db.insert(users).values({
+      id: actorId,
+      oidc_sub: `mock|${actorId}`,
+      email: 'reviewer@example.com',
+      display_name: 'Reviewer',
+      roles: ['REVIEWER'],
+    });
     await review.decide(brand(queueItemId, 'ReviewQueueItemID'), {
       decision: 'APPROVE',
       rationale: 'looks correct',
       wasUseful: true,
       reviewerId: brand('reviewer-1', 'ReviewerID'),
+      actorId,
+      actorEmail: 'reviewer@example.com',
     });
 
     // 5. Flush the fire-and-forget event writer, then assert the invariant.

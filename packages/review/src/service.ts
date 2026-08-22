@@ -286,6 +286,8 @@ export class ReviewService {
       assessment_id: assessmentId,
       decision,
       reviewer_id: input.reviewerId,
+      actor_id: input.actorId,
+      actor_email: input.actorEmail,
       rationale: input.rationale,
     });
 
@@ -296,14 +298,17 @@ export class ReviewService {
     });
 
     // 4. Publish the event; ChangeStatusSubscriber flips the change → REVIEWED.
+    //    event_version 2 (day-02 §2.4): `actor_id` added; `reviewer_id` kept so
+    //    Phase-1 consumers stay unbroken.
     const payload: DecisionSubmittedPayload = {
       decision_id: decisionId,
       change_id: changeId,
       decision,
       reviewer_id: input.reviewerId,
+      actor_id: input.actorId,
     };
     this.bus.publish(
-      createEvent(EventType.DecisionSubmitted, brand(row.task_id, 'CorrelationID'), payload),
+      createEvent(EventType.DecisionSubmitted, brand(row.task_id, 'CorrelationID'), payload, 2),
     );
 
     // 5. Feed the alert-fatigue loop — best-effort, must not roll back the decision.
@@ -352,6 +357,8 @@ export class ReviewService {
       assessment_id: brand(row.assessment_id, 'AssessmentID'),
       decision: HumanDecisionType.Deferred,
       reviewer_id: input.reviewerId,
+      actor_id: input.actorId,
+      actor_email: input.actorEmail,
       rationale: input.rationale,
     });
   }

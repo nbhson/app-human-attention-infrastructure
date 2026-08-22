@@ -3,13 +3,11 @@
  * endpoints exposed by `apps/api`. All review logic lives on the server; this
  * module only serialises requests and parses responses.
  *
- * The reviewer identity comes from `VITE_REVIEWER_ID` (Phase-1 env-configured
- * name; SSO is Phase 2). Every mutating call sends it as `reviewerId` in the
- * body, matching the Day-22 route contract.
+ * Identity is the httpOnly `sid` session cookie set by `/api/auth/*` (day-02
+ * §2.2): the days of sending a fabricated `VITE_REVIEWER_ID` / `reviewerId` body
+ * are gone — the server sources the reviewer from `request.auth`. The browser
+ * must log in once (SSO) and the cookie rides along on every request.
  */
-
-/** The reviewer name, from the environment (day-23 §2.4). */
-export const REVIEWER_ID = import.meta.env.VITE_REVIEWER_ID ?? 'reviewer-1';
 
 const BASE = '/api/review';
 
@@ -127,7 +125,7 @@ function post<T>(path: string, body: unknown): Promise<T> {
   return json<T>(
     fetch(`${BASE}${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-reviewer-id': REVIEWER_ID },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     }),
   );
@@ -144,12 +142,12 @@ export const reviewApi = {
     return json<EvidenceRecord>(fetch(`${BASE}/evidence/${id}`));
   },
   claim(id: string): Promise<QueueItemDetail> {
-    return post<QueueItemDetail>(`/queue/${id}/claim`, { reviewerId: REVIEWER_ID });
+    return post<QueueItemDetail>(`/queue/${id}/claim`, {});
   },
   decide(id: string, input: DecideInput): Promise<QueueItemDetail> {
-    return post<QueueItemDetail>(`/queue/${id}/decide`, { ...input, reviewerId: REVIEWER_ID });
+    return post<QueueItemDetail>(`/queue/${id}/decide`, { ...input });
   },
   drop(id: string, rationale: string): Promise<{ ok: boolean }> {
-    return post<{ ok: boolean }>(`/queue/${id}/drop`, { rationale, reviewerId: REVIEWER_ID });
+    return post<{ ok: boolean }>(`/queue/${id}/drop`, { rationale });
   },
 };

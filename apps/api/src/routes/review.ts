@@ -1,17 +1,24 @@
 /**
- * Review HTTP routes (day-22 §3) — the thin Fastify surface over
- * {@link ReviewService}.
+ * Review HTTP routes (day-22 §3, day-02 §3.3) — the thin Fastify surface over
+ * {@link ReviewService}, now guarded.
  *
- * The service owns the domain logic and the guarded writes; these routes only
- * coerce raw params/body into branded ids and map the review-specific errors
- * onto 4xx status codes (day-22 §3.3): not-found → 404, claim/decide/drop on the
- * wrong state → 409, missing rationale → 400. Anything else is left to Fastify's
- * default 500 handler.
+ * The service owns the domain logic and the guarded writes; these routes coerce
+ * raw params/bodies into branded ids and map review-specific errors onto 4xx
+ * status codes (day-22 §3.3): not-found → 404, wrong-state → 409, missing
+ * rationale → 400.
+ *
+ * Day 02 adds authorization: every mutating (and the queue/detail) route is
+ * wrapped in {@link requireRole}, and the reviewer/actor identity comes from the
+ * authenticated principal (`request.auth.user`), never from a header or body —
+ * the Phase-1 `X-Reviewer-Id` / body `reviewerId` path is gone.
  */
 
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
-import { brand } from '@harness/domain';
+import { brand, Role } from '@harness/domain';
+import { requireRole } from '@harness/auth';
+import { TOKENS } from '@harness/di';
+import type { Container } from '@harness/di';
 import {
   EvidenceNotFoundError,
   MissingRationaleError,
@@ -23,19 +30,14 @@ import {
 } from '@harness/review';
 
 /** Raw shapes the routes accept; the service re-brands what it needs. */
-interface ClaimBody {
-  readonly reviewerId: string;
-}
 interface DecideBody {
   readonly decision: 'APPROVE' | 'REJECT';
   readonly rationale: string;
   readonly wasUseful: boolean;
   readonly comment?: string;
-  readonly reviewerId: string;
 }
 interface DropBody {
   readonly rationale: string;
-  readonly reviewerId: string;
 }
 
 /** Map a review failure onto the right HTTP status (day-22 §3.3). */
@@ -55,10 +57,15 @@ function toErrorReply(reply: FastifyReply, error: unknown): FastifyReply {
   throw error;
 }
 
-/** Register the five review endpoints under `/api/review`. */
-export function registerReviewRoutes(app: FastifyInstance, reviewService: ReviewService): void {
-  app.get<{ Querystring: { status?: string } }>('/api/review/queue', async (request) =>
-    reviewService.listQueue(request.query.status),
+/** Register the review endpoints under `/api/review`. */
+export function registerReviewRoutes(app: FastifyInstance, container: Container): void {
+  const reviewService = container.resolve<ReviewService>(TOKENS.ReviewService);
+  const canReview = requireRole(container, Role.Reviewer, Role.Admin);
+
+  app.get<{ Querystring: { status?: string } }>(
+    '/api/review/queue',
+    { preHandler: requireRole(container, Role.Reviewer, Role.Admin) },
+    async (request) => reviewService.listQueue(request.query.status),
   );
 
   app.get<{ Params: { id: string } }>('/api/review/evidence/:id', async (request, reply) => {
@@ -70,23 +77,28 @@ export function registerReviewRoutes(app: FastifyInstance, reviewService: Review
     }
   });
 
-  app.get<{ Params: { id: string } }>('/api/review/queue/:id', async (request, reply) => {
-    try {
-      const { id } = request.params;
-      return await reviewService.getDetail(brand(id, 'ReviewQueueItemID'));
-    } catch (error) {
-      return toErrorReply(reply, error);
-    }
-  });
+  app.get<{ Params: { id: string } }>(
+    '/api/review/queue/:id',
+    { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        return await reviewService.getDetail(brand(id, 'ReviewQueueItemID'));
+      } catch (error) {
+        return toErrorReply(reply, error);
+      }
+    },
+  );
 
-  app.post<{ Params: { id: string }; Body: ClaimBody }>(
+  app.post<{ Params: { id: string } }>(
     '/api/review/queue/:id/claim',
+    { preHandler: canReview },
     async (request, reply) => {
       try {
         const { id } = request.params;
         return await reviewService.claim(
           brand(id, 'ReviewQueueItemID'),
-          brand(request.body.reviewerId, 'ReviewerID'),
+          brand(request.auth!.user.id, 'ReviewerID'),
         );
       } catch (error) {
         return toErrorReply(reply, error);
@@ -96,16 +108,20 @@ export function registerReviewRoutes(app: FastifyInstance, reviewService: Review
 
   app.post<{ Params: { id: string }; Body: DecideBody }>(
     '/api/review/queue/:id/decide',
+    { preHandler: canReview },
     async (request, reply) => {
       try {
         const { id } = request.params;
         const body = request.body;
+        const { user } = request.auth!;
         return await reviewService.decide(brand(id, 'ReviewQueueItemID'), {
           decision: body.decision,
           rationale: body.rationale,
           wasUseful: body.wasUseful,
           ...(body.comment === undefined ? {} : { comment: body.comment }),
-          reviewerId: brand(body.reviewerId, 'ReviewerID'),
+          reviewerId: brand(user.id, 'ReviewerID'),
+          actorId: user.id,
+          actorEmail: user.email,
         });
       } catch (error) {
         return toErrorReply(reply, error);
@@ -115,12 +131,16 @@ export function registerReviewRoutes(app: FastifyInstance, reviewService: Review
 
   app.post<{ Params: { id: string }; Body: DropBody }>(
     '/api/review/queue/:id/drop',
+    { preHandler: canReview },
     async (request, reply) => {
       try {
         const { id } = request.params;
+        const { user } = request.auth!;
         await reviewService.drop(brand(id, 'ReviewQueueItemID'), {
           rationale: request.body.rationale,
-          reviewerId: brand(request.body.reviewerId, 'ReviewerID'),
+          reviewerId: brand(user.id, 'ReviewerID'),
+          actorId: user.id,
+          actorEmail: user.email,
         });
         return { ok: true };
       } catch (error) {

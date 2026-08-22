@@ -19,6 +19,7 @@ import type {
   TaskID,
   TaskStatus,
   TaskTrigger,
+  UserID,
 } from '@harness/domain';
 
 /** The two reviewer decisions accepted by the Phase-1 API (day-22 §2.1). */
@@ -33,12 +34,18 @@ export interface DecisionInput {
   readonly wasUseful: boolean;
   readonly comment?: string;
   readonly reviewerId: ReviewerID;
+  /** The authenticated actor (day-02 §3.4); the route sources it from `req.auth`. */
+  readonly actorId: UserID;
+  /** Denormalised convenience for Week-2 reporting joins. */
+  readonly actorEmail: string;
 }
 
 /** A dropped queue item's required input (day-22 §2.1 — never silent). */
 export interface DropInput {
   readonly rationale: string;
   readonly reviewerId: ReviewerID;
+  readonly actorId: UserID;
+  readonly actorEmail: string;
 }
 
 /** The structural seam onto the task state machine (injected; R6). */

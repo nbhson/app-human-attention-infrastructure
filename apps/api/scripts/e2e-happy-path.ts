@@ -37,6 +37,7 @@ import {
   eventLog,
   evidence,
   tasks,
+  users,
   verificationReports,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -51,6 +52,20 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const FIXTURE_DIR = join(REPO_ROOT, 'fixtures/e2e/happy-path');
 const SANDBOX_ROOT = join(REPO_ROOT, 'sandbox/e2e-happy-path');
 const WORKING_REPO = join(REPO_ROOT, 'working-repo');
+
+/** Complete the mock OIDC login and return the `sid` cookie (day-02 guarding). */
+async function mockLoginCookie(app: ReturnType<typeof buildApp>): Promise<string> {
+  const login = await app.inject({ method: 'GET', url: '/api/auth/login' });
+  const location = new URL(login.headers.location!);
+  const callback = await app.inject({
+    method: 'GET',
+    url: `/api/auth/callback?code=${location.searchParams.get('code')}&state=${location.searchParams.get('state')}`,
+  });
+  if (callback.statusCode !== 200) {
+    throw new Error(`[e2e] mock login failed: ${callback.statusCode}: ${callback.body}`);
+  }
+  return callback.headers['set-cookie']!.toString().split(';')[0]!;
+}
 
 /** The causal milestones whose presence + relative order the run must prove. */
 const MILESTONES = [
@@ -252,6 +267,13 @@ async function main(): Promise<void> {
   process.env.SANDBOX_ROOT = SANDBOX_ROOT;
   process.env.WORKING_REPO_ROOT = WORKING_REPO;
 
+  // Deterministic identity (day-02): mock OIDC with a fixed subject; the user row
+  // seeded below carries the REVIEWER role the guarded review routes require.
+  process.env.OIDC_MOCK = 'true';
+  process.env.MOCK_OIDC_SUB = 'e2e-reviewer';
+  process.env.MOCK_OIDC_EMAIL = 'e2e@example.com';
+  process.env.MOCK_OIDC_NAME = 'E2E Reviewer';
+
   prepareSandbox();
   await prepareWorkingRepo();
 
@@ -259,10 +281,23 @@ async function main(): Promise<void> {
   const db = container.resolve<DrizzleDB>(TOKENS.Db);
   await truncateAll(db);
 
+  // Seed the REVIEWER principal ahead of the first login so findOrCreateUser
+  // preserves (rather than resets) its roles.
+  const e2eUserId = 'e2e-user-0000-0000-0000-000000000001';
+  await db.insert(users).values({
+    id: e2eUserId,
+    oidc_sub: 'e2e-reviewer',
+    email: 'e2e@example.com',
+    display_name: 'E2E Reviewer',
+    roles: ['OPERATOR', 'REVIEWER'],
+  });
+
   // Bind subscribers (and decision services) before the first task is created.
   bootContainer(container);
 
   const app = buildApp(container);
+  // Complete a mock login once; every guarded review call rides this session.
+  const cookie = await mockLoginCookie(app);
   const dispatchLoop = container.resolve<DispatchLoop>(TOKENS.DispatchLoop);
   const runtimeLoop = container.resolve<RuntimePollLoop>(TOKENS.RuntimePollLoop);
   dispatchLoop.start(100);
@@ -309,7 +344,11 @@ async function main(): Promise<void> {
     let item: QueueItemJson | undefined;
     await waitFor(
       async () => {
-        const queueRes = await app.inject({ method: 'GET', url: '/api/review/queue' });
+        const queueRes = await app.inject({
+          method: 'GET',
+          url: '/api/review/queue',
+          headers: { cookie },
+        });
         assert(queueRes.statusCode === 200, `GET /api/review/queue → ${queueRes.statusCode}`);
         const queue = queueRes.json() as QueueItemJson[];
         item = queue.find((entry) => entry.taskId === taskId);
@@ -321,22 +360,23 @@ async function main(): Promise<void> {
     assert(item !== undefined, 'task was not routed into the review queue');
     assert(item.ruleId.length > 0, 'queue item missing rule_id');
 
-    // 5. Drive the human decision: claim, then approve.
+    // 5. Drive the human decision: claim, then approve. Identity rides the session
+    //    cookie; the reviewerId the Phase-1 routes read from the body is gone.
     const claimRes = await app.inject({
       method: 'POST',
       url: `/api/review/queue/${item.id}/claim`,
-      payload: { reviewerId: 'e2e-reviewer' },
+      headers: { cookie },
     });
     assert(claimRes.statusCode === 200, `claim → ${claimRes.statusCode}: ${claimRes.body}`);
 
     const decideRes = await app.inject({
       method: 'POST',
       url: `/api/review/queue/${item.id}/decide`,
+      headers: { cookie },
       payload: {
         decision: 'APPROVE',
         rationale: 'the fix is correct',
         wasUseful: true,
-        reviewerId: 'e2e-reviewer',
       },
     });
     assert(decideRes.statusCode === 200, `decide → ${decideRes.statusCode}: ${decideRes.body}`);

@@ -21,6 +21,7 @@ import {
   projects,
   reviewQueue,
   tasks,
+  users,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import {
@@ -38,6 +39,7 @@ import {
   newReviewQueueItemID,
   newReviewerID,
   newTaskID,
+  newUserID,
   ReviewQueueStatus,
   TaskStatus,
 } from '@harness/domain';
@@ -193,6 +195,7 @@ describe('Day-28 C5 — double decide', () => {
   it('two concurrent decides: one wins, one conflicts, exactly one decision row', async () => {
     const { queueId } = await seedQueuedItem();
     const reviewer = newReviewerID();
+    const actorId = newUserID();
 
     const transitionSpy = vi.fn();
     const reportSpy = vi.fn();
@@ -202,11 +205,22 @@ describe('Day-28 C5 — double decide', () => {
     // Setup: one reviewer claims the item first.
     await svcA.claim(queueId, reviewer);
 
+    // The claim is attributed to a real principal (decisions.actor_id FK).
+    await testDb.db.insert(users).values({
+      id: actorId,
+      oidc_sub: `mock|${actorId}`,
+      email: 'reviewer@example.com',
+      display_name: 'Reviewer',
+      roles: ['REVIEWER'],
+    });
+
     const input = {
       decision: 'APPROVE' as const,
       rationale: 'LGTM',
       wasUseful: true,
       reviewerId: reviewer,
+      actorId,
+      actorEmail: 'reviewer@example.com',
     };
 
     const results = await Promise.allSettled([

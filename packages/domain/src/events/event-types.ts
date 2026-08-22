@@ -22,6 +22,7 @@ export const EventType = {
   AttentionThresholdAdjusted: 'attention.threshold_adjusted',
   AttentionInflationDetected: 'attention.inflation_detected',
   DecisionSubmitted: 'review.decision_submitted',
+  AuthzDecisionDenied: 'authz.decision_denied',
 } as const;
 /** A domain event type string. */
 export type EventType = (typeof EventType)[keyof typeof EventType];

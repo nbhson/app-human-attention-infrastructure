@@ -12,7 +12,6 @@ import Fastify from 'fastify';
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 import type { DrizzleDB } from '@harness/db';
-import type { ReviewService } from '@harness/review';
 
 import { registerReviewRoutes } from './routes/review.js';
 import { registerTaskRoutes } from './routes/tasks.js';
@@ -31,7 +30,7 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
   registerAuthHook(app, container);
 
   registerAuthRoutes(app, container);
-  registerReviewRoutes(app, container.resolve<ReviewService>(TOKENS.ReviewService));
+  registerReviewRoutes(app, container);
   registerTaskRoutes(app, container);
   registerProvenanceRoutes(app, container);
   registerOpsRoutes(app, container.resolve<DrizzleDB>(TOKENS.Db));

@@ -65,9 +65,12 @@ describe('dependency rules (Spec 1 §5)', () => {
     }
   });
 
-  it('R7: @harness/auth depends only on @harness/domain, @harness/db, @harness/di', () => {
+  it('R7: @harness/auth depends only on @harness/domain, @harness/db, @harness/event-bus, @harness/di', () => {
+    // Day-02: auth.requireRole emits `authz.decision_denied` on the bus, so the
+    // package now peers with @harness/event-bus (it must never import a sibling
+    // *engine*).
     expect(harnessDependencies('auth').sort()).toEqual(
-      ['@harness/domain', '@harness/db', '@harness/di'].sort(),
+      ['@harness/domain', '@harness/db', '@harness/event-bus', '@harness/di'].sort(),
     );
   });
 });
