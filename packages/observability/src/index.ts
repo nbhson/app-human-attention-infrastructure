@@ -59,3 +59,11 @@ export {
   resetInfraCounters,
   type InfraCountersSnapshot,
 } from './metrics.js';
+export {
+  reconstruct,
+  TelemetryIntegrityError,
+  type ReconstructedRun,
+  type ReconstructedEvent,
+  type ReconstructedDecision,
+  type ReconstructedVerification,
+} from './e2e/reconstruct.js';

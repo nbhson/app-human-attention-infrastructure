@@ -267,12 +267,16 @@ function makeCollectContextHandler(container: Container): StepHandler {
     }
 
     const description = task.description ?? task.title;
-    const snapshot = await engine.resolveContext({
+    const snapshot = await engine.resolveWithShadow({
       taskId: stepCtx.taskId,
       taskDescription: description,
       requirements: '',
       targetFiles: extractFileReferences(description),
       maxTokens: Number(process.env.CONTEXT_MAX_TOKENS ?? '8000'),
+      // Day-27 §2.2: opt the live resolve into the semantic shadow when the flag
+      // is on, so an E2E run records a `shadow_rank_comparisons` row (keyword is
+      // still served — §2.3 invariant). Off (default) is exactly the Phase-1 path.
+      semanticShadowEnabled: process.env.SEMANTIC_SHADOW_ENABLED === '1',
     });
 
     return { ok: true, output: { contextSnapshotId: snapshot.id } };

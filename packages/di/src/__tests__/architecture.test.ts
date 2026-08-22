@@ -5,8 +5,8 @@
  * this test fails.
  */
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -131,4 +131,79 @@ describe('dependency rules (Spec 1 §5)', () => {
     // Code Mode (Day 23) can both import the `Sandbox` interface with no cycle.
     expect(harnessDependencies('sandbox')).toEqual([]);
   });
+});
+
+/**
+ * Phase-2 seam guards (day-27 §2.4 / §3.4).
+ *
+ * The six modular-monolith seams — `IEventBus`, `Retriever`, `Ranker`,
+ * `Embedder`, `ContentStore`, `LLMProvider` (+ `Sandbox`) — must be resolved
+ * through DI, never by an engine `new`-ing a concrete class. R4 already rules
+ * out engines importing *each other*; the risk these guards close is subtler: an
+ * engine importing the seam's shared interface package (which it is entitled to)
+ * and then bypassing the seam by constructing the concrete. A module that talks
+ * to S3 directly, or builds its own `InProcessEventBus`, passes every functional
+ * test and breaks the modular monolith (plan §6).
+ */
+
+/** Concrete implementations of each cross-package seam, and the owning package. */
+const SEAM_CONCRETES: ReadonlyArray<{ seam: string; className: string; owner: string }> = [
+  { seam: 'IEventBus', className: 'InProcessEventBus', owner: 'event-bus' },
+  { seam: 'Embedder', className: 'OpenAICompatibleEmbedder', owner: 'embeddings' },
+  { seam: 'Retriever', className: 'SemanticRetriever', owner: 'context-engine' },
+  { seam: 'Ranker', className: 'KeywordDependencyRanker', owner: 'context-engine' },
+  { seam: 'Ranker', className: 'SemanticRanker', owner: 'context-engine' },
+  { seam: 'ContentStore', className: 'ObjectStoreContentStore', owner: 'object-store' },
+  { seam: 'ContentStore', className: 'RoutingContentStore', owner: 'object-store' },
+  { seam: 'ContentStore', className: 'InMemoryContentStore', owner: 'object-store' },
+  { seam: 'Sandbox', className: 'DockerSandbox', owner: 'sandbox' },
+  { seam: 'LLMProvider', className: 'AnthropicProvider', owner: 'agent-runtime' },
+  { seam: 'LLMProvider', className: 'MockLLM', owner: 'agent-runtime' },
+  { seam: 'LLMProvider', className: 'LoggingLLMProvider', owner: 'agent-runtime' },
+];
+
+/** Recursively collect non-test `.ts` source files under a directory. */
+function walkSource(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    if (entry === '__tests__' || entry === 'dist' || entry === 'node_modules') continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      out.push(...walkSource(full));
+    } else if (entry.endsWith('.ts')) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
+ * Every `new <Class>(` site for one concrete class across the engine packages,
+ * *excluding* the owning package (the owner may construct its own concrete in a
+ * convenience default or factory — that is not a modular-monolith bypass).
+ */
+function engineNewSites(
+  className: string,
+  owner: string,
+): Array<{ packageName: string; file: string }> {
+  const sites: Array<{ packageName: string; file: string }> = [];
+  for (const engine of ENGINE_PACKAGES) {
+    if (engine === owner) continue;
+    const srcDir = resolve(ROOT, 'packages', engine, 'src');
+    for (const file of walkSource(srcDir)) {
+      if (readFileSync(file, 'utf8').includes(`new ${className}(`)) {
+        sites.push({ packageName: engine, file: relative(srcDir, file) });
+      }
+    }
+  }
+  return sites;
+}
+
+describe('seam guards (day-27 §2.4 / §3.4)', () => {
+  for (const { seam, className, owner } of SEAM_CONCRETES) {
+    it(`${seam}: no engine instantiates its concrete (${className}) — DI only`, () => {
+      const sites = engineNewSites(className, owner);
+      expect(sites, `${className} bypasses the ${seam} seam via a direct \`new\``).toEqual([]);
+    });
+  }
 });

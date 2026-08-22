@@ -36,16 +36,19 @@ import {
   contexts,
   eventLog,
   evidence,
+  shadowRankComparisons,
   tasks,
   users,
   verificationReports,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { ArtifactStatus, TaskStatus } from '@harness/domain';
+import { reconstruct, snapshotInfraCounters } from '@harness/observability';
 import type { DispatchLoop } from '@harness/orchestrator';
 
 import { buildApp } from '../src/app.js';
 import { bootContainer, buildContainer } from '../src/bootstrap.js';
+import { initApiTracing } from '../src/observability.js';
 
 const execFileP = promisify(execFile);
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -181,6 +184,27 @@ async function overallVerdict(db: DrizzleDB, taskId: string): Promise<string | n
   return rows[0]?.overall ?? null;
 }
 
+/** The `rank_method` the served context snapshot recorded (day-27 §2.3). */
+async function servedRankMethod(db: DrizzleDB, taskId: string): Promise<string | null> {
+  const rows = await db
+    .select({ rankMethod: contexts.rank_method })
+    .from(contexts)
+    .where(eq(contexts.task_id, taskId))
+    .orderBy(desc(contexts.created_at))
+    .limit(1);
+  return rows[0]?.rankMethod ?? null;
+}
+
+/** Whether the semantic shadow wrote a rank-comparison row for this task (day-27 §2.3). */
+async function shadowComparisonExists(db: DrizzleDB, taskId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: shadowRankComparisons.id })
+    .from(shadowRankComparisons)
+    .where(eq(shadowRankComparisons.task_id, taskId))
+    .limit(1);
+  return rows.length > 0;
+}
+
 async function evidenceCount(db: DrizzleDB): Promise<number> {
   const rows = await db.select({ n: count() }).from(evidence);
   return rows[0]?.n ?? 0;
@@ -266,6 +290,9 @@ async function main(): Promise<void> {
   process.env.MOCK_LLM_SCRIPT = join(FIXTURE_DIR, 'mock-llm-script.json');
   process.env.SANDBOX_ROOT = SANDBOX_ROOT;
   process.env.WORKING_REPO_ROOT = WORKING_REPO;
+  // Opt the semantic shadow in explicitly (day-27 §2.3): with the deterministic
+  // StubEmbedder + an empty pgvector index this still writes a comparison row.
+  process.env.SEMANTIC_SHADOW_ENABLED = '1';
 
   // Deterministic identity (day-02): mock OIDC with a fixed subject; the user row
   // seeded below carries the REVIEWER role the guarded review routes require.
@@ -278,6 +305,11 @@ async function main(): Promise<void> {
   await prepareWorkingRepo();
 
   const container = buildContainer();
+  // Init the tracing provider + `trace_correlation` write-through BEFORE the app
+  // handles any request (day-03 §3.2, mirrors `index.ts`). Without this the
+  // dispatcher/agent/verification root spans never map correlation_id → trace_id,
+  // and the Day-27 reconstruct would report a null traceId for every task.
+  initApiTracing(container);
   const db = container.resolve<DrizzleDB>(TOKENS.Db);
   await truncateAll(db);
 
@@ -389,7 +421,36 @@ async function main(): Promise<void> {
     // 7. The event log proves the causal chain, in order.
     await assertEventChain(db);
 
+    // 8. Day-27 telemetry reconstruction: the run is attributable end-to-end
+    //    (Spec 10). `reconstruct` throws on the two integrity invariants it owns
+    //    (attributed review, hashed verification); here we additionally assert
+    //    the parts only the E2E driver knows about: the trace mapping exists for
+    //    THIS task, the served rank stayed on the Phase-1 keyword path, the
+    //    semantic shadow wrote its comparison row, and the context cache moved.
+    const run = await reconstruct(db, taskId);
+    assert(run.traceId !== null, 'trace_correlation did not map correlation_id → trace_id');
+    assert(run.events.length > 0, 'event_log replay empty');
+    assert(run.decisions.length > 0, 'no decision history in telemetry');
+    assert(run.verifications.length > 0, 'no verification history in telemetry');
+    assert(
+      (await servedRankMethod(db, taskId)) === 'phase1-keyword-dependency',
+      'served rank_method drifted off the Phase-1 keyword path',
+    );
+    assert(await shadowComparisonExists(db, taskId), 'no shadow_rank_comparisons row written');
+
+    // The vertical slice reads context sources at least once (day-20 §3.4).
+    const counters = snapshotInfraCounters();
+    assert(counters.cacheHits + counters.cacheMisses >= 1, 'context cache counters did not move');
+
     console.log('[e2e] happy path passed');
+    console.log(
+      `[e2e] reconstructed ${run.events.length} events, ${run.decisions.length} decisions, ${run.verifications.length} verifications (trace ${run.traceId})`,
+    );
+    console.log(
+      `[e2e] infra counters: cacheHit=${counters.cacheHits} cacheMiss=${counters.cacheMisses} ` +
+        `sandboxRun=${counters.sandboxRuns} sandboxFallback=${counters.sandboxFallbacks} ` +
+        `objectIntegrityError=${counters.objectIntegrityErrors}`,
+    );
   } finally {
     dispatchLoop.stop();
     runtimeLoop.stop();

@@ -16,6 +16,7 @@
     "load:smoke": "pnpm --filter @harness/db migrate && pnpm --filter @harness/api exec tsx scripts/load-smoke.ts",
     "audit:orphans": "pnpm --filter @harness/db audit:orphans",
     "seed:metrics-checkpoint": "pnpm --filter @harness/api seed:metrics-checkpoint",
+    "seed:e2e-fixture": "pnpm --filter @harness/api seed:e2e-fixture",
     "eval:metrics": "pnpm --filter @harness/evaluation eval:metrics",
     "eval:report": "pnpm --filter @harness/evaluation eval:report",
     "eval:replay": "pnpm --filter @harness/evaluation eval:replay",
