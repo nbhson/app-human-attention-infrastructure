@@ -47,6 +47,8 @@ export const TOKENS = {
   WeightsProvider: 'WeightsProvider',
   VerificationEngine: 'VerificationEngine',
   Sandbox: 'Sandbox',
+  RateLimiter: 'RateLimiter',
+  SandboxedToolExecutor: 'SandboxedToolExecutor',
   ReviewService: 'ReviewService',
   GitAdapter: 'GitAdapter',
   MergeService: 'MergeService',

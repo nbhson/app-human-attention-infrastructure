@@ -38,7 +38,7 @@ export interface SandboxRun {
   readonly command: string[];
   /** The pinned image (built from a committed Dockerfile, never `latest`). */
   readonly image: string;
-  /** Host directory mounted read-only at `/workdir` — the exact bytes verified. */
+  /** Host directory mounted at `/workdir` — the exact bytes verified. */
   readonly workdirPath: string;
   /** Per-file manifest of the workdir, for attributability. */
   readonly workdirContents: SandboxWorkdirFile[];
@@ -46,6 +46,14 @@ export interface SandboxRun {
   readonly limits: SandboxLimits;
   /** Always `'none'` — the sandbox has no egress. */
   readonly network: 'none';
+  /**
+   * Whether `/workdir` is mounted writable (day-23 §2.2). Default `false` —
+   * read-only — which verification (Day 22) and Code-Mode tier 0 rely on.
+   * Code-Mode tier 1 sets `true` so `write_file` lands in the workspace mount;
+   * the container rootfs stays `--read-only` either way, so the only writable
+   * path is the workspace mount itself.
+   */
+  readonly workspaceWritable?: boolean;
 }
 
 /** The measured outcome of a sandbox run (day-22 §2.1). */

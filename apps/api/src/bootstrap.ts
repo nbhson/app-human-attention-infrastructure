@@ -17,17 +17,21 @@ import { and, desc, eq } from 'drizzle-orm';
 import {
   AgentRunner,
   AnthropicProvider,
+  CODE_MODE_POLICY_V1,
+  DbCodeModeSessionWriter,
   LoggingLLMProvider,
   makeListDirectoryTool,
   makeReadFileTool,
   makeWriteFileTool,
   MockLLM,
+  PerToolRateLimiter,
   RuntimePollLoop,
+  SandboxedToolExecutor,
   ToolAllowlist,
   ToolRegistry,
   TrajectoryRecorder,
 } from '@harness/agent-runtime';
-import type { LLMProvider, MockScript } from '@harness/agent-runtime';
+import type { LLMProvider, MockScript, RateLimiter } from '@harness/agent-runtime';
 import {
   ArtifactCaptureSubscriber,
   ArtifactTracker,
@@ -616,6 +620,40 @@ export function buildContainer(): Container {
   // (`docker build -t harness-verify:node20 packages/sandbox`) or `docker run`
   // exits 125 and the fallback fires with a logged warning.
   c.register(TOKENS.Sandbox, () => new DockerSandbox());
+
+  // Day 23: the Code-Mode executor over the *same* sandbox. `RateLimiter` bounds
+  // per-tool/per-task calls so a runaway generated loop can't spin unbounded
+  // containers (§2.3); `SandboxedToolExecutor` applies tiers (read-only vs
+  // writable workspace vs auth-gated) and writes the `code_mode_sessions` trail.
+  // Tier-2 approval is an env flag for now — the real OPERATOR approval surface
+  // lands on Day 24 (Spec 8).
+  c.register(TOKENS.RateLimiter, () => {
+    const maxConcurrent = Number(process.env.CODE_MODE_MAX_CONCURRENT ?? '2');
+    const configs = Object.fromEntries(
+      Object.entries(CODE_MODE_POLICY_V1.maxCallsPerTask).map(([tool, maxCallsPerTask]) => [
+        tool,
+        { maxCallsPerTask, maxConcurrent },
+      ]),
+    );
+    return new PerToolRateLimiter(configs);
+  });
+
+  c.register(TOKENS.SandboxedToolExecutor, (container) => {
+    return new SandboxedToolExecutor({
+      sandbox: container.resolve<Sandbox>(TOKENS.Sandbox),
+      rateLimiter: container.resolve<RateLimiter>(TOKENS.RateLimiter),
+      sessions: new DbCodeModeSessionWriter(container.resolve<DrizzleDB>(TOKENS.Db)),
+      image: process.env.CODE_MODE_IMAGE ?? 'harness-verify:node20',
+      workdirPath: sandboxRoot,
+      limits: {
+        cpu: process.env.CODE_MODE_CPU ?? '1.0',
+        memory: process.env.CODE_MODE_MEMORY ?? '2g',
+        timeoutSeconds: Number(process.env.CODE_MODE_TIMEOUT_SECONDS ?? '30'),
+      },
+      policy: CODE_MODE_POLICY_V1,
+      approved: process.env.CODE_MODE_TIER2_APPROVED === '1',
+    });
+  });
 
   c.register(TOKENS.VerificationEngine, (container) => {
     const compileCheck = new CompileCheck();

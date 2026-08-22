@@ -78,6 +78,17 @@ describe('DockerSandbox.buildArgs (day-22 §2.2)', () => {
       '.',
     ]);
   });
+
+  it('mounts /workdir writable only when workspaceWritable is set (day-23 §2.2)', () => {
+    const sandbox = new DockerSandbox();
+    const readOnly = sandbox.buildArgs(makeRun(), 'harness-verify-test');
+    expect(readOnly).toContain('type=bind,src=/tmp/worktree,dst=/workdir,readonly');
+
+    const writable = sandbox.buildArgs(makeRun({ workspaceWritable: true }), 'harness-verify-test');
+    expect(writable).toContain('type=bind,src=/tmp/worktree,dst=/workdir');
+    // The rootfs stays read-only even when the workspace is writable.
+    expect(writable).toEqual(expect.arrayContaining(['--read-only']));
+  });
 });
 
 describe('DockerSandbox.run (day-22 §3.2)', () => {

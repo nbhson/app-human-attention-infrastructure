@@ -71,7 +71,9 @@ export class DockerSandbox implements Sandbox {
       '--memory',
       run.limits.memory,
       '--mount',
-      `type=bind,src=${run.workdirPath},dst=/workdir,readonly`,
+      run.workspaceWritable === true
+        ? `type=bind,src=${run.workdirPath},dst=/workdir`
+        : `type=bind,src=${run.workdirPath},dst=/workdir,readonly`,
       '--workdir',
       '/workdir',
       run.image,
