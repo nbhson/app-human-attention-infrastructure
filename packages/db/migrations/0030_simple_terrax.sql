@@ -1,0 +1,2 @@
+ALTER TABLE "review_queue" DROP CONSTRAINT "review_queue_status_check";--> statement-breakpoint
+ALTER TABLE "review_queue" ADD CONSTRAINT "review_queue_status_check" CHECK (status IN ('QUEUED', 'CLAIMED', 'DECIDED', 'DROPPED', 'ESCALATED'));

@@ -48,6 +48,20 @@ export interface DropInput {
   readonly actorEmail: string;
 }
 
+/** A released claim's input (day-24 §2.4): the actor whose claim is released. */
+export interface ReleaseInput {
+  readonly actorId: UserID;
+  readonly actorEmail: string;
+}
+
+/** An escalation's input (day-24 §2.4): a decision, so a reason is required. */
+export interface EscalateInput {
+  readonly rationale: string;
+  readonly reviewerId: ReviewerID;
+  readonly actorId: UserID;
+  readonly actorEmail: string;
+}
+
 /** The structural seam onto the task state machine (injected; R6). */
 export interface TaskTransition {
   transitionTask(

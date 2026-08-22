@@ -150,4 +150,10 @@ export const reviewApi = {
   drop(id: string, rationale: string): Promise<{ ok: boolean }> {
     return post<{ ok: boolean }>(`/queue/${id}/drop`, { rationale });
   },
+  release(id: string): Promise<{ ok: boolean }> {
+    return post<{ ok: boolean }>(`/queue/${id}/release`, {});
+  },
+  escalate(id: string, rationale: string): Promise<QueueItemDetail> {
+    return post<QueueItemDetail>(`/queue/${id}/escalate`, { rationale });
+  },
 };

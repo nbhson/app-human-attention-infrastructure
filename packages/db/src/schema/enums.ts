@@ -90,7 +90,13 @@ export const routingActions = [
 ] as const;
 
 /** `review_queue.status` — the persistence-level queue state (attention spec §4). */
-export const reviewQueueStatuses = ['QUEUED', 'CLAIMED', 'DECIDED', 'DROPPED'] as const;
+export const reviewQueueStatuses = [
+  'QUEUED',
+  'CLAIMED',
+  'DECIDED',
+  'DROPPED',
+  'ESCALATED',
+] as const;
 
 /**
  * Per-check result status (day-15 §2.1, engine-local `CheckStatus`). Distinct

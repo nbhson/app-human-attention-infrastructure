@@ -21,6 +21,7 @@ import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 import {
   EvidenceNotFoundError,
+  IllegalTransitionError,
   MissingRationaleError,
   QueueConflictError,
   QueueItemNotFoundError,
@@ -39,13 +40,20 @@ interface DecideBody {
 interface DropBody {
   readonly rationale: string;
 }
+interface EscalateBody {
+  readonly rationale: string;
+}
 
 /** Map a review failure onto the right HTTP status (day-22 §3.3). */
 function toErrorReply(reply: FastifyReply, error: unknown): FastifyReply {
   if (error instanceof QueueItemNotFoundError || error instanceof EvidenceNotFoundError) {
     return reply.code(404).send({ error: error.message });
   }
-  if (error instanceof QueueConflictError || error instanceof QueueStateError) {
+  if (
+    error instanceof QueueConflictError ||
+    error instanceof QueueStateError ||
+    error instanceof IllegalTransitionError
+  ) {
     return reply.code(409).send({ error: error.message });
   }
   if (error instanceof MissingRationaleError) {
@@ -143,6 +151,43 @@ export function registerReviewRoutes(app: FastifyInstance, container: Container)
           actorEmail: user.email,
         });
         return { ok: true };
+      } catch (error) {
+        return toErrorReply(reply, error);
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/review/queue/:id/release',
+    { preHandler: canReview },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const { user } = request.auth!;
+        await reviewService.release(brand(id, 'ReviewQueueItemID'), {
+          actorId: user.id,
+          actorEmail: user.email,
+        });
+        return { ok: true };
+      } catch (error) {
+        return toErrorReply(reply, error);
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: EscalateBody }>(
+    '/api/review/queue/:id/escalate',
+    { preHandler: canReview },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const { user } = request.auth!;
+        return await reviewService.escalate(brand(id, 'ReviewQueueItemID'), {
+          rationale: request.body.rationale,
+          reviewerId: brand(user.id, 'ReviewerID'),
+          actorId: user.id,
+          actorEmail: user.email,
+        });
       } catch (error) {
         return toErrorReply(reply, error);
       }

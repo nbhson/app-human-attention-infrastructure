@@ -54,16 +54,19 @@ import {
   QueueItemNotFoundError,
   QueueStateError,
 } from './types.js';
+import { assertTransition } from './state-machine.js';
 import type {
   DecisionInput,
   DiffProvider,
   DropInput,
+  EscalateInput,
   EvidenceRecord,
   FactorScore,
   FeedbackReporter,
   QueueItem,
   QueueItemDetail,
   QueueListItem,
+  ReleaseInput,
   ReviewFactorKey,
   TaskTransition,
   VerificationCheckView,
@@ -247,19 +250,37 @@ export class ReviewService {
       .update(reviewQueue)
       .set({ status: ReviewQueueStatus.Claimed, claimed_by: reviewerId, claimed_at: new Date() })
       .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Queued)))
-      .returning({ id: reviewQueue.id });
+      .returning({ id: reviewQueue.id, task_id: reviewQueue.task_id });
 
     if (updated.length === 0) {
       throw new QueueConflictError(queueId);
     }
+
+    // The claim is the dwell anchor (day-24 §2.4 / day-04 §2): emit it so dwell
+    // and queue contention are observable per actor, not just inferred from rows.
+    const taskId = updated[0]?.task_id;
+    if (taskId !== undefined) {
+      this.bus.publish(
+        createEvent(EventType.ReviewItemClaimed, brand(taskId, 'CorrelationID'), {
+          queue_id: queueId,
+          task_id: brand(taskId, 'TaskID'),
+          reviewer_id: reviewerId,
+        }),
+      );
+    }
+
     return this.getDetail(queueId);
   }
 
   /** Submit a decision on a CLAIMED item (day-22 §2.3). */
   async decide(queueId: ReviewQueueItemID, input: DecisionInput): Promise<QueueItemDetail> {
     const row = await this.mustGetRow(queueId);
-    if (row.status !== ReviewQueueStatus.Claimed) {
-      throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
+    assertTransition(row.status, 'decide');
+
+    // A rejection without a reason is un-actionable (Spec 8 §2.3); approve may
+    // stay terse.
+    if (input.decision === 'REJECT' && input.rationale.trim().length === 0) {
+      throw new MissingRationaleError();
     }
 
     const correlationId = row.task_id;
@@ -356,6 +377,7 @@ export class ReviewService {
       throw new MissingRationaleError();
     }
     const row = await this.mustGetRow(queueId);
+    assertTransition(row.status, 'drop');
 
     const updated = await this.db
       .update(reviewQueue)
@@ -383,6 +405,85 @@ export class ReviewService {
       actor_email: input.actorEmail,
       rationale: input.rationale,
     });
+  }
+
+  /**
+   * Release a CLAIMED item back to the queue, clearing the claim (day-24 §2.2).
+   *
+   * This is the claim-timeout transition that previously went unstated: a claim
+   * that is abandoned is re-queued and observable, never silently orphaned in
+   * `CLAIMED`. No decision is recorded — releasing is a *withdrawal of a claim*,
+   * not a decision on the change.
+   */
+  async release(queueId: ReviewQueueItemID, input: ReleaseInput): Promise<void> {
+    const row = await this.mustGetRow(queueId);
+    assertTransition(row.status, 'release');
+
+    const updated = await this.db
+      .update(reviewQueue)
+      .set({ status: ReviewQueueStatus.Queued, claimed_by: null, claimed_at: null })
+      .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)))
+      .returning({ id: reviewQueue.id });
+    if (updated.length === 0) {
+      throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
+    }
+
+    this.bus.publish(
+      createEvent(EventType.ReviewItemReleased, brand(row.task_id, 'CorrelationID'), {
+        queue_id: queueId,
+        task_id: brand(row.task_id, 'TaskID'),
+        actor_id: input.actorId,
+      }),
+    );
+  }
+
+  /**
+   * Escalate a CLAIMED item to a higher authority (day-24 §2.2).
+   *
+   * The reviewer hands the item off with a reason; the item lands in `ESCALATED`
+   * with an `ESCALATED` decision recorded so the escalation is auditable, not
+   * just a status flip. A reason is required — an unexplained escalation leaves
+   * the next reviewer with no signal.
+   */
+  async escalate(queueId: ReviewQueueItemID, input: EscalateInput): Promise<QueueItemDetail> {
+    if (input.rationale.trim().length === 0) {
+      throw new MissingRationaleError();
+    }
+    const row = await this.mustGetRow(queueId);
+    assertTransition(row.status, 'escalate');
+
+    const flipped = await this.db
+      .update(reviewQueue)
+      .set({ status: ReviewQueueStatus.Escalated, claimed_by: null, claimed_at: null })
+      .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)))
+      .returning({ id: reviewQueue.id });
+    if (flipped.length === 0) {
+      throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
+    }
+
+    const decisionId = newDecisionID();
+    await this.db.insert(decisions).values({
+      id: decisionId,
+      correlation_id: row.task_id,
+      change_id: brand(row.change_id, 'ChangeID'),
+      assessment_id: brand(row.assessment_id, 'AssessmentID'),
+      decision: HumanDecisionType.Escalated,
+      reviewer_id: input.reviewerId,
+      actor_id: input.actorId,
+      actor_email: input.actorEmail,
+      rationale: input.rationale,
+    });
+
+    this.bus.publish(
+      createEvent(EventType.ReviewItemEscalated, brand(row.task_id, 'CorrelationID'), {
+        queue_id: queueId,
+        decision_id: decisionId,
+        task_id: brand(row.task_id, 'TaskID'),
+        actor_id: input.actorId,
+      }),
+    );
+
+    return this.getDetail(queueId);
   }
 
   /** `tasks -> title` lookup for a batch of task ids. */

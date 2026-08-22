@@ -32,6 +32,7 @@ import {
   newArtifactID,
   newAssessmentID,
   newChangeID,
+  newDecisionID,
   newProjectID,
   newReviewQueueItemID,
   newReviewerID,
@@ -44,6 +45,9 @@ import type {
   AssessmentID,
   ChangeID,
   DecisionSubmittedPayload,
+  ReviewItemClaimedPayload,
+  ReviewItemEscalatedPayload,
+  ReviewItemReleasedPayload,
   ReviewQueueItemID,
   TaskID,
 } from '@harness/domain';
@@ -52,10 +56,10 @@ import type { IEventBus } from '@harness/event-bus';
 import { register, reviewDwell, usefulness } from '@harness/observability';
 
 import {
+  IllegalTransitionError,
   MissingRationaleError,
   QueueConflictError,
   QueueItemNotFoundError,
-  QueueStateError,
   ReviewService,
 } from '../index.js';
 import type { FeedbackReporter, TaskTransition } from '../index.js';
@@ -310,7 +314,7 @@ describe('ReviewService', () => {
     });
   });
 
-  it('decide on an unclaimed item is a state error', async () => {
+  it('decide on an unclaimed item is an illegal transition', async () => {
     const { queueId } = await seedQueuedItem();
 
     await expect(
@@ -322,7 +326,7 @@ describe('ReviewService', () => {
         actorId: ACTOR_ID,
         actorEmail: ACTOR_EMAIL,
       }),
-    ).rejects.toBeInstanceOf(QueueStateError);
+    ).rejects.toBeInstanceOf(IllegalTransitionError);
   });
 
   it('drop requires a non-empty rationale', async () => {
@@ -364,7 +368,7 @@ describe('ReviewService', () => {
     });
   });
 
-  it('drop on a decided item is a state error', async () => {
+  it('drop on a decided item is an illegal transition', async () => {
     const { queueId } = await seedQueuedItem();
     const reviewer = newReviewerID();
     await service.claim(queueId, reviewer);
@@ -384,6 +388,140 @@ describe('ReviewService', () => {
         actorId: ACTOR_ID,
         actorEmail: ACTOR_EMAIL,
       }),
-    ).rejects.toBeInstanceOf(QueueStateError);
+    ).rejects.toBeInstanceOf(IllegalTransitionError);
+  });
+
+  it('claim emits review.item_claimed with reviewer + task', async () => {
+    const { taskId, queueId } = await seedQueuedItem();
+    const reviewer = newReviewerID();
+
+    const seen: ReviewItemClaimedPayload[] = [];
+    bus.subscribe<ReviewItemClaimedPayload>(EventType.ReviewItemClaimed, (event) => {
+      seen.push(event.payload);
+    });
+
+    await service.claim(queueId, reviewer);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      queue_id: queueId,
+      task_id: taskId,
+      reviewer_id: reviewer,
+    });
+  });
+
+  it('decide REJECT with a blank rationale fails validation', async () => {
+    const { queueId } = await seedQueuedItem();
+    const reviewer = newReviewerID();
+    await service.claim(queueId, reviewer);
+
+    await expect(
+      service.decide(queueId, {
+        decision: 'REJECT',
+        rationale: '   ',
+        wasUseful: false,
+        reviewerId: reviewer,
+        actorId: ACTOR_ID,
+        actorEmail: ACTOR_EMAIL,
+      }),
+    ).rejects.toBeInstanceOf(MissingRationaleError);
+  });
+
+  it('release returns the item to QUEUED, clears the claim, and emits review.item_released', async () => {
+    const { taskId, queueId } = await seedQueuedItem();
+    const reviewer = newReviewerID();
+    await service.claim(queueId, reviewer);
+
+    const seen: ReviewItemReleasedPayload[] = [];
+    bus.subscribe<ReviewItemReleasedPayload>(EventType.ReviewItemReleased, (event) => {
+      seen.push(event.payload);
+    });
+
+    await service.release(queueId, { actorId: ACTOR_ID, actorEmail: ACTOR_EMAIL });
+
+    const queueRows = await testDb.db.select().from(reviewQueue);
+    expect(queueRows).toHaveLength(1);
+    expect(queueRows[0]?.status).toBe(ReviewQueueStatus.Queued);
+    expect(queueRows[0]?.claimed_by).toBeNull();
+    expect(queueRows[0]?.claimed_at).toBeNull();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      queue_id: queueId,
+      task_id: taskId,
+      actor_id: ACTOR_ID,
+    });
+
+    // Releasing withdraws a claim, not a decision; no decision row is recorded.
+    const decisionRows = await testDb.db.select().from(decisions);
+    expect(decisionRows).toHaveLength(0);
+  });
+
+  it('escalate records an ESCALATED decision and emits review.item_escalated', async () => {
+    const { taskId, queueId } = await seedQueuedItem();
+    const reviewer = newReviewerID();
+    await service.claim(queueId, reviewer);
+
+    const seen: ReviewItemEscalatedPayload[] = [];
+    bus.subscribe<ReviewItemEscalatedPayload>(EventType.ReviewItemEscalated, (event) => {
+      seen.push(event.payload);
+    });
+
+    const detail = await service.escalate(queueId, {
+      rationale: 'needs senior eyes',
+      reviewerId: reviewer,
+      actorId: ACTOR_ID,
+      actorEmail: ACTOR_EMAIL,
+    });
+
+    expect(detail.status).toBe(ReviewQueueStatus.Escalated);
+
+    const decisionRows = await testDb.db.select().from(decisions);
+    expect(decisionRows).toHaveLength(1);
+    expect(decisionRows[0]).toMatchObject({
+      decision: 'ESCALATED',
+      reviewer_id: reviewer,
+      actor_id: ACTOR_ID,
+      rationale: 'needs senior eyes',
+    });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      queue_id: queueId,
+      task_id: taskId,
+      actor_id: ACTOR_ID,
+      decision_id: decisionRows[0]?.id,
+    });
+  });
+
+  it('escalate requires a non-empty rationale', async () => {
+    const { queueId } = await seedQueuedItem();
+    const reviewer = newReviewerID();
+    await service.claim(queueId, reviewer);
+
+    await expect(
+      service.escalate(queueId, {
+        rationale: '',
+        reviewerId: reviewer,
+        actorId: ACTOR_ID,
+        actorEmail: ACTOR_EMAIL,
+      }),
+    ).rejects.toBeInstanceOf(MissingRationaleError);
+  });
+
+  it('an invalid verdict fails the decisions CHECK insert (closed enum)', async () => {
+    const { changeId, assessmentId } = await seedQueuedItem();
+
+    await expect(
+      testDb.db.insert(decisions).values({
+        id: newDecisionID(),
+        change_id: changeId,
+        assessment_id: assessmentId,
+        decision: 'NOT_A_VERDICT',
+        reviewer_id: newReviewerID(),
+        actor_id: ACTOR_ID,
+        rationale: 'x',
+      }),
+    ).rejects.toThrow();
   });
 });

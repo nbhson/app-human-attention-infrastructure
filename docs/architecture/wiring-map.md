@@ -49,7 +49,7 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `LLMProvider` | `LoggingLLMProvider(AnthropicProvider(key) \| MockLLM(script), db)` | Day 11 | `AgentRunner` |
 | `TaskStateMachine` | `TaskStateMachine` (pure transition table, no deps) | Day 06 | `TaskService` |
 | `TaskService` | `TaskService(db, EventBus, TaskStateMachine)` | Day 06 | `ReviewService` (transition seam), `MergeService`, `ReworkService`, `Dispatcher`, `WorkflowRunner`, `AgentRunner`, verify/context handlers |
-| `ReviewService` | `ReviewService(db, EventBus, {transitionTask, reportAssessmentFeedback, diffChange}, logger)` | Day 22 | `routes/review.ts` (claim/decide/drop); `DiffEngine` is constructed inline to back `diffChange` |
+| `ReviewService` | `ReviewService(db, EventBus, {transitionTask, reportAssessmentFeedback, diffChange}, logger)` | Day 22 (surface: Day 24) | `routes/review.ts` (claim/decide/drop + day-24 release/escalate); `DiffEngine` is constructed inline to back `diffChange`. Day-24 surface emits `review.item_claimed`/`review.item_released`/`review.item_escalated` into the event catalog on the Spec 8 §2.2 transitions |
 | `GitAdapter` | `ShellGitAdapter(process.env.WORKING_REPO_ROOT)` | Day 24 | `MergeService` |
 | `MergeService` | `MergeService(db, EventBus, GitAdapter, TaskService, logger, ContentStore)` + `subscribe()` | Day 24 (seam: Day 21) | eager-resolved at boot (side effect: APPROVED → merge → `artifact.merged`) |
 | `ReworkService` | `ReworkService(db, EventBus, TaskService, logger)` + `subscribe()` | Day 24 | eager-resolved at boot (side effect: REJECTED → REWORK) |

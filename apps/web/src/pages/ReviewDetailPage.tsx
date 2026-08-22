@@ -54,6 +54,25 @@ export default function ReviewDetailPage(): JSX.Element {
     },
   });
 
+  // Spec 8 §2.4 actions beyond decide (day-24 scaffold): release re-queues a
+  // claim; escalate hands the item to a higher authority with the rationale
+  // field's text as the required reason.
+  const release = useMutation({
+    mutationFn: () => reviewApi.release(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviewDetail', id] }),
+    onError: (error: unknown) => {
+      setSubmitError(error instanceof Error ? error.message : 'Release failed.');
+    },
+  });
+
+  const escalate = useMutation({
+    mutationFn: () => reviewApi.escalate(id, rationale),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviewDetail', id] }),
+    onError: (error: unknown) => {
+      setSubmitError(error instanceof Error ? error.message : 'Escalate failed.');
+    },
+  });
+
   if (isLoading) {
     return <p>Loading item…</p>;
   }
@@ -211,6 +230,19 @@ export default function ReviewDetailPage(): JSX.Element {
             <button type="submit" disabled={!canSubmit} style={{ marginTop: 8 }}>
               Submit
             </button>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button type="button" onClick={() => release.mutate()} disabled={release.isPending}>
+                Release
+              </button>
+              <button
+                type="button"
+                onClick={() => escalate.mutate()}
+                disabled={escalate.isPending || rationale.trim() === ''}
+              >
+                Escalate
+              </button>
+            </div>
           </form>
         )}
 

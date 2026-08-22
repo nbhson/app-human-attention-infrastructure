@@ -75,6 +75,10 @@ export const ReviewQueueStatus = {
   Claimed: 'CLAIMED',
   Decided: 'DECIDED',
   Dropped: 'DROPPED',
+  // Day-24 (Phase 2): a CLAIMED item the reviewer sent back for a higher-authority
+  // look (Spec 8 — Human Review Interface). Appended (not inserted) to keep the
+  // drift test `Object.values` order aligned with `db/schema/enums.ts`.
+  Escalated: 'ESCALATED',
 } as const;
 /** A persistence-level review-queue status. */
 export type ReviewQueueStatus = (typeof ReviewQueueStatus)[keyof typeof ReviewQueueStatus];
