@@ -115,6 +115,8 @@ export const humanDecisionTypes = [
   'OVERRIDDEN',
   'DEFERRED',
   'ESCALATED',
+  // Day-14 (Phase 2): a machine decision, recorded with `actor_id IS NULL`.
+  'AUTO_APPROVED',
 ] as const;
 
 /**

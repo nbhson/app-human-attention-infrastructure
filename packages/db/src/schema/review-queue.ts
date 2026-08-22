@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { assessments } from './assessments.js';
 import { reviewQueueStatusCheck, routingActionCheck } from './enums.js';
@@ -40,6 +40,10 @@ export const reviewQueue = pgTable(
     // item is gated by the daily review budget. NULL means "not deferred" — the
     // row is actionable now. A deferred row is still QUEUED, never DROPPED.
     deferred_until: timestamp('deferred_until', { withTimezone: true }),
+    // Day-14 (Phase 2) sampling audit: true on the *duplicate* control row the
+    // sampler enqueues for a human, so the silent control is distinguishable from
+    // a normal route. Backend-only; never surfaced to the reviewer's UI payload.
+    sampled: boolean('sampled').notNull().default(false),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   () => [routingActionCheck, reviewQueueStatusCheck],

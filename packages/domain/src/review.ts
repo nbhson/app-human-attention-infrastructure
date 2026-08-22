@@ -20,6 +20,11 @@ export const HumanDecisionType = {
   Overridden: 'OVERRIDDEN',
   Deferred: 'DEFERRED',
   Escalated: 'ESCALATED',
+  // Day-14 (Phase 2): a machine decision recorded without a human actor. It is a
+  // distinct value so downstream metrics and the A/B harness never lump machine
+  // and human approvals together. Appended (not inserted) to keep the drift test
+  // `Object.values` order aligned with `db/schema/enums.ts` `humanDecisionTypes`.
+  AutoApproved: 'AUTO_APPROVED',
 } as const;
 /** A human decision type. */
 export type HumanDecisionType = (typeof HumanDecisionType)[keyof typeof HumanDecisionType];

@@ -42,6 +42,10 @@ export const TOKENS = {
   GitAdapter: 'GitAdapter',
   MergeService: 'MergeService',
   ReworkService: 'ReworkService',
+  AutoApproveGate: 'AutoApproveGate',
+  AutoApproveKillSwitch: 'AutoApproveKillSwitch',
+  AutoApproveSampler: 'AutoApproveSampler',
+  AutoApproveExecutor: 'AutoApproveExecutor',
   MetricsComputer: 'MetricsComputer',
 } as const;
 

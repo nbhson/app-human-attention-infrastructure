@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { assessments } from './assessments.js';
 import { changes } from './changes.js';
@@ -28,6 +28,12 @@ export const decisions = pgTable(
     actor_id: text('actor_id').references(() => users.id),
     actor_email: text('actor_email'),
     rationale: text('rationale'),
+    // Day-14 (Phase 2) sampling audit: `sample` is true when this decision was a
+    // silent control (the same change was *also* auto-approved), and `dataset_id`
+    // names the calibration dataset whose green fit licensed the auto-approve.
+    // Both stay NULL for ordinary human decisions.
+    sample: boolean('sample'),
+    dataset_id: text('dataset_id'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   () => [humanDecisionTypeCheck],

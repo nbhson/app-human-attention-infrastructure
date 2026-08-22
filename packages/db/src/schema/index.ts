@@ -8,6 +8,7 @@ export * from './artifacts.js';
 export * from './assessment-feedback.js';
 export * from './assessments.js';
 export * from './attention-thresholds.js';
+export * from './auto-approve-kill-switch.js';
 export * from './calibration.js';
 export * from './changes.js';
 export * from './contexts.js';

@@ -2,8 +2,9 @@
  * Attention assessment event payloads (attention spec §2.1, §4).
  */
 
-import type { AssessmentID, ArtifactID, ReviewQueueItemID, TaskID } from '../ids.js';
+import type { AssessmentID, ArtifactID, ChangeID, ReviewQueueItemID, TaskID } from '../ids.js';
 import type { PriorityLabel, RoutingAction, ThresholdBand } from '../attention.js';
+import type { HumanDecisionType } from '../review.js';
 
 /** Payload for {@link import('./event-types.js').EventType.AssessmentCreated}. */
 export interface AssessmentCreatedPayload {
@@ -67,4 +68,23 @@ export interface AttentionItemDeferredPayload {
   readonly task_id: TaskID;
   /** UTC timestamp the item is deferred until (next day boundary). */
   readonly deferred_until: string;
+}
+
+/**
+ * Payload for {@link import('./event-types.js').EventType.EscalationLeakage}.
+ *
+ * A sampled auto-approve control item that the human reviewer rejected. This is
+ * the live signal mirroring Spec 11 §4.1's "auto-approvable-but-rejected" — the
+ * `auto_approved` flag re-states that the machine already approved this change,
+ * so consumers can tell a leakage signal from an ordinary rejection.
+ */
+export interface EscalationLeakagePayload {
+  /** The change the auto-approve had approved. */
+  readonly change_id: ChangeID;
+  /** The assessment the change carried. */
+  readonly assessment_id: AssessmentID;
+  /** The human decision that triggered the leakage (always REJECTED in practice). */
+  readonly decision: HumanDecisionType;
+  /** True — this was a sampled control item, re-affirmed on the event. */
+  readonly sample: boolean;
 }

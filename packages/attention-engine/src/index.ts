@@ -21,4 +21,8 @@ export * from './thresholds/threshold-store.js';
 export * from './thresholds/adaptive-threshold.js';
 export * from './thresholds/daily-budget.js';
 export * from './thresholds/inflation-monitor.js';
+export * from './auto-approve/gate.js';
+export * from './auto-approve/kill-switch.js';
+export * from './auto-approve/sampler.js';
+export * from './auto-approve/executor.js';
 export { AttentionSubscriber } from './attention-subscriber.js';

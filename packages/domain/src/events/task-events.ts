@@ -6,7 +6,13 @@ import type { AgentRunID, TaskID, WorkflowID } from '../ids.js';
 import type { Priority, TaskStatus } from '../task.js';
 
 /** Who triggered a task state change. */
-export type TaskTrigger = 'orchestrator' | 'agent_runtime' | 'verification_engine' | 'human';
+export type TaskTrigger =
+  | 'orchestrator'
+  | 'agent_runtime'
+  | 'verification_engine'
+  // Day-14 (Phase 2): the auto-approve executor, a first-class machine actor.
+  | 'auto_approve'
+  | 'human';
 
 /** Payload for {@link import('./event-types.js').EventType.TaskCreated}. */
 export interface TaskCreatedPayload {

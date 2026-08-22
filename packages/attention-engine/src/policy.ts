@@ -47,11 +47,23 @@ export interface FatigueConfig {
   readonly inflationCeiling: number;
 }
 
+/** Day-14 (Phase 2) auto-approve tuning — static knobs, distinct from the runtime flag. */
+export interface AutoApproveConfig {
+  /**
+   * Items only auto-approve when `combined_priority` is *strictly below* this
+   * bar (Spec 6 §2.2 / §2.1 gate part 3). Default 0.20.
+   */
+  readonly maxRisk: number;
+  /** Fraction of auto-approvals also routed to a silent human control (default 0.10). */
+  readonly auditSampleRate: number;
+}
+
 /** A versioned, ordered rule set plus its fatigue config. */
 export interface AttentionPolicy {
   readonly version: number;
   readonly rules: readonly AttentionPolicyRule[];
   readonly fatigue: FatigueConfig;
+  readonly autoApprove: AutoApproveConfig;
 }
 
 /** The Phase-1 policy (day-19 §2.1). */
@@ -65,6 +77,9 @@ export const ATTENTION_POLICY_V1: AttentionPolicy = {
     { id: 'r5-low', when: { labels: ['LOW'] }, action: 'AUTO_APPROVABLE' },
   ],
   fatigue: { dailyReviewBudget: 20, inflationWindowDays: 7, inflationCeiling: 0.3 },
+  // Auto-approve is off by construction at the policy level (the runtime flag is
+  // further gated on calibration green + a live kill-switch — day-14 §2.1 §6).
+  autoApprove: { maxRisk: 0.2, auditSampleRate: 0.1 },
 };
 
 /** Fallback when no rule matches: fail toward human attention, never away. */

@@ -57,6 +57,7 @@ describe('matchRule (ATTENTION_POLICY_V1)', () => {
       version: 9,
       rules: [{ id: 'only-high', when: { labels: ['HIGH'] }, action: 'REVIEW_REQUIRED' }],
       fatigue: ATTENTION_POLICY_V1.fatigue,
+      autoApprove: ATTENTION_POLICY_V1.autoApprove,
     };
     expect(matchRule(policy, input({ label: 'LOW' }))).toBe(DEFAULT_RULE);
   });
@@ -83,6 +84,7 @@ describe('matchRule condition operators', () => {
       },
     ],
     fatigue: ATTENTION_POLICY_V1.fatigue,
+    autoApprove: ATTENTION_POLICY_V1.autoApprove,
   };
 
   it('matches `minPriority` by an inclusive lower bound', () => {

@@ -39,8 +39,14 @@ import {
   AttentionRouter,
   AttentionSubscriber,
   ATTENTION_POLICY_V1,
+  AutoApproveExecutor,
+  AutoApproveGate,
+  AutoApproveKillSwitch,
+  AutoApproveSampler,
+  DbAutoApproveLoader,
   StaticWeightsAdapter,
 } from '@harness/attention-engine';
+import type { AutoApproveTaskTransition } from '@harness/attention-engine';
 import {
   AuthService,
   MockOidcProvider,
@@ -385,6 +391,54 @@ export function buildContainer(): Container {
     return router;
   });
 
+  // Day 14 (Phase 2): the auto-approve path. The gate is a pure evaluator over
+  // the policy's static tuning; the kill-switch is a single seeded DB row; the
+  // sampler duplicates a silent human control; the executor acts on
+  // `attention.item_routed` AUTO_APPROVABLE items and stops at APPROVED
+  // (`triggered_by: 'auto_approve'`) — MergeService closes APPROVED → COMPLETED,
+  // exactly as for a human approval (§2.3, §2.4).
+  c.register(TOKENS.AutoApproveGate, () => {
+    return new AutoApproveGate({
+      maxRisk: ATTENTION_POLICY_V1.autoApprove.maxRisk,
+      inflationCeiling: ATTENTION_POLICY_V1.fatigue.inflationCeiling,
+    });
+  });
+
+  c.register(TOKENS.AutoApproveKillSwitch, (container) => {
+    return new AutoApproveKillSwitch(container.resolve<DrizzleDB>(TOKENS.Db));
+  });
+
+  c.register(TOKENS.AutoApproveSampler, (container) => {
+    const sampler = new AutoApproveSampler(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+    sampler.subscribe();
+    return sampler;
+  });
+
+  c.register(TOKENS.AutoApproveExecutor, (container) => {
+    const taskService = container.resolve<TaskService>(TOKENS.TaskService);
+    const taskTransition: AutoApproveTaskTransition = {
+      transitionTask: (taskId, toState, triggeredBy, opts) =>
+        taskService.transitionTask(taskId, toState, triggeredBy, opts),
+    };
+    const executor = new AutoApproveExecutor({
+      db: container.resolve<DrizzleDB>(TOKENS.Db),
+      bus: container.resolve<IEventBus>(TOKENS.EventBus),
+      gate: container.resolve<AutoApproveGate>(TOKENS.AutoApproveGate),
+      killSwitch: container.resolve<AutoApproveKillSwitch>(TOKENS.AutoApproveKillSwitch),
+      sampler: container.resolve<AutoApproveSampler>(TOKENS.AutoApproveSampler),
+      taskTransition,
+      policy: ATTENTION_POLICY_V1,
+      loader: new DbAutoApproveLoader(container.resolve<DrizzleDB>(TOKENS.Db)),
+      logger: container.resolve<Logger>(TOKENS.Logger),
+    });
+    executor.subscribe();
+    return executor;
+  });
+
   // Day 20: the Context Engine. Resolves ranked, budgeted context for a task and
   // persists the snapshot into `contexts`. The FileCollector scans the sandbox
   // root the agent operates in, guarded by the same resolveSafe path check as the
@@ -602,6 +656,8 @@ export function bootContainer(container: Container): void {
   container.resolve(TOKENS.ChangeStatusSubscriber);
   container.resolve(TOKENS.AttentionSubscriber);
   container.resolve(TOKENS.AttentionRouter);
+  container.resolve(TOKENS.AutoApproveSampler);
+  container.resolve(TOKENS.AutoApproveExecutor);
   container.resolve(TOKENS.ContextEngine);
   container.resolve(TOKENS.ReviewService);
   container.resolve(TOKENS.MergeService);

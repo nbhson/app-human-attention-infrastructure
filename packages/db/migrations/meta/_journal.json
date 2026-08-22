@@ -155,6 +155,13 @@
       "when": 1787394373563,
       "tag": "0021_flat_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787396229853,
+      "tag": "0022_wonderful_quentin_quire",
+      "breakpoints": true
     }
   ]
 }
