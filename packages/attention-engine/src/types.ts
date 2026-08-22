@@ -21,6 +21,20 @@ export const PRIORITY_WEIGHTS = {
   confidence: 0.15,
 } as const;
 
+/**
+ * A complete five-factor weight vector — a convex combination (non-negative,
+ * sums to 1.0) over the `FACTOR_KEYS`. {@link PRIORITY_WEIGHTS} is the Phase-1
+ * placeholder; Day 12 fits a data-derived vector that a {@link AttentionWeights
+ * WeightsProvider} can return in its place.
+ */
+export interface AttentionWeights {
+  readonly risk: number;
+  readonly impact: number;
+  readonly novelty: number;
+  readonly complexity: number;
+  readonly confidence: number;
+}
+
 /** The canonical factor names, in score-order. */
 export const FACTOR_KEYS = ['risk', 'impact', 'novelty', 'complexity', 'confidence'] as const;
 /** One factor name. `confidence` maps to {@link FactorScores.confidenceScore}. */

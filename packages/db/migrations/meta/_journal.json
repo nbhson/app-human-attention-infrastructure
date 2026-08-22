@@ -141,6 +141,13 @@
       "when": 1787391076143,
       "tag": "0019_lumpy_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787392785654,
+      "tag": "0020_narrow_stark_industries",
+      "breakpoints": true
     }
   ]
 }

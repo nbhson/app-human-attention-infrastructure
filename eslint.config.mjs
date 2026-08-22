@@ -115,6 +115,7 @@ export default tseslint.config(
       'packages/evaluation/src/replay-cli.ts',
       'packages/evaluation/src/ab-cli.ts',
       'packages/evaluation/src/make-dataset-cli.ts',
+      'packages/evaluation/src/fit-cli.ts',
       '**/*.test.ts',
       '**/__tests__/**',
     ],

@@ -21,6 +21,7 @@
     "eval:replay": "pnpm --filter @harness/evaluation eval:replay",
     "eval:ab": "pnpm --filter @harness/evaluation eval:ab",
     "eval:make-dataset": "pnpm --filter @harness/evaluation eval:make-dataset",
+    "eval:fit": "pnpm --filter @harness/evaluation eval:fit",
     "dev": "turbo run dev",
     "prepare": "simple-git-hooks"
   },

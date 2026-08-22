@@ -22,7 +22,7 @@
  */
 
 import { FACTOR_KEYS, PRIORITY_WEIGHTS } from './types.js';
-import type { FactorKey, FactorScores, PriorityLabel } from './types.js';
+import type { AttentionWeights, FactorKey, FactorScores, PriorityLabel } from './types.js';
 
 /** Read the numeric score for each factor (`confidence` reads `confidenceScore`). */
 const SCORE: Readonly<Record<FactorKey, (f: FactorScores) => number>> = {
@@ -37,11 +37,20 @@ const SCORE: Readonly<Record<FactorKey, (f: FactorScores) => number>> = {
  * Combine {@link FactorScores} into a `[0, 1]` priority, redistributing the
  * weight of every factor named in `unavailable`.
  *
+ * `weights` defaults to {@link PRIORITY_WEIGHTS} so existing callers are
+ * unchanged; the Day-12 `WeightsProvider` seam (see
+ * {@link import('./weights/weights-provider.js')}) threads a fitted vector
+ * through this parameter instead of replacing the constant.
+ *
  * Returns `null` when **every** factor is unavailable (division by zero) — the
  * caller must refuse to score and default the label to `HIGH` (fail toward
  * human attention, never away).
  */
-export function computePriority(f: FactorScores, unavailable: readonly FactorKey[]): number | null {
+export function computePriority(
+  f: FactorScores,
+  unavailable: readonly FactorKey[],
+  weights: AttentionWeights = PRIORITY_WEIGHTS,
+): number | null {
   let weightTotal = 0;
   let raw = 0;
 
@@ -49,7 +58,7 @@ export function computePriority(f: FactorScores, unavailable: readonly FactorKey
     if (unavailable.includes(key)) {
       continue;
     }
-    const weight = PRIORITY_WEIGHTS[key];
+    const weight = weights[key];
     const value = SCORE[key](f);
     weightTotal += weight;
     // The single asymmetry in the formula: confidence is inverted.

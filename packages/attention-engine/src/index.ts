@@ -16,4 +16,5 @@ export * from './scoring.js';
 export * from './factors.js';
 export * from './policy.js';
 export * from './router.js';
+export * from './weights/weights-provider.js';
 export { AttentionSubscriber } from './attention-subscriber.js';

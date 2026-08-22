@@ -36,6 +36,7 @@ export const TOKENS = {
   AttentionEngine: 'AttentionEngine',
   AttentionSubscriber: 'AttentionSubscriber',
   AttentionRouter: 'AttentionRouter',
+  WeightsProvider: 'WeightsProvider',
   VerificationEngine: 'VerificationEngine',
   ReviewService: 'ReviewService',
   GitAdapter: 'GitAdapter',

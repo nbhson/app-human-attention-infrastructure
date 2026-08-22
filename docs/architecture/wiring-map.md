@@ -28,8 +28,9 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `ArtifactTracker` | `ArtifactTracker(db, SnapshotStore)` | Day 14 | `ArtifactCaptureSubscriber` |
 | `ArtifactCaptureSubscriber` | `ArtifactCaptureSubscriber(ArtifactTracker, logger)` + `subscribe(EventBus)` | Day 14 | eager-resolved at boot (side effect: `artifact.created` → tracker capture) |
 | `ChangeStatusSubscriber` | `ChangeStatusSubscriber(db, logger)` + `subscribe(EventBus)` | Day 14 | eager-resolved at boot (side effect: **sole writer** of `changes.status` — `PENDING→VERIFIED→REVIEWED`, any→`ROLLED_BACK`) |
-| `AttentionSubscriber` | `AttentionSubscriber(db, logger)` + `subscribe(EventBus)` | Day 18 | eager-resolved at boot (side effect: `task.state_changed`→`AWAITING_REVIEW` scores the five factors → `assessments` row → `attention.assessment_created`) |
+| `AttentionSubscriber` | `AttentionSubscriber(db, logger, WeightsProvider)` + `subscribe(EventBus)` | Day 18 (WeightsProvider seam: Day 12) | eager-resolved at boot (side effect: `task.state_changed`→`AWAITING_REVIEW` scores the five factors → `assessments` row → `attention.assessment_created`) |
 | `AttentionRouter` | `AttentionRouter(db, EventBus, ATTENTION_POLICY_V1, logger)` + `subscribe()` | Day 19 | eager-resolved at boot (side effect: `attention.assessment_created` → policy match + fatigue controls → `review_queue` → `attention.item_routed`); `ReviewService` (feedback seam) |
+| `WeightsProvider` | `StaticWeightsAdapter()` (returns the Phase-1 placeholder) | Day 12 | `AttentionSubscriber` (threads the active vector into `computePriority`; **not flipped** until Day 13/14 gate a fitted vector) |
 | `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot))` | Day 20 | `COLLECT_CONTEXT` step handler |
 | `EvidenceStore` | `EvidenceStore()` | Day 17 | `VerificationEngine` |
 | `VerificationEngine` | `VerificationEngine(db, EventBus, {CompileCheck, TestCheck}, EvidenceStore)` | Day 15 (`CompileCheck`) / 16 (`TestCheck`) / 17 (`EvidenceStore`) | `VERIFY` step handler (publishes `verification.completed`) |
@@ -140,26 +141,27 @@ The two loops (`DispatchLoop`, `RuntimePollLoop`) are **not** resolved here — 
 9. `ArtifactTracker` — needs `Db`, `SnapshotStore`.
 10. `ArtifactCaptureSubscriber` — needs `ArtifactTracker`, `Logger`, `EventBus`.
 11. `ChangeStatusSubscriber` — needs `Db`, `Logger`, `EventBus`.
-12. `AttentionSubscriber` — needs `Db`, `Logger`, `EventBus`.
-13. `AttentionRouter` — needs `Db`, `EventBus`, `ATTENTION_POLICY_V1`, `Logger`.
-14. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`.
-15. `EvidenceStore` — no deps.
-16. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
-17. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).
-18. `TaskStateMachine` — no deps.
-19. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
-20. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
-21. `GitAdapter` — needs `WORKING_REPO_ROOT`.
-22. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
-23. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
-24. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
-25. `DispatchLoop` — needs `Dispatcher`, `Logger`.
-26. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT` real, `EXECUTE` stub, `VERIFY` real).
-27. `ToolRegistry` — needs `EventBus`, `AGENT_ALLOWED_TOOLS`, `SANDBOX_ROOT`.
-28. `TrajectoryRecorder` — needs `Db`.
-29. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, the `runLinearWorkflow` handoff, `maxSteps`, `tokenLimit`, `TrajectoryRecorder`.
-30. `RuntimePollLoop` — needs `Db`, `AgentRunner`, `Logger`.
-28. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
+12. `WeightsProvider` — no deps (returns the Phase-1 placeholder via `StaticWeightsAdapter`; not flipped until Day 13/14).
+13. `AttentionSubscriber` — needs `Db`, `Logger`, `WeightsProvider`, `EventBus`.
+14. `AttentionRouter` — needs `Db`, `EventBus`, `ATTENTION_POLICY_V1`, `Logger`.
+15. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`.
+16. `EvidenceStore` — no deps.
+17. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
+18. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).
+19. `TaskStateMachine` — no deps.
+20. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
+21. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
+22. `GitAdapter` — needs `WORKING_REPO_ROOT`.
+23. `MergeService` — needs `Db`, `EventBus`, `GitAdapter`, `TaskService`, `Logger`.
+24. `ReworkService` — needs `Db`, `EventBus`, `TaskService`, `Logger`.
+25. `Dispatcher` — needs `Db`, `TaskService`, `EventBus`.
+26. `DispatchLoop` — needs `Dispatcher`, `Logger`.
+27. `WorkflowRunner` — needs `Db`, `TaskService`, step handlers (`COLLECT_CONTEXT` real, `EXECUTE` stub, `VERIFY` real).
+28. `ToolRegistry` — needs `EventBus`, `AGENT_ALLOWED_TOOLS`, `SANDBOX_ROOT`.
+29. `TrajectoryRecorder` — needs `Db`.
+30. `AgentRunner` — needs `Db`, `EventBus`, `LLMProvider`, `ToolRegistry`, `TaskService`, the `runLinearWorkflow` handoff, `maxSteps`, `tokenLimit`, `TrajectoryRecorder`.
+31. `RuntimePollLoop` — needs `Db`, `AgentRunner`, `Logger`.
+32. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 

@@ -45,6 +45,8 @@ import {
 import type { VerificationVerdict } from './factors.js';
 import { computePriority, labelFor } from './scoring.js';
 import type { AttentionAssessment, FactorKey, FactorScores } from './types.js';
+import { StaticWeightsAdapter } from './weights/weights-provider.js';
+import type { WeightsProvider } from './weights/weights-provider.js';
 
 /** The latest change row for a task (enough to diff it and anchor the row). */
 interface ChangeRow {
@@ -58,6 +60,7 @@ export class AttentionSubscriber {
   constructor(
     private readonly db: DrizzleDB,
     private readonly logger?: Logger,
+    private readonly weightsProvider: WeightsProvider = new StaticWeightsAdapter(),
   ) {}
 
   /** Attach the AWAITING_REVIEW handler; returns nothing (fire-and-forget). */
@@ -148,7 +151,8 @@ export class AttentionSubscriber {
       confidenceScore: confidenceScore ?? 0.5,
     };
 
-    const priority = computePriority(scores, unavailable);
+    const weights = await this.weightsProvider.getActiveWeights();
+    const priority = computePriority(scores, unavailable, weights);
     // All-unavailable guard: refuse to score and default HIGH (fail toward
     // human attention, never away — day-18 §2.3).
     const label = priority === null ? 'HIGH' : labelFor(priority);

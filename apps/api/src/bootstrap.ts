@@ -39,6 +39,7 @@ import {
   AttentionRouter,
   AttentionSubscriber,
   ATTENTION_POLICY_V1,
+  StaticWeightsAdapter,
 } from '@harness/attention-engine';
 import {
   AuthService,
@@ -348,6 +349,13 @@ export function buildContainer(): Container {
     return subscriber;
   });
 
+  // Day 12: the attention weight seam. The provider returns the Phase-1
+  // placeholder; the Day-12 fitter writes `calibration_weights` rows but does
+  // NOT flip this registration (that is gated on Day 13/14). `AttentionSubscriber`
+  // resolves the vector through this token so a single swap is all promotion
+  // will require.
+  c.register(TOKENS.WeightsProvider, () => new StaticWeightsAdapter());
+
   // Day 18: the Attention Engine's scoring subscriber. On `task.state_changed`
   // → AWAITING_REVIEW it computes the five Phase-1 factors, inserts an
   // `assessments` row, and publishes `attention.assessment_created`. The
@@ -357,6 +365,7 @@ export function buildContainer(): Container {
     const subscriber = new AttentionSubscriber(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<Logger>(TOKENS.Logger),
+      container.resolve<StaticWeightsAdapter>(TOKENS.WeightsProvider),
     );
     subscriber.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
     return subscriber;

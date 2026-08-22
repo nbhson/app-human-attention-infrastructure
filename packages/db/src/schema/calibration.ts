@@ -1,5 +1,6 @@
 import {
   boolean,
+  doublePrecision,
   integer,
   jsonb,
   pgTable,
@@ -65,3 +66,33 @@ export const calibrationRows = pgTable(
   },
   (table) => [primaryKey({ columns: [table.dataset_id, table.assessment_id] })],
 );
+
+/**
+ * One fitted weight vector (day-12 §2.3, §3.3). A fit is **append-only**: every
+ * `pnpm eval:fit` run INSERTs a new version row regardless of whether it beat the
+ * placeholder. Promotion is decided elsewhere (Day 13/14) — this table records
+ * the fit + its held-out before/after numbers so a "looks better" weight vector
+ * is never promoted without the paper trail.
+ *
+ * `weights` is the convex-combination vector (keys `risk`/`impact`/`novelty`/
+ * `complexity`/`confidence`) the Attention Engine can consume directly; the
+ * `confidence` entry multiplies `(1 − confidence_score)` exactly like the Phase-1
+ * placeholder. `fit_config` is the full provenance of the split + solver, so two
+ * people can reproduce the same fit from the same `dataset_id`.
+ */
+export const calibrationWeights = pgTable('calibration_weights', {
+  id: text('id').primaryKey(),
+  dataset_id: text('dataset_id')
+    .notNull()
+    .references(() => calibrationDatasets.id),
+  // "logistic-regression-v0/softmax" — the fit method, kept stable for audits.
+  method: text('method').notNull(),
+  weights: jsonb('weights').notNull(),
+  // { seed, validationShare, iterations, learningRate, regularization }.
+  fit_config: jsonb('fit_config').notNull(),
+  log_loss_fitted: doublePrecision('log_loss_fitted').notNull(),
+  log_loss_placeholder: doublePrecision('log_loss_placeholder').notNull(),
+  ranking_accuracy_fitted: doublePrecision('ranking_accuracy_fitted').notNull(),
+  ranking_accuracy_placeholder: doublePrecision('ranking_accuracy_placeholder').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
