@@ -49,7 +49,35 @@ see* before Week 2 starts measuring. All five days verified: lint, typecheck,
 - **Checkpoint** — the scripted [Week-1 demo](scripts/demo/week1.md) and the
   numbers-first [Week-1 retrospective](docs/retros/week-01.md).
 
-Next up: [Day 06 — evaluation metrics](docs/plan/phase-2/day-06.md).
+### Phase 2 · Week 2 complete — Evaluation & Governance
+
+Days 06–10 put the pipeline *under measurement*: offline routing metrics
+(precision/recall/escalation-leakage), a scheduled report generator, trajectory
+replay, and a read-only A/B shadow harness. The honest checkpoint read
+(`docs/retros/week-02.md`) is that the pipeline is now *measured but not yet
+calibrated* — every gauge resolves to a real value, and escalation leakage (1.0
+on the N=4 window) is the number Week 3 exists to move.
+
+### Phase 2 · Week 3 complete — Calibration & Auto-Approve
+
+Days 11–15 closed the loop the Week-2 retro called for: a frozen calibration
+dataset → real weight fitting → adaptive thresholds → a gated auto-approve path
+with flag, kill-switch, and sampling audit. The checkpoint was a **hard** one,
+and the honest result is red: the fitted weights (log-loss **0.316**) did *not*
+beat the Phase-1 placeholder (log-loss **0.262**) on the held-out set, so the
+placeholder stays active and auto-approve stays disabled by default.
+
+- **Calibration** — `eval:make-dataset` extracts a hash-sealed snapshot of the
+  decision log; `eval:fit` trains five weights and prints a before/after report
+  with an `improvement` verdict + governance note (never auto-promotes a regress).
+- **Auto-approve** — an ADMIN-gated flag + kill-switch behind a three-part gate
+  (calibration green ∧ flag on ∧ under the bar); machine decisions record
+  `AUTO_APPROVED` with `actor_id IS NULL`; a 10% silent-human sample audits leakage.
+- **Checkpoint** — the scripted [Week-3 demo](scripts/demo/week3-calibration.md)
+  and the numbers-first [Week-3 retrospective](docs/retros/week-03.md). Auto-approve
+  ships **OFF**; the demo proves the path, then restores the safe default.
+
+Next up: [Day 16 — pgvector migration & `Embedder` interface](docs/plan/phase-2/day-16.md).
 
 ## Quickstart
 
