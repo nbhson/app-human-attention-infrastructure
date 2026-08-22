@@ -42,7 +42,17 @@ export async function createTestDb(schemaName: string): Promise<TestDb> {
   // prod `migrate`) already installed it, `IF NOT EXISTS` no-ops here. Without
   // the `public` fallback, the migration's `vector(1536)` column type throws
   // "type vector does not exist" on every test schema after the first.
-  await sql.unsafe(`CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public`);
+  //
+  // `CREATE EXTENSION IF NOT EXISTS` is not race-safe on a fresh database: two
+  // concurrent `createTestDb` calls (vitest runs test files in parallel) can
+  // both pass the existence check, then the loser fails the unique insert on
+  // `pg_extension_name_index`. Serialise the install behind a transaction-scoped
+  // advisory lock so the winner installs `vector` and every other caller waits,
+  // then no-ops via `IF NOT EXISTS`.
+  await sql.begin(async (tx) => {
+    await tx.unsafe(`SELECT pg_advisory_xact_lock(8061551)`);
+    await tx.unsafe(`CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public`);
+  });
   // Migration SQL is unqualified (`CREATE TABLE "tasks" ...`); route it into the
   // isolated schema via search_path on this sole pooled connection.
   await sql.unsafe(`SET search_path TO "${schemaName}", public`);
