@@ -294,6 +294,6 @@ Các điểm "cần lưu ý" trước đây nay đã được giải quyết tro
 - ✅ **Data storage strategy** — PostgreSQL 16 cho tất cả; conventions rõ ràng; evidence append-only
 - ✅ **Error handling & fallback** — FailureClass (TRANSIENT/PERMANENT/RESOURCE), retry policy, escalation → AWAITING_HUMAN_INTERVENTION
 - ✅ **Spec 9 (Memory/Evidence) & Spec 11 (Evaluation Engine)** — đã formalize từ các ghi chú "Phase sau" thành spec riêng: Evidence store append-only (Phase 1) và Evaluation seam (Phase 2+)
-- ⚠️ **Auth** — vẫn là Phase 2 (P0 trong backlog, xem `docs/plan/phase-1/day-30.md`)
+- ⚠️ **Auth** — vẫn là Phase 2 (P0 trong backlog, xem `docs/plan/phase-2-backlog.md`)
 
 **Kết luận:** Kiến trúc giữ nguyên hướng đi đúng (tập trung human attention bottleneck, evidence > confidence), nay đã đủ chi tiết để implement — với 11 phân hệ (state machine chặt chẽ, event model có audit trail), lộ trình 3 phase rõ ràng, và kế hoạch 30 ngày (Phase 1) từng bước trong `docs/plan/`.

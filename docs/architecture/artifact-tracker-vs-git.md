@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-08-21 (Day 14)
 **Deciders:** HAI Harness build
-**Spec ref:** 5_Artifact_Change_Tracker_v0.1.md (updated)
+**Spec ref:** 5_Artifact_Change_Tracker_v0.2.md (updated)
 
 ## Context
 
