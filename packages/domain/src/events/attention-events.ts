@@ -3,7 +3,7 @@
  */
 
 import type { AssessmentID, ArtifactID, ReviewQueueItemID, TaskID } from '../ids.js';
-import type { PriorityLabel, RoutingAction } from '../attention.js';
+import type { PriorityLabel, RoutingAction, ThresholdBand } from '../attention.js';
 
 /** Payload for {@link import('./event-types.js').EventType.AssessmentCreated}. */
 export interface AssessmentCreatedPayload {
@@ -37,20 +37,34 @@ export interface AttentionItemRoutedPayload {
 
 /** Payload for {@link import('./event-types.js').EventType.AttentionThresholdAdjusted}. */
 export interface AttentionThresholdAdjustedPayload {
-  /** Which label band's threshold moved. */
-  readonly label: PriorityLabel;
+  /** Which label band's threshold moved (HIGH | CRITICAL). */
+  readonly band: ThresholdBand;
   /** Previous threshold value. */
-  readonly from: number;
+  readonly before: number;
   /** New threshold value. */
-  readonly to: number;
+  readonly after: number;
+  /** The observed condition that drove the move, e.g. `approval_rate 0.97 > 0.95`. */
+  readonly reason: string;
 }
 
 /** Payload for {@link import('./event-types.js').EventType.AttentionInflationDetected}. */
 export interface AttentionInflationDetectedPayload {
-  /** Mean-combined-priority ratio (this week / previous week). */
-  readonly ratio: number;
-  /** The configured alert threshold the ratio exceeded. */
-  readonly alert_ratio: number;
-  /** Window size in days per bucket. */
+  /** CRITICAL+HIGH share of recent assessments over the window. */
+  readonly share: number;
+  /** The configured ceiling the share exceeded. */
+  readonly ceiling: number;
+  /** Window size in days. */
   readonly window_days: number;
+}
+
+/** Payload for {@link import('./event-types.js').EventType.AttentionItemDeferred}. */
+export interface AttentionItemDeferredPayload {
+  /** The review-queue entry that was deferred (still QUEUED, flagged). */
+  readonly queue_id: ReviewQueueItemID;
+  /** The assessment that was deferred. */
+  readonly assessment_id: AssessmentID;
+  /** The task the assessment covers. */
+  readonly task_id: TaskID;
+  /** UTC timestamp the item is deferred until (next day boundary). */
+  readonly deferred_until: string;
 }

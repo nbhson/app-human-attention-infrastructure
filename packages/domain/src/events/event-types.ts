@@ -21,6 +21,7 @@ export const EventType = {
   AttentionItemRouted: 'attention.item_routed',
   AttentionThresholdAdjusted: 'attention.threshold_adjusted',
   AttentionInflationDetected: 'attention.inflation_detected',
+  AttentionItemDeferred: 'attention.item_deferred',
   DecisionSubmitted: 'review.decision_submitted',
   AuthzDecisionDenied: 'authz.decision_denied',
 } as const;

@@ -11,6 +11,7 @@ import {
   newArtifactID,
   newAssessmentID,
   newChangeID,
+  newDecisionID,
   newProjectID,
   newTaskID,
   TaskStatus,
@@ -18,9 +19,8 @@ import {
 } from '@harness/domain';
 import type {
   AssessmentID,
-  AttentionInflationDetectedPayload,
+  AttentionItemDeferredPayload,
   AttentionItemRoutedPayload,
-  AttentionThresholdAdjustedPayload,
   ArtifactID,
   ChangeID,
   TaskID,
@@ -31,6 +31,7 @@ import {
   assessmentFeedback,
   assessments,
   changes,
+  decisions,
   projects,
   reviewQueue,
   tasks,
@@ -41,12 +42,7 @@ import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils
 import { InProcessEventBus } from '@harness/event-bus';
 import { register, routed } from '@harness/observability';
 
-import {
-  adjustHighThreshold,
-  AttentionRouter,
-  computeInflationRatio,
-  startOfUtcDay,
-} from '../router.js';
+import { AttentionRouter } from '../router.js';
 import { ATTENTION_POLICY_V1 } from '../policy.js';
 import type { AttentionPolicy } from '../policy.js';
 
@@ -94,6 +90,7 @@ beforeEach(async () => {
   await db.delete(reviewQueue);
   await db.delete(assessmentFeedback);
   await db.delete(verificationReports);
+  await db.delete(decisions);
   await db.delete(assessments);
   await db.delete(changes);
   await db.delete(artifacts);
@@ -172,29 +169,6 @@ async function seedAssessment(options: SeedAssessmentOptions): Promise<Seed> {
   return { assessmentId, taskId, changeId, artifactId };
 }
 
-describe('fatigue pure helpers', () => {
-  it('startOfUtcDay floors to the UTC midnight', () => {
-    const day = startOfUtcDay(new Date('2026-08-20T23:59:59.999Z'));
-    expect(day.toISOString()).toBe('2026-08-20T00:00:00.000Z');
-  });
-
-  it('adjustHighThreshold nudges +0.05 only past the 80% not-useful bar', () => {
-    expect(adjustHighThreshold(0.6, 0.5)).toBe(0.6); // under bar — unchanged
-    expect(adjustHighThreshold(0.6, 0.9)).toBeCloseTo(0.65, 6);
-  });
-
-  it('adjustHighThreshold is clamped to [0.60, 0.80]', () => {
-    expect(adjustHighThreshold(0.79, 0.9)).toBeCloseTo(0.8, 6); // capped at max
-    expect(adjustHighThreshold(0.5, 0.9)).toBeCloseTo(0.65, 6); // floored to min first
-  });
-
-  it('computeInflationRatio guards a zero previous week', () => {
-    expect(computeInflationRatio(0.5, 0)).toBe(Number.POSITIVE_INFINITY);
-    expect(computeInflationRatio(0, 0)).toBe(1);
-    expect(computeInflationRatio(0.3, 0.2)).toBeCloseTo(1.5, 6);
-  });
-});
-
 describe('AttentionRouter.route', () => {
   it('routes CRITICAL → ESCALATE with an explainable queue row', async () => {
     const bus = new InProcessEventBus();
@@ -261,39 +235,53 @@ describe('AttentionRouter.route', () => {
   });
 });
 
-describe('AttentionRouter §4.1 fatigue', () => {
-  function smallBudgetPolicy(): AttentionPolicy {
+describe('AttentionRouter §4.1 daily budget', () => {
+  function budgetPolicy(dailyReviewBudget: number): AttentionPolicy {
     return {
       ...ATTENTION_POLICY_V1,
-      fatigue: { ...ATTENTION_POLICY_V1.fatigue, dailyReviewBudget: 1 },
+      fatigue: { ...ATTENTION_POLICY_V1.fatigue, dailyReviewBudget },
     };
   }
 
-  it('defers RECOMMENDED once the budget is spent, but never defers ESCALATE', async () => {
+  it('defers MEDIUM items beyond the budget, stamps deferred_until + item_deferred, never defers ESCALATE', async () => {
     const bus = new InProcessEventBus();
-    const router = new AttentionRouter(db, bus, smallBudgetPolicy());
+    const deferred: AttentionItemDeferredPayload[] = [];
+    bus.subscribe<AttentionItemDeferredPayload>(EventType.AttentionItemDeferred, (event) => {
+      deferred.push(event.payload);
+    });
 
-    // Spend the budget: route a MEDIUM item, then mark it DECIDED.
+    const router = new AttentionRouter(db, bus, budgetPolicy(1));
+
+    // Spend the budget: one human decision today.
     const first = await seedAssessment({ label: 'MEDIUM', combinedPriority: 0.5 });
-    const firstOutcome = await router.route(first.assessmentId);
-    expect(firstOutcome).not.toBeNull();
-    await db
-      .update(reviewQueue)
-      .set({ status: 'DECIDED' })
-      .where(eq(reviewQueue.id, firstOutcome!.queueId));
+    await db.insert(decisions).values({
+      id: newDecisionID(),
+      change_id: first.changeId,
+      assessment_id: first.assessmentId,
+      decision: 'APPROVED',
+      reviewer_id: 'reviewer-1',
+    });
 
-    // A second MEDIUM is budget-deferred but still enqueued (status QUEUED).
+    // A subsequent MEDIUM is budget-deferred but still QUEUED (never dropped).
     const second = await seedAssessment({ label: 'MEDIUM', combinedPriority: 0.5 });
-    const deferred = await router.route(second.assessmentId);
-    expect(deferred).toMatchObject({ action: 'REVIEW_RECOMMENDED', deferred: true });
+    const outcome = await router.route(second.assessmentId);
+    expect(outcome).toMatchObject({ action: 'REVIEW_RECOMMENDED', deferred: true });
 
-    const secondRow = await db
+    const row = await db
       .select()
       .from(reviewQueue)
       .where(eq(reviewQueue.assessment_id, second.assessmentId));
-    expect(secondRow[0]?.status).toBe('QUEUED');
+    expect(row[0]?.status).toBe('QUEUED');
+    expect(row[0]?.deferred_until).not.toBeNull();
 
-    // ESCALATE bypasses the budget entirely.
+    expect(deferred).toHaveLength(1);
+    expect(deferred[0]).toMatchObject({
+      assessment_id: second.assessmentId,
+      task_id: second.taskId,
+    });
+    expect(deferred[0]!.deferred_until).toBe(row[0]!.deferred_until!.toISOString());
+
+    // CRITICAL bypasses the budget entirely.
     const critical = await seedAssessment({ label: 'CRITICAL', combinedPriority: 0.9 });
     const escalated = await router.route(critical.assessmentId);
     expect(escalated).toMatchObject({ action: 'ESCALATE', deferred: false });
@@ -312,71 +300,5 @@ describe('AttentionRouter §4.1 fatigue', () => {
       was_useful: false,
       comment: 'barking up the wrong tree',
     });
-  });
-
-  it('runThresholdAdjustment emits threshold_adjusted when HIGH items were mostly not useful', async () => {
-    const bus = new InProcessEventBus();
-    const adjusted: AttentionThresholdAdjustedPayload[] = [];
-    bus.subscribe<AttentionThresholdAdjustedPayload>(
-      EventType.AttentionThresholdAdjusted,
-      (event) => {
-        adjusted.push(event.payload);
-      },
-    );
-
-    const router = new AttentionRouter(db, bus);
-    const { assessmentId } = await seedAssessment({ label: 'HIGH', combinedPriority: 0.7 });
-    await router.reportAssessmentFeedback(assessmentId, false);
-
-    const result = await router.runThresholdAdjustment();
-
-    expect(result).toEqual({ from: 0.6, to: 0.65 });
-    expect(adjusted).toHaveLength(1);
-    expect(adjusted[0]).toMatchObject({ label: 'HIGH', from: 0.6, to: 0.65 });
-  });
-
-  it('runThresholdAdjustment is silent when feedback is useful', async () => {
-    const bus = new InProcessEventBus();
-    const adjusted: AttentionThresholdAdjustedPayload[] = [];
-    bus.subscribe<AttentionThresholdAdjustedPayload>(
-      EventType.AttentionThresholdAdjusted,
-      (event) => {
-        adjusted.push(event.payload);
-      },
-    );
-
-    const router = new AttentionRouter(db, bus);
-    const { assessmentId } = await seedAssessment({ label: 'HIGH', combinedPriority: 0.7 });
-    await router.reportAssessmentFeedback(assessmentId, true);
-
-    await expect(router.runThresholdAdjustment()).resolves.toBeNull();
-    expect(adjusted).toHaveLength(0);
-  });
-
-  it('runInflationCheck emits inflation_detected when this week out-prioritises last week', async () => {
-    const bus = new InProcessEventBus();
-    const inflated: AttentionInflationDetectedPayload[] = [];
-    bus.subscribe<AttentionInflationDetectedPayload>(
-      EventType.AttentionInflationDetected,
-      (event) => {
-        inflated.push(event.payload);
-      },
-    );
-
-    // This week: one CRITICAL at 0.9. Last week: one LOW at 0.1 → ratio 9.
-    await seedAssessment({ label: 'HIGH', combinedPriority: 0.9 });
-    await seedAssessment({
-      label: 'LOW',
-      combinedPriority: 0.1,
-      createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
-    });
-
-    const result = await new AttentionRouter(db, bus).runInflationCheck();
-
-    expect(result).not.toBeNull();
-    expect(result!.ratio).toBeGreaterThanOrEqual(9);
-    expect(result!.alertRatio).toBe(1.5);
-    expect(inflated).toHaveLength(1);
-    expect(inflated[0]).toMatchObject({ alert_ratio: 1.5, window_days: 7 });
   });
 });

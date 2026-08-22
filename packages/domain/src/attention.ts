@@ -18,6 +18,18 @@ export const PriorityLabel = {
 export type PriorityLabel = (typeof PriorityLabel)[keyof typeof PriorityLabel];
 
 /**
+ * The priority bands the Day-13 adaptive-threshold controller tunes. MEDIUM and
+ * LOW stay fixed in v0 — only the CRITICAL/HIGH boundaries observe the feedback
+ * loop and move. Source: attention spec §4.1.
+ */
+export const ThresholdBand = {
+  High: 'HIGH',
+  Critical: 'CRITICAL',
+} as const;
+/** A review-priority band whose decision boundary the controller may adjust. */
+export type ThresholdBand = (typeof ThresholdBand)[keyof typeof ThresholdBand];
+
+/**
  * What should *happen* to an assessment once priority is known (attention spec
  * §4 policy & routing). The scoring engine (Day 18) says *how urgent*; the policy
  * rules map that to a *routing decision*.

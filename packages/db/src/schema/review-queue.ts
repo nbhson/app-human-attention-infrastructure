@@ -36,6 +36,10 @@ export const reviewQueue = pgTable(
     // null until a human claims the item; `claim` sets them in a guarded UPDATE.
     claimed_by: text('claimed_by'),
     claimed_at: timestamp('claimed_at', { withTimezone: true }),
+    // Day-13 budget deferral: set to the next UTC day boundary when a MEDIUM/LOW
+    // item is gated by the daily review budget. NULL means "not deferred" — the
+    // row is actionable now. A deferred row is still QUEUED, never DROPPED.
+    deferred_until: timestamp('deferred_until', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   () => [routingActionCheck, reviewQueueStatusCheck],

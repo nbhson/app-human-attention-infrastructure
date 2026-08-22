@@ -36,12 +36,15 @@ export interface AttentionPolicyRule {
 
 /** §4.1 alert-fatigue configuration. */
 export interface FatigueConfig {
-  /** Max DECIDED/CLAIMED reviews before low-severity items defer a day. */
+  /** Max human-review decisions per UTC day before low-severity items defer. */
   readonly dailyReviewBudget: number;
   /** Bucket size (days) for the inflation monitor. */
   readonly inflationWindowDays: number;
-  /** Mean-priority ratio (this week / previous week) that triggers an alert. */
-  readonly inflationAlertRatio: number;
+  /**
+   * The CRITICAL+HIGH share ceiling. Crossing it emits `attention.inflation_detected`
+   * (a governance note) — the monitor never auto-lowers a threshold (§4.1).
+   */
+  readonly inflationCeiling: number;
 }
 
 /** A versioned, ordered rule set plus its fatigue config. */
@@ -61,7 +64,7 @@ export const ATTENTION_POLICY_V1: AttentionPolicy = {
     { id: 'r4-medium', when: { labels: ['MEDIUM'] }, action: 'REVIEW_RECOMMENDED' },
     { id: 'r5-low', when: { labels: ['LOW'] }, action: 'AUTO_APPROVABLE' },
   ],
-  fatigue: { dailyReviewBudget: 20, inflationWindowDays: 7, inflationAlertRatio: 1.5 },
+  fatigue: { dailyReviewBudget: 20, inflationWindowDays: 7, inflationCeiling: 0.3 },
 };
 
 /** Fallback when no rule matches: fail toward human attention, never away. */

@@ -75,6 +75,12 @@ export const verificationStatuses = [
 
 export const priorityLabels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 
+/**
+ * The priority bands the Day-13 adaptive-threshold controller may tune. MEDIUM
+ * and LOW are fixed in v0, so only HIGH/CRITICAL are valid `band` values here.
+ */
+export const thresholdBands = ['HIGH', 'CRITICAL'] as const;
+
 /** `review_queue.action` — the routing decision (attention spec §4). */
 export const routingActions = [
   'REVIEW_REQUIRED',
@@ -178,6 +184,9 @@ export const reportOverallCheck = inList(
 
 /** `assessments.label`. */
 export const priorityLabelCheck = inList('assessments_label_check', 'label', priorityLabels);
+
+/** `attention_thresholds.band`. */
+export const thresholdBandCheck = inList('attention_thresholds_band_check', 'band', thresholdBands);
 
 /** `review_queue.action`. */
 export const routingActionCheck = inList('review_queue_action_check', 'action', routingActions);

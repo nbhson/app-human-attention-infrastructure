@@ -10,6 +10,7 @@ import {
   ReviewQueueStatus,
   RoutingAction,
   TaskStatus,
+  ThresholdBand,
   VerificationStatus,
 } from '@harness/domain';
 
@@ -23,6 +24,7 @@ import {
   reviewQueueStatuses,
   routingActions,
   taskStates,
+  thresholdBands,
   verificationStatuses,
 } from './schema/enums.js';
 
@@ -58,6 +60,10 @@ describe('schema enum drift guards', () => {
 
   it('priorityLabels match PriorityLabel', () => {
     expect(priorityLabels).toEqual(Object.values(PriorityLabel));
+  });
+
+  it('thresholdBands match ThresholdBand', () => {
+    expect(thresholdBands).toEqual(Object.values(ThresholdBand));
   });
 
   it('humanDecisionTypes match HumanDecisionType', () => {
