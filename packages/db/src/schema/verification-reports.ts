@@ -29,6 +29,9 @@ export const verificationReports = pgTable(
     overall: text('overall').notNull(),
     duration_ms: integer('duration_ms').notNull(),
     flaky: boolean('flaky').notNull().default(false),
+    // SHA-256 of the verified worktree bytes (day-22 §5.5 attributability): a
+    // result is only meaningful when linked to the exact content it verified.
+    content_hash: text('content_hash'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   () => [reportOverallCheck],

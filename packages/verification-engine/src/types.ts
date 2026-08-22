@@ -90,6 +90,8 @@ export interface VerificationReport {
   readonly id: VerificationResultID;
   readonly changeId: ChangeID;
   readonly taskId: TaskID;
+  /** SHA-256 of the verified worktree bytes (day-22 §5.5 attributability). */
+  readonly contentHash: string;
   /** PASSED iff every check is PASSED or FLAKY. */
   readonly overall: OverallVerdict;
   readonly durationMs: number;

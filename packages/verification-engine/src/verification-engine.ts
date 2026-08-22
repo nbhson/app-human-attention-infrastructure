@@ -39,6 +39,7 @@ import type { DrizzleDB } from '@harness/db';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { withSpan } from '@harness/observability';
+import { computeWorkdirManifest } from '@harness/sandbox';
 
 import { readInt } from './env.js';
 import { EvidenceKind, EvidenceStore, EvidenceSubjectKind } from './evidence-store.js';
@@ -55,6 +56,8 @@ import { CheckStatus } from './types.js';
 /** Context resolved from the change, carrying the task/project the run belongs to. */
 interface ResolvedContext extends CheckContext {
   readonly taskId: TaskID;
+  /** SHA-256 of the verified worktree (day-22 §5.5 attributability). */
+  readonly contentHash: string;
 }
 
 export interface VerificationEngineOptions {
@@ -145,7 +148,7 @@ export class VerificationEngine {
       }));
     });
 
-    const report = buildReport(changeId, ctx.taskId, checks, Date.now() - started);
+    const report = buildReport(changeId, ctx.taskId, ctx.contentHash, checks, Date.now() - started);
     await this.persist(report);
     this.publish(report);
     return report;
@@ -168,11 +171,13 @@ export class VerificationEngine {
     if (!row) {
       throw new Error(`verification context unresolved for change ${changeId}`);
     }
+    const { contentHash } = await computeWorkdirManifest(row.repoPath);
     return {
       changeId,
       taskId: brand(row.taskId, 'TaskID'),
       worktreePath: row.repoPath,
       sandboxRoot: this.options.sandboxRoot ?? process.env.SANDBOX_ROOT ?? './sandbox',
+      contentHash,
     };
   }
 
@@ -183,6 +188,7 @@ export class VerificationEngine {
         correlation_id: report.taskId,
         change_id: report.changeId,
         task_id: report.taskId,
+        content_hash: report.contentHash,
         overall: report.overall,
         duration_ms: report.durationMs,
         flaky: report.flaky,
@@ -264,6 +270,7 @@ export class VerificationEngine {
 function buildReport(
   changeId: ChangeID,
   taskId: TaskID,
+  contentHash: string,
   checks: CheckResult[],
   durationMs: number,
 ): VerificationReport {
@@ -277,6 +284,7 @@ function buildReport(
     id: newVerificationResultID(),
     changeId,
     taskId,
+    contentHash,
     overall,
     durationMs,
     checks,

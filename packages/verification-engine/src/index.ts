@@ -14,3 +14,5 @@ export * from './evidence-store.js';
 export * from './verification-engine.js';
 export { CompileCheck } from './checks/compile-check.js';
 export { TestCheck } from './checks/test-check.js';
+export { SandboxedCheck } from './executors/sandboxed-check.js';
+export type { SandboxedCheckOptions } from './executors/sandboxed-check.js';

@@ -124,4 +124,11 @@ describe('dependency rules (Spec 1 §5)', () => {
     // import the seam without creating a cycle or a new shared-infra boundary.
     expect(harnessDependencies('object-store')).toEqual([]);
   });
+
+  it('R12: @harness/sandbox depends on no @harness/* package', () => {
+    // Day-22 §2.1: the sandbox seam is a leaf like object-store — node built-ins
+    // only, no @harness runtime dependency — so verification (Day 22) and agent
+    // Code Mode (Day 23) can both import the `Sandbox` interface with no cycle.
+    expect(harnessDependencies('sandbox')).toEqual([]);
+  });
 });

@@ -101,9 +101,12 @@ import {
   ObjectStoreContentStore,
 } from '@harness/object-store';
 import { ReviewService } from '@harness/review';
+import { DockerSandbox } from '@harness/sandbox';
+import type { Sandbox } from '@harness/sandbox';
 import {
   CompileCheck,
   EvidenceStore,
+  SandboxedCheck,
   TestCheck,
   VerificationEngine,
 } from '@harness/verification-engine';
@@ -607,11 +610,36 @@ export function buildContainer(): Container {
   // links back to its evidence through `evidence_id`.
   c.register(TOKENS.EvidenceStore, () => new EvidenceStore());
 
+  // Day 22: the container Sandbox seam. `VERIFY_SANDBOX_ENABLED=1` swaps the
+  // COMPILE check to a `SandboxedCheck` (sandbox primary, in-process fallback);
+  // otherwise the in-process path stays the default. The image must be pre-built
+  // (`docker build -t harness-verify:node20 packages/sandbox`) or `docker run`
+  // exits 125 and the fallback fires with a logged warning.
+  c.register(TOKENS.Sandbox, () => new DockerSandbox());
+
   c.register(TOKENS.VerificationEngine, (container) => {
+    const compileCheck = new CompileCheck();
+    const checks = [
+      process.env.VERIFY_SANDBOX_ENABLED === '1'
+        ? new SandboxedCheck({
+            inner: compileCheck,
+            sandbox: container.resolve<Sandbox>(TOKENS.Sandbox),
+            image: process.env.VERIFY_SANDBOX_IMAGE ?? 'harness-verify:node20',
+            buildCommand: () => ['bash', '-lc', 'cd /workdir && tsc --noEmit -p .'],
+            limits: {
+              cpu: process.env.VERIFY_SANDBOX_CPU ?? '1.0',
+              memory: process.env.VERIFY_SANDBOX_MEMORY ?? '512m',
+              timeoutSeconds: Math.ceil(compileCheck.timeoutMs / 1000),
+            },
+            logger: container.resolve<Logger>(TOKENS.Logger),
+          })
+        : compileCheck,
+      new TestCheck(),
+    ];
     return new VerificationEngine(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<IEventBus>(TOKENS.EventBus),
-      { checks: [new CompileCheck(), new TestCheck()] },
+      { checks },
       container.resolve<EvidenceStore>(TOKENS.EvidenceStore),
     );
   });

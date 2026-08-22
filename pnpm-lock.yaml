@@ -92,6 +92,9 @@ importers:
       '@harness/review':
         specifier: workspace:*
         version: link:../../packages/review
+      '@harness/sandbox':
+        specifier: workspace:*
+        version: link:../../packages/sandbox
       '@harness/verification-engine':
         specifier: workspace:*
         version: link:../../packages/verification-engine
@@ -580,11 +583,26 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)
 
+  packages/sandbox:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)
+
   packages/verification-engine:
     dependencies:
       '@harness/db':
         specifier: workspace:^
         version: link:../db
+      '@harness/di':
+        specifier: workspace:^
+        version: link:../di
       '@harness/domain':
         specifier: workspace:^
         version: link:../domain
@@ -594,6 +612,9 @@ importers:
       '@harness/observability':
         specifier: workspace:^
         version: link:../observability
+      '@harness/sandbox':
+        specifier: workspace:^
+        version: link:../sandbox
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(postgres@3.4.9)

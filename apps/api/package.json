@@ -27,6 +27,7 @@
     "@harness/observability": "workspace:*",
     "@harness/object-store": "workspace:*",
     "@harness/review": "workspace:*",
+    "@harness/sandbox": "workspace:*",
     "@harness/verification-engine": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.1.0"

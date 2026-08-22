@@ -13,6 +13,7 @@ import {
 } from '@harness/domain';
 import type { ChangeID, VerificationCompletedPayload } from '@harness/domain';
 import { InProcessEventBus } from '@harness/event-bus';
+import { computeWorkdirManifest } from '@harness/sandbox';
 import {
   agentRuns,
   artifacts,
@@ -141,6 +142,14 @@ describe('VerificationEngine', () => {
     const reportRows = await db.select().from(verificationReports);
     expect(reportRows).toHaveLength(1);
     expect(reportRows[0]).toMatchObject({ id: report.id, change_id: changeId, overall: 'PASSED' });
+
+    // Day-22 attributability: the report records the SHA-256 of the verified
+    // worktree, matching the manifest computed over those exact bytes.
+    expect(report.contentHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(reportRows[0]?.content_hash).toBe(report.contentHash);
+    expect(report.contentHash).toBe(
+      (await computeWorkdirManifest(`${FIXTURES}/compile-pass`)).contentHash,
+    );
 
     const checkRows = await db.select().from(verificationCheckResults);
     expect(checkRows).toHaveLength(1);

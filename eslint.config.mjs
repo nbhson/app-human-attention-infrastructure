@@ -30,6 +30,7 @@ const elements = [
   { type: 'di', pattern: 'packages/di/**' },
   { type: 'embeddings', pattern: 'packages/embeddings/**' },
   { type: 'object-store', pattern: 'packages/object-store/**' },
+  { type: 'sandbox', pattern: 'packages/sandbox/**' },
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
@@ -52,6 +53,13 @@ const elementTypesRules = [
     // A pure content-addressed byte store: depends on no @harness package (the
     // S3 SDK is external, not a boundary element). Everything may import it.
     allow: ['object-store'],
+  },
+  {
+    from: 'sandbox',
+    // The isolated-execution seam is a leaf like object-store: no @harness
+    // runtime dependency (only node built-ins). Everything may import the
+    // `Sandbox` interface and its Docker runtime.
+    allow: ['sandbox'],
   },
   { from: 'di', allow: [...SHARED, 'di'] },
   {
@@ -79,7 +87,7 @@ const elementTypesRules = [
   },
   ...ENGINE_TYPES.map((type) => ({
     from: type,
-    allow: [...SHARED, 'observability', 'embeddings', 'object-store', type],
+    allow: [...SHARED, 'observability', 'embeddings', 'object-store', 'sandbox', type],
   })),
   {
     from: 'app',
@@ -91,6 +99,7 @@ const elementTypesRules = [
       'evaluation',
       'embeddings',
       'object-store',
+      'sandbox',
       ...ENGINE_TYPES,
       'app',
     ],

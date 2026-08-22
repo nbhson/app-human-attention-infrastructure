@@ -7,5 +7,5 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 .vitest-out.json
-sandbox/
+/sandbox/
 working-repo/
