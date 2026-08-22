@@ -105,15 +105,15 @@ describe('dependency rules (Spec 1 §5)', () => {
     );
   });
 
-  it('R10: @harness/embeddings depends only on @harness/domain — never db, di, or an engine', () => {
-    // Day-16 §2.4: the text-embedding seam is infra of the same tier as
-    // db/di/observability, but it has no persistence or logging of its own (a
-    // failing provider returns a typed EmbedError the caller logs), so it may
-    // read domain types and nothing else. Today the Embedder keys by `string` /
-    // `number[]` only and imports no domain symbol, so the dependency set is
-    // empty — a strict subset of "domain at most". The eslint element permits
-    // `domain` for the day-17 index-population job if it lands here.
-    const deps = harnessDependencies('embeddings');
-    expect(deps.filter((dep) => dep !== '@harness/domain')).toEqual([]);
+  it('R10: @harness/embeddings depends on domain, db, event-bus — never di, observability, or an engine', () => {
+    // Day-16 §2.4: the `Embedder` provider seam itself reads only domain types
+    // (today it imports no domain symbol — an empty subset of "domain at most").
+    // Day-17 widens the package to host the semantic index: persisting vectors
+    // (`db`) and subscribing to artifact events (`event-bus`). It still must not
+    // reach for the logger token (`di`) — the indexer/listener take a structural
+    // `IndexLogger` — nor observability or a sibling engine.
+    expect(harnessDependencies('embeddings').sort()).toEqual(
+      ['@harness/domain', '@harness/db', '@harness/event-bus'].sort(),
+    );
   });
 });

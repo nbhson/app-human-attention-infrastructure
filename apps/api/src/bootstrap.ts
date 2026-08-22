@@ -67,7 +67,12 @@ import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { brand, ChangeStatus, TaskStatus } from '@harness/domain';
 import type { ChangeID, TaskID } from '@harness/domain';
-import { OpenAICompatibleEmbedder, StubEmbedder } from '@harness/embeddings';
+import {
+  EmbeddingIndexer,
+  OpenAICompatibleEmbedder,
+  ReembedListener,
+  StubEmbedder,
+} from '@harness/embeddings';
 import type { Embedder } from '@harness/embeddings';
 import { MetricsComputer } from '@harness/evaluation';
 import { InProcessEventBus } from '@harness/event-bus';
@@ -463,6 +468,30 @@ export function buildContainer(): Container {
     });
   });
 
+  // Day 17: the semantic index. `EmbeddingIndexer` is the batch/resumable/
+  // idempotent population core — used out-of-band by `pnpm embed:populate` and
+  // re-used by the listener. `ReembedListener` keeps the vector column fresh:
+  // on `artifact.created`/`artifact.changed` it re-embeds the affected FILE
+  // source keyed on `content_hash`, publishing nothing (day-17 §6).
+  c.register(TOKENS.EmbeddingIndexer, (container) => {
+    return new EmbeddingIndexer(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<Embedder>(TOKENS.Embedder),
+      {},
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+  });
+
+  c.register(TOKENS.ReembedListener, (container) => {
+    const listener = new ReembedListener(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<EmbeddingIndexer>(TOKENS.EmbeddingIndexer),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+    listener.subscribe(container.resolve<IEventBus>(TOKENS.EventBus));
+    return listener;
+  });
+
   // Day 20: the Context Engine. Resolves ranked, budgeted context for a task and
   // persists the snapshot into `contexts`. The FileCollector scans the sandbox
   // root the agent operates in, guarded by the same resolveSafe path check as the
@@ -686,6 +715,7 @@ export function bootContainer(container: Container): void {
   container.resolve(TOKENS.AutoApproveSampler);
   container.resolve(TOKENS.AutoApproveExecutor);
   container.resolve(TOKENS.ContextEngine);
+  container.resolve(TOKENS.ReembedListener);
   container.resolve(TOKENS.ReviewService);
   container.resolve(TOKENS.MergeService);
   container.resolve(TOKENS.ReworkService);

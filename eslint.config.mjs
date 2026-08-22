@@ -49,11 +49,11 @@ const elementTypesRules = [
   { from: 'di', allow: [...SHARED, 'di'] },
   {
     from: 'embeddings',
-    // R10 (day-16 §2.4): a text-embedding seam is infra, imported by engines as
-    // a tier with `db`/`di`/`observability`. It may read domain types only —
-    // never a sibling engine, never db/di (it has no persistence or logging of
-    // its own beyond returning a typed error the caller logs).
-    allow: ['domain', 'embeddings'],
+    // R10 (day-16 §2.4, widened day-17): the provider seam itself reads only
+    // domain types, but the Day-17 index-population job that lands in this
+    // package must persist vectors (`db`) and subscribe to artifact events
+    // (`event-bus`). Still never a sibling engine.
+    allow: ['domain', 'db', 'event-bus', 'embeddings'],
   },
   { from: 'review', allow: [...SHARED, 'observability', 'review'] },
   { from: 'auth', allow: [...SHARED, 'auth'] },
@@ -137,6 +137,7 @@ export default tseslint.config(
       'packages/evaluation/src/ab-cli.ts',
       'packages/evaluation/src/make-dataset-cli.ts',
       'packages/evaluation/src/fit-cli.ts',
+      'packages/embeddings/src/cli.ts',
       '**/*.test.ts',
       '**/__tests__/**',
     ],

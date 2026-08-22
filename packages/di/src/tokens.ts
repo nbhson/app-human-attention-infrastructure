@@ -33,6 +33,8 @@ export const TOKENS = {
   AgentRuntime: 'AgentRuntime',
   ContextEngine: 'ContextEngine',
   Embedder: 'Embedder',
+  EmbeddingIndexer: 'EmbeddingIndexer',
+  ReembedListener: 'ReembedListener',
   ArtifactTracker: 'ArtifactTracker',
   AttentionEngine: 'AttentionEngine',
   AttentionSubscriber: 'AttentionSubscriber',

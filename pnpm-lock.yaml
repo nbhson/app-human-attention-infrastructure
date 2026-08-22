@@ -370,10 +370,26 @@ importers:
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)
 
   packages/embeddings:
+    dependencies:
+      '@harness/db':
+        specifier: workspace:^
+        version: link:../db
+      '@harness/domain':
+        specifier: workspace:^
+        version: link:../domain
+      '@harness/event-bus':
+        specifier: workspace:^
+        version: link:../event-bus
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(postgres@3.4.9)
     devDependencies:
       '@types/node':
         specifier: ^22.10.1
         version: 22.20.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.12
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
