@@ -40,7 +40,7 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `ReembedListener` | `ReembedListener(db, EmbeddingIndexer, Logger)` + `subscribe(EventBus)` | Day 17 | eager-resolved at boot (side effect: `artifact.created`/`artifact.changed` → re-embed the FILE source keyed on `content_hash`; publishes nothing — day-17 §6) |
 | `SemanticRetriever` | `SemanticRetriever(db, Embedder)` | Day 18 | cosine similarity over the populated index; **not** on the default resolve path (only reachable via `resolveWithShadow`) |
 | `SemanticRanker` | `SemanticRanker(db, Embedder, SemanticRetriever)` | Day 18 | wraps the retriever with the freshness guard (day-17 §2.4) + target-file rule; **not** on the default resolve path |
-| `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot), KeywordDependencyRanker(), ApproxTokenizer(), Embedder, SemanticRanker)` | Day 20 (embedder seam: Day 16, semantic shadow: Day 18) | `COLLECT_CONTEXT` step handler (default `resolveContext`, keyword-only); `resolveWithShadow` is opt-in via `semanticShadowEnabled` |
+| `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot), KeywordDependencyRanker(), TiktokenTokenizer(), Embedder, SemanticRanker)` | Day 20 (embedder seam: Day 16, semantic shadow: Day 18) | `COLLECT_CONTEXT` step handler (default `resolveContext`, keyword-only); `resolveWithShadow` is opt-in via `semanticShadowEnabled` |
 | `EvidenceStore` | `EvidenceStore()` | Day 17 | `VerificationEngine` |
 | `VerificationEngine` | `VerificationEngine(db, EventBus, {CompileCheck, TestCheck}, EvidenceStore)` | Day 15 (`CompileCheck`) / 16 (`TestCheck`) / 17 (`EvidenceStore`) | `VERIFY` step handler (publishes `verification.completed`) |
 | `LLMProvider` | `LoggingLLMProvider(AnthropicProvider(key) \| MockLLM(script), db)` | Day 11 | `AgentRunner` |
@@ -164,7 +164,7 @@ The two loops (`DispatchLoop`, `RuntimePollLoop`) are **not** resolved here — 
 21. `ReembedListener` — needs `Db`, `EmbeddingIndexer`, `Logger`, `EventBus`; `subscribe(EventBus)` at registration (side effect).
 22. `SemanticRetriever` — needs `Db`, `Embedder`.
 23. `SemanticRanker` — needs `Db`, `Embedder`, `SemanticRetriever`.
-24. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`, `KeywordDependencyRanker()`, `ApproxTokenizer()`, `Embedder`, `SemanticRanker`.
+24. `ContextEngine` — needs `Db`, `FileCollector(sandboxRoot)`, `KeywordDependencyRanker()`, `TiktokenTokenizer()`, `Embedder`, `SemanticRanker`.
 25. `EvidenceStore` — no deps.
 26. `VerificationEngine` — needs `Db`, `EventBus`, `{CompileCheck, TestCheck}`, `EvidenceStore`.
 27. `LLMProvider` — needs `Db`, plus `ANTHROPIC_API_KEY` to pick the real adapter (else `MockLLM`, scripted by `MOCK_LLM_SCRIPT`).

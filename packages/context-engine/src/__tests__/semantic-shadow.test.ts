@@ -22,9 +22,9 @@ import { FileCollector } from '../collect.js';
 import type { CollectedFile } from '../collect.js';
 import { ContextEngine } from '../engine.js';
 import {
-  ApproxTokenizer,
   KeywordDependencyRanker,
   SemanticRanker,
+  TiktokenTokenizer,
   kendallTau,
   sha256,
 } from '../index.js';
@@ -175,7 +175,7 @@ describe('ContextEngine.resolveWithShadow (day-18 §2.2, §2.3)', () => {
       db,
       new FileCollector(tmpRoot),
       new KeywordDependencyRanker(),
-      new ApproxTokenizer(),
+      new TiktokenTokenizer(),
       stub,
       new SemanticRanker(db, stub),
     );
@@ -223,7 +223,7 @@ describe('ContextEngine.resolveWithShadow (day-18 §2.2, §2.3)', () => {
       db,
       new FileCollector(tmpRoot),
       new KeywordDependencyRanker(),
-      new ApproxTokenizer(),
+      new TiktokenTokenizer(),
       stub,
       new SemanticRanker(db, stub),
     );

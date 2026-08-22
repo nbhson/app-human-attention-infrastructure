@@ -27,8 +27,8 @@ import type { Ranker, RankedFile } from './rank.js';
 import { SemanticRanker } from './retrieval/semantic-ranker.js';
 import { ShadowRankWriter } from './retrieval/shadow.js';
 import { tokenize } from './tokenizer.js';
+import { TiktokenTokenizer } from './tiktoken-tokenizer.js';
 import { applyBudget, DEFAULT_CONTEXT_POLICY, RANK_METHOD } from './trim.js';
-import { ApproxTokenizer } from './types.js';
 import type { ContextRequest, Tokenizer } from './types.js';
 
 export class ContextEngine {
@@ -36,7 +36,7 @@ export class ContextEngine {
     private readonly db: DrizzleDB,
     private readonly collector: FileCollector,
     private readonly ranker: Ranker = new KeywordDependencyRanker(),
-    private readonly tokenizer: Tokenizer = new ApproxTokenizer(),
+    private readonly tokenizer: Tokenizer = new TiktokenTokenizer(),
     // Reserved for the Day-18 semantic retriever behind the Ranker seam. The
     // default keyword path (`resolveContext` / `resolveFresh`) never reads it —
     // that is exactly the shadow-then-default guarantee the shadow-negative test
@@ -103,7 +103,7 @@ export class ContextEngine {
       totalTokens,
       rankMethod: RANK_METHOD,
       metadata: {
-        tokenizer: 'approx-4',
+        tokenizer: this.tokenizer.name,
         targetFiles: [...request.targetFiles],
         taskDescription: request.taskDescription,
         requirements: request.requirements,

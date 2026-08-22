@@ -55,13 +55,13 @@ import {
   SessionService,
 } from '@harness/auth';
 import {
-  ApproxTokenizer,
   ContextEngine,
   extractFileReferences,
   FileCollector,
   KeywordDependencyRanker,
   SemanticRanker,
   SemanticRetriever,
+  TiktokenTokenizer,
 } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
 import type { Logger } from '@harness/di';
@@ -525,7 +525,7 @@ export function buildContainer(): Container {
       container.resolve<DrizzleDB>(TOKENS.Db),
       new FileCollector(sandboxRoot),
       new KeywordDependencyRanker(),
-      new ApproxTokenizer(),
+      new TiktokenTokenizer(),
       container.resolve<Embedder>(TOKENS.Embedder),
       container.resolve<SemanticRanker>(TOKENS.SemanticRanker),
     );

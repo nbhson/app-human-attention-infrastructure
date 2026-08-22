@@ -14,7 +14,7 @@ import { newProjectID, newTaskID } from '@harness/domain';
 
 import { FileCollector } from '../collect.js';
 import { ContextEngine } from '../engine.js';
-import { ApproxTokenizer, KeywordDependencyRanker } from '../index.js';
+import { KeywordDependencyRanker, TiktokenTokenizer } from '../index.js';
 
 const SCHEMA = 'harness_test_context_engine';
 
@@ -88,6 +88,9 @@ describe('ContextEngine.resolveContext', () => {
     expect(ids.some((id) => id.includes('node_modules'))).toBe(false);
     expect(snapshot.totalTokens).toBeLessThanOrEqual(4000);
     expect(snapshot.rankMethod).toBe('phase1-keyword-dependency');
+    // Day 19: budget decisions are made with the exact tokenizer, and the snapshot
+    // records which counter produced the counts (§6) — no chars/4 provenance.
+    expect(snapshot.metadata.tokenizer).toBe('tiktoken:cl100k_base');
 
     const target = snapshot.sources.find((s) => s.sourceId === 'src/PaymentService.ts');
     const sibling = snapshot.sources.find((s) => s.sourceId === 'src/UnrelatedUtil.ts');
@@ -181,7 +184,7 @@ describe('ContextEngine shadow-only guarantee (day-16 §3.5)', () => {
       db,
       new FileCollector(tmpRoot),
       new KeywordDependencyRanker(),
-      new ApproxTokenizer(),
+      new TiktokenTokenizer(),
       counter.embedder,
     );
 

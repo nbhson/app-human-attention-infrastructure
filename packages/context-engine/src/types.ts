@@ -12,22 +12,21 @@ import type { ContextPolicy, TaskID } from '@harness/domain';
 
 /**
  * Token counting seam (context-engine spec §8). Budgets are always interpreted
- * through the request's tokenizer, never a hardcoded number, so Phase 2 can swap
- * in a real tokenizer without changing callers.
+ * through the request's tokenizer, never a hardcoded number. Day 19 fills this
+ * with the exact `TiktokenTokenizer`; the `name` is stamped on the snapshot so
+ * the provenance records which counter produced the counts (§6).
  */
 export interface Tokenizer {
+  /** Token count of `text` in the encoding's own unit. */
   count(text: string): number;
-}
-
-/**
- * Phase-1 tokenizer: `chars / 4` (context-engine spec §8). A cheap, deterministic
- * estimate — fine for budgeting, and honest because the snapshot records which
- * tokenizer produced the counts (§6).
- */
-export class ApproxTokenizer implements Tokenizer {
-  count(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
+  /**
+   * Truncate `text` to at most `maxTokens` tokens by encode → slice → decode.
+   * Returns a valid prefix (never splits a surrogate pair); the full text when
+   * it already fits; the empty string for a non-positive budget.
+   */
+  truncate(text: string, maxTokens: number): string;
+  /** Stable provenance label, e.g. `tiktoken:cl100k_base`. */
+  readonly name: string;
 }
 
 /** The engine's minimal context-resolution request (day-20 §2.1). */

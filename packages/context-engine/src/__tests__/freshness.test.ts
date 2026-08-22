@@ -31,7 +31,7 @@ function source(sourceId: string, content: string): ContextSnapshot['sources'][n
     sourceId,
     relevanceScore: 1,
     content,
-    tokenCount: Math.ceil(content.length / 4),
+    tokenCount: 1,
     contentHash: sha256(content),
   });
 }

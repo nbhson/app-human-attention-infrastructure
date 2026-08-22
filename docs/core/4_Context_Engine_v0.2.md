@@ -442,11 +442,11 @@ default.
 └──────────────────────────────────────────────────────┘
 ```
 
-> **Tokenizer strategy:** Token counting is model-dependent. The Engine counts tokens through a `Tokenizer` interface (Phase 1: approximate counter, e.g. `chars / 4`; Phase 2+: exact tokenizer such as `tiktoken`/provider-specific). `max_tokens` budgets are always interpreted using the tokenizer of the target model configured in the request, never a global constant.
+> **Tokenizer strategy:** Token counting is model-dependent. The Engine counts tokens through a `Tokenizer` interface — since Day 19 an *exact* counter (`TiktokenTokenizer`, js-tiktoken byte-level BPE behind the seam), replacing the Phase-1 `chars/4` approximation. `max_tokens` budgets are always interpreted using the tokenizer of the target model configured in the request, never a global constant (`getTokenizer(model)` maps the model id to its encoding, falling back to `cl100k_base` for unknown models).
 
 > **Freshness / invalidation:** A `ContextSnapshot` is a point-in-time view. Files may change between `resolveContext()` and agent execution (another task, a human edit). Each source records `content_hash` at collection time; before dispatch the Engine re-hashes `target_files` and marks the snapshot `STALE` if any changed. Consumers may still use a STALE snapshot (with a warning in the trajectory) or request re-resolution — the Orchestrator's policy decides (default: re-resolve target files only, keep the rest).
 >
-> **As-built `metadata` shape (Day 29):** the snapshot `metadata` records `tokenizer: 'approx-4'` plus the request's `targetFiles`, `taskDescription`, and `requirements`. Each STALE re-resolve appends a `freshness_events` entry of the form `{ at: <ISO-8601>, stale: string[] }` (repo-relative paths of every source whose `content_hash` changed), so the freshness history becomes part of the provenance record itself.
+> **As-built `metadata` shape (Day 29, updated Day 19):** the snapshot `metadata` records `tokenizer: this.tokenizer.name` (e.g. `'tiktoken:cl100k_base'` for the default encoder — the exact counter, replacing the Phase-1 `'approx-4'` label) plus the request's `targetFiles`, `taskDescription`, and `requirements`. Each STALE re-resolve appends a `freshness_events` entry of the form `{ at: <ISO-8601>, stale: string[] }` (repo-relative paths of every source whose `content_hash` changed), so the freshness history becomes part of the provenance record itself.
 
 ---
 
@@ -562,3 +562,18 @@ The Context Engine is Phase 1 complete when:
 - Confirmed the Phase-1 keyword→dependency ranker ({@link §5}) is unchanged; the
   hybrid/embeddings path remains a Phase 3 seam behind the `Retriever` interface.
 - No code divergences found.
+
+### v0.2 (Day 19 — exact tokenizer)
+- §8 — replaced the Phase-1 `chars/4` (`ApproxTokenizer`) with an exact
+  `TiktokenTokenizer` (js-tiktoken, statically linked local ranks — no runtime
+  network fetch). The `Tokenizer` seam now also declares `truncate(text, maxTokens)`
+  (encode → slice → decode, never a naive `substring` that could split a surrogate
+  pair) and a `readonly name` stamped onto the snapshot.
+- §8 — added `getTokenizer(model)` for per-model resolution (encodings differ by
+  family: `cl100k_base` vs `o200k_base`), falling back to `cl100k_base` for
+  unknown ids; the engine's default tokenizer is `cl100k_base`, and `metadata.tokenizer`
+  is now the tokenizer's own `name` (`tiktoken:cl100k_base`) instead of `'approx-4'`.
+- §2.4 — the budget trimmer now truncates via `tokenizer.truncate` (exact), with
+  the priority rules unchanged; a regression test asserts that a 100-space file
+  (chars/4 count 25, exact count 2) is now kept in full where `chars/4` would have
+  truncated it.

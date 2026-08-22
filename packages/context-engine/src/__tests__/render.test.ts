@@ -22,7 +22,7 @@ function snapshot(
         sourceId: s.sourceId,
         relevanceScore: s.relevance,
         content: s.content,
-        tokenCount: Math.ceil(s.content.length / 4),
+        tokenCount: 1,
         contentHash: 'abc',
       }),
     ),

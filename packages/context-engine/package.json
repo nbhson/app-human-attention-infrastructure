@@ -11,7 +11,9 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -21,7 +23,8 @@
     "@harness/db": "workspace:^",
     "@harness/domain": "workspace:^",
     "@harness/embeddings": "workspace:^",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "js-tiktoken": "^1.0.21"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

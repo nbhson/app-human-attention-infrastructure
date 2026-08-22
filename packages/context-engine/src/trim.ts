@@ -73,14 +73,14 @@ function toSource(
 /**
  * Cut `content` down so `tokenizer.count(result) <= budgetTokens`, appending the
  * truncation marker. Returns `null` when the budget cannot even hold the marker.
- * With `ApproxTokenizer` (chars/4) the arithmetic is exact: slicing at
- * `(budget - markerTokens) * 4` characters yields exactly `budget` tokens.
+ * Exact truncation is delegated to `tokenizer.truncate` (encode → slice → decode),
+ * which preserves the priority rules above irrespective of the encoding.
  */
 function truncateToFit(content: string, tokenizer: Tokenizer, budgetTokens: number): string | null {
   const markerTokens = tokenizer.count(TRUNCATION_MARKER);
   const contentTokenBudget = budgetTokens - markerTokens;
   if (contentTokenBudget <= 0) return null;
-  return content.slice(0, contentTokenBudget * 4) + TRUNCATION_MARKER;
+  return tokenizer.truncate(content, contentTokenBudget) + TRUNCATION_MARKER;
 }
 
 /** Apply the §2.4 priority rules to a ranked candidate list. */

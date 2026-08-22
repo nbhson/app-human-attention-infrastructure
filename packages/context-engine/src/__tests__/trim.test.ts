@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { RankedFile } from '../rank.js';
 import { applyBudget, DEFAULT_CONTEXT_POLICY, TRUNCATION_MARKER } from '../trim.js';
-import { ApproxTokenizer } from '../types.js';
+import { TiktokenTokenizer } from '../tiktoken-tokenizer.js';
 
-const tokenizer = new ApproxTokenizer();
+const tokenizer = new TiktokenTokenizer('cl100k_base');
 
 function file(sourceId: string, content: string, relevanceScore: number): RankedFile {
   return { sourceId, content, relevanceScore };
@@ -12,7 +12,8 @@ function file(sourceId: string, content: string, relevanceScore: number): Ranked
 
 describe('applyBudget', () => {
   it('never drops a target file, even when it alone exceeds the budget', () => {
-    const { sources, totalTokens } = applyBudget([file('target.ts', 'x'.repeat(400), 0.1)], {
+    const content = 'x'.repeat(1000); // 125 exact tokens, well over the 50 budget
+    const { sources, totalTokens } = applyBudget([file('target.ts', content, 0.1)], {
       targetFiles: ['target.ts'],
       tokenizer,
       maxTokens: 50,
@@ -20,7 +21,8 @@ describe('applyBudget', () => {
     });
 
     expect(sources.map((s) => s.sourceId)).toEqual(['target.ts']);
-    expect(totalTokens).toBe(100); // 400 chars / 4, kept in full despite the 50-token budget
+    // Kept in full: totalTokens is the exact count of the source, not chars/4.
+    expect(totalTokens).toBe(tokenizer.count(content));
   });
 
   it('keeps a target file even below the relevance threshold', () => {
@@ -67,5 +69,22 @@ describe('applyBudget', () => {
     });
 
     expect(sources).toHaveLength(3);
+  });
+
+  it('keeps in full a file chars/4 would have truncated (day-19 §2.3)', () => {
+    // 100 spaces: chars/4 = 25 tokens (over a 10-token budget → truncated), but
+    // exact cl100k_base = 2 tokens (fits → kept verbatim). This is the load-bearing
+    // regression the token swap exists to surface.
+    const content = ' '.repeat(100);
+    const { sources, totalTokens } = applyBudget([file('pad.ts', content, 0.9)], {
+      targetFiles: [],
+      tokenizer,
+      maxTokens: 10,
+      policy: DEFAULT_CONTEXT_POLICY,
+    });
+
+    expect(sources).toHaveLength(1);
+    expect(sources[0]?.content).toBe(content); // no marker, no truncation
+    expect(totalTokens).toBe(tokenizer.count(content)); // 2, not 25
   });
 });
