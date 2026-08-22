@@ -20,6 +20,7 @@
     "eval:report": "tsx src/report-cli.ts",
     "eval:replay": "tsx src/replay-cli.ts",
     "eval:ab": "tsx src/ab-cli.ts",
+    "eval:ab-report": "tsx src/ab/ab-report.ts",
     "eval:make-dataset": "tsx src/make-dataset-cli.ts",
     "eval:fit": "tsx src/fit-cli.ts"
   },

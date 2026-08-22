@@ -1,0 +1,51 @@
+{
+  "runId": "run-search-index-ranking",
+  "trajectory": {
+    "id": "run-search-index-ranking",
+    "taskId": "task-search-index-ranking",
+    "agentType": "CODING_AGENT",
+    "modelUsed": "claude-sonnet-4-6",
+    "status": "COMPLETED",
+    "startTimestamp": "2026-08-21T00:01:00.000Z",
+    "endTimestamp": "2026-08-21T00:01:45.000Z",
+    "totalTokensUsed": 1150,
+    "steps": [
+      {
+        "type": "THOUGHT",
+        "stepIndex": 0,
+        "timestamp": "2026-08-21T00:01:00.000Z",
+        "content": "improve search index ranking"
+      },
+      {
+        "type": "TOOL_CALL",
+        "stepIndex": 1,
+        "timestamp": "2026-08-21T00:01:08.000Z",
+        "toolName": "read_file",
+        "toolInput": {
+          "path": "src/search/ranking.ts",
+          "content": "search ranking phrase plus enough extra vocabulary to lengthen the vector by a large margin deliberately"
+        },
+        "toolOutput": "read src/search/ranking.ts (1 block)"
+      },
+      {
+        "type": "TOOL_CALL",
+        "stepIndex": 2,
+        "timestamp": "2026-08-21T00:01:20.000Z",
+        "toolName": "write_file",
+        "toolInput": {
+          "path": "src/index.ts",
+          "content": "export default index;"
+        },
+        "toolOutput": "wrote src/index.ts (1 line)"
+      },
+      {
+        "type": "OBSERVATION",
+        "stepIndex": 3,
+        "timestamp": "2026-08-21T00:01:24.000Z",
+        "content": "index.ts entrypoint written."
+      }
+    ],
+    "finalOutput": "Added src/index.ts entrypoint after consulting the search ranking helper.",
+    "artifactsChanged": ["src/index.ts"]
+  }
+}

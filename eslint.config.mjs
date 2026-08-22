@@ -152,6 +152,7 @@ export default tseslint.config(
       'packages/evaluation/src/report-cli.ts',
       'packages/evaluation/src/replay-cli.ts',
       'packages/evaluation/src/ab-cli.ts',
+      'packages/evaluation/src/ab/ab-report.ts',
       'packages/evaluation/src/make-dataset-cli.ts',
       'packages/evaluation/src/fit-cli.ts',
       'packages/embeddings/src/cli.ts',
