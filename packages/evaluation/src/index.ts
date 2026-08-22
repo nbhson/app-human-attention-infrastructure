@@ -26,3 +26,25 @@ export { loadTrajectory } from './replay/loader.js';
 export type { LoadedTrajectory } from './replay/loader.js';
 export { StubToolExecutor } from './replay/stub-tool-executor.js';
 export type { ToolExecutor } from './replay/stub-tool-executor.js';
+export { AbHarness } from './harness/ab-harness.js';
+export type { AbExperiment } from './harness/ab-harness.js';
+export { compare } from './harness/compare.js';
+export type { AbOutcome, CompareInput } from './harness/compare.js';
+export {
+  DEFAULT_RANK_WEIGHTS,
+  dependencyProximity,
+  deriveCorpus,
+  keywordOverlap,
+  metricForVariant,
+  runRankMetric,
+  weightedRelevance,
+} from './harness/variant.js';
+export type {
+  AttentionWeights,
+  CandidateFile,
+  ContextRankerKind,
+  PipelineVariant,
+  RankCorpus,
+  RankWeights,
+  VariantConfig,
+} from './harness/variant.js';

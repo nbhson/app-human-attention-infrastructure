@@ -3,6 +3,7 @@
  * doubles as the relational schema registry passed to `drizzle(client, { schema })`.
  */
 export * from './agent-runs.js';
+export * from './ab-harness.js';
 export * from './artifacts.js';
 export * from './assessment-feedback.js';
 export * from './assessments.js';

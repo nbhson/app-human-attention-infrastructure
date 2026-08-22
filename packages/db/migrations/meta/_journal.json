@@ -127,6 +127,13 @@
       "when": 1787383580513,
       "tag": "0017_happy_thanos",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787387590959,
+      "tag": "0018_petite_baron_strucker",
+      "breakpoints": true
     }
   ]
 }
