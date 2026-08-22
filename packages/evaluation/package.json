@@ -19,7 +19,8 @@
     "eval:metrics": "tsx src/cli.ts",
     "eval:report": "tsx src/report-cli.ts",
     "eval:replay": "tsx src/replay-cli.ts",
-    "eval:ab": "tsx src/ab-cli.ts"
+    "eval:ab": "tsx src/ab-cli.ts",
+    "eval:make-dataset": "tsx src/make-dataset-cli.ts"
   },
   "dependencies": {
     "@harness/domain": "workspace:^",

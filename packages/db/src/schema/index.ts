@@ -7,6 +7,7 @@ export * from './ab-harness.js';
 export * from './artifacts.js';
 export * from './assessment-feedback.js';
 export * from './assessments.js';
+export * from './calibration.js';
 export * from './changes.js';
 export * from './contexts.js';
 export * from './decisions.js';

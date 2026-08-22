@@ -134,6 +134,13 @@
       "when": 1787387590959,
       "tag": "0018_petite_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787391076143,
+      "tag": "0019_lumpy_queen_noir",
+      "breakpoints": true
     }
   ]
 }
