@@ -1,8 +1,8 @@
 # Verification Engine
-## Specification v0.2 – Independently Validating AI-Generated Changes
+## Specification v0.3 – Independently Validating AI-Generated Changes
 
-**Status:** Draft v0.2  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
+**Status:** Draft v0.3  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.3.md`)  
 **Purpose:** Define how the Harness independently validates AI-generated outputs — running compilation, tests, static analysis, and security scans — ensuring that verification is separated from generation to prevent bias and false confidence.
 
 ---
@@ -417,7 +417,9 @@ The Verification Engine is Phase 1 complete when:
 
 ## Changelog
 
-### v0.2 (Day 29)
+### v0.3 (Day 28)
+- (Day 22): §5.5 — container sandbox execution environment (`--network none`), with in-process parity fallback on `SandboxInfraError`.
+### v0.2
 - §5.5 — documented the built 64 KB inline-output cap (`truncateOutput`) and the
   `sanitizedEnv()` allowlist/blocklist (secret-pattern key removal; always-block
   `DATABASE_URL*`; always-preserve `PATH`/`HOME`/`PWD`/`NODE_ENV`/`npm_config_user_agent`).

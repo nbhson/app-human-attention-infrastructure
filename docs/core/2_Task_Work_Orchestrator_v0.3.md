@@ -1,7 +1,7 @@
 # Task / Work Orchestrator
-## Specification v0.2 – Managing Tasks and Workflows
+## Specification v0.3 – Managing Tasks and Workflows
 
-**Status:** Draft v0.2  
+**Status:** Draft v0.3  
 **Dependency:** Architecture Specification (`HAI_Harness_Architecture_v0.2.md`)  
 **Purpose:** Define the core orchestration engine responsible for breaking down high-level goals into executable tasks, managing their lifecycle, handling dependencies, and ensuring reliable end-to-end execution flow.
 
@@ -357,7 +357,9 @@ The Task / Work Orchestrator is considered successfully implemented when:
 
 ## Changelog
 
-### v0.2 (Day 29)
+### v0.3 (Day 28)
+- (Day 26): §7 — circuit breaker now also covers sandbox/eval degradation, matching the three fallback seams (semantic→keyword, object-store→db, sandbox→in-process).
+### v0.2
 - §7 — added the **startup reconciler** as a crash-recovery mechanism: orphaned
   `EXECUTING`/`VERIFYING` tasks are escorted to `AWAITING_HUMAN_INTERVENTION` with
   reason `PROCESS_DIED`, and its run-before-loops ordering constraint is recorded.

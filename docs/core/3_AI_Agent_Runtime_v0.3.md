@@ -1,8 +1,8 @@
 # AI Agent Runtime
-## Specification v0.2 – Running and Coordinating AI Agents
+## Specification v0.3 – Running and Coordinating AI Agents
 
-**Status:** Draft v0.2  
-**Dependencies:** Architecture (`1_HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`2_Task_Work_Orchestrator_v0.2.md`)  
+**Status:** Draft v0.3  
+**Dependencies:** Architecture (`1_HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`2_Task_Work_Orchestrator_v0.3.md`)  
 **Purpose:** Define how the Harness initializes, executes, monitors, and records AI Agent activities when performing a specific `Task`.
 
 ---
@@ -486,7 +486,10 @@ independent of generation, not just a different call site.
 
 ## Changelog
 
-### v0.2 (Day 29)
+### v0.3 (Day 28)
+- (Day 8): §6.1 — trajectory operations (fork, replay, resume).
+- (Day 23): §14.3 — code-mode sandbox (`--network none` container, append-only `code_mode_sessions` evidence).
+### v0.2
 - §11 — `maxSteps` default confirmed as **10** (`AGENT_MAX_STEPS` /
   `DEFAULT_MAX_STEPS`), and `DEFAULT_TOKEN_BUDGET = 50_000` documented.
 - §14 — documented the two escalation reasons (`MAX_STEPS_EXCEEDED`,

@@ -229,7 +229,7 @@ only after the calibration path (Phase 2) exists.
 you've exhausted R1–R5 and must move it by hand.
 
 > **This is the last resort.** It bypasses the state machine's validators, so it is
-> *your* job to pick a valid transition (`2_Task_Work_Orchestrator_v0.2.md` §3) and
+> *your* job to pick a valid transition (`2_Task_Work_Orchestrator_v0.3.md` §3) and
 > to leave a complete audit trail. Skipping the history row is forbidden — it makes
 > the timeline un-replayable (audit-query Q2).
 
@@ -302,3 +302,65 @@ pnpm build && pnpm --filter @harness/api start
 
 Read [limitations.md](limitations.md) §1–§3 before running more than one process,
 before expecting a message broker, or before "fixing" the nonexistent worker pool.
+
+---
+
+## R9 — Degradation fallback alerts (Day 26)
+
+Phase-2 subsystems degrade **loudly**: every fallback bumps a Prometheus counter
+and (on a sustained rate) pages via `infra/prometheus/alerts.yml`. A silent
+fallback is a subsystem that's "down" but quietly misbehaving — the exact failure
+Spec 10 exists to prevent. The counters are served by the API's `GET /metrics`:
+
+```bash
+curl -s localhost:3000/metrics \
+  | grep -E 'harness_(context_semantic_fallback|object_store_(fallback|error|integrity_error)|sandbox_fallback)_total'
+```
+
+| Alert | Meaning (the fallback) | Diagnose | Response |
+| --- | --- | --- | --- |
+| `SemanticFallbackSustained` | semantic shadow → keyword (`rank_method = keyword`) | `curl -s localhost:3000/metrics \| grep harness_context_semantic_fallback_total` | The keyword path is serving **correctly** — this is fail-open. Check the embedder: is `EMBEDDINGS_BASE_URL` reachable (`curl -s $EMBEDDINGS_BASE_URL`)? Without it the shadow stops *measuring*, which silently unvalidated the Day-18 invariant. |
+| `ObjectStoreFallbackSustained` | oversize content inlined to db | `curl -s localhost:3000/metrics \| grep harness_object_store_fallback_total` | MinIO is down: `docker compose ps minio` then `curl -s http://localhost:9000/minio/health/live`. Bring it back before Postgres grows past sizing. |
+| `ObjectStoreErrorSustained` | writes fail-closed (caller rejected, never silent byte loss) | `grep harness_object_store_error_total` | Same MinIO triage, but *worse*: content at/over the inline ceiling is being **rejected**, not inlined. Check bucket/creds/disk. |
+| `ObjectStoreIntegrityDrift` | SHA-256 read-back mismatch | `grep harness_object_store_integrity_error_total` | **Data-integrity incident, not availability.** A stored object's bytes no longer hash to its address — tampering or silent corruption. Open an incident immediately; do not just restart MinIO. |
+| `SandboxFallbackSustained` | verification → in-process (no isolation) | `grep harness_sandbox_fallback_total` | Docker daemon or the pinned image is unavailable: `docker images harness-verify:node20`; rebuild if missing (`docker build -t harness-verify:node20 packages/sandbox`). Fail-open, but isolation is the point (Spec 7 §5.5) — triage it. |
+
+The degradation contract, exact counter, and the failure-injection test that
+proves each one are tabled in [hardening-gates.md](../plan/phase-2/hardening-gates.md).
+Thresholds in `alerts.yml` are deliberately conservative placeholders; tune them
+against real SLIs at the Day-26 retrospect, not in an incident.
+
+---
+
+## R10 — Auto-approve kill-switch (Day 14)
+
+Auto-approve is a **three-part gate** (calibration green ∧ flag on ∧ under the
+bar), and two ADMIN-only endpoints govern its runtime flag. Both are one-shot and
+immediately effective; both require `Role.Admin` (`requireRole` — anything else
+gets 403, logged as `authz.decision_denied`).
+
+**Disable the feature flag** (keeps the gate's other two legs intact):
+
+```bash
+curl -s -X POST localhost:3000/api/admin/auto-approve/enabled \
+  -H 'content-type: application/json' \
+  --cookie 'sid=<admin-session>' \
+  -d '{"enabled": false}'
+```
+
+**Trip the kill-switch** (disable auto-approve *and* requeue every in-flight
+`AUTO_APPROVABLE` item to human review in one go):
+
+```bash
+curl -s -X POST localhost:3000/api/admin/auto-approve/kill \
+  -H 'content-type: application/json' \
+  --cookie 'sid=<admin-session>' \
+  -d '{"reason": "usefulness fell below 50% on HIGH for 2 weeks — see R5"}'
+```
+
+**When to trip it:** `R5`'s usefulness-below-threshold signal, a routing surprise
+where AUTO-APPROVED decisions look wrong, or any sampling-audit finding that
+leakage is unacceptable. Tripping it does **not** destroy the gate's state — a
+future `enabled: true` re-arms the flag, but the executor still refuses while
+calibration is red (day-14 §6). Re-arm only after the cause is fixed and
+re-verified against `auto_approve_kill_switch` + `assessments`.

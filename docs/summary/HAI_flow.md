@@ -3,7 +3,7 @@
 > **Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa *"sự chú ý của con người"* trong phát triển phần mềm:
 > AI tạo ra công việc → Harness quan sát, xác minh, đánh giá, xếp ưu tiên và định tuyến tới đúng sự chú ý của con người.
 
-Nguồn: `docs/summary/HAI_overview.md`, `docs/core/1_HAI_Harness_Architecture_v0.2.md`, `docs/core/2_Task_Work_Orchestrator_v0.2.md`, `docs/core/6_Attention_Engine_v0.2.md`.
+Nguồn: `docs/summary/HAI_overview.md`, `docs/core/1_HAI_Harness_Architecture_v0.2.md`, `docs/core/2_Task_Work_Orchestrator_v0.3.md`, `docs/core/6_Attention_Engine_v0.2.md`.
 
 ---
 

@@ -227,5 +227,11 @@ Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the conc
 | R4 | engines → `domain`, `event-bus`, `db`, `di` only | same |
 | R5 | `apps/*` → any package | same |
 | R6 | `review` → `domain`, `event-bus`, `db`, `di` only | same |
+| R7 | `auth` → `domain`, `db`, `event-bus`, `di` only (never a sibling engine) | same (day-02) |
+| R8 | `observability` → `domain`, `db`, `di` only; every telemetry-carrying engine (`orchestrator`, `agent-runtime`, `attention-engine`, `verification-engine`) depends on it | same (day-03) |
+| R9 | `evaluation` → `domain`, `db`, `di`, `observability` only (never an engine) | same (day-06) |
+| R10 | `embeddings` → `domain`, `db`, `event-bus` only (never `di`, `observability`, or an engine) | same (day-16 §2.4, widened day-17) |
+| R11 | `object-store` → no `@harness/*` dependency (pure content-addressed leaf seam) | same (day-21 §2.1) |
+| R12 | `sandbox` → no `@harness/*` dependency (pure leaf seam) | same (day-22 §2.1) |
 
 The authoritative assertions live in `packages/di/src/__tests__/architecture.test.ts`; the lint rule catches violations at edit time (see `eslint.config.mjs`).

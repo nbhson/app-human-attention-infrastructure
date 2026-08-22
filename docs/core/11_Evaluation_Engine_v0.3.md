@@ -1,6 +1,6 @@
 # 11. Evaluation Engine (Learning Loop) — Specification
 
-**Status:** Draft v0.2
+**Status:** Draft v0.3
 **Phase:** v0 (offline metrics + A/B harness) ships in Phase 2. Full closed loop in Phase 3.
 **Depends on:** Evidence System (9), Attention Engine (6), Human Review decisions (8), Context Engine (4).
 **Consumes:** Aggregated events, evidence, review decisions; **produces:** calibration signals.
@@ -173,3 +173,10 @@ changes, applied to the Harness itself.
 - Replacing human judgment. Evaluation informs the human, it never removes the human from
   the safety-critical decision.
 - Becoming a general ML platform. Scope is bounded: *measure and tune this Harness.*
+
+## Changelog
+
+### v0.3 (Day 28)
+- (Day 6–7): §4 — core metrics realized (routing precision/recall offline, scheduled report generator).
+- (Day 9): §5 — A/B shadow harness.
+- §6 — closed loop remains Phase 3 scope (not yet realized).

@@ -1,6 +1,6 @@
 # 9. Memory / Evidence System — Specification
 
-**Status:** Draft v0.2
+**Status:** Draft v0.3
 **Phase:** Evidence store ships in Phase 1 (days 04, 17). Knowledge Memory subsystem ships in Phase 3.
 **Depends on:** Artifact/Change Tracker (5), Verification Engine (7), Attention Engine (6).
 
@@ -183,3 +183,9 @@ not a grow-forever pile. Phase 3 adopts these conventions on top of §4.3:
 - [ ] Evidence is immutable at the data layer (no UPDATE path on evidence rows).
 - [ ] Provenance chain answers the full audit question for any change.
 - [ ] (Phase 3) Memory entries are always traceable to at least one evidence record.
+
+## Changelog
+
+### v0.3 (Day 28)
+- (Day 22): §3.1 — evidence record carries the verification `content_hash` (attributable bytes).
+- (Day 23): §3.1 — evidence includes `code_mode_sessions` (append-only `tool_calls` + `workspace_content_hash`).

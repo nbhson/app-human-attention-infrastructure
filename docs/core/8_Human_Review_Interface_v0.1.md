@@ -2,7 +2,7 @@
 ## Specification v0.1 – The Versioned Contract for Human Attention
 
 **Status:** Draft v0.1  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Attention Engine (`6_Attention_Engine_v0.2.md`), Verification Engine (`7_Verification_Engine_v0.2.md`)  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Attention Engine (`6_Attention_Engine_v0.2.md`), Verification Engine (`7_Verification_Engine_v0.3.md`)  
 **Purpose:** Consolidate the review surface — the queue, its finite state machine, the actions a human can take, the data each item must display, the decision record it produces, and the telemetry each action emits — into a single versioned contract, so the interface is an auditable engineering artifact rather than folklore living implicitly across `@harness/review` and the Attention Engine's escalation path.
 
 ---

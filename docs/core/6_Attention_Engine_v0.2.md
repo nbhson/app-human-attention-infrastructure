@@ -1,8 +1,8 @@
 # Attention Engine
-## Specification v0.1 – Assessing Risk, Impact, and Review Priority
+## Specification v0.2 – Assessing Risk, Impact, and Review Priority
 
 **Status:** Draft v0.2  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.3.md`)  
 **Purpose:** Define how the Harness intelligently determines whether a change requires human attention, and if so, at what priority level — transforming human attention from a passive bottleneck into an optimized resource.
 
 ---
@@ -406,7 +406,9 @@ The Attention Engine is Phase 1 complete when:
 
 ## Changelog
 
-### v0.2 (Day 29)
+### v0.2 (Day 28)
+- (Day 13): §4.1 — adaptive review thresholds + alert-fatigue monitor.
+- (Day 14): §4.1 — auto-approve gate, kill-switch, and sampling audit.
 - §3 — pinned the shipped `PRIORITY_WEIGHTS` (risk 0.35 / impact 0.25 / novelty 0.15
   / complexity 0.10 / confidence 0.15), stated explicitly **untuned — do not tune
   without fitted data**, and confirmed the confidence *deficit* (`1 − confidence`)

@@ -1,8 +1,8 @@
 # Context Engine
-## Specification v0.2 – Selecting and Preparing Context for AI Agents
+## Specification v0.3 – Selecting and Preparing Context for AI Agents
 
-**Status:** Draft v0.2  
-**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.2.md`)  
+**Status:** Draft v0.3  
+**Dependencies:** Architecture (`HAI_Harness_Architecture_v0.2.md`), Task Orchestrator (`Task_Work_Orchestrator_v0.3.md`)  
 **Purpose:** Define how the Harness selects, ranks, compresses, and delivers relevant context to AI Agents — ensuring Agents receive the right information without overwhelming the model's context window.
 
 ---
@@ -553,7 +553,11 @@ The Context Engine is Phase 1 complete when:
 
 ## Changelog
 
-### v0.2 (Day 29)
+### v0.3 (Day 28)
+- (Day 18): §5.1 — semantic retriever is shadow-only; the keyword→dependency path stays the default.
+- (Day 19): §8 — exact tiktoken tokenizer replaces the `chars/4` approximation.
+- (Day 20): §5.2.3 — context cache (freshness invalidation, zero-read safety).
+### v0.2
 - §2.2 — pinned `rank_method` to the shipped literal `"phase1-keyword-dependency"`
   (removing the v0.1 ambiguity of a free-form string).
 - §8 — documented the persisted `metadata` shape: `tokenizer: 'approx-4'`,
@@ -573,7 +577,7 @@ The Context Engine is Phase 1 complete when:
   family: `cl100k_base` vs `o200k_base`), falling back to `cl100k_base` for
   unknown ids; the engine's default tokenizer is `cl100k_base`, and `metadata.tokenizer`
   is now the tokenizer's own `name` (`tiktoken:cl100k_base`) instead of `'approx-4'`.
-- §2.4 — the budget trimmer now truncates via `tokenizer.truncate` (exact), with
+- §5 — the budget trimmer now truncates via `tokenizer.truncate` (exact), with
   the priority rules unchanged; a regression test asserts that a 100-space file
   (chars/4 count 25, exact count 2) is now kept in full where `chars/4` would have
   truncated it.

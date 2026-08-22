@@ -151,11 +151,11 @@
 
 | File | Thay đổi |
 |------|----------|
-| `core/4_Context_Engine_v0.2.md` | + §5.2 Hierarchical context, lost-in-the-middle, cache, validator, RAG-Fusion |
-| `core/9_Memory_Evidence_System_v0.2.md` | + §4.5 Consolidation/decay/archive, relevance scoring, retrieval patterns |
-| `core/3_AI_Agent_Runtime_v0.2.md` | + §14 RBAC tiers, tool rate-limit, Code-Mode sandbox (mở rộng) |
-| `core/7_Verification_Engine_v0.2.md` | + §5.5 Code Mode / Benchmark container isolation tham chiếu |
-| `core/2_Task_Work_Orchestrator_v0.2.md` | + §7 Saga/compensation + circuit breaker; Phase 3 Decomposer planning |
-| `core/11_Evaluation_Engine_v0.2.md` | + §5.2 Minimal Benchmark Harness runtime + rubric dimensions |
+| `core/4_Context_Engine_v0.3.md` | + §5.2 Hierarchical context, lost-in-the-middle, cache, validator, RAG-Fusion |
+| `core/9_Memory_Evidence_System_v0.3.md` | + §4.5 Consolidation/decay/archive, relevance scoring, retrieval patterns |
+| `core/3_AI_Agent_Runtime_v0.3.md` | + §14 RBAC tiers, tool rate-limit, Code-Mode sandbox (mở rộng) |
+| `core/7_Verification_Engine_v0.3.md` | + §5.5 Code Mode / Benchmark container isolation tham chiếu |
+| `core/2_Task_Work_Orchestrator_v0.3.md` | + §7 Saga/compensation + circuit breaker; Phase 3 Decomposer planning |
+| `core/11_Evaluation_Engine_v0.3.md` | + §5.2 Minimal Benchmark Harness runtime + rubric dimensions |
 
 Các bổ sung được đặt đúng phase (không kéo kỹ thuật Phase 3 xuống Phase 1), giữ nguyên quy ước `Status / Dependency / Purpose`, và không phá vỡ nguyên tắc dependency (engines không import nhau).

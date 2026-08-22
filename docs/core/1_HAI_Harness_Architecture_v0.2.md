@@ -383,7 +383,7 @@ Task
 └── outcome
 ```
 
-The canonical Task state machine is defined in the Task / Work Orchestrator specification (`2_Task_Work_Orchestrator_v0.2.md`, Section 3), which is the **single source of truth** for Task states and transitions. This document does not redefine them.
+The canonical Task state machine is defined in the Task / Work Orchestrator specification (`2_Task_Work_Orchestrator_v0.3.md`, Section 3), which is the **single source of truth** for Task states and transitions. This document does not redefine them.
 
 High-level flow (simplified):
 
