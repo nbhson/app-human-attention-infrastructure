@@ -39,6 +39,7 @@ import {
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 import { InProcessEventBus } from '@harness/event-bus';
+import { register, routed } from '@harness/observability';
 
 import {
   adjustHighThreshold,
@@ -68,6 +69,14 @@ interface SeedAssessmentOptions {
 let testDb: TestDb;
 let db: DrizzleDB;
 
+/** Read the current value of a single-label counter series, by label. */
+async function counterValue(name: string, labels: Record<string, string>): Promise<number> {
+  const metric = register.getSingleMetric(name);
+  const data = metric ? await metric.get() : undefined;
+  const dp = data?.values.find((p) => Object.entries(labels).every(([k, v]) => p.labels[k] === v));
+  return dp?.value ?? 0;
+}
+
 beforeAll(async () => {
   testDb = await createTestDb(SCHEMA);
   db = testDb.db;
@@ -78,6 +87,10 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  // Reset the routing counter in place (register.clear() would unregister the
+  // module-level singleton and leave it orphaned for the rest of the file).
+  routed.reset();
+
   await db.delete(reviewQueue);
   await db.delete(assessmentFeedback);
   await db.delete(verificationReports);
@@ -215,6 +228,9 @@ describe('AttentionRouter.route', () => {
       rule_id: 'r1-critical',
       deferred: false,
     });
+
+    // Day-04 routing metric: an ESCALATE routes to human review.
+    expect(await counterValue('harness_routing_items_total', { route: 'human' })).toBe(1);
   });
 
   it('routes a flaky LOW → REVIEW_REQUIRED (r3 beats r5 by order)', async () => {

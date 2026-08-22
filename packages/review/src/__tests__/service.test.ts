@@ -49,6 +49,7 @@ import type {
 } from '@harness/domain';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { register, reviewDwell, usefulness } from '@harness/observability';
 
 import {
   MissingRationaleError,
@@ -83,6 +84,10 @@ afterAll(async () => {
 beforeEach(async () => {
   transitionSpy.mockReset();
   reportSpy.mockReset();
+  // Reset the metrics the decide path emits (register.clear() would unregister
+  // the module-level singletons and orphan them for the rest of the file).
+  usefulness.reset();
+  reviewDwell.reset();
 
   bus = new InProcessEventBus();
   const taskTransition: TaskTransition = { transitionTask: transitionSpy };
@@ -278,6 +283,11 @@ describe('ReviewService', () => {
       actor_email: ACTOR_EMAIL,
       rationale: 'LGTM',
     });
+
+    // Day-04 review metrics: the decision emits usefulness + a dwell sample.
+    const text = await register.metrics();
+    expect(text).toContain('harness_assessment_usefulness_total{was_useful="true"} 1');
+    expect(text).toContain('harness_review_dwell_seconds_bucket');
   });
 
   it('decide REJECT drives the task to REJECTED', async () => {

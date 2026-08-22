@@ -1,0 +1,16 @@
+# Prometheus scrape config (day-04 §2.3 / §3.4).
+#
+# The API serves Prometheus text at `/metrics`; in the local compose stack the
+# app runs on the host, so Prometheus scrapes it via host.docker.internal — the
+# "self-scrape" dashboard source operators asked for in Phase-1's audit cookbook.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: harness
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3000"]
+        labels:
+          service: harness-api

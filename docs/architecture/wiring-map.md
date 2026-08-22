@@ -79,6 +79,14 @@ span hook (`apps/api/src/trace.ts`, `registerTraceHook`) ahead of the auth hook,
 so identity + handler work sit under one per-request root span. Engines get
 spans by importing `@harness/observability` directly — no token indirection.
 
+Day 04 adds Prometheus metrics on a prom-client register (`@harness/observability`'s
+`metrics.ts`, scraped by `apps/api`'s `GET /metrics`). Recorders fire at the
+event seams — `AttentionRouter.route` (`harness_routing_items_total`, route
+human|auto_approvable) and `ReviewService.decide` (`harness_review_dwell_seconds`,
+`harness_assessment_usefulness_total`). Offline gauges (precision/recall/leakage/
+inflation/false-pass) are *set* by `@harness/evaluation` on Day 06, never
+incremented on the hot path.
+
 ## Eager resolution (`bootContainer`)
 
 Registrations are lazy, but bus subscriptions are **side effects** — so

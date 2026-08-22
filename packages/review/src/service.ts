@@ -44,7 +44,7 @@ import type {
 } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import { withSpan } from '@harness/observability';
+import { observeReviewDwell, recordUsefulness, withSpan } from '@harness/observability';
 import type { Logger } from '@harness/di';
 
 import {
@@ -338,6 +338,12 @@ export class ReviewService {
             error: String(error),
           });
         }
+
+        // 6. Review metrics (day-04 §2): dwell = claim → decision, in seconds; the
+        //    usefulness signal lands beside it so both join to the same decision.
+        const dwellMs = row.claimed_at ? Math.max(0, Date.now() - row.claimed_at.getTime()) : 0;
+        observeReviewDwell(dwellMs / 1000);
+        recordUsefulness(input.wasUseful);
 
         return this.getDetail(queueId);
       },

@@ -1,0 +1,56 @@
+{
+  "__inputs": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "barchart",
+      "title": "Routing funnel (human vs auto-approvable)",
+      "datasource": { "type": "prometheus", "uid": "harness-prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(harness_routing_items_total[$__range])) by (route)",
+          "legendFormat": "{{route}}",
+          "datasource": { "type": "prometheus", "uid": "harness-prom" }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Usefulness ratio (was useful / all feedback)",
+      "datasource": { "type": "prometheus", "uid": "harness-prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(harness_assessment_usefulness_total{was_useful=\"true\"}[$__rate_interval])) / on() sum(rate(harness_assessment_usefulness_total[$__rate_interval]))",
+          "legendFormat": "useful ratio",
+          "datasource": { "type": "prometheus", "uid": "harness-prom" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Review dwell (p50, seconds)",
+      "datasource": { "type": "prometheus", "uid": "harness-prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum(rate(harness_review_dwell_seconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "dwell p50",
+          "datasource": { "type": "prometheus", "uid": "harness-prom" }
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "title": "Attention & Review",
+  "uid": "harness-attention",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" }
+}

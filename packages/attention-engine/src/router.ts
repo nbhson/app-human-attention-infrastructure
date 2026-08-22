@@ -42,6 +42,7 @@ import type {
 } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { recordRouted } from '@harness/observability';
 import type { Logger } from '@harness/di';
 
 import { ATTENTION_POLICY_V1, matchRule } from './policy.js';
@@ -167,6 +168,10 @@ export class AttentionRouter {
         deferred,
       }),
     );
+
+    // Routing metric (day-04 §2): count the enqueue by human vs auto-approvable.
+    // AUTO_APPROVABLE needs no human eyes; every other action sends it to people.
+    recordRouted(action === 'AUTO_APPROVABLE' ? 'auto_approvable' : 'human');
 
     return { queueId, action, ruleId: rule.id, deferred };
   }

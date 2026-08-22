@@ -26,3 +26,15 @@ export {
 } from './tracer.js';
 export type { Span, SpanContext, Attributes } from '@opentelemetry/api';
 export { getMeter, setMeterName } from './meter.js';
+export {
+  register,
+  gauges,
+  routed,
+  usefulness,
+  reviewDwell,
+  resupply,
+  setGauge,
+  recordRouted,
+  observeReviewDwell,
+  recordUsefulness,
+} from './metrics.js';
