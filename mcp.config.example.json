@@ -1,0 +1,27 @@
+{
+  "//": "Example of the ONE file that connects Git/ticket tools. Copy to mcp.config.json (git-ignored) and set each *_TOKEN in .env. `tokenEnv` is a reference, never a secret.",
+  "servers": {
+    "github": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@github/github-mcp-server"],
+      "tokenEnv": "GITHUB_TOKEN"
+    },
+    "gitlab": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@gitlab/mcp-server"],
+      "tokenEnv": "GITLAB_TOKEN"
+    },
+    "bitbucket": {
+      "transport": "sse",
+      "url": "https://mcp.bitbucket.example/sse",
+      "tokenEnv": "BITBUCKET_TOKEN"
+    },
+    "jira": {
+      "transport": "sse",
+      "url": "https://mcp.atlassian.com/sse",
+      "tokenEnv": "JIRA_TOKEN"
+    }
+  }
+}

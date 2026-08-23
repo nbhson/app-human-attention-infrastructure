@@ -18,3 +18,5 @@ export * from './errors.js';
 export * from './protocol.js';
 export * from './transport.js';
 export * from './mcp-client.js';
+export * from './config.js';
+export * from './registry.js';

@@ -51,6 +51,8 @@ export const TOKENS = {
   ReviewIngestService: 'ReviewIngestService',
   GitProvider: 'GitProvider',
   TicketProvider: 'TicketProvider',
+  // Review-reorient Phase 3: the MCP connection layer (day-02).
+  McpServerRegistry: 'McpServerRegistry',
 } as const;
 
 /** The string union of every known token. */

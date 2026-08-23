@@ -9,3 +9,4 @@ coverage/
 .vitest-out.json
 /sandbox/
 working-repo/
+mcp.config.json

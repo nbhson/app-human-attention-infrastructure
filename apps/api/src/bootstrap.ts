@@ -93,6 +93,8 @@ import {
 
 import { GitHubProvider } from '@harness/git-provider';
 import type { GitProvider } from '@harness/git-provider';
+import { loadMcpConfig, McpServerRegistryImpl } from '@harness/mcp';
+import type { McpServerRegistry } from '@harness/mcp';
 import { JiraProvider } from '@harness/ticket-provider';
 import type { TicketProvider } from '@harness/ticket-provider';
 
@@ -590,6 +592,17 @@ export function buildContainer(): Container {
       return null;
     }
     return new JiraProvider(token, baseUrl);
+  });
+
+  // Review-reorient Phase 3 (day-02): the MCP connection layer. The registry is
+  // parsed from `mcp.config.json` (or `MCP_CONFIG_PATH`) once at startup; a
+  // missing file means "no MCP servers configured" and the settings routes
+  // return an empty list — the app still boots, exactly like the null providers
+  // above. Connectivity stays in the file; the DB mirror holds only display
+  // state (day-02 §6).
+  c.register(TOKENS.McpServerRegistry, (): McpServerRegistry => {
+    const path = process.env.MCP_CONFIG_PATH ?? './mcp.config.json';
+    return new McpServerRegistryImpl(loadMcpConfig(path, process.env));
   });
 
   c.register(TOKENS.ReviewAgent, (container) => {
