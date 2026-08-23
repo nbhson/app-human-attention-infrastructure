@@ -318,3 +318,124 @@ export function fitWeights(samples: readonly FitSample[], config: FitConfig): Fi
 
   return { split, bias, coefficients, fittedWeights, placeholder, fitted, improvement };
 }
+
+/**
+ * One judge-augmented fit sample (day-23 §3.2). Unlike {@link FitSample}, which
+ * carries a single feature vector, a judge sample carries **two** — the
+ * incumbent's own attention-only features and the judge-augmented features — so
+ * the before/after comparison scores each arm in its own feature domain over the
+ * *same* held-out rows.
+ */
+export interface JudgeAugmentedSample {
+  /** The incumbent's features: `[risk, impact, novelty, complexity, 1−confidence]`. */
+  readonly incumbentFeatures: readonly number[];
+  /** The judge-augmented features: `[risk, impact, novelty, complexity, judgeDisagreement]`. */
+  readonly judgeFeatures: readonly number[];
+  readonly label: BinaryLabel;
+}
+
+/** The before/after result of a judge-signal refit (day-23 §3.2, §3.4). */
+export interface JudgeFitResult {
+  readonly split: Split;
+  readonly bias: number;
+  /** The five raw feature coefficients over the judge-augmented features. */
+  readonly coefficients: readonly number[];
+  /** The incumbent (unrefitted) weights, unchanged and passed through. */
+  readonly incumbentWeights: WeightsVector;
+  /** The refitted candidate weights, judged by the judge signal in the confidence slot. */
+  readonly candidateWeights: WeightsVector;
+  /** The incumbent scored on its own attention-only features, held-out rows. */
+  readonly incumbent: {
+    readonly logLoss: number;
+    readonly rankingAccuracy: number;
+  };
+  /** The candidate scored on the judge-augmented features, held-out rows. */
+  readonly candidate: {
+    readonly logLoss: number;
+    readonly rankingAccuracy: number;
+  };
+  /** Does the candidate rank usefulness strictly better than the incumbent? */
+  readonly improvement: boolean;
+  /**
+   * True iff the judge-disagreement column won the *strictly largest* fitted
+   * weight — the overfit alarm (day-23 §2.3/§6) that the monitor flags even when
+   * the fit nominally improved.
+   */
+  readonly judgeSignalDominates: boolean;
+}
+
+/** Is `value` the unique maximum of the competitor list (no ties)? */
+function isUniqueMaximum(value: number, competitors: readonly number[]): boolean {
+  return competitors.every((other) => value > other);
+}
+
+/**
+ * Refit attention weights with the judge signal as a feature, compared against
+ * the incumbent (default {@link PLACEHOLDER_WEIGHTS}) — the day-23 §2.2
+ * candidate fit. The split is stratified on the `was_useful` label (same
+ * discipline as {@link fitWeights}); the candidate is fitted on the
+ * judge-augmented features, while the incumbent is scored on its *own*
+ * attention-only features over the same validation indices. Ranking accuracy is
+ * the primary objective with log-loss as the tie-break, exactly as in Phase 2.
+ *
+ * Nothing here touches a live default: the candidate is returned, never applied.
+ *
+ * @throws if `samples` is empty — a fit over zero reviews is a caller error.
+ */
+export function fitJudgeWeights(
+  samples: readonly JudgeAugmentedSample[],
+  config: FitConfig,
+  incumbent: WeightsVector = PLACEHOLDER_WEIGHTS,
+): JudgeFitResult {
+  if (samples.length === 0) {
+    throw new Error('fitJudgeWeights requires at least one sample');
+  }
+
+  const judgeSamples: FitSample[] = samples.map((sample) => ({
+    features: sample.judgeFeatures,
+    label: sample.label,
+  }));
+  const split = stratifiedSplit(judgeSamples, config);
+  const { bias, coefficients } = fitLogistic(split.train, config);
+  const candidateWeights = normalizeWeights(coefficients);
+
+  // Same held-out rows, scored in the incumbent's own feature domain.
+  const incumbentValidation: FitSample[] = split.validationIndices.map((index) => ({
+    features: samples[index]!.incumbentFeatures,
+    label: samples[index]!.label,
+  }));
+
+  const incumbentMetrics = {
+    logLoss: logLoss(incumbent, incumbentValidation),
+    rankingAccuracy: rankingAccuracy(incumbent, incumbentValidation),
+  };
+  const candidateMetrics = {
+    logLoss: logLoss(candidateWeights, split.validation),
+    rankingAccuracy: rankingAccuracy(candidateWeights, split.validation),
+  };
+
+  // Ranking-first, log-loss as tie-break (day-12 §2.4).
+  const improvement =
+    candidateMetrics.rankingAccuracy > incumbentMetrics.rankingAccuracy + RANKING_EPS ||
+    (Math.abs(candidateMetrics.rankingAccuracy - incumbentMetrics.rankingAccuracy) <= RANKING_EPS &&
+      candidateMetrics.logLoss < incumbentMetrics.logLoss - LOG_LOSS_EPS);
+
+  const judgeSignalDominates = isUniqueMaximum(candidateWeights.confidence, [
+    candidateWeights.risk,
+    candidateWeights.impact,
+    candidateWeights.novelty,
+    candidateWeights.complexity,
+  ]);
+
+  return {
+    split,
+    bias,
+    coefficients,
+    incumbentWeights: incumbent,
+    candidateWeights,
+    incumbent: incumbentMetrics,
+    candidate: candidateMetrics,
+    improvement,
+    judgeSignalDominates,
+  };
+}
