@@ -21,6 +21,7 @@ import type { RankedFile } from '../rank.js';
 import type { RetrievedDoc } from '../retrieval/retriever.js';
 import {
   dependencySignal,
+  NEUTRAL_SIGNAL,
   PLACEHOLDER_RE_RANK_WEIGHTS,
   recencySignal,
   usageSignal,
@@ -37,6 +38,13 @@ export interface ReRankInput {
   readonly mtimeMs?: ReadonlyMap<string, number>;
   /** Per-source retrieval count for usage; absent → neutral. */
   readonly retrievalCount?: ReadonlyMap<string, number>;
+  /**
+   * Per-source **learned** usage signal from {@link UsageLearner} (day-32), already
+   * in `[0,1]` around neutral 0.5. When present it supersedes `retrievalCount` —
+   * the day-27 raw-popularity term. Absent OR a source missing from the map → the
+   * neutral fallback, so an unobserved source is never demoted by its own silence.
+   */
+  readonly learnedUsage?: ReadonlyMap<string, number>;
 }
 
 export class ReRanker {
@@ -59,7 +67,11 @@ export class ReRanker {
         doc.sourceId,
       );
       const recency = recencySignal(input.mtimeMs?.get(doc.sourceId), nowMs);
-      const usage = usageSignal(input.retrievalCount?.get(doc.sourceId));
+      // Day-32 learned usage supersedes the day-27 raw-popularity term when wired.
+      const usage =
+        input.learnedUsage !== undefined
+          ? (input.learnedUsage.get(doc.sourceId) ?? NEUTRAL_SIGNAL)
+          : usageSignal(input.retrievalCount?.get(doc.sourceId));
 
       const relevanceScore =
         this.weights.fusion * fusion +

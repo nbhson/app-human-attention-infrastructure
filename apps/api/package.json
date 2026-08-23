@@ -15,6 +15,7 @@
     "demo:memory": "tsx scripts/demo-memory.ts",
     "demo:hybrid-default": "tsx scripts/demo-hybrid-default.ts",
     "demo:learning-loop": "tsx scripts/demo-learning-loop.ts",
+    "demo:usage-feedback": "tsx scripts/demo-usage-feedback.ts",
     "demo:writeback-toggle": "tsx scripts/demo-writeback-toggle.ts",
     "demo:writeback": "tsx scripts/demo-writeback.ts",
     "demo:verification": "tsx scripts/demo-verification.ts",

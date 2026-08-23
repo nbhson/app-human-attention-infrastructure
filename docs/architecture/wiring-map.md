@@ -155,6 +155,22 @@ weight vector itself (day-31 §2.2). The `WeightsProvider` on the routing hot pa
 is unchanged: `StaticWeightsAdapter` still returns the placeholder until a
 promotion is explicitly adopted. See `scripts/demo-learning-loop.ts`.
 
+### Usage feedback (Phase 3, day-32) — usefulness → learned ranking signal
+
+Day 32 replaces the re-ranker's raw-popularity `usage` term (day-27 §2.4, "how
+*often* surfaced") with a **learned** signal ("did surfacing it *help*?").
+`UsageLearner` (in `@harness/context-engine/src/ranking/`) is a **pure module**, not
+a service: it takes `SourceUsefulness` observations (a `source_usefulness` row — new
+table in `@harness/db`, keyed on `context_id` → `contexts.id`) and returns a
+per-source `[minSignal, maxSignal]` map starting from neutral 0.5. Three invariants
+keep it a signal, never a certainty: a **per-mark cap** (`maxSingleMark` = 0.2), a
+**half-life decay**, and hard **bounds** (0.05/0.95). `ReRanker.reRank` gains an
+optional `learnedUsage?` slot on `ReRankInput`; when present it **supersedes**
+`retrievalCount`, and an unobserved source falls to the neutral 0.5 rather than 0 —
+the same missing-signal fallback as day-27. There is no eager job here: the caller
+(an app entrypoint) runs `learn()` over recent marks and passes the resulting map
+into the re-rank. See `scripts/demo-usage-feedback.ts`.
+
 ### Tracing bootstrap (not a DI token)
 
 Day-03's OpenTelemetry provider is deliberately **not** container-injected: the

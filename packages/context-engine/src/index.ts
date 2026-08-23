@@ -21,6 +21,7 @@
  * - `retrieval/query-rewriter` — RAG-Fusion variant generation (day-28).
  * - `retrieval/rag-fusion-retriever` — multi-query union + RRF (day-28).
  * - `ranking` — re-rank stage + dependency/recency/usage signals (day-27).
+ * - `ranking/usage-learner` — usefulness → learned usage signal (day-32).
  * - `memory-resolver` — inject top-K review memory into a snapshot (day-18).
  */
 
@@ -49,4 +50,5 @@ export * from './retrieval/query-rewriter.js';
 export * from './retrieval/rag-fusion-retriever.js';
 export * from './ranking/signals.js';
 export * from './ranking/re-ranker.js';
+export * from './ranking/usage-learner.js';
 export * from './memory-resolver.js';

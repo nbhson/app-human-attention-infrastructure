@@ -281,6 +281,13 @@
       "when": 1787514042063,
       "tag": "0039_bitter_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787519131181,
+      "tag": "0040_easy_maggott",
+      "breakpoints": true
     }
   ]
 }
