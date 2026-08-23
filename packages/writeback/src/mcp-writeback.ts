@@ -12,6 +12,11 @@
  * The `enabled(provider)` guard is the toggle: OFF means no tool is ever called
  * and the intent resolves to a successful no-op. The default reads a `WRITEBACK_*`
  * env var per provider; Day-09 promotes it to a per-review decision toggle.
+ *
+ * Day-07 completes the **full provider matrix**: the single class dispatches
+ * GitHub/GitLab/Bitbucket comment + status and Jira comment + transition, with
+ * the per-host variance living entirely in the tool maps — no per-host write
+ * class exists (day-07 §2.1).
  */
 
 import { TicketProviderType, WritebackAction } from '@harness/domain';
@@ -123,16 +128,26 @@ export class MCPWriteBack implements WriteBackService {
     }
   }
 
+  /** Raise a {@link WriteBackError} carrying the target identity (day-07 §2.3). */
+  private invalid(intent: WriteBackIntent, message: string): never {
+    throw new WriteBackError(message, {
+      provider: intent.provider,
+      action: intent.action,
+      externalId: intent.externalId,
+    });
+  }
+
   /** COMMENT → comment tool, STATUS → status tool, LABEL → label tool, TRANSITION → reject. */
   private async writeGit(intent: WriteBackIntent): Promise<WriteBackResult> {
     const gitHost = intent.provider as GitProviderType;
     if (intent.repo === undefined) {
-      throw new WriteBackError(`git write-back action "${intent.action}" requires a "repo" slug`);
+      this.invalid(intent, `git write-back action "${intent.action}" requires a "repo" slug`);
     }
     const { owner, name } = parseRepoPath(intent.repo);
     const number = Number(intent.externalId);
     if (!Number.isInteger(number)) {
-      throw new WriteBackError(
+      this.invalid(
+        intent,
         `git write-back externalId must be a PR/MR number, got "${intent.externalId}"`,
       );
     }
@@ -169,7 +184,7 @@ export class MCPWriteBack implements WriteBackService {
       case WritebackAction.Label: {
         const label = intent.label ?? intent.body;
         if (label === undefined) {
-          throw new WriteBackError('git label write-back requires a "label"');
+          this.invalid(intent, 'git label write-back requires a "label"');
         }
         const args = this.gitToolMap.buildLabelArgs(gitHost, { owner, name, number, label });
         const result = await client.callTool(tools.labelTool, args);
@@ -178,11 +193,13 @@ export class MCPWriteBack implements WriteBackService {
           : { ok: true, intentId: intent.id, ...externalRefOf(result) };
       }
       case WritebackAction.Transition:
-        throw new WriteBackError(
+        this.invalid(
+          intent,
           `TRANSITION is not supported for Git host "${gitHost}"; use the Jira provider`,
         );
+        break;
       default:
-        throw new WriteBackError(`unsupported write-back action "${String(intent.action)}"`);
+        this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
     }
   }
 
@@ -211,7 +228,7 @@ export class MCPWriteBack implements WriteBackService {
       case WritebackAction.Transition: {
         const toState = intent.toState ?? intent.label;
         if (toState === undefined) {
-          throw new WriteBackError('jira transition write-back requires a "toState"');
+          this.invalid(intent, 'jira transition write-back requires a "toState"');
         }
         const args = this.ticketToolMap.buildTransitionArgs(system, {
           key: intent.externalId,
@@ -228,11 +245,13 @@ export class MCPWriteBack implements WriteBackService {
       }
       case WritebackAction.Status:
       case WritebackAction.Label:
-        throw new WriteBackError(
+        this.invalid(
+          intent,
           `"${intent.action}" is not supported for ticket systems (use TRANSITION)`,
         );
+        break;
       default:
-        throw new WriteBackError(`unsupported write-back action "${String(intent.action)}"`);
+        this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
     }
   }
 
@@ -244,6 +263,7 @@ export class MCPWriteBack implements WriteBackService {
       if (error instanceof McpConfigError) {
         throw new WriteBackError(`no MCP server configured for provider "${provider}"`, {
           cause: error,
+          provider,
         });
       }
       throw error;

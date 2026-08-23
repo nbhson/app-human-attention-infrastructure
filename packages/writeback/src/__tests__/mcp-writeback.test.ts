@@ -212,4 +212,123 @@ describe('MCPWriteBack', () => {
 
     expect(result).toEqual({ ok: true, intentId: 'wb-git', externalRef: 'comment-99' });
   });
+
+  it('maps GitLab COMMENT/STATUS/LABEL to GitLab write tools', async () => {
+    const { service, client, registry } = build(() => true);
+
+    await service.write(
+      gitIntent({
+        action: WritebackAction.Comment,
+        provider: GitProviderType.GitLab,
+        repo: 'gitlab.com/acme/api',
+        externalId: '7',
+        body: 'needs work',
+      }),
+    );
+    await service.write(
+      gitIntent({
+        action: WritebackAction.Status,
+        provider: GitProviderType.GitLab,
+        repo: 'gitlab.com/acme/api',
+        externalId: '7',
+        state: 'failure',
+        body: 'tests fail',
+      }),
+    );
+    await service.write(
+      gitIntent({
+        action: WritebackAction.Label,
+        provider: GitProviderType.GitLab,
+        repo: 'gitlab.com/acme/api',
+        externalId: '7',
+        label: 'needs-changes',
+      }),
+    );
+
+    expect(registry.gets).toEqual(['gitlab', 'gitlab', 'gitlab']);
+    expect(client.calls.map((c) => c.name)).toEqual([
+      'create_mr_note',
+      'set_mr_status',
+      'add_mr_labels',
+    ]);
+    expect(client.calls[0]?.args).toEqual({
+      project: 'acme/api',
+      merge_request_iid: 7,
+      body: 'needs work',
+    });
+    expect(client.calls[1]?.args).toEqual({
+      project: 'acme/api',
+      merge_request_iid: 7,
+      state: 'failure',
+      description: 'tests fail',
+    });
+    expect(client.calls[2]?.args).toEqual({
+      project: 'acme/api',
+      merge_request_iid: 7,
+      label: 'needs-changes',
+    });
+  });
+
+  it('maps Bitbucket COMMENT/STATUS/LABEL to Bitbucket write tools', async () => {
+    const { service, client, registry } = build(() => true);
+
+    await service.write(
+      gitIntent({
+        action: WritebackAction.Comment,
+        provider: GitProviderType.Bitbucket,
+        repo: 'bitbucket.org/acme/api',
+        externalId: '3',
+        body: 'ship it',
+      }),
+    );
+    await service.write(
+      gitIntent({
+        action: WritebackAction.Status,
+        provider: GitProviderType.Bitbucket,
+        repo: 'bitbucket.org/acme/api',
+        externalId: '3',
+        state: 'success',
+        body: 'verified',
+      }),
+    );
+    await service.write(
+      gitIntent({
+        action: WritebackAction.Label,
+        provider: GitProviderType.Bitbucket,
+        repo: 'bitbucket.org/acme/api',
+        externalId: '3',
+        label: 'rfc',
+      }),
+    );
+
+    expect(registry.gets).toEqual(['bitbucket', 'bitbucket', 'bitbucket']);
+    expect(client.calls.map((c) => c.name)).toEqual([
+      'add_pr_comment',
+      'set_pr_status',
+      'add_pr_labels',
+    ]);
+    expect(client.calls[0]?.args).toEqual({
+      workspace: 'acme',
+      repo_slug: 'api',
+      pull_request_id: 3,
+      body: 'ship it',
+    });
+  });
+
+  it('git TRANSITION carries structured target identity on the WriteBackError', async () => {
+    const { service } = build(() => true);
+
+    let caught: unknown;
+    try {
+      await service.write(gitIntent({ action: WritebackAction.Transition, toState: 'Merged' }));
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(WriteBackError);
+    const error = caught as WriteBackError;
+    expect(error.provider).toBe(GitProviderType.GitHub);
+    expect(error.action).toBe(WritebackAction.Transition);
+    expect(error.externalId).toBe('42');
+  });
 });
