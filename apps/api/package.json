@@ -31,6 +31,7 @@
     "@harness/evaluation": "workspace:*",
     "@harness/event-bus": "workspace:*",
     "@harness/git-provider": "workspace:*",
+    "@harness/judge": "workspace:*",
     "@harness/mcp": "workspace:*",
     "@harness/memory": "workspace:*",
     "@harness/orchestrator": "workspace:*",

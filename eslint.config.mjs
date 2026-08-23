@@ -38,6 +38,7 @@ const elements = [
   { type: 'mcp', pattern: 'packages/mcp/**' },
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'memory', pattern: 'packages/memory/**' },
+  { type: 'judge', pattern: 'packages/judge/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
   { type: 'evaluation', pattern: 'packages/evaluation/**' },
@@ -122,6 +123,16 @@ const elementTypesRules = [
     // engine. Context/Attention reach it via the event bus, not an import.
     allow: [...SHARED, 'memory'],
   },
+  {
+    from: 'judge',
+    // Review-quality judge (day-21 §2.4): reads domain types (including the
+    // `LLMProvider` + `JudgeRunStore` seams) and accepts the structural logger
+    // (di). It orders no db write or event-bus publish of its own — the app host
+    // binds both seams — so it is a leaf with no shared-package write side, and
+    // it never imports a sibling engine (its LLM is the domain seam, not
+    // `agent-runtime`).
+    allow: ['domain', 'di', 'judge'],
+  },
   { from: 'auth', allow: [...SHARED, 'auth'] },
   {
     from: 'observability',
@@ -157,6 +168,7 @@ const elementTypesRules = [
       'code-index',
       'writeback',
       'memory',
+      'judge',
       ...ENGINE_TYPES,
       'app',
     ],

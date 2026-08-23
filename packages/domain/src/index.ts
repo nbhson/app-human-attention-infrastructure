@@ -35,5 +35,13 @@ export * from './writeback.js';
 export * from './writeback-store.js';
 export * from './memory.js';
 
+// The LLM call seam (day-21 §2.4): a pure contract so the review-quality judge
+// can call the model without importing a sibling engine. Implementations live in
+// `@harness/agent-runtime`; this package holds only the types.
+export * from './llm.js';
+
+// The review-quality judge port (day-21): JudgeScores / JudgeRun / JudgeRunStore.
+export * from './judge.js';
+
 // Events.
 export * from './events/index.js';

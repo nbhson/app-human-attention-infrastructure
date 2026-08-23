@@ -62,6 +62,9 @@ export const TOKENS = {
   MemoryContextResolver: 'MemoryContextResolver',
   // Review-reorient Phase 3: the memory lifecycle tick (consolidate/decay/archive, day-19).
   MemoryLifecycle: 'MemoryLifecycle',
+  // Review-reorient Phase 3: the review-quality judge (day-21, shadow-only).
+  Judge: 'Judge',
+  JudgeShadow: 'JudgeShadow',
 } as const;
 
 /** The string union of every known token. */

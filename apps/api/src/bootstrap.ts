@@ -61,7 +61,12 @@ import {
 import type { ContextCache } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
 import type { Logger } from '@harness/di';
-import { DrizzleWritebackLogStore, EventLogWriter, createDb } from '@harness/db';
+import {
+  DrizzleJudgeRunStore,
+  DrizzleWritebackLogStore,
+  EventLogWriter,
+  createDb,
+} from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { AiProviderType } from '@harness/domain';
 import type { MemoryProvider } from '@harness/domain';
@@ -85,6 +90,7 @@ import {
   ObjectStoreContentStore,
 } from '@harness/object-store';
 import { ReviewService } from '@harness/review';
+import { Judge } from '@harness/judge';
 import { DockerSandbox } from '@harness/sandbox';
 import type { Sandbox } from '@harness/sandbox';
 import {
@@ -105,6 +111,7 @@ import { MCPWriteBack } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestService } from './services/review-ingest.js';
+import { JudgeShadow } from './services/judge-shadow.js';
 
 /** Default session lifetime (7 days), overridable via `SESSION_TTL_MS` (day-01 §2.2). */
 const SECRET_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -643,6 +650,32 @@ export function buildContainer(): Container {
     });
   });
 
+  // Review-reorient Phase 3 (day-21): the review-quality judge, shadow-only.
+  // `Judge` calls the LLMProvider seam and records every run through the Drizzle
+  // port (`judge_runs`); nothing reads the scores yet — day-22 wires the
+  // consumer, day-23 feeds weight fitting. The judge is a pure measurement: its
+  // output never mutates a review or decision (boundary §2.4).
+  c.register(TOKENS.Judge, (container) => {
+    return new Judge(
+      container.resolve<LLMProvider>(TOKENS.LLMProvider),
+      new DrizzleJudgeRunStore(container.resolve<DrizzleDB>(TOKENS.Db)),
+      resolveAiIdentity().model,
+    );
+  });
+
+  // The shadow trigger that runs the judge after `review.report_created` — log-
+  // only, fire-and-forget on its own failure (day-21 §3.4).
+  c.register(TOKENS.JudgeShadow, (container) => {
+    const shadow = new JudgeShadow(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<Judge>(TOKENS.Judge),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+    shadow.subscribe();
+    return shadow;
+  });
+
   // Review-reorient Phase 3 (day-16): curated review memory with evidence
   // provenance. `MemoryStore` is the only writer of `memory_entries` (each
   // entry carries ≥1 `memory_entry_evidence` link) and publishes
@@ -747,4 +780,5 @@ export function bootContainer(container: Container): void {
   container.resolve(TOKENS.ContextEngine);
   container.resolve(TOKENS.ReembedListener);
   container.resolve(TOKENS.ReviewService);
+  container.resolve(TOKENS.JudgeShadow);
 }

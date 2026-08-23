@@ -86,6 +86,9 @@ importers:
       '@harness/git-provider':
         specifier: workspace:*
         version: link:../../packages/git-provider
+      '@harness/judge':
+        specifier: workspace:*
+        version: link:../../packages/judge
       '@harness/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
@@ -515,6 +518,22 @@ importers:
       '@harness/mcp':
         specifier: workspace:^
         version: link:../mcp
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)
+
+  packages/judge:
+    dependencies:
+      '@harness/domain':
+        specifier: workspace:^
+        version: link:../domain
     devDependencies:
       '@types/node':
         specifier: ^22.10.1
