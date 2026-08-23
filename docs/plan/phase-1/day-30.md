@@ -37,7 +37,7 @@ done = docker compose up && pnpm dev                         ✓ one command
 
 ### 3.2 Backlog finalization (90 min)
 - [ ] `docs/plan/phase-2/README.md` — Evaluation v0, calibration, semantic ranking, auto-approve
-- [ ] `docs/plan/phase-3/README.md` — GitLab/Bitbucket, Jira write-back, embeddings (deferred)
+- [ ] `docs/plan/phase-3/README.md` — GitLab/Bitbucket/Jira via MCP, Jira write-back, embeddings (deferred)
 
 ### 3.3 Tag + release note (60 min)
 - [ ] `git tag v0.1.0-harness` + annotated release note

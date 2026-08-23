@@ -16,7 +16,7 @@ The build is delivered in three phases, each an independent plan directory gated
 |-------|-----------|-------|----------|--------|
 | 1 | [phase-1/](phase-1/README.md) | Prove the Review Core Loop — PR → AI review → verify → attention → human decision → evidence | 30 days | ✅ Complete — tagged v0.1.0-harness |
 | 2 | [phase-2/](phase-2/README.md) | Calibrate & Secure the Review Pipeline — evaluation, calibration, semantic infra (shadow), auth, sandbox | 30 days | ✅ Complete — tagged v0.2.0-harness |
-| 3 | [phase-3/](phase-3/README.md) | Breadth, Write-back & Close the Loop — GitLab/Bitbucket/Jira, write-back, verify breadth, review memory, review-quality calibration | 40 days | 🔲 Not started |
+| 3 | [phase-3/](phase-3/README.md) | MCP Connectivity, Write-back & Close the Loop — GitHub/GitLab/Bitbucket/Jira via one MCP client + config, write-back, verify breadth, review memory, review-quality calibration | 40 days | 🔲 Not started |
 
 **Total: ~100 working days.**
 
@@ -42,7 +42,7 @@ Not a production system — a **correctly-architected, tested, end-to-end demons
 - **Claim ≠ Evidence** — the AI's report is never trusted without independent verification.
 - **Full provenance** — every review answers: who, what, why, which model, which context, which evidence.
 
-**Explicitly out of scope for 30 days:** GitLab/Bitbucket providers (GitHub only), write-back to PR/Jira, multi-provider breadth, embeddings/semantic search, container-sandboxed verification, dependency-graph targeted verification, learning/calibration, Evaluation Engine (Spec 11).
+**Explicitly out of scope for 30 days:** GitLab/Bitbucket providers (GitHub only — Phase 3 connects them via MCP), write-back to PR/Jira, multi-provider breadth, embeddings/semantic search, container-sandboxed verification, dependency-graph targeted verification, learning/calibration, Evaluation Engine (Spec 11).
 
 ### Tech Stack (locked for 30 days)
 
@@ -145,7 +145,7 @@ By the end of Phase 2, the review pipeline is **measured**: metrics exist for ro
 - Semantic retrieval is **installed but not default** (shadow mode behind the `Ranker` seam; hybrid default is Phase 3).
 - Full Memory/Evidence subsystem (versioned write-back, consolidation/decay, decision memory) — Phase 3.
 - Targeted/incremental verification (dependency graph) — Phase 3.
-- Write-back to PR/Jira + provider breadth (GitLab/Bitbucket) — Phase 3.
+- Write-back to PR/Jira + MCP connectivity (GitLab/Bitbucket/Jira via MCP) — Phase 3.
 - LLM-as-judge quality signals + benchmark corpus — Phase 3.
 
 ### Tech Stack Delta over Phase 1
@@ -244,7 +244,7 @@ Phase-1 placeholder (log-loss 0.316 vs 0.262), so the placeholder stays — see 
 
 ---
 
-## Phase 3 — Breadth, Write-back & Close the Loop
+## Phase 3 — MCP Connectivity, Write-back & Close the Loop
 
 **Goal:** Phase 2 measured the review pipeline. Phase 3 **closes the learning loop** — the *Learning* step of the critical milestone (Architecture §24.3) becomes a real subsystem, and the review product gains the breadth a real team needs:
 
@@ -255,7 +255,7 @@ Phase 2 result     │  Review pipeline measured; still: GitHub-only │
                    │  full-suite verification, weights un-won     │
                     └───────────────┬───────────────────────────┘
                                     ▼
-    Provider breadth → Write-back → Review memory → Review-quality calibration
+     MCP connectivity → Write-back → Review memory → Review-quality calibration
                                     │
                                     ▼
                      Learning step closes the loop automatically
@@ -263,8 +263,8 @@ Phase 2 result     │  Review pipeline measured; still: GitHub-only │
 
 Concretely, Phase 3 delivers the subsystems that Phase 1 deferred and Phase 2 only seamed:
 
-1. **Provider breadth** — `GitLabProvider` + `BitbucketProvider` beside `GitHubProvider`; hardened `JiraProvider`.
-2. **Write-back** — `WriteBackService` (comment/label/status → PR/MR, comment/transition → Jira) behind a per-provider toggle, with `writeback_log` audit.
+1. **MCP connectivity** — connect GitHub, GitLab, Bitbucket **and** Jira through the **Model Context Protocol**: a single `@harness/mcp` client + **one `mcp.config.json`**. The ecosystem already ships an MCP server for each; the harness builds no per-provider REST adapters. The AI model connection stays **api key + provider + base URL + model**, unchanged.
+2. **Write-back** — `WriteBackService` (comment/label/status → PR/MR, comment/transition → Jira) behind a per-provider toggle, with `writeback_log` audit — executed via the same MCP tools online from Week 1.
 3. **Verification breadth** — clone PR into the sandbox worktree → run build/test in Docker → publish evidence; FAILED flags the report rather than blocking.
 4. **Review memory** — past reviews/findings/decisions distilled, retrieved, and injected into the next review's context + attention.
 5. **Review-quality calibration** — LLM-as-judge on review reports (severity/routing agreement), feeding `was_useful` into attention-weight fitting.
@@ -281,8 +281,10 @@ Concretely, Phase 3 delivers the subsystems that Phase 1 deferred and Phase 2 on
 
 | Layer | Change | Anchor |
 |-------|--------|--------|
-| Git providers | `GitLabProvider`, `BitbucketProvider` (REST over `fetch`) | git-provider §2 |
-| Ticket providers | Harden `JiraProvider`; add transition/comments | ticket-provider §2 |
+| Git providers | **MCP only** — `@harness/mcp` client (stdio + SSE/HTTP) fronts GitHub/GitLab/Bitbucket MCP servers; no REST SDKs | git-provider §2 |
+| Ticket providers | **MCP only** — Jira via its MCP server; fetch/search/comment/transition are MCP tool calls | ticket-provider §2 |
+| MCP config | **one file** — `mcp.config.json` declares the servers + token env refs (no inline tokens) | new |
+| AI model | **unchanged** — api key + provider + base URL + model (`provider_configs`, `kind='ai'`) | agent-runtime §2 |
 | Write-back | `WriteBackService` (comment/label/status, Jira comment/transition) behind toggle | reviews route |
 | Code index | **tree-sitter** symbol index + dependency graph in Postgres | Spec 7 §5.2–5.3 |
 | Retrieval | Hybrid (BM25 + embeddings) + RRF + re-rank → **default**; optional **RAG Fusion** | Context §5.1–5.2 |
@@ -290,17 +292,18 @@ Concretely, Phase 3 delivers the subsystems that Phase 1 deferred and Phase 2 on
 | Judge | LLM-as-judge behind `LLMProvider` (rubric-scored, audited) | Spec 11 §5.1 |
 | Queue *(optional)* | Durable queue (Redis/SQS) replacing in-process hand-off | Spec 2 §6 |
 
-> **Invariant preserved:** durable queue is a *transport* swap behind `IEventBus` — the event contract does not change. Engines still never import each other. The AI never authors code.
+> **Invariant preserved:** durable queue is a *transport* swap behind `IEventBus` — the event contract does not change. Engines still never import each other. The AI never authors code. **MCP replaces the tool transport only — the AI provider contract (`key`+`baseUrl`+`model`) is untouched.**
 
 ### Repository / Architecture Delta
 
 ```text
 packages/
-├── memory/               # review-memory tiers, retrieval, write-back, lifecycle  (NEW)
-├── code-index/           # tree-sitter symbol index + dependency graph           (NEW)
-├── judge/                # LLM-as-judge rubric scoring behind LLMProvider         (NEW)
-├── benchmark/            # review-quality corpus runtime                          (NEW)
-└── ... (git-provider gains GitLab/Bitbucket; ticket-provider hardened; api gains WriteBackService)
+├── mcp/                   # generic MCP client: stdio + SSE/HTTP, tools/list + tools/call  (NEW)
+├── memory/                # review-memory tiers, retrieval, write-back, lifecycle          (NEW)
+├── code-index/            # tree-sitter symbol index + dependency graph                    (NEW)
+├── judge/                 # LLM-as-judge rubric scoring behind LLMProvider                  (NEW)
+├── benchmark/             # review-quality corpus runtime                                   (NEW)
+└── ... (git-provider + ticket-provider gain MCP-backed impls; api gains WriteBackService)
 ```
 
 Existing packages gain: `context-engine` (hybrid default, RRF re-rank, RAG Fusion), `verification-engine` (dependency-graph targeted verification, sandbox clone), `attention-engine` (review-memory + judge signals into scoring), `db` (writeback_log + review-memory schema).
@@ -309,8 +312,8 @@ Existing packages gain: `context-engine` (hybrid default, RRF re-rank, RAG Fusio
 
 | Week | Theme | Milestone (demo-able at week's end) |
 |------|-------|-------------------------------------|
-| **W1 (D1–5)** | Provider breadth | GitLab + Bitbucket `GitProvider` impls; hardened JiraProvider; fetch PR/MR from all three + Jira issue |
-| **W2 (D6–10)** | Write-back | `WriteBackService` (PR comment/label/status, Jira comment/transition) behind toggle; `writeback_log` audit |
+| **W1 (D1–5)** | MCP connectivity | `@harness/mcp` client + `mcp.config.json`; fetch PR/MR from GitHub/GitLab/Bitbucket + a Jira issue, all through one config file (no per-host REST) |
+| **W2 (D6–10)** | Write-back | `WriteBackService` (PR comment/label/status, Jira comment/transition) behind toggle; `writeback_log` audit — writes via the MCP tools already online |
 | **W3 (D11–15)** | Verification breadth | Clone PR into sandbox → build/test in Docker; FAILED flags report; evidence stored |
 | **W4 (D16–20)** | Review memory | Review-memory tiers written from evidence + read back with relevance scoring |
 | **W5 (D21–25)** | Review-quality calibration | LLM-as-judge on reports (severity/routing agreement); `was_useful` → weight fitting |
@@ -322,13 +325,13 @@ Existing packages gain: `context-engine` (hybrid default, RRF re-rank, RAG Fusio
 
 | N | Day file | Focus | Package |
 |---|----------|-------|---------|
-| 1 | [day-01.md](phase-3/day-01.md) | `GitLabProvider` — REST adapter for GitLab MR fetch | @harness/git-provider |
-| 2 | [day-02.md](phase-3/day-02.md) | `BitbucketProvider` — REST adapter for Bitbucket PR fetch | @harness/git-provider |
-| 3 | [day-03.md](phase-3/day-03.md) | Provider registry + `provider_configs` (redacted) resolution | @harness/git-provider |
-| 4 | [day-04.md](phase-3/day-04.md) | Harden `JiraProvider` — comments + transition beside fetch | @harness/ticket-provider |
-| 5 | [day-05.md](phase-3/day-05.md) | **Week 1 checkpoint** — fetch PR/MR from all three providers + Jira | root |
-| 6 | [day-06.md](phase-3/day-06.md) | `WriteBackService` interface + GitHub comment/status impl | @harness/writeback (or api) |
-| 7 | [day-07.md](phase-3/day-07.md) | Write-back for GitLab/Bitbucket + Jira transition | @harness/writeback |
+| 1 | [day-01.md](phase-3/day-01.md) | `@harness/mcp` — generic MCP client (stdio + SSE/HTTP, `tools/list`, `tools/call`) | @harness/mcp |
+| 2 | [day-02.md](phase-3/day-02.md) | `mcp.config.json` — one file connecting GitHub/GitLab/Bitbucket/Jira MCP servers (token via env) | @harness/mcp |
+| 3 | [day-03.md](phase-3/day-03.md) | `MCPGitProvider` — Git MCP tool calls → `PullRequest` behind the `GitProvider` seam | @harness/git-provider |
+| 4 | [day-04.md](phase-3/day-04.md) | `MCPTicketProvider` — Jira MCP tool calls → `Issue` + comment/transition behind `TicketProvider` | @harness/ticket-provider |
+| 5 | [day-05.md](phase-3/day-05.md) | **Week 1 checkpoint** — fetch PR/MR from GitHub/GitLab/Bitbucket + Jira via one config | root |
+| 6 | [day-06.md](phase-3/day-06.md) | `WriteBackService` interface + MCP-backed comment/status impl | @harness/writeback (or api) |
+| 7 | [day-07.md](phase-3/day-07.md) | Write-back for GitLab/Bitbucket + Jira transition via MCP tools | @harness/writeback |
 | 8 | [day-08.md](phase-3/day-08.md) | `writeback_log` audit + idempotency (no duplicate comments) | @harness/db |
 | 9 | [day-09.md](phase-3/day-09.md) | Write-back toggle at review-decision time; OFF = nothing external | apps/api |
 | 10 | [day-10.md](phase-3/day-10.md) | **Week 2 checkpoint** — approve → comment lands (toggle ON); OFF → no-op | root |
@@ -366,7 +369,8 @@ Existing packages gain: `context-engine` (hybrid default, RRF re-rank, RAG Fusio
 ### Phase 3 Exit Criteria
 
 - [ ] The *Learning* step closes automatically: review decisions and judge signals feed back into calibration and routing.
-- [ ] Provider breadth: GitHub, GitLab, Bitbucket fetch PR/MR; Jira fetch/search/comment/transition — all behind `provider_configs` with redacted tokens.
+- [ ] MCP connectivity: GitHub, GitLab, Bitbucket fetch PR/MR; Jira fetch/search/comment/transition — **all through `@harness/mcp` + one `mcp.config.json`**, tokens referenced by env var (never inline), no per-host REST handler.
+- [ ] AI model connection remains **api key + provider + base URL + model** (`provider_configs`), unchanged.
 - [ ] Write-back (comment/label/status, Jira transition) works behind a toggle; `writeback_log` records every external write; OFF = nothing external.
 - [ ] Verification breadth: clone + sandbox build/test demonstrable; targeted verification reduces latency with no correctness regression; FAILED flags the report.
 - [ ] Review memory: write-back, consolidation, decay, archive, relevance-scored retrieval all live; past outcomes surface to Attention/context.

@@ -5,7 +5,7 @@
 | **Week** | 2 — Write-back |
 | **Spec refs** | Phase-3 README §5 (W2 milestone), §7 (write-back exit criterion) |
 | **Estimated effort** | 5h |
-| **Prerequisites** | Days 06–09 (seam, 4 adapters, audit + idempotency, toggle) |
+| **Prerequisites** | Days 06–09 (seam, MCP write-back matrix, audit + idempotency, toggle) |
 
 ---
 

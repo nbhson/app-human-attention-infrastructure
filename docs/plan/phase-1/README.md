@@ -40,9 +40,9 @@ Not a production system — a **correctly-architected, tested, end-to-end demons
 | Web UI | React + Vite (minimal) | Review queue + diff + report viewer |
 | Infra | Docker Compose (postgres only) | Keep dev setup to one command |
 
-**Explicitly out of scope for 30 days:** GitLab/Bitbucket providers (GitHub only), write-back to PR/Jira, multi-provider breadth, embeddings/semantic search, container-sandboxed verification, dependency-graph targeted verification, learning/calibration, Evaluation Engine (Spec 11).
+**Explicitly out of scope for 30 days:** GitLab/Bitbucket providers (GitHub only — Phase 3 connects them via MCP), write-back to PR/Jira, multi-provider breadth, embeddings/semantic search, container-sandboxed verification, dependency-graph targeted verification, learning/calibration, Evaluation Engine (Spec 11).
 
-> Phase model: the 30-day plan is **Phase 1** (prove the review loop). **Phase 2** builds the Evaluation Engine v0 (metrics + shadow A/B via review replay) + attention-calibration + hybrid semantic ranking behind the Ranker seam. **Phase 3** builds provider breadth (GitLab/Bitbucket/Jira), write-back, review memory, targeted verification, benchmark + LLM-as-judge quality signals, and the closed learning loop. See Spec 1 §24 for exit criteria.
+> Phase model: the 30-day plan is **Phase 1** (prove the review loop). **Phase 2** builds the Evaluation Engine v0 (metrics + shadow A/B via review replay) + attention-calibration + hybrid semantic ranking behind the Ranker seam. **Phase 3** builds MCP connectivity (GitLab/Bitbucket/Jira via one `@harness/mcp` client + config file), write-back, review memory, targeted verification, benchmark + LLM-as-judge quality signals, and the closed learning loop. See Spec 1 §24 for exit criteria.
 
 ---
 

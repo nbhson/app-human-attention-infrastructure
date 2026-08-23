@@ -35,7 +35,7 @@ By the end of Phase 2, the review pipeline is **measured**: metrics exist for ro
 - Semantic retrieval is **installed but not default** (shadow mode behind the `Ranker` seam; hybrid default is Phase 3).
 - Full Memory/Evidence subsystem (versioned write-back, consolidation/decay, decision memory) — Phase 3.
 - Targeted/incremental verification (dependency graph) — Phase 3.
-- Write-back to PR/Jira + provider breadth (GitLab/Bitbucket) — Phase 3.
+- Write-back to PR/Jira + MCP connectivity (GitLab/Bitbucket/Jira via MCP) — Phase 3.
 - LLM-as-judge quality signals + benchmark corpus — Phase 3.
 
 ---

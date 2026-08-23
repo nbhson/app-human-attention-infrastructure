@@ -149,7 +149,7 @@ The eleven conceptual subsystems are now all built and documented in their packa
 
 **Phase-2 seams** (promoted to packages, each with its own README): [`@harness/auth`](../../packages/auth/README.md) (OIDC identity + roles), [`@harness/embeddings`](../../packages/embeddings/README.md) (pgvector embedder, shadow mode), [`@harness/evaluation`](../../packages/evaluation/README.md), [`@harness/object-store`](../../packages/object-store/README.md) (S3/MinIO), [`@harness/observability`](../../packages/observability/README.md), [`@harness/sandbox`](../../packages/sandbox/README.md) (Docker-isolated execution).
 
-**Review-slice seams** (`review-reorient`): [`@harness/git-provider`](../../packages/git-provider/README.md) (`GitProvider` — GitHub now, GitLab/Bitbucket Phase 3), [`@harness/ticket-provider`](../../packages/ticket-provider/README.md) (`TicketProvider` — Jira). Both depend only on `@harness/domain` and drive the review ingest path.
+**Review-slice seams** (`review-reorient`): [`@harness/git-provider`](../../packages/git-provider/README.md) (`GitProvider` — GitHub REST now; Phase 3 moves GitLab/Bitbucket/Jira to **MCP**), [`@harness/ticket-provider`](../../packages/ticket-provider/README.md) (`TicketProvider` — Jira). Both depend only on `@harness/domain` and drive the review ingest path.
 
 ---
 
@@ -205,7 +205,7 @@ Build order and backlog: [`docs/plan/README.md`](../plan/README.md) → [`docs/p
 
 ### v0.6 (`review-reorient`)
 - §1–§3 — reframed the Harness from "AI code author" to "PR/MR **review** control plane": the core-loop trigger is an external code change, and the AI box is `Review / Analyze / Explain (read-only)`.
-- §6 — corrected the table count (41), added the review-slice seams (`git-provider`, `ticket-provider`), and dropped the stale `reconcile` note from the layout (§8).
+- §6 — corrected the table count (41), added the review-slice seams (`git-provider`, `ticket-provider`), and dropped the stale `reconcile` note from the layout (§8). Phase 3 re-scoped: Git/ticket connectivity moves from "build per-provider REST adapters" to **MCP** (`@harness/mcp` + one `mcp.config.json`), with the AI model connection (`key`+`baseUrl`+`model`) unchanged.
 - §7 — de-numbered the "35 tables" invariant so it can't drift again.
 
 ### v0.5 (Overview restructure)

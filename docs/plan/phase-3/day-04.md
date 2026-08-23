@@ -1,11 +1,11 @@
-# Day 04 — Harden `JiraProvider`: Comments + Transition Beside Fetch
+# Day 04 — `MCPTicketProvider`: Jira MCP Tools → `Issue` + Comment/Transition
 
 | | |
 |---|---|
-| **Week** | 1 — Provider breadth |
-| **Spec refs** | ticket-provider §2 (TicketProvider seam), §4 (modules); Architecture §7 (boundary rule) |
+| **Week** | 1 — MCP connectivity |
+| **Spec refs** | ticket-provider §2 (`TicketProvider` seam), §4 (modules); Architecture §7 (boundary rule) |
 | **Estimated effort** | 6h |
-| **Prerequisites** | Day 03 (registry + `provider_configs`); `JiraProvider.fetchIssue` ships |
+| **Prerequisites** | Day 03 (`MCPGitProvider` + `GitToolMap`); Phase-1 `TicketProvider` seam + `Issue` shape |
 
 ---
 
@@ -13,69 +13,75 @@
 
 By end of day you will have:
 
-1. `JiraProvider` extended beyond `fetchIssue` with `postComment(issueKey, body)` and `transition(issueKey, toState)` — read + two external-write primitives, still *commentary/status*, never a code change.
-2. A `TicketProvider` seam extended accordingly, kept backward-compatible where GitHub-only callers didn't use it.
-3. ADF body construction for comments (the inverse of `adfToPlainText`: `plainTextToAdf`), fixture-tested.
-4. Transitions resolved by **name** (human-readable) against the Jira `/transitions` catalog, not by internal id.
+1. An `MCPTicketProvider` implementing `TicketProvider` through the **Jira MCP server** — `fetchIssue`, `postComment`, and `transition` all issued as MCP `tools/call`s, not Jira REST.
+2. A `TicketToolMap` binding ticket capabilities → Jira MCP tool names (fetch issue, search, add comment, transition).
+3. A pure mapper flattening MCP `ToolContent` → the `Issue` domain shape (key, summary, description, status, labels).
+4. Fixture-tested mapping + a stubbed-`McpClient` provider test covering comment/transition — no live Jira, no live token.
 
-This completes the ticket-provider side of provider breadth before the Day 05 checkpoint.
+Together with Day 03, this completes "Git + ticket via MCP" — the Week-1 breadth slice, with **no per-provider REST code**.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Write primitives are commentary, not code
+### 2.1 Same seam, same transport story
 
-Jira comments and issue transitions are exactly the "commentary/status" class of external write the Phase-3 README sanctions. `transition()` moves a ticket to a status the human has configured (e.g. "In Review"); it never modifies a repository, never authors code. Document this in the interface JSDoc so the invariant is stated at the seam.
-
-### 2.2 Extended seam
+`MCPTicketProvider` mirrors `MCPGitProvider`: it fronts the Jira MCP server through the registry and maps capabilities to tool names. `TicketProvider`'s write primitives are **commentary/status** (the invariant holds — a comment or a status transition, never code):
 
 ```typescript
-// packages/ticket-provider/src/ticket-provider.ts
-export interface TicketProvider {
-  readonly type: TicketProviderType;
+// packages/ticket-provider/src/mcp-ticket-provider.ts
+export class MCPTicketProvider implements TicketProvider {
+  constructor(private registry: McpServerRegistry, private toolMap: TicketToolMap) {}
   fetchIssue(input: FetchIssueInput): Promise<Issue>;
   postComment(input: FetchIssueInput, body: string): Promise<void>;
-  transition(input: FetchIssueInput, toState: string): Promise<void>;  // toState = human-readable status name
+  transition(input: FetchIssueInput, toState: string): Promise<void>;
 }
 ```
 
-### 2.3 Comment = ADF document (inverse of fetch's flatten)
+### 2.2 A tool map, not a REST client
 
-Fetch *flattens* ADF → text (`adfToPlainText`); write *constructs* ADF from text (`plainTextToAdf`) so the comment renders with paragraphs/lists. Round-trip test: `adfToPlainText(plainTextToAdf(x)) === x` for canonical inputs.
+```typescript
+interface TicketToolMap {
+  fetch: string; search: string; comment: string; transition: string;  // Jira MCP tool names
+}
+```
 
-### 2.4 Transition by name, resolved at call time
+The Atlassian Jira MCP server exposes these as tools; `MCPTicketProvider` binds them once. A different ticket MCP server later = one more tool-map row.
 
-`POST /rest/api/3/issue/{key}/transitions` requires a transition **id**; humans think in **names**. `transition()` calls `GET /rest/api/3/issue/{key}/transitions` first, matches `toState` against `transitions[].name`, and 404s with a clear error listing available names when there's no match. Failures return `TicketProviderError`.
+### 2.3 Transitions by human-readable name
+
+The Jira MCP `transition` tool takes a target status **name**. `transition(input, toState)` passes `toState` through and maps a "no such status" tool error to a `TicketProviderError` that lists the available statuses if the server returned them — same human-facing contract the REST design promised.
+
+### 2.4 Comments are plain text, not ADF, at this layer
+
+The MCP server accepts (and the LLM produces) plain text; ADF construction is a server-side concern when it is one at all. `MCPTicketProvider` sends `body` verbatim and only normalizes errors — the flatten-to-ADF round-trip the REST adapter needed is gone with the client.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Seam extension (30 min)
+### 3.1 `TicketToolMap` (30 min)
 
-- [ ] Extend `TicketProvider` (§2.2); add JSDoc "commentary/status, never code" note.
-- [ ] Backward-compat: callers that only `fetchIssue` are unaffected (methods additive).
+- [ ] `packages/ticket-provider/src/ticket-tool-map.ts` — Jira capability→tool-name bindings + a `search` passthrough.
 
-### 3.2 `postComment` + ADF builder (75 min)
+### 3.2 `MCPTicketProvider` (90 min)
 
-- [ ] `POST /rest/api/3/issue/{key}/comment` with ADF body from `plainTextToAdf(body)`.
-- [ ] `plainTextToAdf` — paragraphs + list rendering; round-trip fixture tests.
+- [ ] `fetchIssue` / `postComment` / `transition` → registry client → `tools/call(...)`.
+- [ ] `TicketProviderError` on `ToolResult.isError`; "no such status" → error listing available transitions.
 
-### 3.3 `transition` by name (75 min)
+### 3.3 `mcp-ticket-mapper.ts` (60 min)
 
-- [ ] `GET transitions` catalog → match name → `POST transition`.
-- [ ] No-match → `TicketProviderError` listing available names; 401/404 wrapping.
+- [ ] Flatten `ToolContent[]` → `Issue`; strip Jira's rich-text wrapper to plain `description`.
 
-### 3.4 Mapping + payload types (45 min)
+### 3.4 Stubbed-provider tests (75 min)
 
-- [ ] `JiraCommentPayload`, `JiraTransitionsPayload` subsets; keep mapper pure.
+- [ ] Fake `McpClient` returning fixture issue/comment/transition results; assert correct tool names + args.
+- [ ] Error-path: isError → `TicketProviderError`; transition no-match error surfaces available names.
 
-### 3.5 Tests (60 min)
+### 3.5 Exports + boundary (30 min)
 
-- [ ] Round-trip ADF; comment payload shape; transition name-match + no-match.
-- [ ] Stubbed-fetch error wrapping.
-- [ ] Boundary grep: only `@harness/domain` imports.
+- [ ] `src/index.ts` + README module table gain `MCPTicketProvider` + mapper.
+- [ ] `grep -r "from '@harness" packages/ticket-provider/src` → `@harness/domain` + `@harness/mcp` only.
 
 ---
 
@@ -83,32 +89,33 @@ Fetch *flattens* ADF → text (`adfToPlainText`); write *constructs* ADF from te
 
 | File | Description |
 |------|-------------|
-| `packages/ticket-provider/src/ticket-provider.ts` (updated) | `postComment`/`transition` on the seam |
-| `packages/ticket-provider/src/jira-provider.ts` (updated) | Comment + transition impl |
-| `packages/ticket-provider/src/jira-mapper.ts` (updated) | `plainTextToAdf` + payload types |
-| `packages/ticket-provider/src/__tests__/jira-writeback.test.ts` | Comment/transition tests |
-| `packages/ticket-provider/README.md` (updated) | Status + new modules |
+| `packages/ticket-provider/src/mcp-ticket-provider.ts` | `MCPTicketProvider` (fetch/comment/transition via MCP) |
+| `packages/ticket-provider/src/ticket-tool-map.ts` | Jira capability→tool-name bindings |
+| `packages/ticket-provider/src/mcp-ticket-mapper.ts` | `ToolContent[]` → `Issue` |
+| `packages/ticket-provider/src/__tests__/mcp-ticket-*.test.ts` | Stubbed `McpClient` tests |
+| `packages/ticket-provider/README.md` (updated) | Modules + "MCP-backed TicketProvider" status |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/ticket-provider test` — green, fixtures only.
-- [ ] `postComment` posts an ADF document that round-trips through `adfToPlainText`.
-- [ ] `transition("In Review")` resolves the name → id and posts; unknown name returns an error listing available names.
-- [ ] 401/404 → `TicketProviderError` with correct status.
+- [ ] `pnpm --filter @harness/ticket-provider test` — green with a stubbed `McpClient` (no live Jira/token).
+- [ ] `fetchIssue` returns an `Issue` structurally identical to Phase-1 `JiraProvider` output.
+- [ ] `postComment` and `transition` call the mapped Jira MCP tools with the right args.
+- [ ] No-such-status → `TicketProviderError` listing available statuses (when the server provides them).
 - [ ] JSDoc/comments state the commentary/status boundary (never code).
-- [ ] `grep -r "from '@harness" packages/ticket-provider/src` shows only `@harness/domain`.
+- [ ] `grep -r "from '@harness" packages/ticket-provider/src` shows only `@harness/domain` + `@harness/mcp`.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Transition names are tenant-specific.** "In Review" may not exist in a given Jira workflow — always resolve from the `/transitions` catalog at call time, never cache or hard-code ids.
-- **ADF is a tree, not markdown.** The inverse builder must handle paragraph vs list vs inline; a naive `text → paragraph` only builder will render long comments as one blob. Keep it minimal but structured.
-- **Comments/transitions are the write-back primitives** that Day 07 will wrap under `WriteBackService` — do not yet add idempotency or audit; the seam just exposes the capability.
-- **Tomorrow (Day 05):** Week 1 checkpoint — fetch PR/MR from all three providers + Jira end-to-end.
+- **Jira's "description" is rarely plain.** Whatever format the MCP server returns, the mapper owns normalizing it to text — keep that normalization here, not in the reviewer prompt.
+- **Transition names are tenant-specific** ("In Review" may not exist). Always go through the tool at call time; never hard-code an id. The MCP tool name is stable even where the workflow isn't.
+- **Comment/transition are the write-back primitives** Day 06 will wrap under `WriteBackService` — expose the capability today, add idempotency + audit in Day 08.
+- **Do not let Jira REST sneak back.** If a `POST /rest/api/3/...` string appears, the abstraction leaked; it's a `tools/call` with a mapped tool name.
+- **Tomorrow (Day 05):** Week 1 checkpoint — fetch PR/MR from GitHub/GitLab/Bitbucket + a Jira issue, all via one config.
 
 ---
 
-*Next: [Day 05 — Week 1 Checkpoint: Fetch PR/MR from All Three Providers + Jira](day-05.md)*
+*Next: [Day 05 — Week 1 Checkpoint: Fetch PR/MR from GitHub/GitLab/Bitbucket + Jira via MCP](day-05.md)*

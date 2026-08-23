@@ -20,7 +20,7 @@ Kiến trúc biến "sự chú ý" thành tài nguyên có thể đo lường, �
 
 ### 1. Input — cái gì đi vào hệ thống
 
-Đầu vào là một **code change cần review** cùng ngữ cảnh của nó — không phải "yêu cầu phải làm gì". Change đến từ bên ngoài qua PR/MR (GitHub hôm nay; GitLab/Bitbucket là Phase 3); ở ranh giới input, HAI luôn nhận **một change để review**.
+Đầu vào là một **code change cần review** cùng ngữ cảnh của nó — không phải "yêu cầu phải làm gì". Change đến từ bên ngoài qua PR/MR (GitHub hôm nay qua REST; GitLab/Bitbucket/Jira là Phase 3, nối qua **MCP** — một client + một file config, không build REST SDK từng host); ở ranh giới input, HAI luôn nhận **một change để review**.
 
 | Trường | Kiểu | Mô tả | Ví dụ |
 |--------|------|-------|-------|
@@ -238,6 +238,8 @@ Bổ sung trên nền Phase 2:
 
 | Tầng | Lựa chọn | Ghi chú |
 |------|----------|---------|
+| Git/ticket providers | **MCP** — 1 client `@harness/mcp` + **1 file config** `mcp.config.json` (stdio/SSE) nối GitHub/GitLab/Bitbucket/Jira | Dùng MCP server có sẵn trên hệ sinh thái; **không** tự build REST SDK từng host |
+| AI model | **Giữ nguyên** — api key + provider + base URL + model (`provider_configs`) | MCP chỉ thay tầng *tools*, không thay kết nối model |
 | Code index | Symbol index + **dependency graph** (tree-sitter / code parser) | Targeted / incremental verification (Spec 7 §5.2–5.3) |
 | Retrieval | Hybrid (BM25 + embeddings) + RRF + re-rank, optional **RAG Fusion** | Context §5.1–5.2 |
 | Memory | Write-back + consolidation / decay / archive (Postgres) | Memory §4.5 |

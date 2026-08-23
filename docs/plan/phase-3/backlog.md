@@ -71,8 +71,9 @@ only when the seam exists and the gate is specified.*
   (comment/label/status → PR/MR, comment/transition → Jira) plus idempotency and
   a toggle.
 - **Seam it plugs into:** the `GitProvider` / `TicketProvider` seams
-  (`postComment`, `setStatus`, `addLabel`; Jira transition), with `writeback_log`
-  audit.
+  (`postComment`, `setStatus`, `addLabel`; Jira transition) — realized through
+  the connected **MCP tools** (`@harness/mcp` + `mcp.config.json`), with
+  `writeback_log` audit.
 - **Gate it must re-run:** the Week-2 checkpoint — approve with toggle ON lands
   exactly one comment (idempotent, no duplicate on retry); toggle OFF writes
   nothing external. Because the AI never authors code, write-back is the only

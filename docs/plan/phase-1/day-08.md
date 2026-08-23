@@ -36,7 +36,7 @@ export interface PullRequest {
 ```
 
 - `GitHubProvider` takes an injected HTTP client so tests can replay recorded fixtures; the token is injected via config, never hard-coded (full hygiene on Day 27).
-- GitLab/Bitbucket are **not** built now (Phase 3); the seam exists so they plug in later without touching the ingest path.
+- GitLab/Bitbucket are **not** built now (Phase 3, where they connect via **MCP** — one client + config, not per-host REST); the seam exists so they plug in later without touching the ingest path.
 
 ## 3. Tasks
 

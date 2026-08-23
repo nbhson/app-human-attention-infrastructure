@@ -1,11 +1,11 @@
-# Day 02 — `BitbucketProvider`: REST Adapter for Bitbucket PR Fetch
+# Day 02 — `mcp.config.json`: One File Connecting GitHub/GitLab/Bitbucket/Jira
 
 | | |
 |---|---|
-| **Week** | 1 — Provider breadth |
-| **Spec refs** | git-provider §2 (GitProvider seam), §4 (module layout); Architecture §7 (boundary rule) |
+| **Week** | 1 — MCP connectivity |
+| **Spec refs** | Phase-3 README §3 (MCP config), §4 (repo root config file); Architecture §7 (token hygiene) |
 | **Estimated effort** | 6h |
-| **Prerequisites** | Day 01 (`GitLabProvider` + `parseRepoPath` extension in `@harness/git-provider`) |
+| **Prerequisites** | Day 01 (`@harness/mcp` client + `McpTransport`) |
 
 ---
 
@@ -13,66 +13,83 @@
 
 By end of day you will have:
 
-1. A `BitbucketProvider` implementing `GitProvider` — read-only PR fetch for Bitbucket Cloud (workspace/repo model).
-2. A pure `bitbucket-mapper.ts` that maps Bitbucket PR JSON → `PullRequest` (paginated diff vs GitLab's single `/changes`, Bitbucket's `type`-tagged diffs).
-3. `parseRepoPath` extended to Bitbucket URLs (`bitbucket.org/workspace/repo`).
-4. Fixture-tested mapping and a stubbed-fetch provider test covering bitbucket auth (`Bearer` token, workspace-qualified endpoint).
+1. A **single config file** — `mcp.config.json` at the repo root — that lists the MCP servers the harness connects to (GitHub, GitLab, Bitbucket, Jira), each with its transport (`command`/`args` for stdio, or `url` for SSE) and a **token reference**, not a token.
+2. A `loadMcpConfig()` loader that validates the file against a Zod schema and resolves env-var references at startup — the only place a credential is named, never stored.
+3. A `McpServerRegistry` that hands out a connected `McpClient` per entry, lazy-started and shared, so the reviews route talks to "the git provider" without caring which host it is.
+4. Redaction tests proving a `provider_configs` write (the DB record that mirrors the config for the settings UI) stores `token_hint` (last-4) and never the secret.
 
-Completes the "all three Git providers fetch a PR/MR" slice before the Day 03 registry.
+The day turns `@harness/mcp` from a library into a **configurable connection layer** — the "one file to connect any tool" the product needs.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Bitbucket's REST shape is the odd one out
+### 2.1 The config file is declarative and secret-free
 
-GitHub → per-file patch pre-computed; GitLab → one `/changes` call; **Bitbucket → paginated diff + per-file `type` tags** (`added_file`, `modified_file`, `removed_file`, `renamed_file`, `deleted_file`). The provider has to walk pagination and assemble the file list itself — the mapper stays pure and host-shaped.
+```jsonc
+// mcp.config.json — repo root. The ONE place Git/ticket tools are declared.
+{
+  "servers": {
+    "github":    { "transport": "stdio", "command": "npx", "args": ["-y", "@github/mcp-server"], "tokenEnv": "GITHUB_TOKEN" },
+    "gitlab":    { "transport": "stdio", "command": "npx", "args": ["-y", "@gitlab/mcp-server"], "tokenEnv": "GITLAB_TOKEN" },
+    "bitbucket": { "transport": "sse",   "url": "https://mcp.bitbucket.example/sse",          "tokenEnv": "BITBUCKET_TOKEN" },
+    "jira":      { "transport": "sse",   "url": "https://mcp.atlassian.com/sse",              "tokenEnv": "JIRA_TOKEN" }
+  }
+}
+```
 
-### 2.2 Endpoints (Bitbucket Cloud API 2.0)
+- `tokenEnv` names an environment variable the *server subprocess* (or a header injector) reads — the file holds the reference, `.env`/secret store holds the value (same hygiene as `ANTHROPIC_API_KEY`).
+- Tokens are **never inline**, never committed, never logged. A missing `tokenEnv` at startup is a fast, loud error, not a silent anonymous request.
 
-- PR metadata: `GET /2.0/repositories/{workspace}/{repo_slug}/pullrequests/{id}`.
-- Diff: `GET /2.0/repositories/{workspace}/{repo_slug}/pullrequests/{id}/diffstat` for the file set, then `GET /2.0/repositories/{workspace}/{repo_slug}/pullrequests/{id}/diff` with `pagelen` + next-page cursor for content.
-- Auth: `Authorization: Bearer <token>` (workspace app password or OAuth). Support `baseUrl` for Bitbucket Server/Data Center later (today: Cloud).
+### 2.2 One registry over N servers
 
-### 2.3 Mapping `type` tags → change kind
+```typescript
+// packages/mcp/src/registry.ts
+export interface McpServerRegistry {
+  get(name: 'github' | 'gitlab' | 'bitbucket' | 'jira'): Promise<McpClient>;
+  list(): string[];                                   // enabled server names
+  closeAll(): Promise<void>;
+}
+```
 
-`added_file` → `CREATED`, `renamed_file` → `RENAMED` (carry old+new path), `modified_file` → `MODIFIED`, `removed_file`/`deleted_file` → `DELETED`. Bitbucket's `type` field on the *file* (not its diffstat) is the source of truth; `diffstat` only has `lines_added`/`lines_removed`.
+The registry lazy-starts each client on first use and shares the process for its lifetime; `closeAll()` shuts every spawned subprocess at shutdown.
 
-### 2.4 Pagination is the only new machinery
+### 2.3 The DB record mirrors config for the human, not as a second source of truth
 
-Keep `walkPaginated(nextUrl)` private to the provider: it follows the `next` link until exhausted and flattens results, so the mapper and callers see one array.
+`mcp.config.json` is the source of truth for *connectivity*. A `provider_configs` row (`kind = 'git' | 'ticket'`) persists the *human-facing* state — enabled/disabled + `token_hint` (last 4) + `base_url` override — for the settings UI and toggle, with the same `redactProviderConfig()` boundary as the model config. Connectivity and display stay separate.
+
+### 2.4 AI model config is untouched
+
+The `kind = 'ai'` row — **api key + provider + base URL + model** — is read exactly as in Phase 1/2. MCP replaces *tools* only; the model connection is not routed through MCP.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Provider skeleton (30 min)
+### 3.1 Config schema + loader (60 min)
 
-- [ ] `packages/git-provider/src/bitbucket-provider.ts` — `BitbucketProvider implements GitProvider`; `type = 'bitbucket'`.
-- [ ] `packages/git-provider/src/bitbucket-mapper.ts` — `mapBitbucketPullRequest`, payload subsets, `mapBitbucketFileChange`.
+- [ ] `packages/mcp/src/config.ts` — Zod schema for `mcp.config.json` (§2.1); `loadMcpConfig(path)` validates + resolves `tokenEnv` from `process.env` (value never enters the config object — only a redacted hint).
+- [ ] Unit test: unknown transport, missing `tokenEnv`, malformed JSON → typed error.
 
-### 3.2 `parseRepoPath` extension (30 min)
+### 3.2 `McpServerRegistry` (75 min)
 
-- [ ] Detect `bitbucket.org` → `{ host, workspace, repoSlug }`; unit-test `bitbucket.org/acme/api`.
+- [ ] `packages/mcp/src/registry.ts` — lazy-start, share, `closeAll()`; mapping config entry → `StdioTransport`/`SseTransport` + `McpClient`.
+- [ ] Test: two `get()` calls return the same client (single subprocess); `closeAll()` stops it.
 
-### 3.3 Pagination helper (45 min)
+### 3.3 `provider_configs` mirror (60 min)
 
-- [ ] `walkPaginated` following `values[]` + `next` cursor; flatten; bound page count (safety cap).
-- [ ] Unit test against a two-page fixture.
+- [ ] Extend the existing `provider_configs` schema use for `git`/`ticket` rows — enabled flag + `token_hint` + `base_url` override; **no** token column beyond the redacted hint.
+- [ ] Redaction is applied on every read path (mirror of the model-config boundary).
 
-### 3.4 Mapper fixtures + mapping (60 min)
+### 3.4 Settings endpoint (45 min)
 
-- [ ] Fixtures for all five `type` tags + a renamed file with `old`/`new` path.
+- [ ] `GET /api/settings/providers` — return the parsed server list (names + transports + hints), never the config's secrets.
+- [ ] `PUT /api/settings/providers` — toggle enabled/disabled per server (writes the DB mirror; the file stays the connectivity truth).
 
-### 3.5 `fetchPullRequest` (60 min)
+### 3.5 Fixture config + tests (75 min)
 
-- [ ] metadata + `diffstat` + `diff` (paginated) → `mapBitbucketPullRequest`.
-- [ ] Stub `fetch`; assert `Bearer` header, workspace-qualified URL, `GitProviderError` on 401/404.
-
-### 3.6 Exports + tests (45 min)
-
-- [ ] `src/index.ts` + README module table gains Bitbucket.
-- [ ] Full test pass; grep check for `@harness/domain`-only imports.
+- [ ] Ship a committed **example** `mcp.config.example.json` (stdin/SSE examples, placeholder `tokenEnv`) — the real `mcp.config.json` is git-ignored.
+- [ ] Loader test against a temp file with an injected-fake env; registry test with the in-repo `McpTestServer`.
 
 ---
 
@@ -80,32 +97,34 @@ Keep `walkPaginated(nextUrl)` private to the provider: it follows the `next` lin
 
 | File | Description |
 |------|-------------|
-| `packages/git-provider/src/bitbucket-provider.ts` | `BitbucketProvider` (paginated diff fetch) |
-| `packages/git-provider/src/bitbucket-mapper.ts` | `mapBitbucketPullRequest` + `type` tag mapping |
-| `packages/git-provider/src/bitbucket-pagination.ts` | `walkPaginated` cursor walker |
-| `packages/git-provider/src/__tests__/bitbucket-*.test.ts` | Mapper + provider + pagination tests |
-| `packages/git-provider/README.md` (updated) | Modules + "Bitbucket complete" status |
+| `packages/mcp/src/config.ts` | `mcp.config.json` schema + loader |
+| `packages/mcp/src/registry.ts` | `McpServerRegistry` |
+| `mcp.config.example.json` | Committed example (secret-free) |
+| `packages/db/src/schema/provider-config.ts` (updated) | `git`/`ticket` mirror rows (enabled + token_hint) |
+| `apps/api/src/routes/settings.ts` (updated) | Provider list/toggle endpoints (redacted) |
+| `packages/mcp/src/__tests__/*.test.ts` | Loader + registry + redaction tests |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/git-provider test` — green with fixtures only.
-- [ ] `mapBitbucketPullRequest` returns the same `PullRequest` shape as GitHub/GitLab.
-- [ ] Five `type` tags map to the correct change kinds; renamed files carry both paths.
-- [ ] Pagination walks a 2-page fixture to a single flat file list.
-- [ ] 401/404 → `GitProviderError` with correct status.
-- [ ] `grep -r "from '@harness" packages/git-provider/src` shows only `@harness/domain`.
+- [ ] `mcp.config.json` lists GitHub/GitLab/Bitbucket/Jira servers; each entry has `transport` + `tokenEnv`; the committed example contains no secret.
+- [ ] `loadMcpConfig` resolves `tokenEnv` to a redacted hint only — the value never appears in any returned object or log.
+- [ ] Registry hands out one shared client per server; `closeAll()` cleans up subprocesses.
+- [ ] `GET /api/settings/providers` never returns a token; `PUT` toggles enabled state only.
+- [ ] `grep -r "token" packages/mcp/src` (case-insensitive) surfaces no `token` value assignment outside the redaction/hint path.
+- [ ] `pnpm lint` clean; real `mcp.config.json` git-ignored; `.env.example` documents the four `*_TOKEN` names as placeholders.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Bitbucket `id` vs `display_id`.** The user pastes the `id` from the URL (the workspace-scoped pull request id), not the internal `display_id`. Map on the URL id.
-- **`diffstat` is a summary, not the diff.** File *content* comes from the `diff` endpoint; `diffstat` only tells you which files exist and their line counts. Don't try to reconstruct per-file patches from diffstat.
-- **Renames are two file types in disguise.** Bitbucket may emit `renamed_file` with an `old` path and a `new` path — keep both, like GitLab's `new_path`/`old_path`.
-- **Tomorrow (Day 03):** the registry + `provider_configs` resolution wires all three providers behind one `resolveProvider(url)`.
+- **The file is connectivity truth; the DB is display truth.** Don't let `provider_configs` drift into holding an actual token "for convenience" — that reintroduces the exact secret-sprawl the redaction boundary exists to stop.
+- **`tokenEnv` is resolved once at startup, into a hint.** If a server needs a fresh token mid-flight (rotation), restart the harness — a long-lived process holding a live secret in memory is the anti-pattern Day 01's notes warned about.
+- **stdio command must be a fixed array, not a shell string.** `npx` + args avoids shell-injection when a repo config is shared across machines.
+- **SSE servers and self-hosted GitLab/Bitbucket** are the common real-world case — the schema already supports `url`; self-hosted is just another entry with a different `url`. No code.
+- **Tomorrow (Day 03):** `MCPGitProvider` — map Git MCP tool output to the `PullRequest` domain shape.
 
 ---
 
-*Next: [Day 03 — Provider Registry + `provider_configs` (Redacted) Resolution](day-03.md)*
+*Next: [Day 03 — `MCPGitProvider`: Git MCP Tools → `PullRequest` Behind the `GitProvider` Seam](day-03.md)*

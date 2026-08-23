@@ -5,7 +5,7 @@
 | **Week** | 3 — Verification breadth |
 | **Spec refs** | Spec 7 §5.5 (sandbox isolation); git-provider §2; verification-engine execution model |
 | **Estimated effort** | 6h |
-| **Prerequisites** | Day 10 (W2 checkpoint); Phase-2 `@harness/sandbox` exists; three `GitProvider` impls fetch PRs |
+| **Prerequisites** | Day 10 (W2 checkpoint); Phase-2 `@harness/sandbox` exists; MCP-backed `GitProvider` fetches PRs (Days 03–05) |
 
 ---
 

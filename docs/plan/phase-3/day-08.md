@@ -5,7 +5,7 @@
 | **Week** | 2 — Write-back |
 | **Spec refs** | Architecture §7 (append-only event_log recomputed projections); Phase-3 README §3, §7 (writeback_log exit criterion) |
 | **Estimated effort** | 6h |
-| **Prerequisites** | Days 06–07 (`WriteBackService` + 4 adapters) |
+| **Prerequisites** | Days 06–07 (`WriteBackService` + MCP-backed write-back across all hosts) |
 
 ---
 

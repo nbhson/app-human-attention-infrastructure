@@ -1,11 +1,11 @@
-# Day 07 — Write-back for GitLab/Bitbucket + Jira Transition
+# Day 07 — Write-back for GitLab/Bitbucket + Jira Transition via MCP Tools
 
 | | |
 |---|---|
 | **Week** | 2 — Write-back |
-| **Spec refs** | git-provider §2, ticket-provider §2 (comment/transition primitives); Phase-3 README §3 |
+| **Spec refs** | Phase-3 README §3; git-provider §2, ticket-provider §2 (MCP write tools) |
 | **Estimated effort** | 6h |
-| **Prerequisites** | Day 06 (`WriteBackService` seam + `GitHubWriteBack`); `JiraProvider` comment/transition (Day 04) |
+| **Prerequisites** | Day 06 (`WriteBackService` + `MCPWriteBack`); `MCPTicketProvider` transition (Day 04) |
 
 ---
 
@@ -13,63 +13,54 @@
 
 By end of day you will have:
 
-1. `GitLabWriteBack` and `BitbucketWriteBack` adapters — mapping the same `WriteBackIntent` actions to each host's REST comment/status endpoints.
-2. `JiraWriteBack` — COMMENT → Jira issue comment, TRANSITION → Jira status transition (the ticket-side write primitives from Day 04), surfaced through the same service.
-3. `WriteBackService` now dispatches to **all** providers behind one interface; decisions on any provider produce the same-shaped external write.
-4. Fixture-tested adapters; no live credentials.
+1. `MCPWriteBack` covering the **full provider matrix** — GitHub/GitLab/Bitbucket comment/status, Jira comment/transition — through each host's MCP write tools.
+2. Per-host *write* tool-name bindings filled out in `GitToolMap`/`TicketToolMap` (the read bindings from Days 03–04 get their write counterparts).
+3. `WriteBackService` dispatching to any provider behind one interface; a decision on any host produces the same-shaped external write.
+4. Fixture-tested adapters against fake `McpClient`s — no live credentials.
 
-Completes write-back breadth; Day 08 adds the audit log + idempotency on top.
+Completes write-back breadth; Day 08 layers audit + idempotency on top. Note there are **no per-host write classes** — breadth is tool-name rows, not packages.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Same intent, host-shaped endpoints
+### 2.1 One adapter, N tool rows
 
-`COMMENT`/`STATUS`/`LABEL` stay the vocabulary; each adapter translates:
+`MCPWriteBack` stays a single class; the *only* per-host variance is which tool name each action maps to. Extending `GitToolMap`/`TicketToolMap` with write columns completes the matrix — no `GitLabWriteBack`/`BitbucketWriteBack`/`JiraWriteBack` classes are needed.
 
-- **GitLab** — comment: `POST /projects/:id/merge_requests/:iid/notes`; status: `POST /projects/:id/statuses/:sha` (or `/commit/:sha/statuses`); "label" → GitLab MR labels via `PUT /merge_requests/:iid` label_ids (or note-fallback if labels are out of scope — decide: comment-only for v0, leave a thin `LABEL` → addLabel via labels API).
-- **Bitbucket** — comment: `POST /2.0/repositories/{ws}/{repo}/pullrequests/{id}/comments`; status: `POST .../commit/{sha}/statuses/build` (key + url + state).
-- **Jira** — COMMENT → `plainTextToAdf` + `postComment`; TRANSITION → `transition(toState)` (name-resolved, from Day 04).
+### 2.2 Jira's write is a transition, codified
 
-### 2.2 Jira action differs — add TRANSITION to the intent vocabulary
-
-The intent set approved in Day 06 was generic. Jira's status write is a *transition*, not a PR status; extend `WriteBackAction` with `'TRANSITION'` and a `toState` field (optional, required only for TRANSITION). Git adapters reject TRANSITION with a clear error; Jira rejects STATUS/LABEL.
+The intent vocabulary already carries `TRANSITION` (from Day 06). Git hosts reject it with `WriteBackError`; Jira maps it to its transition tool with the human-readable `toState`. Jira's STATUS/LABEL semantics don't map anywhere and are rejected for Jira — the tool map makes that explicit per host rather than implicit in code.
 
 ### 2.3 Adapter errors normalize to `WriteBackError`
 
-Each adapter wraps host errors into a shared `WriteBackError { provider, action, externalId, status? }` so the service logs one shape regardless of host.
+Every host tool error folds into `WriteBackError { provider, action, externalId, status? }` so the service logs one shape regardless of host — and so the idempotency layer (Day 08) keys on one type.
+
+### 2.4 Idempotency is not today
+
+Today proves breadth; Day 08 adds the dedup key + `writeback_log`. Keep the adapter stateless (no "already sent" memory) so the audit layer can own that concern.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Intent vocabulary extension (30 min)
+### 3.1 Write tool-map rows (75 min)
 
-- [ ] Add `TRANSITION` to `WriteBackAction`; add optional `toState` to `WriteBackIntent`.
-- [ ] Update Day 06 tests that enumerated actions (now 4).
+- [ ] `GitToolMap`: fill comment/status (and label where the host exposes one) for github/gitlab/bitbucket.
+- [ ] `TicketToolMap`: fill comment + transition for Jira; mark STATUS/LABEL unsupported.
 
-### 3.2 `GitLabWriteBack` (90 min)
+### 3.2 `MCPWriteBack` matrix (120 min)
 
-- [ ] Comment, status, label mapping + tests (stubbed fetch).
+- [ ] Map each (provider × action) to its tool name + args; TRANSITION passes `toState`.
+- [ ] Per-host rejection matrix (git→TRANSITION, jira→STATUS/LABEL) → `WriteBackError`.
 
-### 3.3 `BitbucketWriteBack` (90 min)
+### 3.3 Service dispatch update (45 min)
 
-- [ ] Comment, build-status mapping + tests.
+- [ ] Wire the completed matrix into `write()`; normalize host errors → `WriteBackError`.
 
-### 3.4 `JiraWriteBack` (75 min)
+### 3.4 Boundary + full pass (30 min)
 
-- [ ] COMMENT via ADF builder; TRANSITION via name-resolved transition; rejects STATUS/LABEL.
-- [ ] Tests incl. `toState` no-match error propagation.
-
-### 3.5 Service dispatch update (45 min)
-
-- [ ] Wire GitLab/Bitbucket/Jira adapters into `write()` dispatch.
-- [ ] Normalize host errors → `WriteBackError`.
-
-### 3.6 Boundary + full pass (30 min)
-
-- [ ] Grep: `@harness/writeback` imports only domain + git-provider + ticket-provider.
+- [ ] `@harness/writeback` imports only `domain` + `mcp` (+ type-only tool maps).
 
 ---
 
@@ -77,30 +68,31 @@ Each adapter wraps host errors into a shared `WriteBackError { provider, action,
 
 | File | Description |
 |------|-------------|
-| `packages/domain/src/writeback.ts` (updated) | `TRANSITION` action + `toState` |
-| `packages/writeback/src/gitlab-writeback.ts` | GitLab comment/status/label adapter |
-| `packages/writeback/src/bitbucket-writeback.ts` | Bitbucket comment/status adapter |
-| `packages/writeback/src/jira-writeback.ts` | Jira comment/transition adapter |
-| `packages/writeback/src/writeback-service.ts` (updated) | Full provider dispatch |
-| `packages/writeback/src/__tests__/*.test.ts` | Adapter tests |
+| `packages/git-provider/src/git-tool-map.ts` (updated) | Write capability→tool rows |
+| `packages/ticket-provider/src/ticket-tool-map.ts` (updated) | Jira comment/transition rows |
+| `packages/writeback/src/mcp-writeback.ts` (updated) | Full provider matrix via MCP tools |
+| `packages/writeback/src/writeback-service.ts` (updated) | Error normalization |
+| `packages/writeback/src/__tests__/*.test.ts` | Matrix + rejection tests |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/writeback test` — green; all four providers dispatched.
-- [ ] COMMENT intent writes a comment on all three Git hosts + Jira (fixtures).
-- [ ] TRANSITION intent transitions a Jira issue by status name; STATUS intent sets a commit status on GitHub/GitLab/Bitbucket.
-- [ ] Git adapters reject TRANSITION, Jira rejects STATUS/LABEL — with `WriteBackError`.
+- [ ] `pnpm --filter @harness/writeback test` — green; all four providers dispatched via MCP tools.
+- [ ] COMMENT writes a comment on all three Git hosts + Jira (fake client spy).
+- [ ] TRANSITION transitions Jira by status name; STATUS sets a commit status on GitHub/GitLab/Bitbucket.
+- [ ] Git hosts reject TRANSITION, Jira rejects STATUS/LABEL — with `WriteBackError`.
+- [ ] No per-host write classes exist (grep for `GitLabWriteBack`/`BitbucketWriteBack`/`JiraWriteBack` returns nothing).
 - [ ] Boundary grep clean; `pnpm lint` clean.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Bitbucket status needs a `key`** (a stable app key) — pick one constant per provider config, don't generate per call or idempotency keys change identity.
-- **GitLab status targets a SHA, not a PR.** Requires the MR's `sha` (head commit) — the adapter must look it up or accept it in the intent; prefer accepting it in the intent from the fetched PR.
-- **Jira transition is stateful and human-visible.** The `toState` must be a name the human chose; the adapter's "no such status" error (Day 04) is surfaced, not swallowed.
+- **Breadth is data, not code.** If a checkout shows three new write classes, the MCP abstraction failed — walk it back to tool-map rows.
+- **Bitbucket status needs a stable app `key`.** Keep one constant per provider tool binding; don't generate per call or idempotency (Day 08) loses its stable identity.
+- **GitLab status targets a SHA.** The head SHA comes from the already-fetched `PullRequest` — pass it in the intent, don't re-fetch via a new tool call.
+- **Jira transition is stateful and human-visible.** `toState` is a name the human chose; the no-such-status error (Day 04) is surfaced, not swallowed.
 - **Day 08** layers `writeback_log` + idempotency so a retry can't double-comment.
 
 ---
