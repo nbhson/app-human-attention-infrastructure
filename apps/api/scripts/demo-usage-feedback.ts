@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     ]),
     learnedUsage: learned,
   });
-  const [first] = result;
+  const first = result[0]!;
   assert(first.sourceId === 'proven.ts', 'learned signal supersedes raw popularity in the re-rank');
   console.log('  3. the learned signal re-ranks, and supersedes raw popularity:');
   console.log(`     raw retrievalCount  : raw-pop.ts=10 (popular), proven.ts=1 (rare)`);

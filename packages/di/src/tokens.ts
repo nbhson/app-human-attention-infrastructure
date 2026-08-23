@@ -32,11 +32,6 @@ export const TOKENS = {
   ReembedListener: 'ReembedListener',
   SemanticRetriever: 'SemanticRetriever',
   SemanticRanker: 'SemanticRanker',
-  // The dependency-proximity seam for the day-27 re-ranker. Resolves to a
-  // `DependencyProximityResolver` (changed files + candidate → proximity in
-  // [0,1] | null), which the app binds to `@harness/code-index`'s graph —
-  // context-engine consumes it through this seam, never a direct import.
-  CodeIndex: 'CodeIndex',
   ArtifactTracker: 'ArtifactTracker',
   ContentStore: 'ContentStore',
   AttentionEngine: 'AttentionEngine',
