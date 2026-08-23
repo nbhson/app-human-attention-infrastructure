@@ -30,6 +30,7 @@ export * from './provenance.js';
 // External integration model (review-reorient Phase 3).
 export * from './integration.js';
 export * from './review-report.js';
+export * from './review-decision.js';
 export * from './writeback.js';
 export * from './writeback-store.js';
 

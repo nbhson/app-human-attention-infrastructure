@@ -42,6 +42,12 @@ export interface WriteBackIntent {
    * service can build the host's tool arguments; ignored for ticket systems.
    */
   readonly repo?: string;
+  /**
+   * The review decision this intent was emitted from (day-09 §3.2). Links the
+   * `writeback_log` row back to its `review_decisions` row so an audit can
+   * reconstruct *which* human decision triggered a given external write.
+   */
+  readonly decisionId?: string;
 }
 
 /**

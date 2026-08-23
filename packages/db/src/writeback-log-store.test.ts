@@ -5,7 +5,7 @@ import { GitProviderType, WritebackAction } from '@harness/domain';
 import type { WritebackClaim } from '@harness/domain';
 
 import { createTestDb, destroyTestDb, type TestDb } from './__tests__/helpers.js';
-import { writebackLog } from './schema/index.js';
+import { reviewDecisions, reviewReports, writebackLog } from './schema/index.js';
 import { DrizzleWritebackLogStore } from './writeback-log-store.js';
 
 const SCHEMA = 'harness_test_writeback';
@@ -105,5 +105,37 @@ describe('DrizzleWritebackLogStore', () => {
     const rows = await rowsFor(key);
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
     expect(byId['wb-y']?.status).toBe('DUPLICATE');
+  });
+
+  it('a claim with a decisionId records the decision_id linkage (day-09 §3.2)', async () => {
+    // Seed the parent rows so the FK (decision_id → review_decisions.id) resolves
+    // in the isolated schema.
+    await testDb.db.insert(reviewReports).values({
+      id: 'rep-1',
+      pr_url: 'https://github.com/acme/api/pull/1',
+      pr_number: 1,
+      repo: 'github.com/acme/api',
+      pr_title: 'seed',
+      ai_provider: 'anthropic',
+      model: 'test-model',
+      summary: 'seed report',
+      overall_verdict: 'APPROVE',
+      pr_payload: {},
+    });
+    await testDb.db.insert(reviewDecisions).values({
+      id: 'dec-9',
+      report_id: 'rep-1',
+      decision: 'APPROVE',
+      writeback_enabled: false,
+    });
+
+    const store = new DrizzleWritebackLogStore(testDb.db);
+    const key = 'dedup-decision';
+
+    await store.claim(claim({ intentId: 'wb-d', dedupKey: key, decisionId: 'dec-9' }));
+
+    const rows = await rowsFor(key);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.decision_id).toBe('dec-9');
   });
 });

@@ -10,6 +10,7 @@ import {
   HumanDecisionType,
   PriorityLabel,
   ProviderKind,
+  ReviewDecisionType,
   ReviewQueueStatus,
   ReviewSeverity,
   ReviewVerdict,
@@ -31,6 +32,7 @@ import {
   humanDecisionTypes,
   priorityLabels,
   providerKinds,
+  reviewDecisionTypes,
   reviewQueueStatuses,
   reviewSeverities,
   reviewVerdicts,
@@ -118,5 +120,9 @@ describe('schema enum drift guards', () => {
 
   it('writebackStatuses match WritebackStatus', () => {
     expect(writebackStatuses).toEqual(Object.values(WritebackStatus));
+  });
+
+  it('reviewDecisionTypes match ReviewDecisionType', () => {
+    expect(reviewDecisionTypes).toEqual(Object.values(ReviewDecisionType));
   });
 });

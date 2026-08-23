@@ -11,7 +11,8 @@
     "backfill:actors": "tsx scripts/backfill-actors.ts",
     "seed:metrics-checkpoint": "tsx scripts/seed-metrics-window.ts",
     "seed:e2e-fixture": "tsx scripts/seed-e2e-fixture.ts",
-    "demo:mcp-connectivity": "tsx scripts/demo-mcp-connectivity.ts"
+    "demo:mcp-connectivity": "tsx scripts/demo-mcp-connectivity.ts",
+    "demo:writeback-toggle": "tsx scripts/demo-writeback-toggle.ts"
   },
   "dependencies": {
     "@harness/agent-runtime": "workspace:*",

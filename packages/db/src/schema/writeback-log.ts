@@ -2,6 +2,7 @@ import { index, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-cor
 import { sql } from 'drizzle-orm';
 
 import { writebackActionCheck, writebackStatusCheck } from './enums.js';
+import { reviewDecisions } from './review-decisions.js';
 
 /**
  * One attempt to write an outcome back to the PR or the ticket
@@ -29,6 +30,7 @@ export const writebackLog = pgTable(
     status: text('status').notNull().default('PENDING'),
     external_ref: text('external_ref'),
     error: text('error'),
+    decision_id: text('decision_id').references(() => reviewDecisions.id),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -38,5 +40,6 @@ export const writebackLog = pgTable(
       .on(table.dedup_key)
       .where(sql`${table.status} = 'SUCCEEDED'`),
     index('writeback_log_provider_external_idx').on(table.provider, table.external_id),
+    index('writeback_log_decision_id_idx').on(table.decision_id),
   ],
 );

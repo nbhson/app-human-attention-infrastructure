@@ -146,6 +146,7 @@ export class MCPWriteBack implements WriteBackService {
       action: intent.action,
       body: effectiveBody(intent),
       dedupKey: dedupKey(intent),
+      ...(intent.decisionId === undefined ? {} : { decisionId: intent.decisionId }),
     });
     if (claim === 'duplicate') {
       return { ok: true, intentId: intent.id };

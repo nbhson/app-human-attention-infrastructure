@@ -5,8 +5,10 @@
  * Three endpoints:
  *  - `POST   /api/reviews`           paste a PR URL (+ optional Jira ticket) → AI review
  *  - `GET    /api/reviews/:id`       the stored report + findings + fix suggestions
- *  - `POST   /api/reviews/:id/decision` the human's approve/reject/request-changes call,
- *                                    with optional write-back to the PR when enabled
+ *  - `POST   /api/reviews/:id/decision` the human's approve/reject/request-changes call.
+ *    Persists a `review_decisions` row (with the effective write-back toggle for
+ *    audit) and, when the toggle is ON and the verdict is APPROVE/REJECT, posts a
+ *    COMMENT + STATUS back to the PR through the WriteBackService seam (day-09).
  */
 
 import type { FastifyInstance } from 'fastify';
@@ -15,15 +17,21 @@ import { asc, eq } from 'drizzle-orm';
 
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
-import { newWritebackID, WritebackAction } from '@harness/domain';
-import type { ReviewReportID } from '@harness/domain';
-import { fixSuggestions, reviewFindings, reviewReports } from '@harness/db';
+import {
+  newDecisionID,
+  newWritebackID,
+  ReviewDecisionType,
+  WritebackAction,
+} from '@harness/domain';
+import type { ReviewReportID, WriteBackIntent } from '@harness/domain';
+import { fixSuggestions, reviewDecisions, reviewFindings, reviewReports } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { parseRepoPath, StaticGitToolMap } from '@harness/git-provider';
 import { WriteBackError } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
+import { writebackEnabled } from '../writeback-gate.js';
 
 /** The per-host tool map, reused to resolve a report's repo slug to a write-back host. */
 const GIT_TOOL_MAP = new StaticGitToolMap();
@@ -42,7 +50,7 @@ interface DecideBody {
   readonly comment?: string;
 }
 
-const DECISIONS = new Set(['APPROVE', 'REQUEST_CHANGES', 'REJECT']);
+const DECISIONS = new Set<string>(Object.values(ReviewDecisionType));
 
 /** Register the review endpoints under `/api/reviews`. */
 export function registerReviewIngestRoutes(app: FastifyInstance, container: Container): void {
@@ -144,13 +152,38 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         return reply.code(404).send({ error: 'review report not found' });
       }
 
-      // The human decision is acknowledged here (its persistence is a later day).
-      // When the optional write-back flag is set, a COMMENT intent is posted to the
-      // PR through the WriteBackService seam — behind the `WRITEBACK_*` env toggle,
-      // so nothing external happens unless armed. Day 09 promotes this to a
-      // per-review decision toggle.
-      if (request.body?.writeback !== true) {
-        return { reportId: id, decision };
+      const rationale =
+        typeof request.body?.rationale === 'string' && request.body.rationale.trim().length > 0
+          ? request.body.rationale.trim()
+          : undefined;
+
+      // The effective write-back gate: request-level flag AND env ceiling. An
+      // unset env, a missing flag, or either steam OFF all fail safe (day-09 §2.1).
+      const effective = writebackEnabled(request.body?.writeback);
+
+      // Persist the decision with its toggle state so "nothing was written" is an
+      // auditable fact, not an absence (day-09 §1 goal 3).
+      const decisionId = newDecisionID();
+      await db.insert(reviewDecisions).values({
+        id: decisionId,
+        report_id: id,
+        decision,
+        ...(rationale === undefined ? {} : { rationale }),
+        writeback_enabled: effective,
+      });
+
+      if (!effective || decision === ReviewDecisionType.RequestChanges) {
+        // OFF — nothing external, provably. REQUEST_CHANGES never writes even with
+        // the toggle ON (day-09 §6: only APPROVE/REJECT trigger a write).
+        return {
+          reportId: id,
+          decision,
+          decisionId,
+          writeback:
+            decision === ReviewDecisionType.RequestChanges
+              ? { emitted: 0, reason: 'REQUEST_CHANGES has no external write-back' }
+              : false,
+        };
       }
 
       const { host } = parseRepoPath(report.repo);
@@ -160,19 +193,37 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
       }
 
       const writeback = container.resolve<WriteBackService>(TOKENS.WriteBackService);
-      const comment = request.body.comment?.trim();
-      const intent = {
+      const approved = decision === ReviewDecisionType.Approve;
+      const decisionSummary = `Review decision: ${decision}${
+        rationale === undefined ? '' : ` — ${rationale}`
+      }`;
+      const userComment = request.body?.comment?.trim();
+      const commentBody = userComment && userComment.length > 0 ? userComment : decisionSummary;
+
+      const commentIntent: WriteBackIntent = {
         id: newWritebackID(),
         provider,
         externalId: String(report.pr_number),
         action: WritebackAction.Comment,
-        body: comment && comment.length > 0 ? comment : `Review decision: ${decision}`,
+        body: commentBody,
         repo: report.repo,
+        decisionId,
+      };
+      const statusIntent: WriteBackIntent = {
+        id: newWritebackID(),
+        provider,
+        externalId: String(report.pr_number),
+        action: WritebackAction.Status,
+        state: approved ? 'success' : 'failure',
+        body: decisionSummary,
+        repo: report.repo,
+        decisionId,
       };
 
       try {
-        const result = await writeback.write(intent);
-        return { reportId: id, decision, writeback: result };
+        const comment = await writeback.write(commentIntent);
+        const status = await writeback.write(statusIntent);
+        return { reportId: id, decision, decisionId, writeback: { comment, status } };
       } catch (error) {
         if (error instanceof WriteBackError) {
           return reply.code(422).send({ error: error.message });

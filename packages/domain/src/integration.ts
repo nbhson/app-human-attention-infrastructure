@@ -200,5 +200,7 @@ export interface WritebackEntry {
   readonly externalRef?: string;
   /** Redacted error (present on FAILED). */
   readonly error?: string;
+  /** The review decision that emitted this write, if any (day-09 §3.2). */
+  readonly decisionId?: string;
   readonly createdAt: Date;
 }

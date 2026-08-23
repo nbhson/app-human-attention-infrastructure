@@ -68,6 +68,7 @@ export class DrizzleWritebackLogStore implements WritebackLogStore {
         body: input.body,
         dedup_key: input.dedupKey,
         status,
+        ...(input.decisionId === undefined ? {} : { decision_id: input.decisionId }),
       });
 
       return existing.length > 0 ? 'duplicate' : 'claimed';

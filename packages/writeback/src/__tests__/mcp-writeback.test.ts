@@ -67,6 +67,7 @@ class FakeWritebackLogStore implements WritebackLogStore {
     intentId: string;
     dedupKey: string;
     status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'DUPLICATE';
+    decisionId?: string;
     error?: string;
   }> = [];
 
@@ -78,6 +79,7 @@ class FakeWritebackLogStore implements WritebackLogStore {
       intentId: input.intentId,
       dedupKey: input.dedupKey,
       status: duplicate ? 'DUPLICATE' : 'PENDING',
+      ...(input.decisionId === undefined ? {} : { decisionId: input.decisionId }),
     });
     return duplicate ? 'duplicate' : 'claimed';
   }
@@ -451,5 +453,17 @@ describe('MCPWriteBack audit + idempotency (day-08)', () => {
 
     expect(store.rows).toEqual([]);
     expect(client.calls).toEqual([]);
+  });
+
+  it('threads the intent decisionId onto the claim (day-09 §3.2)', async () => {
+    const client = new FakeMcpClient();
+    const store = new FakeWritebackLogStore();
+    const { service } = build(() => true, client, store);
+
+    await service.write(
+      gitIntent({ action: WritebackAction.Comment, body: 'LGTM', decisionId: 'dec-42' }),
+    );
+
+    expect(store.rows[0]?.decisionId).toBe('dec-42');
   });
 });

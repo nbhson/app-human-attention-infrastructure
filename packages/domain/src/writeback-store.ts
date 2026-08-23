@@ -31,6 +31,8 @@ export interface WritebackClaim {
   readonly body: string;
   /** The deterministic idempotency fingerprint. */
   readonly dedupKey: string;
+  /** The review decision this write was emitted from, if any (day-09 §3.2). */
+  readonly decisionId?: string;
 }
 
 /** The idempotency verdict of a {@link WritebackLogStore.claim}. */

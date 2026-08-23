@@ -269,6 +269,9 @@ export const writebackActions = ['comment', 'status', 'label', 'transition'] as 
 /** `writeback_log.status` — a write-back attempt lifecycle (day-08 §2.1). */
 export const writebackStatuses = ['PENDING', 'SUCCEEDED', 'FAILED', 'DUPLICATE'] as const;
 
+/** `review_decisions.decision` — the human's verdict on a report (day-09 §2.2). */
+export const reviewDecisionTypes = ['APPROVE', 'REQUEST_CHANGES', 'REJECT'] as const;
+
 /** `review_reports.ai_provider`. */
 export const aiProviderCheck = inList(
   'review_reports_ai_provider_check',
@@ -305,4 +308,11 @@ export const writebackStatusCheck = inList(
   'writeback_log_status_check',
   'status',
   writebackStatuses,
+);
+
+/** `review_decisions.decision`. */
+export const reviewDecisionTypeCheck = inList(
+  'review_decisions_decision_check',
+  'decision',
+  reviewDecisionTypes,
 );
