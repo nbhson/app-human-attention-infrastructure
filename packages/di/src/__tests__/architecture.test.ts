@@ -168,6 +168,16 @@ describe('dependency rules (Spec 1 §5)', () => {
       ].sort(),
     );
   });
+
+  it('R16: @harness/memory depends only on domain, db, event-bus, di', () => {
+    // Review-reorient Phase 3 day-16 §2.4: review memory reads domain types,
+    // persists through db, publishes on the event bus, and accepts the structural
+    // logger (di) — never a sibling engine. Context/Attention subscribe to
+    // `memory.entry_created` via the bus instead of importing the store.
+    expect(harnessDependencies('memory').sort()).toEqual(
+      ['@harness/domain', '@harness/db', '@harness/event-bus', '@harness/di'].sort(),
+    );
+  });
 });
 
 /**

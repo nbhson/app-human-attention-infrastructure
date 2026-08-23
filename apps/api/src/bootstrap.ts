@@ -73,6 +73,7 @@ import type { Embedder } from '@harness/embeddings';
 import { MetricsComputer } from '@harness/evaluation';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { MemoryStore } from '@harness/memory';
 import { TaskService, TaskStateMachine } from '@harness/orchestrator';
 import type { ContentStore } from '@harness/object-store';
 import {
@@ -637,6 +638,19 @@ export function buildContainer(): Container {
       model: identity.model,
       logger: container.resolve<Logger>(TOKENS.Logger),
     });
+  });
+
+  // Review-reorient Phase 3 (day-16): curated review memory with evidence
+  // provenance. `MemoryStore` is the only writer of `memory_entries` (each
+  // entry carries ≥1 `memory_entry_evidence` link) and publishes
+  // `memory.entry_created` so Context/Attention can fan in via the bus. It
+  // consumes nothing from the bus, so no eager boot is required here.
+  c.register(TOKENS.MemoryStore, (container) => {
+    return new MemoryStore(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
   });
 
   // Day 22: the review backend. It drives the task state machine, the Day-19

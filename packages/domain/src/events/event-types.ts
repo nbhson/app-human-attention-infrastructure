@@ -42,6 +42,10 @@ export const EventType = {
   ReviewReportCreated: 'review.report_created',
   ReviewFixSuggestionCreated: 'review.fix_suggestion_created',
   IntegrationWritebackCompleted: 'integration.writeback_completed',
+  // Review-reorient Phase 3 day-16: review memory. `memory.entry_created` proves
+  // a curated entry was distilled and stored with its evidence links — the anchor
+  // context/attention subscribe to for the next review.
+  MemoryEntryCreated: 'memory.entry_created',
 } as const;
 /** A domain event type string. */
 export type EventType = (typeof EventType)[keyof typeof EventType];

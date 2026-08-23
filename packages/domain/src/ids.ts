@@ -98,6 +98,8 @@ export type FixSuggestionID = Brand<string, 'FixSuggestionID'>;
 export type ProviderConfigID = Brand<string, 'ProviderConfigID'>;
 /** Identifies a write-back attempt to a PR/Jira (review-reorient Phase 3). */
 export type WritebackID = Brand<string, 'WritebackID'>;
+/** Identifies a review-memory entry (review-reorient Phase 3, day-16). */
+export type MemoryID = Brand<string, 'MemoryID'>;
 
 // --- UUIDv7 generation ----------------------------------------------------
 
@@ -195,3 +197,5 @@ export const newFixSuggestionID = (): FixSuggestionID => newBrandedId('FixSugges
 export const newProviderConfigID = (): ProviderConfigID => newBrandedId('ProviderConfigID');
 /** Generate a new {@link WritebackID}. */
 export const newWritebackID = (): WritebackID => newBrandedId('WritebackID');
+/** Generate a new {@link MemoryID}. */
+export const newMemoryID = (): MemoryID => newBrandedId('MemoryID');

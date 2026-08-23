@@ -33,6 +33,7 @@ export * from './review-report.js';
 export * from './review-decision.js';
 export * from './writeback.js';
 export * from './writeback-store.js';
+export * from './memory.js';
 
 // Events.
 export * from './events/index.js';

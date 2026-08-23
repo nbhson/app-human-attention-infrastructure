@@ -37,6 +37,7 @@ const elements = [
   { type: 'writeback', pattern: 'packages/writeback/**' },
   { type: 'mcp', pattern: 'packages/mcp/**' },
   { type: 'review', pattern: 'packages/review/**' },
+  { type: 'memory', pattern: 'packages/memory/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
   { type: 'evaluation', pattern: 'packages/evaluation/**' },
@@ -114,6 +115,13 @@ const elementTypesRules = [
     allow: ['domain', 'db', 'event-bus', 'embeddings'],
   },
   { from: 'review', allow: [...SHARED, 'observability', 'review'] },
+  {
+    from: 'memory',
+    // Review memory (day-16 §2.4): reads domain types, persists via db, emits on
+    // the event-bus, and accepts the structural logger (di) — never a sibling
+    // engine. Context/Attention reach it via the event bus, not an import.
+    allow: [...SHARED, 'memory'],
+  },
   { from: 'auth', allow: [...SHARED, 'auth'] },
   {
     from: 'observability',
@@ -148,6 +156,7 @@ const elementTypesRules = [
       'ticket-provider',
       'code-index',
       'writeback',
+      'memory',
       ...ENGINE_TYPES,
       'app',
     ],

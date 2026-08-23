@@ -66,10 +66,10 @@ CREATE TABLE "writeback_log" (
 	CONSTRAINT "writeback_log_status_check" CHECK (status IN ('PENDING', 'SUCCEEDED', 'FAILED'))
 );
 --> statement-breakpoint
-ALTER TABLE "review_findings" ADD CONSTRAINT "review_findings_report_id_review_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."review_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "review_reports" ADD CONSTRAINT "review_reports_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "fix_suggestions" ADD CONSTRAINT "fix_suggestions_report_id_review_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."review_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "writeback_log" ADD CONSTRAINT "writeback_log_report_id_review_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."review_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "review_findings" ADD CONSTRAINT "review_findings_report_id_review_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "review_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "review_reports" ADD CONSTRAINT "review_reports_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "tasks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fix_suggestions" ADD CONSTRAINT "fix_suggestions_report_id_review_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "review_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "writeback_log" ADD CONSTRAINT "writeback_log_report_id_review_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "review_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "review_findings_report_id_idx" ON "review_findings" USING btree ("report_id");--> statement-breakpoint
 CREATE INDEX "review_reports_pr_url_idx" ON "review_reports" USING btree ("pr_url");--> statement-breakpoint
 CREATE INDEX "review_reports_task_id_idx" ON "review_reports" USING btree ("task_id");--> statement-breakpoint

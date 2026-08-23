@@ -55,6 +55,8 @@ export const TOKENS = {
   McpServerRegistry: 'McpServerRegistry',
   // Review-reorient Phase 3: the write-back seam (day-06).
   WriteBackService: 'WriteBackService',
+  // Review-reorient Phase 3: review memory (day-16).
+  MemoryStore: 'MemoryStore',
 } as const;
 
 /** The string union of every known token. */

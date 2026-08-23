@@ -14,3 +14,4 @@ export * from './attention-events.js';
 export * from './review-events.js';
 export * from './authz-events.js';
 export * from './integration-events.js';
+export * from './memory-events.js';

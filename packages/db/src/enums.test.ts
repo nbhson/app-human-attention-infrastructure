@@ -8,6 +8,7 @@ import {
   ContextSourceType,
   FileChangeType,
   HumanDecisionType,
+  MemoryKind,
   PriorityLabel,
   ProviderKind,
   ReviewDecisionType,
@@ -30,6 +31,7 @@ import {
   contextSourceTypes,
   fileChangeTypes,
   humanDecisionTypes,
+  memoryKinds,
   priorityLabels,
   providerKinds,
   reviewDecisionTypes,
@@ -124,5 +126,10 @@ describe('schema enum drift guards', () => {
 
   it('reviewDecisionTypes match ReviewDecisionType', () => {
     expect(reviewDecisionTypes).toEqual(Object.values(ReviewDecisionType));
+  });
+
+  it('memoryKinds match MemoryKind (exactly four review-shaped tiers)', () => {
+    expect(memoryKinds).toEqual(Object.values(MemoryKind));
+    expect(memoryKinds).toHaveLength(4);
   });
 });

@@ -335,3 +335,15 @@ export const symbolKindCheck = inList('code_index_symbols_kind_check', 'kind', s
 
 /** `code_index_deps.kind`. */
 export const dependencyKindCheck = inList('code_index_deps_kind_check', 'kind', dependencyKinds);
+
+// --- Day-16 (Phase 3) review memory ------------------------------------------
+// The four review-shaped tiers (Spec 9 §3–§4), plain-text copies of the
+// `@harness/domain` `MemoryKind` const object — kept here so drizzle-kit can
+// evaluate the schema without an ESM workspace import (parity with the domain is
+// enforced by the drift test in `enums.test.ts`).
+
+/** `memory_entries.kind` — REVIEW / FINDING / DECISION / PROJECT. */
+export const memoryKinds = ['REVIEW', 'FINDING', 'DECISION', 'PROJECT'] as const;
+
+/** `memory_entries.kind`. */
+export const memoryKindCheck = inList('memory_entries_kind_check', 'kind', memoryKinds);
