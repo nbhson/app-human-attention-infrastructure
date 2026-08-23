@@ -17,9 +17,18 @@ only when the seam exists and the gate is specified.*
 
 ---
 
+> **Day-40 exit review — carried forward.** Phase 3 closed with
+> **EXIT-WITH-CARRYFORWARD** (8 of 9 criteria). Items **1** (hybrid default) and
+> **6** (fitted-weight re-fit) are the two open carries — both emerged from
+> `docs/retros/phase3-exit-review.md` (§4, CF-1 / CF-2) and their gates below are
+> unchanged: each earns its default by winning a measured live-data comparison, not
+> by being newer. The AI reviewer stays read-only throughout.
+
+---
+
 ## From Phase 2's "explicitly out of scope" list (§1.1)
 
-### 1. Hybrid context ranking as the default
+### 1. Hybrid context ranking as the default — *Day-40 carry CF-1 (still open)*
 
 - **Where it lands:** Phase 3 Week 6 (days 26–30) — BM25 + embeddings + RRF +
   re-rank becomes the default ranker, then hybrid cutover + A/B vs the shadow
@@ -97,7 +106,7 @@ only when the seam exists and the gate is specified.*
 
 ## From the Day-30 exit review (carried caveats — new backlog items)
 
-### 6. Calibration data accumulation → re-fit to a verdict
+### 6. Calibration data accumulation → re-fit to a verdict — *Day-40 carry CF-2 (still open)*
 
 - **Origin:** the Phase-2 fit did not beat the placeholder (`log_loss` 0.316 vs
   **0.262**), so the fitted weights were **held back** and

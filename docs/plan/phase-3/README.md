@@ -2,7 +2,7 @@
 
 **Version:** v0.3 (re-authored under `review-reorient` — MCP connectivity)
 **Created:** 2026-08-20
-**Status:** 🔲 **Not started**
+**Status:** ✅ **Complete** — tagged `v0.3.0-harness` (exit review: `docs/retros/phase3-exit-review.md`)
 **Prerequisite:** Phase 2 complete (`docs/plan/phase-2/`), review pipeline measured, weights fitted, A/B shadow harness live, `v0.2.0-harness` tagged.
 **Specs:** `docs/core/1..7, 9, 11` (+ promoted Spec 8, Spec 10 from Phase 2).
 
@@ -158,15 +158,20 @@ Each day has its own file with objectives, tasks, deliverables, and acceptance c
 
 ## 7. Exit Criteria (Phase 3, from Architecture §24.3)
 
-- [ ] The *Learning* step closes automatically: review decisions and judge signals feed back into calibration and routing.
-- [ ] MCP connectivity: GitHub, GitLab, Bitbucket fetch PR/MR; Jira fetch/search/comment/transition — **all through `@harness/mcp` + one `mcp.config.json`**, tokens referenced by env var (never inline), no per-host REST handler.
-- [ ] AI model connection remains **api key + provider + base URL + model** (`provider_configs`), unchanged from Phase 1/2.
-- [ ] Write-back (comment/label/status, Jira transition) works behind a toggle; `writeback_log` records every external write; OFF = nothing external.
-- [ ] Verification breadth: clone + sandbox build/test demonstrable; targeted verification reduces latency with no correctness regression; FAILED flags the report.
-- [ ] Review memory: write-back, consolidation, decay, archive, relevance-scored retrieval all live; past outcomes surface to Attention/context.
-- [ ] Hybrid context ranking (BM25 + embeddings + RRF + re-rank) is the default; RAG Fusion optional behind `Retriever`.
-- [ ] LLM-as-judge (rubric-scored, audited) producing quality signals used by ranking/calibration, with demonstrated inter-judge agreement.
-- [ ] `pnpm test && pnpm lint && pnpm e2e` green under the full Phase-3 stack; closed-loop job runs end-to-end autonomously.
+- [x] The *Learning* step closes automatically: review decisions and judge signals feed back into calibration and routing.
+- [x] MCP connectivity: GitHub, GitLab, Bitbucket fetch PR/MR; Jira fetch/search/comment/transition — **all through `@harness/mcp` + one `mcp.config.json`**, tokens referenced by env var (never inline), no per-host REST handler.
+- [x] AI model connection remains **api key + provider + base URL + model** (`provider_configs`), unchanged from Phase 1/2.
+- [x] Write-back (comment/label/status, Jira transition) works behind a toggle; `writeback_log` records every external write; OFF = nothing external.
+- [x] Verification breadth: clone + sandbox build/test demonstrable; targeted verification reduces latency with no correctness regression; FAILED flags the report.
+- [x] Review memory: write-back, consolidation, decay, archive, relevance-scored retrieval all live; past outcomes surface to Attention/context.
+- [ ] Hybrid context ranking (BM25 + embeddings + RRF + re-rank) is the default; RAG Fusion optional behind `Retriever` — **not met**: Day-29 A/B HOLD, `keyword` stays default (carried-forward CF-1).
+- [x] LLM-as-judge (rubric-scored, audited) producing quality signals used by ranking/calibration, with demonstrated inter-judge agreement.
+- [x] `pnpm test && pnpm lint && pnpm e2e` green under the full Phase-3 stack; closed-loop job runs end-to-end autonomously.
+
+> **Exit verdict: EXIT-WITH-CARRYFORWARD** (8 of 9 met). See
+> [`docs/retros/phase3-exit-review.md`](../../retros/phase3-exit-review.md) for the
+> full criteria table and the two carries (CF-1 hybrid default, CF-2 fitted-weight
+> auto-apply).
 
 ---
 

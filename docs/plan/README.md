@@ -16,7 +16,7 @@ The build is delivered in three phases, each an independent plan directory gated
 |-------|-----------|-------|----------|--------|
 | 1 | [phase-1/](phase-1/README.md) | Prove the Review Core Loop — PR → AI review → verify → attention → human decision → evidence | 30 days | ✅ Complete — tagged v0.1.0-harness |
 | 2 | [phase-2/](phase-2/README.md) | Calibrate & Secure the Review Pipeline — evaluation, calibration, semantic infra (shadow), auth, sandbox | 30 days | ✅ Complete — tagged v0.2.0-harness |
-| 3 | [phase-3/](phase-3/README.md) | MCP Connectivity, Write-back & Close the Loop — GitHub/GitLab/Bitbucket/Jira via one MCP client + config, write-back, verify breadth, review memory, review-quality calibration | 40 days | 🔲 Not started |
+| 3 | [phase-3/](phase-3/README.md) | MCP Connectivity, Write-back & Close the Loop — GitHub/GitLab/Bitbucket/Jira via one MCP client + config, write-back, verify breadth, review memory, review-quality calibration | 40 days | ✅ Complete — tagged v0.3.0-harness |
 
 **Total: ~100 working days.**
 
@@ -368,15 +368,21 @@ Existing packages gain: `context-engine` (hybrid default, RRF re-rank, RAG Fusio
 
 ### Phase 3 Exit Criteria
 
-- [ ] The *Learning* step closes automatically: review decisions and judge signals feed back into calibration and routing.
-- [ ] MCP connectivity: GitHub, GitLab, Bitbucket fetch PR/MR; Jira fetch/search/comment/transition — **all through `@harness/mcp` + one `mcp.config.json`**, tokens referenced by env var (never inline), no per-host REST handler.
-- [ ] AI model connection remains **api key + provider + base URL + model** (`provider_configs`), unchanged.
-- [ ] Write-back (comment/label/status, Jira transition) works behind a toggle; `writeback_log` records every external write; OFF = nothing external.
-- [ ] Verification breadth: clone + sandbox build/test demonstrable; targeted verification reduces latency with no correctness regression; FAILED flags the report.
-- [ ] Review memory: write-back, consolidation, decay, archive, relevance-scored retrieval all live; past outcomes surface to Attention/context.
-- [ ] Hybrid context ranking (BM25 + embeddings + RRF + re-rank) is the default; RAG Fusion optional behind `Retriever`.
-- [ ] LLM-as-judge (rubric-scored, audited) producing quality signals used by ranking/calibration, with demonstrated inter-judge agreement.
-- [ ] `pnpm test && pnpm lint && pnpm e2e` green under the full Phase-3 stack; closed-loop job runs end-to-end autonomously.
+Phase 3 is complete and tagged `v0.3.0-harness`. Eight of nine criteria are met;
+the one honest gap is that hybrid ranking did **not** become the default — the
+Day-29 A/B returned HOLD (`rank_correlation [1.000, 1.000]`, evidence
+INSUFFICIENT), so `keyword` stays the default and hybrid is carried forward to the
+Phase-4 backlog. See the [exit review](../retros/phase3-exit-review.md).
+
+- [x] The *Learning* step closes automatically: review decisions and judge signals feed back into calibration and routing — `demo:closed-loop` PROMOTE → HOLD → re-entry, human gate untouched.
+- [x] MCP connectivity: GitHub, GitLab, Bitbucket fetch PR/MR; Jira fetch/search/comment/transition — **all through `@harness/mcp` + one `mcp.config.json`**, tokens referenced by env var (never inline), no per-host REST handler.
+- [x] AI model connection remains **api key + provider + base URL + model** (`provider_configs`), unchanged.
+- [x] Write-back (comment/label/status, Jira transition) works behind a toggle; `writeback_log` records every external write; OFF = nothing external.
+- [x] Verification breadth: clone + sandbox build/test demonstrable; targeted verification reduces latency with no correctness regression; FAILED flags the report.
+- [x] Review memory: write-back, consolidation, decay, archive, relevance-scored retrieval all live; past outcomes surface to Attention/context.
+- [ ] Hybrid context ranking (BM25 + embeddings + RRF + re-rank) is the default; RAG Fusion optional behind `Retriever` — **hybrid held**; `keyword` remains default (carried-forward CF-1).
+- [x] LLM-as-judge (rubric-scored, audited) producing quality signals used by ranking/calibration, with demonstrated inter-judge agreement.
+- [x] `pnpm test && pnpm lint && pnpm e2e` green under the full Phase-3 stack; closed-loop job runs end-to-end autonomously.
 
 ---
 
