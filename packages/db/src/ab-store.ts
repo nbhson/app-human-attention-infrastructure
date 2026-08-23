@@ -41,7 +41,7 @@ export interface AbRunReport {
    * Present only when the experiment varies the context ranker, so a historical
    * `ab_runs.report` stays self-describing for the `eval:ab-report --run` read-back.
    */
-  readonly rankMethod?: 'keyword' | 'semantic';
+  readonly rankMethod?: 'keyword' | 'semantic' | 'hybrid';
   /** Per-input ranked orderings (sourceIds, best-first) — the arm's recorded ranking. */
   readonly rankings?: readonly (readonly string[])[];
   readonly outcome?: AbOutcomeSignals;

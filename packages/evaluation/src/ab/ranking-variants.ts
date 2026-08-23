@@ -8,11 +8,13 @@
  * target file.
  *
  * Because `@harness/evaluation` must not import an engine (boundary R9) or the
- * embedder package (R10), both rankers are **self-contained shadow copies** — the
- * keyword ranker mirrors `context-engine/rank.ts`, and the semantic ranker is a
+ * embedder package (R10), all rankers are **self-contained shadow copies** — the
+ * keyword ranker mirrors `context-engine/rank.ts`; the semantic ranker is a
  * deterministic vector-space stand-in (term-frequency cosine similarity) for the
- * production embedder the engine runs in shadow (day-18). The harness validates the
- * comparison *plumbing* here, not the embedder's absolute quality: that stays the
+ * production embedder (day-18); and the hybrid ranker mirrors the Day-26/27
+ * `HybridRetriever → ReRanker` path by fusing those two layers with a shadow
+ * reciprocal-rank-fusion and re-ranking with a dependency signal. The harness
+ * validates comparison *plumbing* here, not absolute ranker quality: that stays the
  * engine's concern.
  */
 
@@ -27,7 +29,7 @@ import {
 } from '../harness/variant.js';
 import type { CandidateFile } from '../harness/variant.js';
 
-export type ContextRankerKind = 'keyword' | 'semantic';
+export type ContextRankerKind = 'keyword' | 'semantic' | 'hybrid';
 
 /** One ranked source: its id and its relevance score under the ranking function. */
 export interface RankedSource {
@@ -148,7 +150,86 @@ export const semanticRanker: ContextRanker = {
   },
 };
 
-/** The two arms behind the shared seam — identical except for {@link ContextRanker.rank}. */
+/** The RRF damping constant — the shadow copy of `context-engine/rrf.ts` (§2.2). */
+const SHADOW_RRF_K = 60;
+
+/** One fused source: its id and its reciprocal-rank score (sorted best-first). */
+interface FusedSource {
+  readonly sourceId: string;
+  readonly score: number;
+}
+
+/**
+ * Shadow reciprocal-rank fusion — the rank-only blend mirrored from
+ * `context-engine/rrf.ts` (day-26 §2.2). `score(d) = Σ 1/(k + rank_i(d))` over the
+ * layers that listed `d`. Only *ranks* feed the score, so the keyword overlap and
+ * the cosine similarity — which live on incomparable scales — never meet directly.
+ * Ties break by sourceId ascending for full determinism.
+ */
+function reciprocalRankFusion(
+  layers: readonly (readonly string[])[],
+  k = SHADOW_RRF_K,
+): FusedSource[] {
+  const scores = new Map<string, number>();
+  for (const layer of layers) {
+    const seen = new Set<string>();
+    let rank = 0;
+    for (const sourceId of layer) {
+      if (seen.has(sourceId)) continue;
+      seen.add(sourceId);
+      rank += 1;
+      scores.set(sourceId, (scores.get(sourceId) ?? 0) + 1 / (k + rank));
+    }
+  }
+  return [...scores.entries()]
+    .map(([sourceId, score]) => ({ sourceId, score }))
+    .sort((a, b) => b.score - a.score || a.sourceId.localeCompare(b.sourceId));
+}
+
+/** The re-rank blend weights, mirrored from `context-engine/ranking/signals.ts`. */
+const SHADOW_FUSION_WEIGHT = 0.5;
+const SHADOW_DEPENDENCY_WEIGHT = 0.3;
+
+/**
+ * Arm B (challenger): the Day-26/27 hybrid — lexical ⊕ semantic, fused by RRF,
+ * then re-ranked. Mirrors the engine's `HybridRetriever → ReRanker` path:
+ *
+ * 1. both shadow layers rank the corpus independently (each already keeps every
+ *    target, so the fused union inherits target-preservation);
+ * 2. `reciprocalRankFusion` blends their two orders by rank;
+ * 3. the re-rank blend `0.5·fusion_norm + 0.3·dependency` re-orders the union.
+ *
+ * The re-rank's recency and usage signals are absent in the shadow (no mtime or
+ * retrieval counters on a replayed trajectory), so each contributes the neutral
+ * `0.5` — a *constant* added to every candidate that drops out of the ordering.
+ * The dependency signal is the shadow path-centrality stand-in (`1.0` target,
+ * `0.6` same-dir, `0.1` elsewhere), never `null`, so the engine's cold-graph
+ * neutral branch is inert here.
+ */
+export const hybridRanker: ContextRanker = {
+  kind: 'hybrid',
+  rank(corpus) {
+    const keywordOrder = keywordRanker.rank(corpus).map((source) => source.sourceId);
+    const semanticOrder = semanticRanker.rank(corpus).map((source) => source.sourceId);
+    const fused = reciprocalRankFusion([keywordOrder, semanticOrder]);
+    const maxRrf = fused.reduce((max, source) => Math.max(max, source.score), 0);
+
+    const ranked = fused.map((source) => {
+      const fusion = maxRrf > 0 ? source.score / maxRrf : 0;
+      const dependency = dependencyProximity(source.sourceId, corpus.targetFiles);
+      return {
+        sourceId: source.sourceId,
+        relevanceScore: SHADOW_FUSION_WEIGHT * fusion + SHADOW_DEPENDENCY_WEIGHT * dependency,
+      };
+    });
+
+    return ranked.sort(
+      (a, b) => b.relevanceScore - a.relevanceScore || a.sourceId.localeCompare(b.sourceId),
+    );
+  },
+};
+
+/** The two arms behind the shared seam — control (keyword) then challenger (hybrid). */
 export function rankingVariants(): readonly ContextRanker[] {
-  return [keywordRanker, semanticRanker];
+  return [keywordRanker, hybridRanker];
 }

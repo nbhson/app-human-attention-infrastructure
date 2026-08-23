@@ -4,10 +4,12 @@
  * Mirrors `ab-harness.test.ts`: a fresh isolated schema, a real {@link RankingDryRun}
  * over the canonical + multi-file trajectory fixtures, and the three day-29
  * acceptance assertions — (1) the guardrail holds (live `tasks`/`decisions`/
- * `contexts` rows do not move, so arm B's `semantic` ranking never reaches a served
- * `ContextSnapshot`), (2) the two rankers genuinely disagree (a computable,
- * non-trivial `rank_correlation`), and (3) the stored `ab_runs.report` round-trips
- * via `loadStoredResult` (the `--run <id>` read-back path).
+ * `contexts` rows do not move, so arm B's `hybrid` ranking never reaches a served
+ * `ContextSnapshot`), (2) the comparison is computable and answered *honestly* —
+ * over this three-fixture replay corpus the hybrid arm reproduces the keyword
+ * order exactly, so the harness returns `keep-shadow` (insufficient evidence)
+ * rather than over-claiming a WIN — and (3) the stored `ab_runs.report`
+ * round-trips via `loadStoredResult` (the `--run <id>` read-back path).
  */
 
 import { fileURLToPath } from 'node:url';
@@ -52,7 +54,7 @@ describe('RankingDryRun (integration)', () => {
     }
   });
 
-  it('records both arms, holds the guardrail, disagrees, and round-trips via --run', async () => {
+  it('records both arms, holds the guardrail, answers HOLD honestly, and round-trips via --run', async () => {
     testDb = await createTestDb(SCHEMA);
     const db = testDb.db;
 
@@ -62,17 +64,17 @@ describe('RankingDryRun (integration)', () => {
     expect(result.numInputs).toBe(3);
     expect(result.noProductionEffect).toBe(true);
     expect(result.arms.A.rankMethod).toBe('keyword');
-    expect(result.arms.B.rankMethod).toBe('semantic');
+    expect(result.arms.B.rankMethod).toBe('hybrid');
 
-    // The comparison is non-degenerate: at least one computable tau, and a real
-    // disagreement (a value below 1 — the rankers genuinely reorder something).
+    // The comparison is computable (at least one input shares ≥2 top-k items)…
     expect(result.rankCorrelation.count).toBeGreaterThan(0);
-    expect(result.rankCorrelation.values.some((value) => value < 1)).toBe(true);
 
-    // Honest dry-run call: the rankings differ but the replayed outcome is a
-    // toss-up (a replayed run's consumption is fixed), so the harness asks for a
-    // real A/B rather than over-claiming a promote.
-    expect(result.recommendation).toBe('real-ab');
+    // …but the honest verdict is HOLD: over this three-fixture corpus the hybrid
+    // arm reproduces the keyword order (tau = 1.0 on every computable input), so
+    // the evidence is insufficient and the harness refuses to over-claim a WIN.
+    // Hybrid earns the default only on a live, outcome-measuring A/B (day-29 §6).
+    expect(result.evidence.verdict).toBe('insufficient');
+    expect(result.recommendation).toBe('keep-shadow');
 
     // Arm B's ranking never reached a served ContextSnapshot: the live
     // `contexts` table is untouched (and empty in this fresh schema).
@@ -86,7 +88,7 @@ describe('RankingDryRun (integration)', () => {
     // The stored jsonb report reproduces the same result on read-back.
     const reloaded = await loadStoredResult(asReadonlyDb(db), result.experimentId);
     expect(reloaded.noProductionEffect).toBe(true);
-    expect(reloaded.arms.B.rankMethod).toBe('semantic');
+    expect(reloaded.arms.B.rankMethod).toBe('hybrid');
     expect(reloaded.rankCorrelation.values).toEqual(result.rankCorrelation.values);
   });
 });

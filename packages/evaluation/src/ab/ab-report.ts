@@ -2,7 +2,7 @@
  * `pnpm eval:ab-report` — Day-29 §3.4, §5 A/B dry-run report CLI.
  *
  * Runs the canonical trajectory fixture(s) through the two context rankers (A =
- * keyword, B = semantic) behind the shared {@link ContextRanker} seam, records each
+ * keyword, B = hybrid) behind the shared {@link ContextRanker} seam, records each
  * arm's ranking + `rank_method` + §2.3 outcome signals to the isolated `ab_*`
  * tables, asserts **zero production effect** (live `tasks`/`decisions`/`contexts`
  * rows must not move — arm B's ranking is never written to a served
@@ -53,7 +53,7 @@ import type {
   RankCorrelationDistribution,
   Recommendation,
 } from './outcome-metrics.js';
-import { deriveRankingCorpus, keywordRanker, semanticRanker } from './ranking-variants.js';
+import { deriveRankingCorpus, hybridRanker, keywordRanker } from './ranking-variants.js';
 
 /** The predefined primary scalar the experiment is scored on (day-29 §2.3, first). */
 export const RANKING_METRIC = 'context_acceptance_rate';
@@ -66,7 +66,7 @@ type ClosableDb = { $client: { end: () => Promise<unknown> } };
 /** One arm's reportable result: the ranker it ran + its signals + its per-input orders. */
 export interface ArmReport {
   readonly arm: 'A' | 'B';
-  readonly rankMethod: 'keyword' | 'semantic';
+  readonly rankMethod: 'keyword' | 'hybrid';
   readonly outcome: OutcomeSignals;
   readonly rankings: readonly (readonly string[])[];
 }
@@ -132,7 +132,7 @@ export class RankingDryRun {
           : undefined;
 
       const aOrder = keywordRanker.rank(corpus).map((source) => source.sourceId);
-      const bOrder = semanticRanker.rank(corpus).map((source) => source.sourceId);
+      const bOrder = hybridRanker.rank(corpus).map((source) => source.sourceId);
       aOrders.push(aOrder);
       bOrders.push(bOrder);
       outcomeA.push(toOutcomeInput(aOrder, consumed, topK, elapsedMinutes));
@@ -151,9 +151,9 @@ export class RankingDryRun {
         description: 'Phase-1 keyword + dependency-proximity ranker (control)',
       },
       variantB: {
-        id: 'semantic',
-        contextRanker: 'semantic',
-        description: 'vector-space semantic ranker (shadow challenger)',
+        id: 'hybrid',
+        contextRanker: 'hybrid',
+        description: 'hybrid ranker — lexical ⊕ semantic fused by RRF, then re-ranked (challenger)',
       },
       metric,
     });
@@ -186,7 +186,7 @@ export class RankingDryRun {
       numInputs: config.fixtures.length,
       arms: {
         A: { arm: 'A', rankMethod: 'keyword', outcome: signalsA, rankings: aOrders },
-        B: { arm: 'B', rankMethod: 'semantic', outcome: signalsB, rankings: bOrders },
+        B: { arm: 'B', rankMethod: 'hybrid', outcome: signalsB, rankings: bOrders },
       },
       rankCorrelation: correlation,
       noProductionEffect,
@@ -205,7 +205,7 @@ export class RankingDryRun {
     sourceHashes: readonly string[],
   ): Promise<void> {
     const variantId = arm === 'A' ? 'A' : 'B';
-    const rankMethod = arm === 'A' ? 'keyword' : 'semantic';
+    const rankMethod = arm === 'A' ? 'keyword' : 'hybrid';
     const metricValue = signals.contextAcceptanceRate ?? 0;
     await this.store.recordRun({
       experimentId,
@@ -302,7 +302,7 @@ export async function loadStoredResult(
       },
       B: {
         arm: 'B',
-        rankMethod: (reportB.rankMethod as 'semantic') ?? 'semantic',
+        rankMethod: (reportB.rankMethod as 'hybrid') ?? 'hybrid',
         outcome: signalsB,
         rankings: bOrders,
       },
@@ -318,13 +318,13 @@ export async function loadStoredResult(
 export function recommendationLine(result: RankingDryRunResult): string {
   switch (result.recommendation) {
     case 'promote':
-      return 'promote semantic ranking to the Phase-3 default — it lowers rework without losing context acceptance.';
+      return 'promote hybrid ranking to the Phase-3 default — it lowers rework without losing context acceptance.';
     case 'real-ab':
-      return 'promote semantic ranking to a real A/B — the ranking differs but the replayed outcome is a toss-up; collect live outcome data before any default switch.';
+      return 'promote hybrid ranking to a real A/B — the ranking differs but the replayed outcome is a toss-up; collect live outcome data before any default switch.';
     case 'keep-shadow':
       return result.evidence.verdict === 'insufficient'
-        ? `keep semantic ranking in shadow — insufficient evidence (${result.evidence.reasons.join('; ')}).`
-        : 'keep semantic ranking in shadow — no measured outcome value yet.';
+        ? `keep hybrid ranking in shadow — insufficient evidence (${result.evidence.reasons.join('; ')}).`
+        : 'keep hybrid ranking in shadow — no measured outcome value yet.';
   }
 }
 
@@ -335,7 +335,7 @@ function fmt(value: number | undefined, digits = 3): string {
 /** Render the result as a plain-text report (the §3.4 output). */
 export function renderReport(result: RankingDryRunResult): string {
   const lines: string[] = [];
-  lines.push('# A/B dry-run — keyword vs semantic context ranking');
+  lines.push('# A/B dry-run — keyword vs hybrid context ranking');
   lines.push('');
   lines.push(`experiment:   ${result.experimentId}`);
   lines.push(`metric:       ${result.metric}`);
@@ -349,14 +349,14 @@ export function renderReport(result: RankingDryRunResult): string {
       `rework_rate=${fmt(result.arms.A.outcome.reworkRate, 4)}`,
   );
   lines.push(
-    `  B semantic:  context_acceptance_rate=${fmt(result.arms.B.outcome.contextAcceptanceRate, 4)}  ` +
+    `  B hybrid:    context_acceptance_rate=${fmt(result.arms.B.outcome.contextAcceptanceRate, 4)}  ` +
       `human_minutes_per_accept=${fmt(result.arms.B.outcome.humanMinutesPerAccept)}  ` +
       `rework_rate=${fmt(result.arms.B.outcome.reworkRate, 4)}`,
   );
   lines.push('');
   const corr = result.rankCorrelation;
   lines.push(
-    `rank_correlation (semantic vs keyword, top-k=${result.topK}): ` +
+    `rank_correlation (hybrid vs keyword, top-k=${result.topK}): ` +
       `[${corr.values.map((v) => v.toFixed(3)).join(', ')}]`,
   );
   lines.push(

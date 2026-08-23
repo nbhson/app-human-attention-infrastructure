@@ -4,7 +4,7 @@
  * The four signals are pure functions of (ranked order, recorded trajectory outcome),
  * never of the live store. `rank_correlation` is reported as a **distribution** over
  * inputs, not a single scalar (§5): each input contributes one Kendall tau between the
- * keyword and semantic orders over their intersecting top-k. The other three signals
+ * keyword and hybrid orders over their intersecting top-k. The other three signals
  * follow the repo's "`undefined` is an honest hole" rule — a zero/empty denominator
  * omits the metric rather than emitting `NaN`.
  */
@@ -54,7 +54,7 @@ export function kendallTau(a: readonly string[], b: readonly string[]): number |
 
 /** Pairwise rank_correlation across inputs, as a distribution (day-29 §5). */
 export interface RankCorrelationDistribution {
-  /** One Kendall tau per input (keyword vs semantic over the shared top-k). */
+  /** One Kendall tau per input (keyword vs hybrid over the shared top-k). */
   readonly values: readonly number[];
   /** Number of inputs that produced a computable tau (≥2 shared top-k items). */
   readonly count: number;
@@ -225,7 +225,7 @@ export function recommend(
 
   // B lowers rework without trading away context acceptance → Phase-3 default.
   if (bRework < aRework && bAcceptance >= aAcceptance) return 'promote';
-  // B is strictly worse → semantic ranking has no measured value yet.
+  // B is strictly worse → the challenger has no measured value yet.
   if (bRework > aRework && bAcceptance <= aAcceptance) return 'keep-shadow';
   // A true toss-up (different ranking, comparable outcome) → resolve with a live A/B.
   return 'real-ab';

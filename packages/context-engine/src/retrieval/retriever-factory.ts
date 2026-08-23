@@ -29,6 +29,24 @@ export const RANK_METHOD_RAG_FUSION = 'rag_fusion';
 export type RankMethod =
   typeof RANK_METHOD_KEYWORD | typeof RANK_METHOD_HYBRID | typeof RANK_METHOD_RAG_FUSION;
 
+/**
+ * The production default `rank_method` (day-29 §2.2, §2.3).
+ *
+ * Cutover is a config change, not a code rewrite: this one resolved value is the
+ * whole of "the default". It flips from {@link RANK_METHOD_KEYWORD} to
+ * {@link RANK_METHOD_HYBRID} **only** on a measured WIN over the shared replay
+ * corpus (`eval:ab-report`) — never by inheritance (day-29 §6, Phase-3 §8.4).
+ *
+ * The Day-29 A/B over replayed trajectories returned a **toss-up**: a replayed
+ * run's consumption is fixed, so neither arm can move the replayed outcome, which
+ * the harness answers honestly as `real-ab` (promote to a *live* A/B), not as a
+ * WIN. The default therefore stays `keyword`; `hybrid` and `rag_fusion` remain
+ * *selectable* per request (`rank_method`), and `hybrid` earns the default only
+ * when a live, outcome-measuring comparison wins on the agreed primary metric
+ * (rework down, context acceptance ≥). Reversible in seconds.
+ */
+export const DEFAULT_RANK_METHOD: RankMethod = RANK_METHOD_KEYWORD;
+
 export class RetrieverFactory {
   private readonly hybrid: Retriever | null;
   private readonly ragFusion: Retriever | null;
@@ -49,10 +67,14 @@ export class RetrieverFactory {
 
   /** Resolve a `rank_method` to its retriever; default (and unknown) → keyword. */
   resolve(rankMethod: string | undefined): Retriever {
-    if (rankMethod === RANK_METHOD_RAG_FUSION && this.ragFusion) {
+    // Absent method falls to the gated {@link DEFAULT_RANK_METHOD}; an explicit
+    // unknown method degrades to keyword (a mis-spelled rank_method is a degraded
+    // ranking, not a crash).
+    const target = rankMethod ?? DEFAULT_RANK_METHOD;
+    if (target === RANK_METHOD_RAG_FUSION && this.ragFusion) {
       return this.ragFusion;
     }
-    if (rankMethod === RANK_METHOD_HYBRID && this.hybrid) {
+    if (target === RANK_METHOD_HYBRID && this.hybrid) {
       return this.hybrid;
     }
     return this.keyword;

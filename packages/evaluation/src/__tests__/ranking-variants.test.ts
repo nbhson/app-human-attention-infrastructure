@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   deriveRankingCorpus,
+  hybridRanker,
   keywordRanker,
   rankingVariants,
   semanticRanker,
@@ -19,14 +20,15 @@ import {
 import type { RankingCorpus } from '../ab/ranking-variants.js';
 
 describe('rankingVariants', () => {
-  it('exposes keyword (A) then semantic (B) behind the seam', () => {
-    expect(rankingVariants().map((ranker) => ranker.kind)).toEqual(['keyword', 'semantic']);
+  it('exposes keyword (A) then hybrid (B) behind the seam', () => {
+    expect(rankingVariants().map((ranker) => ranker.kind)).toEqual(['keyword', 'hybrid']);
   });
 
-  it('both rankers are deterministic for the same corpus', () => {
+  it('all three rankers are deterministic for the same corpus', () => {
     const corpus = reorderCorpus();
     expect(keywordRanker.rank(corpus)).toEqual(keywordRanker.rank(corpus));
     expect(semanticRanker.rank(corpus)).toEqual(semanticRanker.rank(corpus));
+    expect(hybridRanker.rank(corpus)).toEqual(hybridRanker.rank(corpus));
   });
 
   it('keyword and semantic reorder the same corpus (path-centrality vs content)', () => {
@@ -41,16 +43,40 @@ describe('rankingVariants', () => {
     expect(keyword).not.toEqual(semantic);
   });
 
+  it('hybrid re-ranks keyword when dependency restores a target keyword under-ranks', () => {
+    // The target's path shares no query token — keyword drops it to second behind
+    // the content-rich `feature.ts`. Hybrid's RRF keeps the near-tie, then the
+    // re-rank dependency signal (target = 1.0 vs same-dir = 0.6) restores the
+    // target to the top. So hybrid ≠ keyword, and the re-rank is what moves it.
+    const corpus: RankingCorpus = {
+      query: 'feature',
+      targetFiles: ['src/important.ts'],
+      candidateFiles: [
+        { sourceId: 'src/important.ts', content: '' },
+        { sourceId: 'src/feature.ts', content: 'implements the feature in full' },
+      ],
+    };
+    const keyword = keywordRanker.rank(corpus).map((source) => source.sourceId);
+    const hybrid = hybridRanker.rank(corpus).map((source) => source.sourceId);
+
+    expect(keyword).toEqual(['src/feature.ts', 'src/important.ts']);
+    expect(hybrid).toEqual(['src/important.ts', 'src/feature.ts']);
+  });
+
   it('never drops a target file, even with no ranking signal', () => {
     const corpus: RankingCorpus = {
       query: 'nothing that matches any candidate',
       targetFiles: ['src/missing.ts'],
       candidateFiles: [{ sourceId: 'src/present.ts', content: 'present token' }],
     };
-    const ranked = semanticRanker.rank(corpus).map((source) => source.sourceId);
-    expect(ranked).toContain('src/missing.ts');
-    // With no signal the target sorts to the bottom (NO_SIGNAL = -1).
-    expect(ranked[ranked.length - 1]).toBe('src/missing.ts');
+    // The dependence-free semantic arm pushes a signal-less target to the bottom.
+    const semantic = semanticRanker.rank(corpus).map((source) => source.sourceId);
+    expect(semantic).toContain('src/missing.ts');
+    expect(semantic[semantic.length - 1]).toBe('src/missing.ts');
+    // The hybrid arm keeps the target too — its dependency re-rank promotes it
+    // above a signal-less candidate rather than dropping it.
+    const hybrid = hybridRanker.rank(corpus).map((source) => source.sourceId);
+    expect(hybrid).toContain('src/missing.ts');
   });
 });
 
