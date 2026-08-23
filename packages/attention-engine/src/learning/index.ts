@@ -6,9 +6,13 @@
  * - `collector`      — pure windowing + sample derivation.
  * - `promotion-gate` — the measured PROMOTE/HOLD guardrail.
  * - `calibration-job`— the loop orchestration (`CalibrationJob.run`).
+ * - `cycle-audit`    — one correlation id + per-stage event trail.
+ * - `learning-loop`  — the closed E→C→D→O cycle (day-33 state machine).
  */
 
 export * from './types.js';
 export * from './collector.js';
 export * from './promotion-gate.js';
 export * from './calibration-job.js';
+export * from './cycle-audit.js';
+export * from './learning-loop.js';

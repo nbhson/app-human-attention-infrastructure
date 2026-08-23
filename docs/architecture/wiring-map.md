@@ -171,6 +171,25 @@ the same missing-signal fallback as day-27. There is no eager job here: the call
 (an app entrypoint) runs `learn()` over recent marks and passes the resulting map
 into the re-rank. See `scripts/demo-usage-feedback.ts`.
 
+### Closed learning loop (Phase 3, day-33) — one tracked, observable cycle
+
+Day-33 wraps day-31's `CalibrationJob` in a four-stage
+`LearningLoop` state machine (`@harness/attention-engine/src/learning/`);
+`evaluate → calibrate → deploy → observe`, each stage stamped by a `CycleAudit`
+under **one correlation id** (`cycle_id`). The audit publishes
+`learning.stage_completed` per stage and one `learning.loop_completed` per cycle,
+so a single id joins evaluation window → fitted candidate → deploy decision →
+post-deploy observation (all append-only in `event_log`). HOLD is not a dead end:
+a held candidate parks at Deploy (`deploy = held`, outcome `held`) and the cycle
+still completes, so the automation never stalls. **Observe is the feed-forward**
+(day-33 §2.3): the cycle's `collectedAt` becomes the next `runCycle()`'s `since`,
+so consecutive runs re-enter Evaluate with the next window — no manual kick. The
+loop tunes calibration/routing only; the human APPROVE/REJECT gate and the sampled
+auto-approve path are untouched (day-33 §2.4). There is no eager job: a server
+entrypoint (or `demo:closed-loop`) drives `runCycle()`, and `GET /api/learning/cycles`
+(`apps/api/src/routes/learning.ts`) renders the last N `learning.loop_completed`
+events from `event_log` for the ops view. See `scripts/demo-closed-loop.ts`.
+
 ### Tracing bootstrap (not a DI token)
 
 Day-03's OpenTelemetry provider is deliberately **not** container-injected: the

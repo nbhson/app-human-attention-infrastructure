@@ -21,6 +21,7 @@ import { registerMetricsRoutes } from './routes/metrics.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerSettingsRoutes } from './routes/settings.js';
+import { registerLearningRoutes } from './routes/learning.js';
 import { registerAuthHook } from './auth.js';
 import { registerTraceHook } from './trace.js';
 
@@ -45,6 +46,7 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
   registerMetricsRoutes(app);
   registerAdminRoutes(app, container);
   registerSettingsRoutes(app, container);
+  registerLearningRoutes(app, container.resolve<DrizzleDB>(TOKENS.Db));
 
   return app;
 }

@@ -52,6 +52,13 @@ export const EventType = {
   // utility threshold.
   MemoryConsolidated: 'memory.consolidated',
   MemoryArchived: 'memory.archived',
+  // Review-reorient Phase 3 day-33: the closed learning loop. Each cycle stage
+  // emits `learning.stage_completed` (per-stage audit), and the whole
+  // Evaluate→Calibrate→Deploy→Observe cycle emits `learning.loop_completed` once
+  // it reaches a terminal outcome — one `correlation_id` joins every stage event
+  // to the candidate it fitted and the deployment it became.
+  LearningStageCompleted: 'learning.stage_completed',
+  LearningLoopCompleted: 'learning.loop_completed',
 } as const;
 /** A domain event type string. */
 export type EventType = (typeof EventType)[keyof typeof EventType];
