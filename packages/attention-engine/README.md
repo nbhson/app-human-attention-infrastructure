@@ -1,11 +1,12 @@
-# @harness/attention-engine — Routing, Scoring & Auto-Approve
+# @harness/attention-engine — Routing, Scoring, Auto-Approve & the Learning Loop
 
 Decides how much human attention every change deserves: the five-factor
-attention score, routing to review-or-approve, weight/calibration seams, and the
-guard-railed auto-approve path.
+attention score, routing to review-or-approve, weight/calibration seams, the
+guard-railed auto-approve path, and the measured learning loop that fits and
+proposes new weights.
 
-**Status:** Phase 1 + calibration/auto-approve (Phase 2) complete (as-built) ·
-**Boundary rule:** engine — imports only shared packages.
+**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Boundary rule:** engine (R4) — imports only shared packages; never another engine.
 
 ---
 
@@ -16,9 +17,10 @@ guard-railed auto-approve path.
 3. **Label & route** — map the score to `LOW / MEDIUM / HIGH / CRITICAL` and a routing target.
 4. **Auto-approve safely** — behind a gate, a kill-switch, a daily budget, and audit sampling.
 5. **Adapt thresholds** from measured error rate, never by fiat.
-6. **Emit decisions** as events for the orchestrator.
-
----
+6. **Emit decisions** as events (e.g. `attention.assessment_created`, `attention.item_routed`).
+7. **Run the learning loop** — a four-stage `evaluate → calibrate → deploy → observe`
+   cycle that fits a candidate from `was_useful` + judge signals, but **proposes**,
+   never silently applies, a weight vector.
 
 ## Scoring model
 
@@ -59,8 +61,6 @@ guard-railed auto-approve path.
 - Unavailable factors hold a neutral `0.5` placeholder; their weight is
   redistributed across the rest (`factorsUnavailable` records which).
 
----
-
 ## Routing & auto-approve
 
 | Component | What it does |
@@ -79,7 +79,27 @@ instantly, whatever the scores say. The sampler keeps auto-approve honest by
 auditing a fraction. An auto-approved-then-human-rejected change emits
 `evaluation.escalation_leakage` (the auto-approvable-but-rejected signal).
 
----
+## Learning loop (Evaluate → Calibrate → measured Deploy)
+
+`learning/` holds the Phase-3 closed loop. It is a **structural seam, not a DI
+token**, and is not eagerly started — a server entrypoint (or `demo:closed-loop`)
+drives `runCycle()` on a cadence.
+
+| Component | What it does |
+| --- | --- |
+| `learning/collector.ts` | read new `was_useful` + judge + factor facts from the DB. |
+| `learning/calibration-job.ts` | fit a candidate through an injected `FitSeam`. |
+| `learning/promotion-gate.ts` | `decidePromotion` — the measured PROMOTE/HOLD guardrail. |
+| `learning/learning-loop.ts` | four-stage `evaluate → calibrate → deploy → observe` cycle. |
+| `learning/cycle-audit.ts` | per-stage + per-cycle audit under one `cycle_id`. |
+| `learning/types.ts` | `ReviewFact`, `LearningSample`, `LearningCandidate`, `PromotionDecision`. |
+
+The gate is the invariant made executable: a candidate **PROMOTES** only by winning
+its held-out ranking comparison against the incumbent; a **HOLD** (no measured
+improvement, or the judge-disagreement column dominates the fit — overfit alarm)
+parks the candidate at Deploy (`deploy = held`) and the cycle still completes. The
+hot-path `WeightsProvider` (`StaticWeightsAdapter`) keeps returning the placeholder
+until a promotion is *explicitly adopted* — the loop proposes, it never applies.
 
 ## Core data shapes
 
@@ -90,8 +110,6 @@ auditing a fraction. An auto-approved-then-human-rejected change emits
 | `AttentionAssessment` | Persisted assessment: `id`, `taskId`, `changeId`, `artifactId`, `factors`, `factorsUnavailable`, `combinedPriority`, `label`. |
 | `PriorityLabel` | `LOW` / `MEDIUM` / `HIGH` / `CRITICAL`. |
 
----
-
 ## Modules
 
 | Module | What it provides |
@@ -101,45 +119,36 @@ auditing a fraction. An auto-approved-then-human-rejected change emits
 | `scoring.ts` | Weighted combination (confidence-inverted). |
 | `policy.ts` | Routing + threshold policy. |
 | `router.ts` | Route a scored change. |
-| `weights/weights-provider.ts` | Weight source (defaults; calibration may override). |
+| `weights/weights-provider.ts` | Weight source (defaults; the learning loop proposes, the operator adopts). |
 | `thresholds/*` | threshold store, adaptive threshold, daily budget, inflation monitor. |
 | `auto-approve/*` | gate, kill-switch, sampler, executor. |
+| `learning/*` | collector, calibration job, promotion gate, learning loop, cycle audit. |
 | `attention-subscriber.ts` | Consumes pipeline events to trigger assessments. |
-
----
 
 ## Interaction with other packages
 
 ```text
-                 orchestrator (task events)
-                        │  (via @harness/event-bus)
+                 event bus (task/artifact/verification events)
+                        │
                         ▼
           ┌──────────────────────────┐        ┌──────────────────────┐
           │     attention-engine      │──────▶ │  review (queue)      │
           └──────────────────────────┘        └──────────────────────┘
-                 ▲          ▲
-                 │          │
-        artifact-tracker   verification-engine
-        (artifacts/changes) (verification.completed)
 ```
 
-The engine never calls the orchestrator or review directly — it only subscribes
-to events and publishes `attention.assessment_created` / `attention.item_routed`
-/ `attention.threshold_adjusted` / `attention.inflation_detected`. `auto_approve`
+The engine never calls another engine directly — it subscribes to events and
+publishes `attention.assessment_created` / `attention.item_routed` /
+`attention.threshold_adjusted` / `attention.inflation_detected`. `auto_approve`
 is itself a `TaskTrigger` actor (`attention.item_routed` → approval via the executor).
-
----
 
 ## Key invariants
 
-- **Evidence before confidence.** A high auto-approve threshold without
-  calibration evidence is treated as *less* trustworthy; thresholds adapt from
-  measured outcomes.
-- **Convex weights.** Any weight vector must be a convex combination (≥ 0, sums
-  to 1.0).
+- **Evidence before confidence.** A high auto-approve threshold without calibration
+  evidence is treated as *less* trustworthy; thresholds adapt from measured outcomes.
+- **Convex weights.** Any weight vector must be a convex combination (≥ 0, sums to 1.0).
 - **Kill-switch & sampler always win** over automation.
-
----
+- **Automation proposes, never applies.** A weight vector reaches the hot path only
+  via an explicit, human-observed adoption step.
 
 ## Directory structure
 
@@ -147,14 +156,12 @@ is itself a `TaskTrigger` actor (`attention.item_routed` → approval via the ex
 src/
 ├── index.ts
 ├── types.ts               # score/assessment types + PRIORITY_WEIGHTS
-├── factors.ts
-├── scoring.ts
-├── policy.ts
-├── router.ts
+├── factors.ts / scoring.ts / policy.ts / router.ts
 ├── attention-subscriber.ts
 ├── weights/weights-provider.ts
 ├── thresholds/            # threshold-store, adaptive-threshold, daily-budget, inflation-monitor
-└── auto-approve/          # gate, kill-switch, sampler, executor
+├── auto-approve/          # gate, kill-switch, sampler, executor
+└── learning/              # collector, calibration-job, promotion-gate, learning-loop, cycle-audit
 ```
 
 ## Public API surface
@@ -165,11 +172,11 @@ src/
 // scoring/factors/policy/router + WeightsProvider
 // thresholds: ThresholdStore, AdaptiveThreshold, DailyBudget, InflationMonitor
 // auto-approve: Gate, KillSwitch, Sampler, Executor
+// learning: CalibrationJob, LearningLoop, decidePromotion, PromotionDecision, LearningRun
 // AttentionSubscriber
 ```
 
 ## Wiring
 
-Registered in `apps/api/src/bootstrap.ts`; thresholds/weights are seeded at
-startup. The `attention.item_routed` event drives review-queue creation in
-`@harness/review`.
+Registered in `apps/api/src/bootstrap.ts`; thresholds/weights are seeded at startup.
+The `attention.item_routed` event drives review-queue creation in `@harness/review`.

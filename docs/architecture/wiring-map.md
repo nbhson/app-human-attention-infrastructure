@@ -1,6 +1,8 @@
 # Wiring Map
 
 > **Living document.** Every time an engine is registered in `apps/api/src/bootstrap.ts`, add a row here. It takes ~2 minutes and saves hours of archaeology later.
+>
+> **Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review.
 
 This table records the object graph built by `buildContainer()` (`apps/api/src/bootstrap.ts`) — the **only** place `new InProcessEventBus()` may appear (day-05 §6). Everything else asks the container for a token via `resolve(TOKENS.*)`.
 
@@ -54,6 +56,8 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `TicketProvider` | `JiraProvider(token, baseUrl)` when `JIRA_TOKEN`/`JIRA_BASE_URL` set, else `null` | review-reorient | `ReviewIngestService` (fetch the requirement) |
 | `McpServerRegistry` | `McpServerRegistryImpl(loadMcpConfig(path, env))` | review-reorient (day-02) | `routes/settings.ts` (list configured servers), `WriteBackService` (lazy client per provider) |
 | `WriteBackService` | `MCPWriteBack(McpServerRegistry, StaticGitToolMap, StaticTicketToolMap, DrizzleWritebackLogStore(Db))` | review-reorient (day-06, audit day-08, toggle day-09) | `routes/reviews.ts` (`POST /api/reviews/:id/decision` — the `writebackEnabled` gate decides whether a COMMENT + STATUS / COMMENT + TRANSITION is emitted to the external host) |
+| `Judge` | `Judge(LLMProvider, DrizzleJudgeRunStore(Db), model)` | review-reorient (day-21) | `JudgeShadow`; the review-quality judge is a **pure measurement** — it scores through the `LLMProvider` seam and records every run via `judge_runs`, but its output never mutates a review or decision (boundary §2.4) |
+| `JudgeShadow` | `JudgeShadow(Db, EventBus, Judge, Logger)` + `subscribe()` | review-reorient (day-21) | eager-resolved at boot (side effect: `review.report_created` → run the judge, log-only and fire-and-forget on its own failure) |
 | `ReviewAgent` | `ReviewAgent(LLMProvider)` | review-reorient | `ReviewIngestService` (LLM → structured report + findings + fix suggestions) |
 | `ReviewIngestService` | `ReviewIngestService(db, bus, taskService, gitProvider, ticketProvider, reviewAgent, aiProvider, model, logger)` | review-reorient | `routes/reviews.ts` (`POST /api/reviews`, `GET /api/reviews/:id`) |
 | `MemoryStore` | `MemoryStore(Db, EventBus, Logger)` | review-reorient (day-16) | `MemoryProvider` (the `MemoryRetriever` read path); the `MemoryIngestor` write path is wired by `demo:memory` + unit tests, not yet bound at server boot (see the note below). Sole writer of `memory_entries` — every entry carries ≥1 `memory_entry_evidence` link. |
@@ -108,7 +112,7 @@ leaf and an engine (rule R5 / R4):
 | `code-index` | `code-index/src/{indexer,graph,affected}.ts` (day-14) | Pure leaf (node built-ins only): `indexFiles` → `buildGraph` → `affectedTests` computes the transitive affected-test closure; `complete:false` on a graph gap | Consumed by the app host only — **never** imported by `verification-engine` (rule R4). |
 | `TargetedVerifier` | `verification-engine/src/targeted-verifier.ts` (day-14) | The *routing policy*: affected set when complete and non-empty, else full suite | The app injects `resolveAffected = (changed) => affectedTests(changed, graph)` — the engine owns the policy, the leaf owns the graph; neither imports the other. |
 
-`scripts/demo-verification.ts` (`pnpm demo:verification`, day-15) is the
+`scripts/demo-verification.ts` (`pnpm --filter @harness/api demo:verification`, day-15) is the
 integration point that binds these four together over a recorded fixture: it
 proves targeted verdict == full verdict on every case (green *and* red) with fewer
 tests, falls back to the full suite on any graph gap / unindexed file / empty
@@ -135,7 +139,7 @@ measured WIN (rework down, context acceptance ≥). `hybrid` and `rag_fusion` bo
 *selectable* per request via an explicit `rank_method`, and flipping the default is a
 one-line change to `retriever-factory.ts` with the A/B report as its audit trail. The
 round-trip — default → `'hybrid'` → kill-switch `'keyword'` → default — is proven by
-`scripts/demo-hybrid-default.ts` (`pnpm demo:hybrid-default`, day-30), which runs the
+`scripts/demo-hybrid-default.ts` (`pnpm --filter @harness/api demo:hybrid-default`, day-30), which runs the
 real `LexicalRetriever` + `HybridRetriever` (RRF) hermetically: only the embedder's
 cosine ranking is stubbed.
 
@@ -267,7 +271,7 @@ Registrations are lazy, but bus subscriptions are **side effects** — so
 ```text
 EventLogWriter   ArtifactCaptureSubscriber   ChangeStatusSubscriber
 AttentionSubscriber   AttentionRouter   AutoApproveSampler   AutoApproveExecutor
-ContextEngine   ReembedListener   ReviewService
+ContextEngine   ReembedListener   ReviewService   JudgeShadow
 ```
 
 The review slice (`ReviewIngestService` / `ReviewAgent` / `GitProvider` /
@@ -319,8 +323,10 @@ The review slice (`ReviewIngestService` / `ReviewAgent` / `GitProvider` /
 41. `MemoryContextResolver` — needs `MemoryProvider`.
 42. `MemoryLifecycle` — needs `Db`, `EventBus`, `Logger` (registered, not started).
 43. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
-44. `MetricsComputer` — no deps.
-45. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
+44. `Judge` — needs `LLMProvider`, `Db` (via `DrizzleJudgeRunStore`, records `judge_runs`), and the model id (day-21).
+45. `JudgeShadow` — needs `Db`, `EventBus`, `Judge`, `Logger`; subscribes on `review.report_created` (day-21; eager-resolved).
+46. `MetricsComputer` — no deps.
+47. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 
@@ -344,3 +350,85 @@ Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the conc
 | R14 | `ticket-provider` → `domain` only (never an engine) | same |
 
 The authoritative assertions live in `packages/di/src/__tests__/architecture.test.ts`; the lint rule catches violations at edit time (see `eslint.config.mjs`).
+
+## Reference index — every token, event, and table (as-built)
+
+Generated by grepping the source (`packages/di/src/tokens.ts`,
+`packages/domain/src/events/event-types.ts`, `packages/db/src/schema/*`), not from
+memory. If a name below is wrong, the *source* moved — fix the source, then this.
+
+### `TOKENS.*` — 50 tokens
+
+```text
+EventBus   Logger   Db   EventLogWriter
+OidcProvider   AuthService   SessionService
+ArtifactCaptureSubscriber   SnapshotStore   ChangeStatusSubscriber   EvidenceStore
+TaskStateMachine   TaskService   LLMProvider
+Orchestrator*   AgentRuntime*   AttentionEngine*          (* Day-05 stubs, code-gen retired)
+ContextEngine   ContextCache   CacheInvalidationListener
+Embedder   EmbeddingIndexer   ReembedListener   SemanticRetriever   SemanticRanker
+ArtifactTracker   ContentStore
+AttentionSubscriber   AttentionRouter   WeightsProvider
+VerificationEngine   Sandbox
+ReviewService
+AutoApproveGate   AutoApproveKillSwitch   AutoApproveSampler   AutoApproveExecutor
+MetricsComputer
+ReviewAgent   ReviewIngestService   GitProvider   TicketProvider
+McpServerRegistry   WriteBackService
+MemoryStore   MemoryProvider   MemoryContextResolver   MemoryLifecycle
+Judge   JudgeShadow
+```
+
+Three of these are placeholder string names kept for the abandoned code-gen path
+(`Orchestrator` / `AgentRuntime` / `AttentionEngine` — see the stub rows above);
+the other 47 are the real registrations. Note there is **no `TOKENS.Runner`** — the
+verification sandbox is `TOKENS.Sandbox` → `DockerSandbox`.
+
+### `EventType.*` — 31 events
+
+```text
+task.created                 task.state_changed        task.execution_finished
+task.failed                  task.orphan_recovered
+artifact.created             artifact.changed          artifact.rollback_requested
+artifact.merged              verification.completed
+attention.assessment_created  attention.item_routed    attention.threshold_adjusted
+attention.inflation_detected  attention.item_deferred
+review.decision_submitted     review.item_claimed      review.item_released
+review.item_escalated        authz.decision_denied     evaluation.escalation_leakage
+integration.pr_fetched        integration.ticket_fetched
+review.report_created         review.fix_suggestion_created
+integration.writeback_completed
+memory.entry_created          memory.consolidated      memory.archived
+learning.stage_completed      learning.loop_completed
+```
+
+### DB tables — 54
+
+```text
+Orchestrator          projects, tasks, task_state_history,
+                      task_step_log◌, dispatch_log◌, retry_log◌
+Agent runtime         llm_call_log, agent_runs◌, trajectory_steps◌, code_mode_sessions◌
+Artifact tracker      artifacts, changes, snapshots
+Context engine        contexts, source_usefulness, context_source_cache,
+                      context_source_embeddings, shadow_rank_comparisons
+Verification          verification_requests, verification_results, verification_check_results,
+                      verification_test_results, verification_reports
+Attention             assessments, assessment_feedback, attention_thresholds,
+                      calibration_datasets, calibration_weights, calibration_rows,
+                      auto_approve_kill_switch
+Review                review_queue, decisions, review_decisions,
+                      review_reports, review_findings, fix_suggestions
+Integration/write-back provider_configs, writeback_log
+Evidence              evidence, evidence_links
+Event log             event_log
+Memory                memory_entries, memory_entry_evidence
+Code index            code_index_symbols, code_index_deps
+Judge                 judge_runs, judge_agreements
+Benchmark             review_examples
+Identity              users, sessions
+Observability         trace_correlation
+Evaluation (A/B)      evaluation_reports, ab_experiments, ab_runs
+```
+
+`◌` = orphaned by `review-reorient` (persisted, no live writer). See
+`packages/db/README.md` for the full owning-domain table.

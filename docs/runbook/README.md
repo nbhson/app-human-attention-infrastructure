@@ -20,8 +20,12 @@
 > - **R8** — the "startup reconciler recovers" claim is retired along with
 >   `reconcile.ts`; nothing re-runs orphan recovery at boot.
 
-The two most useful sources of truth live next door:
+The most useful sources of truth live next door:
 
+- **[operations.md](operations.md)** — the Phase-3 *as-built* procedures
+  (v1.0-candidate): provider-token rotation (OP-1), write-back audit (OP-2),
+  learning-loop HOLD (OP-3), the `rank_method` kill-switch (OP-4), and the
+  durable-queue `EVENT_TRANSPORT` flag (OP-5).
 - **[audit-queries.md](audit-queries.md)** — copy-paste SQL (Q1–Q9) for everything
   below that needs a database answer.
 - **[limitations.md](limitations.md)** — deliberate Phase-1 boundaries. Read the

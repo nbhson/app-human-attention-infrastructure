@@ -34,6 +34,9 @@ docker compose up -d     # starts postgres:16 (pgvector) + Prometheus + Grafana 
 
 cp .env.example .env     # DATABASE_URL + placeholder provider keys
 
+# optional — connect real Git/Jira tools over MCP (git-ignored; never commit it):
+cp mcp.config.example.json mcp.config.json   # tokenEnv references, no secrets
+
 pnpm --filter @harness/db migrate   # apply migrations
 
 pnpm test                # unit + integration, ~2 min
@@ -42,7 +45,7 @@ pnpm dev                 # run the API + web UI
 
 What each command actually does:
 
-- `pnpm install` links the 19 `@harness/*` packages via workspace protocol, so
+- `pnpm install` links the 25 `@harness/*` packages via workspace protocol, so
   importing `@harness/db` from another package resolves to `packages/db`, not npm.
 - `docker compose up -d` runs the four services in `docker-compose.yml`: **Postgres**
   (the `pgvector/pgvector:pg16` image — vector column + plain SQL in one),
@@ -55,6 +58,13 @@ What each command actually does:
   `packages/db/src/env.ts`'s dotenv config; `migrate`/`seed` **throw** without a
   `DATABASE_URL`. Tests have a hard-coded fallback of the same local URL, but the
   scripts don't.
+- `cp mcp.config.example.json mcp.config.json` is **optional** — without it the
+  API boots fine and the providers resolve to `null` (the Phase-1 REST path for
+  GitHub/Jira, via `GITHUB_TOKEN`/`JIRA_TOKEN`). With it, GitHub/GitLab/Bitbucket/
+  Jira all connect through the MCP layer driven by one file; each entry's
+  `tokenEnv` is a *reference to* an env var, never a secret (the value is reduced
+  to a last-4 `tokenHint` at load). Resolved from `MCP_CONFIG_PATH` (default
+  `./mcp.config.json`).
 - `pnpm --filter @harness/db migrate` runs the Drizzle migrator against
   `packages/db/migrations/`.
 - `pnpm test` runs Vitest across the workspace. Tests create and drop their own
@@ -69,19 +79,31 @@ What each command actually does:
 
 | Path | Package | What it owns |
 | --- | --- | --- |
-| `packages/domain` | `@harness/domain` | Branded IDs, core types, `TaskStatus`, canonical event types |
-| `packages/event-bus` | `@harness/event-bus` | `IEventBus` interface + `InProcessEventBus` (EventEmitter) |
-| `packages/db` | `@harness/db` | Drizzle schema, migrations, `createDb`, `EventLogWriter`, `FaultyDb` test util |
+| `packages/domain` | `@harness/domain` | Branded IDs, core types, `TaskStatus`, canonical event types (incl. `learning.*`, `memory.*`, `writeback.*`) |
+| `packages/event-bus` | `@harness/event-bus` | `IEventBus` + `InProcessEventBus` (default), `RedisEventsBus` (durable), `transport-resolver` (`EVENT_TRANSPORT`) |
+| `packages/db` | `@harness/db` | Drizzle schema (54 tables), migrations, `createDb`, `EventLogWriter`, `WritebackLogStore`/`JudgeRunStore`/`JudgeAgreementStore`, `FaultyDb` |
 | `packages/di` | `@harness/di` | `Container`, `TOKENS`, `Logger` (pino), architecture test |
 | `packages/orchestrator` | `@harness/orchestrator` | `TaskStateMachine`, `TaskService` (the dispatch/workflow/retry loop was retired) |
 | `packages/agent-runtime` | `@harness/agent-runtime` | `LLMProvider` (Anthropic + OpenAI-compatible), `MockLLM`, `ReviewAgent` (the ReAct write path was retired) |
 | `packages/artifact-tracker` | `@harness/artifact-tracker` | `ArtifactTracker`, `SnapshotStore`, `ChangeStatusSubscriber`, diff engine |
-| `packages/verification-engine` | `@harness/verification-engine` | `CompileCheck`, `TestCheck`, evidence store, env sanitization |
-| `packages/attention-engine` | `@harness/attention-engine` | Scoring (`PRIORITY_WEIGHTS`), `Router`, adaptive thresholds |
-| `packages/context-engine` | `@harness/context-engine` | collect → rank → trim → persist, freshness check |
+| `packages/verification-engine` | `@harness/verification-engine` | `CompileCheck`/`TestCheck`/`SandboxedCheck`, `CloneVerifier`, `TargetedVerifier`, evidence store, env sanitization |
+| `packages/attention-engine` | `@harness/attention-engine` | Scoring (`PRIORITY_WEIGHTS`), `Router`, adaptive thresholds, `learning/*` closed loop (`LearningLoop`, `decidePromotion`) |
+| `packages/context-engine` | `@harness/context-engine` | collect → rank → trim → render, freshness, `RetrieverFactory` (`rank_method`), memory resolver |
 | `packages/review` | `@harness/review` | Review queue persistence + decision flow |
-| `packages/git-provider` | `@harness/git-provider` | `GitProvider` seam + `GitHubProvider` (fetches PR diff/metadata) |
-| `packages/ticket-provider` | `@harness/ticket-provider` | `TicketProvider` seam + `JiraProvider` (fetches the requirement) |
+| `packages/git-provider` | `@harness/git-provider` | `GitProvider` seam + `GitHubProvider` (REST) + `MCPGitProvider`/`GitToolMap` (multi-host); `clone`/`head-sha` |
+| `packages/ticket-provider` | `@harness/ticket-provider` | `TicketProvider` seam + `JiraProvider` (REST) + `MCPTicketProvider`/`TicketToolMap` |
+| `packages/mcp` | `@harness/mcp` | `McpServerRegistry`/`McpServerRegistryImpl`, `MCPGitProvider`/`MCPTicketProvider`/`MCPWriteBack`, config loader |
+| `packages/writeback` | `@harness/writeback` | `WriteBackService`/`MCPWriteBack`, `WritebackAction`, dedup + redact, 3-layer toggle |
+| `packages/memory` | `@harness/memory` | `MemoryStore`/`MemoryDistiller`/`MemoryRetriever`/`MemoryLifecycle` (REVIEW/FINDING/DECISION/PROJECT tiers) |
+| `packages/code-index` | `@harness/code-index` | hand-rolled lexical scanner → dependency graph → `affectedTests` (no tree-sitter needed) |
+| `packages/judge` | `@harness/judge` | `Judge` (rubric v1), `JudgeShadow`, `AgreementReport` |
+| `packages/benchmark` | `@harness/benchmark` | `review_examples` gold corpus + `evaluateJudge` (read-only evaluator) |
+| `packages/auth` | `@harness/auth` | `requireRole`, session/OIDC identity |
+| `packages/evaluation` | `@harness/evaluation` | `eval:*` jobs, metrics, A/B report generator |
+| `packages/embeddings` | `@harness/embeddings` | `Embedder` seam (`StubEmbedder` default), `EmbeddingIndexer` |
+| `packages/object-store` | `@harness/object-store` | `ContentStore` seam (S3/MinIO vs in-memory fallback) |
+| `packages/sandbox` | `@harness/sandbox` | Docker sandbox execution (pinned image) |
+| `packages/observability` | `@harness/observability` | pino logging + OTel tracing/monitoring |
 | `apps/api` | — | Fastify API (`bootstrap.ts`, routes, the review slice in `services/review-ingest.ts`) |
 | `apps/web` | — | React + Vite review UI (minimal) |
 
@@ -91,10 +113,18 @@ What each command actually does:
 | --- | --- |
 | Change the task state machine | `2_Task_Work_Orchestrator_v0.3.md` §3 + `packages/orchestrator/src/state-machine/` |
 | Change how changes are scored | `6_Attention_Engine_v0.2.md` §3 + `packages/attention-engine/src/scoring.ts` / `factors.ts` |
-| Change context ranking | `4_Context_Engine_v0.3.md` §5 + `packages/context-engine/src/rank.ts` |
+| Change context ranking | `4_Context_Engine_v0.3.md` §5 + `packages/context-engine/src/rank.ts` + `retrieval/retriever-factory.ts` |
+| Add/rename a ranking method | `packages/context-engine/src/retrieval/retriever-factory.ts` (`rank_method`) |
 | Add a verification check | `7_Verification_Engine_v0.3.md` §4 + `packages/verification-engine/src/checks/` |
+| Add a clone/targeted check | `packages/verification-engine/src/clone-checks/` + `targeted-verifier.ts` |
 | Change review endpoints | `apps/api/src/routes/review.ts` + `packages/review/` |
 | Change the review-slice ingest flow | `apps/api/src/services/review-ingest.ts` + `apps/api/src/routes/reviews.ts` |
+| Change write-back behaviour | `packages/writeback/src/writeback-service.ts` + `apps/api/src/writeback-gate.ts` |
+| Change review memory | `packages/memory/src/memory-store.ts` / `memory-distiller.ts` / `lifecycle/` |
+| Change the dependency graph / affected tests | `packages/code-index/src/graph.ts` / `affected.ts` (hand-rolled lexical — no tree-sitter) |
+| Change the judge rubric | `packages/judge/src/rubric.ts` + `judge.ts` |
+| Change the benchmark corpus | `packages/benchmark/src/corpus.ts` + `evaluateJudge` |
+| Add an MCP-connected host | `mcp.config.json` (one file, per-host entry) + `packages/git-provider/src/git-tool-map.ts` |
 | Add a DB table/column | `packages/db/src/schema/` + a new migration |
 | Add a domain event | `packages/domain/src/events/event-types.ts` |
 | Add/rename a container token | `packages/di/src/tokens.ts` + `apps/api/src/bootstrap.ts` |
@@ -107,7 +137,17 @@ pnpm test                 # full suite (unit + integration)
 pnpm test -- packages/orchestrator   # run one package's tests only
 pnpm lint                 # eslint across the repo (boundaries enforced here)
 pnpm typecheck            # turbo run typecheck (tsc --noEmit everywhere)
+pnpm build                # turbo run build (each package emits dist)
+pnpm e2e                  # full-system e2e over the real stack (see below)
 pnpm audit:orphans        # exit-code orphan alarm (see runbook R1)
+```
+
+**`pnpm e2e`** runs the end-to-end suites in `e2e/` (config
+`e2e/vitest.config.ts`) against a live Postgres. It expects a seeded fixture:
+
+```sh
+pnpm seed:e2e-fixture     # one-time; then run e2e repeatedly
+pnpm e2e
 ```
 
 **Adding a migration:** edit the schema in `packages/db/src/schema/`, then
@@ -179,10 +219,12 @@ modular monolith (Architecture spec §4.5, §18).
 ### The full gate
 
 ```sh
-pnpm lint && pnpm typecheck && pnpm build && pnpm test
+pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm e2e
 ```
 
-This is what CI and every day's work must pass before a commit is pushed.
+`pnpm e2e` is the outermost gate (needs a seeded fixture, see §4); the first four
+(`lint`, `typecheck`, `build`, `test`) are the CI-critical core every commit must
+pass. This is what CI and every day's work must pass before a commit is pushed.
 
 ## 7. Phase-2 subsystems (env-gated)
 
@@ -236,3 +278,60 @@ SEMANTIC_SHADOW_ENABLED=1 pnpm dev
 A real embedder is optional: unset `EMBEDDINGS_BASE_URL` uses the deterministic
 `StubEmbedder`; set it (plus `EMBEDDINGS_API_KEY`/`EMBEDDINGS_MODEL`) for
 OpenAI-compatible embeddings.
+
+## 8. Phase-3 stack (env + MCP)
+
+The Phase-3 surface is a **configuration-first** re-scope: external systems connect
+through **one `mcp.config.json`**, write-back is behind a fail-safe toggle, and the
+AI provider is swappable. All of it is env-gated; the default run stays local and
+deterministic.
+
+**MCP connectivity (day-02).** `mcp.config.json` is the single connectivity file:
+each `servers` entry names a transport (`stdio` command + args, or an `sse` url)
+and a `tokenEnv` *reference* (never a secret). At load the token's presence is
+checked and reduced to a non-reversible last-4 `tokenHint`, then discarded; the
+real token lives only in the MCP server's environment and is injected at connect
+time. Resolve path: `MCP_CONFIG_PATH` (default `./mcp.config.json`).
+
+```sh
+MCP_CONFIG_PATH=./mcp.config.json pnpm dev
+```
+
+**AI provider (any provider, not just Anthropic).** Unset `AI_BASE_URL` → the
+Anthropic path (`ANTHROPIC_API_KEY`, model `ANTHROPIC_MODEL` default
+`claude-sonnet-4-6`). Set `AI_BASE_URL` to an OpenAI-compatible endpoint to switch
+to "any provider" (`AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL` default `gpt-4.1`):
+
+```sh
+AI_BASE_URL=https://api.openai.com/v1 \
+AI_PROVIDER=openai \
+AI_API_KEY=... \
+AI_MODEL=gpt-4.1 \
+pnpm dev
+```
+
+**Write-back toggles (day-09) — fail-safe, three layers.** An external write fires
+only when *every* layer is armed: (1) the global ceiling `WRITEBACK_ENABLED=1`,
+(2) the per-provider flag (`WRITEBACK_GITHUB`/`WRITEBACK_GITLAB`/
+`WRITEBACK_BITBUCKET`/`WRITEBACK_JIRA`), and (3) a `writeback: true` request flag
+on the decision. Unset/at-rest ⇒ nothing external is written; `provider_configs`
+holds only a `token_redacted` hint, never a token. (See runbook
+[operations.md](runbook/operations.md) OP-1/OP-2.)
+
+```sh
+WRITEBACK_ENABLED=1 WRITEBACK_GITHUB=1 pnpm dev
+```
+
+**Durable queue (day-34).** `EVENT_TRANSPORT=inproc|redis|sqs` selects the event
+bus; the default is the zero-config in-process bus. `redis`/`sqs` require the
+operator to supply a `StreamTransport` adapter (the repo ships none — live brokers
+are opt-in); an unknown value throws at startup rather than silently degrading.
+
+```sh
+EVENT_TRANSPORT=redis pnpm dev   # throws without a wired StreamTransport adapter
+```
+
+**Sandbox + object store + embeddings** carry over from §7 (`VERIFY_SANDBOX_*`,
+`OBJECT_STORE_*`, `EMBEDDINGS_*`). **No tree-sitter install is required** — the
+`@harness/code-index` dependency graph is a hand-rolled lexical scanner over
+Node-builtins, so the dependency toolchain above (§1) is complete.
