@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { brand } from '@harness/domain';
+import { brand, newJudgeRunID } from '@harness/domain';
 import type { JudgeRun, JudgeScores } from '@harness/domain';
 
 import { createTestDb, destroyTestDb, type TestDb } from './__tests__/helpers.js';
@@ -22,10 +22,13 @@ afterAll(async () => {
 /** A complete judge run against the seeded `rep-1` report. */
 function aRun(scores?: Partial<JudgeScores>): JudgeRun {
   return {
+    id: newJudgeRunID(),
     reportId: brand('rep-1', 'ReviewReportID'),
     prUrl: 'https://github.com/acme/api/pull/1',
     promptVersion: 'judge-rubric-v1',
     model: 'test-model',
+    temperature: 0.2,
+    reportHash: 'abc123def456',
     scores: {
       severityAgreement: 0.9,
       routingAgreement: 0.8,
@@ -64,6 +67,8 @@ describe('DrizzleJudgeRunStore', () => {
     expect(row).toBeDefined();
     expect(row!.prompt_version).toBe('judge-rubric-v1');
     expect(row!.model).toBe('test-model');
+    expect(row!.temperature).toBeCloseTo(0.2);
+    expect(row!.report_hash).toBe('abc123def456');
     expect(row!.severity_agreement).toBeCloseTo(0.9);
     expect(row!.routing_agreement).toBeCloseTo(0.8);
     expect(row!.evidence_sufficiency).toBeCloseTo(0.95);

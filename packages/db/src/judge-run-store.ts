@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import type { JudgeRun, JudgeRunStore } from '@harness/domain';
 
 import type { DrizzleDB } from './client.js';
@@ -10,18 +8,22 @@ import { judgeRuns } from './schema/index.js';
  *
  * One `judge_runs` row per completed judge run, written by the judge *after* it
  * parses the scores — so a persisted row always carries the full
- * prompt-version/model/scores/reasoning tuple, never a partial write. The row id
- * is a fresh UUID (the run is append-only, never keyed by report or updated).
+ * prompt-version/model/temperature/report-hash/scores/reasoning tuple, never a
+ * partial write. The row id is the run's own UUID (append-only, never keyed by
+ * report or updated); `report_hash` + `temperature` are provenance for day-22's
+ * agreement recomputation.
  */
 export class DrizzleJudgeRunStore implements JudgeRunStore {
   constructor(private readonly db: DrizzleDB) {}
 
   async record(run: JudgeRun): Promise<void> {
     await this.db.insert(judgeRuns).values({
-      id: randomUUID(),
+      id: run.id,
       report_id: run.reportId,
       prompt_version: run.promptVersion,
       model: run.model,
+      temperature: run.temperature ?? null,
+      report_hash: run.reportHash,
       severity_agreement: run.scores.severityAgreement,
       routing_agreement: run.scores.routingAgreement,
       evidence_sufficiency: run.scores.evidenceSufficiency,

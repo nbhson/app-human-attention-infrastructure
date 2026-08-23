@@ -13,3 +13,4 @@ export type {
 } from './ab-store.js';
 export { DrizzleWritebackLogStore } from './writeback-log-store.js';
 export { DrizzleJudgeRunStore } from './judge-run-store.js';
+export { DrizzleJudgeAgreementStore } from './judge-agreement-store.js';

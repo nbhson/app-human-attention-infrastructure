@@ -213,7 +213,14 @@ describe('@harness/judge boundary (day-21 §2.4)', () => {
   it('imports only @harness/domain (+ @harness/di) and nothing else', () => {
     const srcDir = dirname(fileURLToPath(import.meta.url));
     const allowed = ['@harness/domain', '@harness/di'];
-    const files = ['index.ts', 'rubric.ts', 'judge.ts'];
+    const files = [
+      'index.ts',
+      'rubric.ts',
+      'judge.ts',
+      'agreement.ts',
+      'report-hash.ts',
+      'agreement-report.ts',
+    ];
 
     for (const file of files) {
       const source = readFileSync(join(srcDir, '..', file), 'utf8');

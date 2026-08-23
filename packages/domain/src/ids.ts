@@ -100,6 +100,10 @@ export type ProviderConfigID = Brand<string, 'ProviderConfigID'>;
 export type WritebackID = Brand<string, 'WritebackID'>;
 /** Identifies a review-memory entry (review-reorient Phase 3, day-16). */
 export type MemoryID = Brand<string, 'MemoryID'>;
+/** Identifies one audited judge run (review-reorient Phase 3, day-22). */
+export type JudgeRunID = Brand<string, 'JudgeRunID'>;
+/** Identifies one inter-judge agreement computation (review-reorient Phase 3, day-22). */
+export type JudgeAgreementID = Brand<string, 'JudgeAgreementID'>;
 
 // --- UUIDv7 generation ----------------------------------------------------
 
@@ -199,3 +203,7 @@ export const newProviderConfigID = (): ProviderConfigID => newBrandedId('Provide
 export const newWritebackID = (): WritebackID => newBrandedId('WritebackID');
 /** Generate a new {@link MemoryID}. */
 export const newMemoryID = (): MemoryID => newBrandedId('MemoryID');
+/** Generate a new {@link JudgeRunID}. */
+export const newJudgeRunID = (): JudgeRunID => newBrandedId('JudgeRunID');
+/** Generate a new {@link JudgeAgreementID}. */
+export const newJudgeAgreementID = (): JudgeAgreementID => newBrandedId('JudgeAgreementID');
