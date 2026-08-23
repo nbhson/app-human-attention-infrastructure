@@ -1,7 +1,7 @@
 import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
-import { memoryKindCheck } from './enums.js';
+import { memoryKindCheck, memoryStatusCheck } from './enums.js';
 import { evidence } from './evidence.js';
 
 /**
@@ -24,11 +24,14 @@ export const memoryEntries = pgTable(
     last_retrieved_at: timestamp('last_retrieved_at', { withTimezone: true }),
     expires_at: timestamp('expires_at', { withTimezone: true }),
     supersedes: text('supersedes').references((): AnyPgColumn => memoryEntries.id),
+    status: text('status').notNull().default('ACTIVE'),
+    confidence_floor: integer('confidence_floor').notNull().default(10),
     metadata: jsonb('metadata').notNull().$type<Record<string, unknown>>().default({}),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     memoryKindCheck,
+    memoryStatusCheck,
     index('memory_entries_kind_idx').on(table.kind),
     index('memory_entries_supersedes_idx').on(table.supersedes),
   ],

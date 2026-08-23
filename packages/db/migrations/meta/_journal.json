@@ -253,6 +253,13 @@
       "when": 1787504716265,
       "tag": "0035_foamy_iceman",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787508789754,
+      "tag": "0036_last_doctor_doom",
+      "breakpoints": true
     }
   ]
 }

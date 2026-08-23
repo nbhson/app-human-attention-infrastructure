@@ -2,7 +2,7 @@
  * The `@harness/memory` public input contract (review-reorient Phase 3, day-16).
  */
 
-import type { EvidenceID, MemoryID, MemoryKind, TaskID } from '@harness/domain';
+import type { EvidenceID, MemoryID, MemoryKind, MemoryStatus, TaskID } from '@harness/domain';
 
 /** Input for {@link import('./memory-store.js').MemoryStore.create}. */
 export interface CreateMemoryInput {
@@ -17,6 +17,10 @@ export interface CreateMemoryInput {
   readonly expiresAt?: Date;
   /** The version this entry supersedes, defaults to `null` (chain head). */
   readonly supersedes?: MemoryID;
+  /** Lifecycle status, defaults to `ACTIVE` (day-19 §2.4). */
+  readonly status?: MemoryStatus;
+  /** The floor confidence never decays below, defaults to `10` (day-19 §2.3). */
+  readonly confidenceFloor?: number;
   /** Kind-specific fields, defaults to `{}`. */
   readonly metadata?: Record<string, unknown>;
   /** The task the entry was distilled from (event correlation), if any. */

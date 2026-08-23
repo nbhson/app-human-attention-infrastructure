@@ -76,6 +76,7 @@ import { MetricsComputer } from '@harness/evaluation';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { MemoryRetriever, MemoryStore } from '@harness/memory';
+import { MemoryLifecycle } from '@harness/memory';
 import { TaskService, TaskStateMachine } from '@harness/orchestrator';
 import type { ContentStore } from '@harness/object-store';
 import {
@@ -670,6 +671,19 @@ export function buildContainer(): Container {
 
   c.register(TOKENS.MemoryContextResolver, (container) => {
     return new MemoryContextResolver(container.resolve<MemoryProvider>(TOKENS.MemoryProvider));
+  });
+
+  // Review-reorient Phase 3 (day-19): the idempotent memory lifecycle tick
+  // (consolidate → decay → archive). Registered but NOT eagerly started — a
+  // server entrypoint drives `MemoryLifecycle.tick` (directly or via the
+  // `MemoryLifecycleScheduler` in `@harness/memory`) on a cadence. Consumes
+  // nothing from the bus, so no eager boot is required here.
+  c.register(TOKENS.MemoryLifecycle, (container) => {
+    return new MemoryLifecycle(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
   });
 
   // Day 22: the review backend. It drives the task state machine, the Day-19

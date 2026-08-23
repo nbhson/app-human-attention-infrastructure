@@ -14,12 +14,25 @@
  * context/attention via the event bus, never by a sibling engine importing it.
  */
 
-import { eq, inArray, desc, sql } from 'drizzle-orm';
+import { eq, and, inArray, desc, sql } from 'drizzle-orm';
 
 import { memoryEntries, memoryEntryEvidence } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import { brand, createMemoryEntry, EventType, newMemoryID, uuidv7 } from '@harness/domain';
-import type { MemoryEntry, MemoryID, MemoryKind } from '@harness/domain';
+import {
+  brand,
+  createMemoryEntry,
+  DEFAULT_CONFIDENCE_FLOOR,
+  EventType,
+  MemoryStatus,
+  newMemoryID,
+  uuidv7,
+} from '@harness/domain';
+import type {
+  MemoryEntry,
+  MemoryID,
+  MemoryKind,
+  MemoryStatus as MemoryStatusType,
+} from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import type { Logger } from '@harness/di';
@@ -42,6 +55,8 @@ function toEntry(row: MemoryEntryRow, evidenceIds: readonly string[]): MemoryEnt
     lastRetrievedAt: row.last_retrieved_at,
     expiresAt: row.expires_at,
     supersedes: row.supersedes === null ? null : brand(row.supersedes, 'MemoryID'),
+    status: row.status as MemoryStatusType,
+    confidenceFloor: row.confidence_floor,
     metadata: row.metadata,
     createdAt: row.created_at,
   };
@@ -75,6 +90,8 @@ export class MemoryStore {
         confidence: input.confidence ?? 0,
         expires_at: input.expiresAt ?? null,
         supersedes: input.supersedes ?? null,
+        status: input.status ?? MemoryStatus.ACTIVE,
+        confidence_floor: input.confidenceFloor ?? DEFAULT_CONFIDENCE_FLOOR,
         metadata: input.metadata ?? {},
       });
       await tx.insert(memoryEntryEvidence).values(
@@ -104,6 +121,8 @@ export class MemoryStore {
       confidence: input.confidence ?? 0,
       expiresAt: input.expiresAt ?? null,
       supersedes: input.supersedes ?? null,
+      status: input.status ?? MemoryStatus.ACTIVE,
+      confidenceFloor: input.confidenceFloor ?? DEFAULT_CONFIDENCE_FLOOR,
       metadata: input.metadata ?? {},
       createdAt,
     });
@@ -128,12 +147,12 @@ export class MemoryStore {
     return toEntry(row, evidenceIds);
   }
 
-  /** All entries of one tier, newest first, filtered to link-bearing entries. */
+  /** All entries of one tier, newest first, filtered to active link-bearing entries. */
   async listByKind(kind: MemoryKind): Promise<MemoryEntry[]> {
     const rows = await this.db
       .select()
       .from(memoryEntries)
-      .where(eq(memoryEntries.kind, kind))
+      .where(and(eq(memoryEntries.kind, kind), eq(memoryEntries.status, 'ACTIVE')))
       .orderBy(desc(memoryEntries.created_at));
     if (rows.length === 0) {
       return [];

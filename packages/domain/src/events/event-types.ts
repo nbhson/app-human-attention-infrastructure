@@ -46,6 +46,12 @@ export const EventType = {
   // a curated entry was distilled and stored with its evidence links — the anchor
   // context/attention subscribe to for the next review.
   MemoryEntryCreated: 'memory.entry_created',
+  // Review-reorient Phase 3 day-19: memory lifecycle. `memory.consolidated` marks
+  // a version chain folded into one head; `memory.archived` marks an entry moved
+  // to `ARCHIVED` (soft-delete, retained for audit) after dropping below the
+  // utility threshold.
+  MemoryConsolidated: 'memory.consolidated',
+  MemoryArchived: 'memory.archived',
 } as const;
 /** A domain event type string. */
 export type EventType = (typeof EventType)[keyof typeof EventType];

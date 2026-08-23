@@ -29,6 +29,26 @@ export const MemoryKind = {
 export type MemoryKind = (typeof MemoryKind)[keyof typeof MemoryKind];
 
 /**
+ * The lifecycle status of a memory entry (review-reorient Phase 3, day-19 §2.4).
+ * `ARCHIVED` is a soft-delete — the row is retained for audit and excluded only
+ * from retrieval, never hard-deleted.
+ */
+export const MemoryStatus = {
+  /** Retrievable, in the active index. */
+  ACTIVE: 'ACTIVE',
+  /** Superseded or decayed below threshold — audit-only, excluded from retrieval. */
+  ARCHIVED: 'ARCHIVED',
+} as const;
+/** A memory-entry lifecycle status. */
+export type MemoryStatus = (typeof MemoryStatus)[keyof typeof MemoryStatus];
+
+/**
+ * The floor confidence never decays below (day-19 §2.3). Kept positive and on
+ * the entry so decay flattens into "forgotten but recoverable", never deletion.
+ */
+export const DEFAULT_CONFIDENCE_FLOOR = 10;
+
+/**
  * One memory entry — the curated, searchable unit of review memory.
  *
  * `content` is distilled, never a raw log/diff (Day 17 owns that distillation).
@@ -55,6 +75,10 @@ export interface MemoryEntry {
   readonly expiresAt: Date | null;
   /** The version this entry supersedes, or `null` for a chain head. */
   readonly supersedes: MemoryID | null;
+  /** Lifecycle status — archived entries are audit-only (day-19 §2.4). */
+  readonly status: MemoryStatus;
+  /** The floor confidence never decays below (day-19 §2.3). */
+  readonly confidenceFloor: number;
   /** Kind-specific fields (e.g. finding severity, decision verdict). */
   readonly metadata: Record<string, unknown>;
   /** When the entry was written. */
@@ -71,6 +95,8 @@ export interface CreateMemoryEntryInput {
   readonly lastRetrievedAt?: Date | null;
   readonly expiresAt?: Date | null;
   readonly supersedes?: MemoryID | null;
+  readonly status?: MemoryStatus;
+  readonly confidenceFloor?: number;
   readonly metadata?: Record<string, unknown>;
   readonly id?: MemoryID;
   readonly createdAt?: Date;
@@ -91,6 +117,8 @@ export function createMemoryEntry(input: CreateMemoryEntryInput): MemoryEntry {
     lastRetrievedAt: input.lastRetrievedAt ?? null,
     expiresAt: input.expiresAt ?? null,
     supersedes: input.supersedes ?? null,
+    status: input.status ?? MemoryStatus.ACTIVE,
+    confidenceFloor: input.confidenceFloor ?? DEFAULT_CONFIDENCE_FLOOR,
     metadata: input.metadata ?? {},
     createdAt: input.createdAt ?? new Date(),
   };

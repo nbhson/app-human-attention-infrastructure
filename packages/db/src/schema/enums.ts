@@ -345,5 +345,11 @@ export const dependencyKindCheck = inList('code_index_deps_kind_check', 'kind', 
 /** `memory_entries.kind` — REVIEW / FINDING / DECISION / PROJECT. */
 export const memoryKinds = ['REVIEW', 'FINDING', 'DECISION', 'PROJECT'] as const;
 
+/** `memory_entries.status` — ACTIVE / ARCHIVED (day-19 §2.4). */
+export const memoryStatuses = ['ACTIVE', 'ARCHIVED'] as const;
+
 /** `memory_entries.kind`. */
 export const memoryKindCheck = inList('memory_entries_kind_check', 'kind', memoryKinds);
+
+/** `memory_entries.status`. */
+export const memoryStatusCheck = inList('memory_entries_status_check', 'status', memoryStatuses);
