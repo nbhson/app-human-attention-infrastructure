@@ -27,6 +27,8 @@
     "eval:make-dataset": "pnpm --filter @harness/evaluation eval:make-dataset",
     "eval:fit": "pnpm --filter @harness/evaluation eval:fit",
     "calibration:report": "pnpm --filter @harness/api calibration:report",
+    "benchmark:regression": "pnpm --filter @harness/api benchmark:regression",
+    "judge:agreement-report": "pnpm --filter @harness/api judge:agreement-report",
     "embed:populate": "pnpm --filter @harness/embeddings embed:populate",
     "dev": "turbo run dev",
     "prepare": "simple-git-hooks"

@@ -21,7 +21,9 @@
     "demo:writeback-toggle": "tsx scripts/demo-writeback-toggle.ts",
     "demo:writeback": "tsx scripts/demo-writeback.ts",
     "demo:verification": "tsx scripts/demo-verification.ts",
-    "calibration:report": "tsx scripts/calibration-report.ts"
+    "calibration:report": "tsx scripts/calibration-report.ts",
+    "benchmark:regression": "tsx scripts/benchmark-regression.ts",
+    "judge:agreement-report": "tsx scripts/judge-agreement-report.ts"
   },
   "dependencies": {
     "@harness/agent-runtime": "workspace:*",
