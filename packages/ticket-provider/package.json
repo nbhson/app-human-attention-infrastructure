@@ -18,7 +18,8 @@
     "test": "vitest run --root ../.. packages/ticket-provider"
   },
   "dependencies": {
-    "@harness/domain": "workspace:^"
+    "@harness/domain": "workspace:^",
+    "@harness/mcp": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

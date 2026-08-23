@@ -25,6 +25,22 @@ export class JiraProvider implements TicketProvider {
     return mapJiraIssue(this.type, this.baseUrl, payload);
   }
 
+  async postComment(input: FetchIssueInput, body: string): Promise<void> {
+    void input;
+    void body;
+    throw new TicketProviderError(
+      'jira REST write-back is not supported — route through MCPTicketProvider',
+    );
+  }
+
+  async transition(input: FetchIssueInput, targetState: string): Promise<void> {
+    void input;
+    void targetState;
+    throw new TicketProviderError(
+      'jira REST write-back is not supported — route through MCPTicketProvider',
+    );
+  }
+
   private async request(path: string): Promise<unknown> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (this.token.length > 0) {

@@ -143,10 +143,14 @@ describe('dependency rules (Spec 1 §5)', () => {
     );
   });
 
-  it('R14: @harness/ticket-provider depends only on @harness/domain', () => {
-    // Review-reorient Phase 3: the ticket read seam returns a domain `Issue`,
-    // so it needs only the domain value objects — mirroring R13.
-    expect(harnessDependencies('ticket-provider')).toEqual(['@harness/domain']);
+  it('R14: @harness/ticket-provider depends only on @harness/domain and @harness/mcp', () => {
+    // Review-reorient Phase 3: the ticket read seam returns a domain `Issue`
+    // (its only domain need, like every provider seam), and it fronts Jira
+    // through MCP — so it reads the MCP protocol leaf for the
+    // `McpServerRegistry`/`ToolResult` types — mirroring R13.
+    expect(harnessDependencies('ticket-provider').sort()).toEqual(
+      ['@harness/domain', '@harness/mcp'].sort(),
+    );
   });
 });
 
