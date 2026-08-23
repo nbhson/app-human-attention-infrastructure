@@ -17,6 +17,7 @@
     "demo:learning-loop": "tsx scripts/demo-learning-loop.ts",
     "demo:usage-feedback": "tsx scripts/demo-usage-feedback.ts",
     "demo:closed-loop": "tsx scripts/demo-closed-loop.ts",
+    "demo:durable-queue": "tsx scripts/demo-durable-queue.ts",
     "demo:writeback-toggle": "tsx scripts/demo-writeback-toggle.ts",
     "demo:writeback": "tsx scripts/demo-writeback.ts",
     "demo:verification": "tsx scripts/demo-verification.ts",

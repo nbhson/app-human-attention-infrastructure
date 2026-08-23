@@ -190,6 +190,27 @@ entrypoint (or `demo:closed-loop`) drives `runCycle()`, and `GET /api/learning/c
 (`apps/api/src/routes/learning.ts`) renders the last N `learning.loop_completed`
 events from `event_log` for the ops view. See `scripts/demo-closed-loop.ts`.
 
+### Durable queue (Phase 3, day-34) — an optional transport swap, contract frozen
+
+Day-34 adds a **durable `IEventBus`** as an *optional* swap behind the exact same
+`publish`/`subscribe` contract — no event-contract change, so engines that
+consume events never know which transport they are on. `RedisEventsBus`
+(`@harness/event-bus/src/redis-events-bus.ts`) delivers **at-least-once** over a
+structural `StreamTransport` seam (`XADD`/`XREADGROUP`/`XACK` in Redis Streams
+terms; an SQS queue fits too), so `@harness/event-bus` never imports a broker SDK
+and keeps its single-dependency boundary. The in-repo stand-in is
+`InMemoryStreamTransport` (`stream-transport.ts`), used by the demo and tests so
+the repo stays Redis-free (mirroring the "no live keys / compile-tested only"
+hygiene). `transport-resolver.ts` resolves `EVENT_TRANSPORT=inproc|redis|sqs`
+(default `inproc`); `buildEventBus` returns the in-process bus for `inproc` (the
+zero-config path in `bootstrap.ts`) and a `RedisEventsBus` for `redis`/`sqs` only
+when the operator supplies a `StreamTransport` (else it fails fast). Because
+delivery is at-least-once, correctness rides on the idempotent consumers Days
+08/19 already guarantee; a handler that throws leaves its entry pending for
+redelivery, a poison entry is dead-lettered after `maxDeliveryAttempts`, and a
+dropped connection is reported and retried with backoff (never silent). See
+`scripts/demo-durable-queue.ts`.
+
 ### Tracing bootstrap (not a DI token)
 
 Day-03's OpenTelemetry provider is deliberately **not** container-injected: the

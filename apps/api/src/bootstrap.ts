@@ -6,8 +6,8 @@
  * into `event_log`, and finally the engine slots. Engines receive `IEventBus`
  * (never `InProcessEventBus`) so they stay swappable.
  *
- * Rule (day-05 §6): `new InProcessEventBus()` may appear *only* here. Anywhere
- * else that needs the bus must `resolve(TOKENS.EventBus)`.
+ * Rule (day-05 §6): a concrete event bus may be constructed *only* here (via
+ * `buildEventBus`). Anywhere else that needs the bus must `resolve(TOKENS.EventBus)`.
  */
 
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -78,7 +78,7 @@ import {
 } from '@harness/embeddings';
 import type { Embedder } from '@harness/embeddings';
 import { MetricsComputer } from '@harness/evaluation';
-import { InProcessEventBus } from '@harness/event-bus';
+import { buildEventBus, resolveEventTransport } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { MemoryRetriever, MemoryStore } from '@harness/memory';
 import { MemoryLifecycle } from '@harness/memory';
@@ -212,9 +212,14 @@ export function buildContainer(): Container {
 
   c.register(TOKENS.EventBus, (container) => {
     const logger = container.resolve<Logger>(TOKENS.Logger);
-    return new InProcessEventBus((eventType, error) =>
-      logger.error('event-bus handler error', { event_type: eventType, error: String(error) }),
-    );
+    // Day-34: the optional durable transport swap. `EVENT_TRANSPORT=redis|sqs`
+    // requires an operator-supplied StreamTransport adapter — for this repo's
+    // zero-config deploy, `inproc` (the default) keeps the in-memory bus. Engines
+    // resolve `TOKENS.EventBus` (IEventBus), never a concrete transport.
+    return buildEventBus(resolveEventTransport(process.env.EVENT_TRANSPORT), {
+      onHandlerError: (eventType, error) =>
+        logger.error('event-bus handler error', { event_type: eventType, error: String(error) }),
+    });
   });
 
   c.register(TOKENS.Db, () => {
