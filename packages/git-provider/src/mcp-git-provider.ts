@@ -17,7 +17,13 @@ import { McpConfigError } from '@harness/mcp';
 import type { McpClient, McpServerRegistry } from '@harness/mcp';
 
 import { GitProviderError, parseRepoPath } from './git-provider.js';
-import type { FetchPullRequestInput, GitProvider } from './git-provider.js';
+import type {
+  CloneInput,
+  CloneResult,
+  FetchPullRequestInput,
+  GitProvider,
+} from './git-provider.js';
+import { cloneAndCheckout } from './clone.js';
 import { mapMcpGitPullRequest } from './mcp-git-mapper.js';
 import type { GitHost, GitToolMap } from './git-tool-map.js';
 
@@ -68,6 +74,12 @@ export class MCPGitProvider implements GitProvider {
     void state;
     void description;
     throw new GitProviderError('MCP Git write-back (setStatus) is not wired until Day 06');
+  }
+
+  async cloneAndCheckout(input: CloneInput, workdir: string): Promise<CloneResult> {
+    // The clone/checkout is provider-agnostic (git is the same tool on every
+    // host); the head SHA was already resolved into `input` by the fetch path.
+    return cloneAndCheckout(input, workdir);
   }
 
   /** A domain that resolves to a known host but has no config entry is "unknown". */

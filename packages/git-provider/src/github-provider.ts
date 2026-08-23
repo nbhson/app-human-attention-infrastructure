@@ -12,7 +12,13 @@ import { GitProviderType } from '@harness/domain';
 import type { PullRequest } from '@harness/domain';
 
 import { GitProviderError, parseRepoPath } from './git-provider.js';
-import type { FetchPullRequestInput, GitProvider } from './git-provider.js';
+import type {
+  CloneInput,
+  CloneResult,
+  FetchPullRequestInput,
+  GitProvider,
+} from './git-provider.js';
+import { cloneAndCheckout } from './clone.js';
 import { mapGithubPullRequest } from './github-mapper.js';
 import type { GithubPullPayload, GithubPrFilePayload } from './github-mapper.js';
 
@@ -59,6 +65,12 @@ export class GitHubProvider implements GitProvider {
       description,
       context: 'harness/review',
     });
+  }
+
+  async cloneAndCheckout(input: CloneInput, workdir: string): Promise<CloneResult> {
+    // Clone + head-SHA checkout is host-agnostic; auth for private repos is the
+    // caller's concern (the sandbox wiring lands Day 12), not this seam's.
+    return cloneAndCheckout(input, workdir);
   }
 
   private async request(path: string, method: string, body?: unknown): Promise<unknown> {
