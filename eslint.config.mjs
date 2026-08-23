@@ -33,6 +33,7 @@ const elements = [
   { type: 'sandbox', pattern: 'packages/sandbox/**' },
   { type: 'git-provider', pattern: 'packages/git-provider/**' },
   { type: 'ticket-provider', pattern: 'packages/ticket-provider/**' },
+  { type: 'mcp', pattern: 'packages/mcp/**' },
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
@@ -64,16 +65,25 @@ const elementTypesRules = [
     allow: ['sandbox'],
   },
   {
+    from: 'mcp',
+    // The generic MCP client is a protocol leaf: it reads domain types only
+    // (and nothing else in @harness — transport is node built-ins). Anything may
+    // import it, like object-store/sandbox.
+    allow: ['domain', 'mcp'],
+  },
+  {
     from: 'git-provider',
     // The Git-host read seam reads only domain types (the `PullRequest` value
-    // object + provider slug). No db, no event-bus, no sibling engine.
-    allow: ['domain', 'git-provider'],
+    // object + provider slug) and the protocol leaf (`@harness/mcp`) for the
+    // MCP-backed provider (Phase 3). No db, no event-bus, no sibling engine.
+    allow: ['domain', 'mcp', 'git-provider'],
   },
   {
     from: 'ticket-provider',
     // The ticket-system read seam reads only domain types (the `Issue` value
-    // object + provider slug). No db, no event-bus, no sibling engine.
-    allow: ['domain', 'ticket-provider'],
+    // object + provider slug) and the protocol leaf (`@harness/mcp`) for the
+    // MCP-backed provider (Phase 3). No db, no event-bus, no sibling engine.
+    allow: ['domain', 'mcp', 'ticket-provider'],
   },
   { from: 'di', allow: [...SHARED, 'di'] },
   {
@@ -114,6 +124,7 @@ const elementTypesRules = [
       'embeddings',
       'object-store',
       'sandbox',
+      'mcp',
       'git-provider',
       'ticket-provider',
       ...ENGINE_TYPES,
@@ -129,6 +140,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/.turbo/**',
       '**/coverage/**',
+      'packages/mcp/src/__tests__/fixtures/**',
       'sandbox/**',
       'working-repo/**',
       '**/*.config.ts',
