@@ -117,6 +117,28 @@ failure, and the day-13 `flagReport`/`renderFlag` output annotates (never gates)
 the review. The actual sandbox execution legs are unit-covered by `clone-verifier`
 + `sandboxed-check` parity, so the demo runs credential-free (no Docker, no network).
 
+### Retrieval seam (Phase 3) — the held `rank_method` default
+
+The Day-26/27/28 retrieval surface (`Retriever` / `RetrievedDoc` / `RetrieverFactory`)
+is also a **seam, not a DI token**, and it is **build-only**: `RetrieverFactory.resolve
+(rank_method)` returns the keyword / `hybrid` / `rag_fusion` retriever, but the engine's
+hot path — `ContextEngine.resolveContext` above — still calls `KeywordDependencyRanker()`
+directly (`rank_method = 'phase1-keyword-dependency'`, `trim.ts`). So the factory is an
+available, exercised cutover point, not yet the engine's ranking source.
+
+The default is **held at `keyword`** by the Day-29 A/B gate (see
+`docs/retros/phase3-w6-cutover.md`). `DEFAULT_RANK_METHOD = RANK_METHOD_KEYWORD`: over the
+three-fixture replay corpus the hybrid arm reproduced the keyword order exactly
+(`rank_correlation` tau = 1.0, 0% disagreement), so the evidence was **insufficient** and
+the harness answered `keep-shadow` — the default does not flip on a non-result, only on a
+measured WIN (rework down, context acceptance ≥). `hybrid` and `rag_fusion` both remain
+*selectable* per request via an explicit `rank_method`, and flipping the default is a
+one-line change to `retriever-factory.ts` with the A/B report as its audit trail. The
+round-trip — default → `'hybrid'` → kill-switch `'keyword'` → default — is proven by
+`scripts/demo-hybrid-default.ts` (`pnpm demo:hybrid-default`, day-30), which runs the
+real `LexicalRetriever` + `HybridRetriever` (RRF) hermetically: only the embedder's
+cosine ranking is stubbed.
+
 ### Tracing bootstrap (not a DI token)
 
 Day-03's OpenTelemetry provider is deliberately **not** container-injected: the
