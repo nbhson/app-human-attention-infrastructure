@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
     "test": "vitest run",
+    "e2e": "vitest run --config e2e/vitest.config.ts",
     "audit:orphans": "pnpm --filter @harness/db audit:orphans",
     "seed:metrics-checkpoint": "pnpm --filter @harness/api seed:metrics-checkpoint",
     "seed:e2e-fixture": "pnpm --filter @harness/api seed:e2e-fixture",

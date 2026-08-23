@@ -205,15 +205,16 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        // Day-25 E2E driver lives outside `src/` (and outside the api tsconfig);
-        // lint it under a default project so type-aware rules still apply.
+        // The Day-25 E2E driver and the Day-37 E2E specs live outside `src/`
+        // (and outside the api tsconfig); lint them under a default project so
+        // type-aware rules still apply.
         projectService: {
-          allowDefaultProject: ['apps/api/scripts/*.ts'],
-          // The api scripts live outside `src/` and outside the api tsconfig, so
-          // tseslint lints them under the default project. That path caps its
-          // file count at 8 to avoid a slow fallback project; we have 9 scripts
-          // (day-25 added calibration-report.ts), so raise the cap rather than
-          // give scripts a shared throwaway project.
+          allowDefaultProject: ['apps/api/scripts/*.ts', 'e2e/*.ts'],
+          // The api scripts + e2e specs live outside `src/` and outside the api
+          // tsconfig, so tseslint lints them under the default project. That path
+          // caps its file count at 8 to avoid a slow fallback project; we have 9
+          // scripts (day-25 added calibration-report.ts) + 2 e2e specs (day-37),
+          // so raise the cap rather than give them a shared throwaway project.
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20,
         },
         tsconfigRootDir: import.meta.dirname,
