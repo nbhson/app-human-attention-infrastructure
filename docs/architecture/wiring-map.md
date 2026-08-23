@@ -56,6 +56,10 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `WriteBackService` | `MCPWriteBack(McpServerRegistry, StaticGitToolMap, StaticTicketToolMap, DrizzleWritebackLogStore(Db))` | review-reorient (day-06, audit day-08, toggle day-09) | `routes/reviews.ts` (`POST /api/reviews/:id/decision` — the `writebackEnabled` gate decides whether a COMMENT + STATUS / COMMENT + TRANSITION is emitted to the external host) |
 | `ReviewAgent` | `ReviewAgent(LLMProvider)` | review-reorient | `ReviewIngestService` (LLM → structured report + findings + fix suggestions) |
 | `ReviewIngestService` | `ReviewIngestService(db, bus, taskService, gitProvider, ticketProvider, reviewAgent, aiProvider, model, logger)` | review-reorient | `routes/reviews.ts` (`POST /api/reviews`, `GET /api/reviews/:id`) |
+| `MemoryStore` | `MemoryStore(Db, EventBus, Logger)` | review-reorient (day-16) | `MemoryProvider` (the `MemoryRetriever` read path); the `MemoryIngestor` write path is wired by `demo:memory` + unit tests, not yet bound at server boot (see the note below). Sole writer of `memory_entries` — every entry carries ≥1 `memory_entry_evidence` link. |
+| `MemoryProvider` | `MemoryRetriever(MemoryStore, () => new Date(), Logger)` | review-reorient (day-18) | `MemoryContextResolver` via the domain `MemoryProvider` seam (so `@harness/context-engine` reads memory without importing `@harness/memory`) |
+| `MemoryContextResolver` | `MemoryContextResolver(MemoryProvider)` | review-reorient (day-18) | pulls top-K memory and injects it as a `memory` section on a `ContextSnapshot` (`metadata.memory`); not resolved by any route today |
+| `MemoryLifecycle` | `MemoryLifecycle(Db, EventBus, Logger)` | review-reorient (day-19) | not eagerly started — a server entrypoint drives `tick()` (consolidate → decay → archive), directly or via `MemoryLifecycleScheduler` |
 | `ReviewService` | `ReviewService(db, EventBus, {transitionTask, reportAssessmentFeedback, diffChange}, logger)` | Day 22 | `routes/review.ts` (claim/decide/drop + release/escalate); `DiffEngine` is constructed inline to back `diffChange` |
 | `MetricsComputer` | `MetricsComputer()` (stateless, pure — offline) | Day 06 | Day 07 report generator (`EVAL_REPORT_SCHEDULE` cron); the `pnpm eval:metrics` CLI constructs it directly (out-of-band) today |
 | `Orchestrator` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (no longer developed; the dispatch/workflow/retry loop was retired) |
@@ -69,6 +73,19 @@ external write per decision, day-08) and `review_decisions` (the human verdict,
 linked back from `writeback_log.decision_id`, day-09). `WriteBackService` is
 resolved lazily by the decision route — it is **not** in `bootContainer()`'s eager
 list, so a review decision is the only thing that ever reaches an external MCP tool.
+
+The review-memory subsystem (day-16/17/18/19) is registered lazily — none of its
+four tokens is in `bootContainer()`'s eager list. The **read** half (`MemoryProvider`
+→ `MemoryContextResolver`) is fully wired for the container: any future consumer
+resolves `TOKENS.MemoryContextResolver` and injects top-K memory into a snapshot.
+The **write** half (`MemoryIngestor` → `MemoryDistiller` → `MemoryStore`) is *not*
+bound at server boot today — its two `subscribe()` registrations (on
+`review.report_created` / `review.decision_submitted`) are exercised by
+`scripts/demo-memory.ts` (`pnpm demo:memory`) and the `@harness/memory` unit suite,
+which construct `new MemoryIngestor(db, bus, store).subscribe()` directly. Binding
+that subscription into `bootContainer()` is a later integration step, not a gap in
+the memory domain itself — the `memory.entry_created` event is already emitted so
+the bus can fan in the moment the ingestor is subscribed.
 
 The three `ENGINE_STUB_TOKENS` (`Orchestrator`, `AgentRuntime`, `AttentionEngine`) are the
 Day-05 placeholder names. `Orchestrator` and `AgentRuntime`'s code-generation concretions
@@ -203,9 +220,13 @@ The review slice (`ReviewIngestService` / `ReviewAgent` / `GitProvider` /
 36. `WriteBackService` — needs `McpServerRegistry`, `Db`, the git/ticket tool maps (day-06).
 37. `ReviewAgent` — needs `LLMProvider`.
 38. `ReviewIngestService` — needs `Db`, `EventBus`, `TaskService`, `GitProvider`, `TicketProvider`, `ReviewAgent`, `aiProvider`, `model`, `Logger`.
-39. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
-40. `MetricsComputer` — no deps.
-41. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
+39. `MemoryStore` — needs `Db`, `EventBus`, `Logger` (sole writer of `memory_entries`).
+40. `MemoryProvider` — needs `MemoryStore`, a clock, `Logger` (resolves to `MemoryRetriever`).
+41. `MemoryContextResolver` — needs `MemoryProvider`.
+42. `MemoryLifecycle` — needs `Db`, `EventBus`, `Logger` (registered, not started).
+43. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
+44. `MetricsComputer` — no deps.
+45. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 
