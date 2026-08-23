@@ -14,6 +14,10 @@
  * - `freshness` — `checkFreshness` + `sha256` (day-21).
  * - `render`    — `renderContextPrompt` structured prompt (day-21).
  * - `retrieval` — semantic retriever/ranker + shadow rank-comparison (day-18).
+ * - `retrieval/retriever`      — the `Retriever` seam + `RetrievedDoc` (day-26).
+ * - `retrieval/rrf`            — `reciprocalRankFusion` (k=60, day-26).
+ * - `retrieval/hybrid-retriever` — lexical + semantic fused (day-26).
+ * - `retrieval/retriever-factory` — `rank_method` → retriever resolver (day-26).
  * - `memory-resolver` — inject top-K review memory into a snapshot (day-18).
  */
 
@@ -32,4 +36,10 @@ export * from './cache/cache-invalidating-listener.js';
 export * from './retrieval/semantic-retriever.js';
 export * from './retrieval/semantic-ranker.js';
 export * from './retrieval/shadow.js';
+export * from './retrieval/retriever.js';
+export * from './retrieval/rrf.js';
+export * from './retrieval/lexical-retriever.js';
+export * from './retrieval/semantic-doc-retriever.js';
+export * from './retrieval/hybrid-retriever.js';
+export * from './retrieval/retriever-factory.js';
 export * from './memory-resolver.js';
