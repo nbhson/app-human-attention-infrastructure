@@ -178,6 +178,16 @@ describe('dependency rules (Spec 1 §5)', () => {
       ['@harness/domain', '@harness/db', '@harness/event-bus', '@harness/di'].sort(),
     );
   });
+  it('R17: @harness/benchmark depends only on domain, db, judge', () => {
+    // Review-reorient Phase 3 day-24: the read-only evaluator reads domain value
+    // types + the `Judge` seam, and persists its gold-labelled corpus through db
+    // (the `review_examples` table). It never reaches for di/observability, and
+    // never a sibling engine — the judge runs through the scorer seam, not by
+    // importing review/attention/context.
+    expect(harnessDependencies('benchmark').sort()).toEqual(
+      ['@harness/domain', '@harness/db', '@harness/judge'].sort(),
+    );
+  });
 });
 
 /**

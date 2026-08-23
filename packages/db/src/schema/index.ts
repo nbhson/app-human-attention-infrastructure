@@ -46,3 +46,4 @@ export * from './writeback-log.js';
 export * from './code-index.js';
 export * from './memory.js';
 export * from './judge.js';
+export * from './benchmark.js';

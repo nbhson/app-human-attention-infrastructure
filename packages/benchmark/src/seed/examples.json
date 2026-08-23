@@ -1,0 +1,106 @@
+[
+  {
+    "id": "seed-001",
+    "source": "phase2-review-redacted-001",
+    "prDiff": "diff --git a/src/service.ts b/src/service.ts\n@@ -40,3 +40,3 @@\n-  const value = input.payload;\n+  const value = input.payload;\n+  // TODO: guard null before dereference\n",
+    "requirement": "Add a guard so a missing payload cannot crash the request path.",
+    "report": {
+      "verdict": "REQUEST_CHANGES",
+      "summary": "Adds the payload path; the dereference still needs a null guard.",
+      "findings": [
+        {
+          "severity": "CRITICAL",
+          "file": "src/service.ts",
+          "line": 41,
+          "message": "Missing null check on the payload before dereferencing.",
+          "suggestion": "Guard against a null payload before use."
+        }
+      ]
+    },
+    "gold": { "severity": 0.9, "routing": 0.8, "useful": true }
+  },
+  {
+    "id": "seed-002",
+    "source": "phase2-review-redacted-002",
+    "prDiff": "diff --git a/src/auth.ts b/src/auth.ts\n@@ -12,2 +12,3 @@\n   if (!token) return;\n+  // session refresh omitted\n",
+    "requirement": "Extend the session expiry to refresh on activity.",
+    "report": {
+      "verdict": "COMMENT",
+      "summary": "Formatting looks fine; no functional issues noted.",
+      "findings": [
+        { "severity": "NIT", "file": "src/auth.ts", "message": "Nit: add a trailing newline." }
+      ]
+    },
+    "gold": { "severity": 0.3, "routing": 0.2, "useful": false }
+  },
+  {
+    "id": "seed-003",
+    "source": "phase2-review-redacted-003",
+    "prDiff": "diff --git a/docs/README.md b/docs/README.md\n@@ -1 +1 @@\n-old\n+new\n",
+    "requirement": "Fix a documentation typo in the README.",
+    "report": {
+      "verdict": "APPROVE",
+      "summary": "The typo is fixed and the surrounding doc is unchanged.",
+      "findings": []
+    },
+    "gold": { "severity": 1.0, "routing": 1.0, "useful": true }
+  },
+  {
+    "id": "seed-004",
+    "source": "phase2-review-redacted-004",
+    "prDiff": "diff --git a/src/format.ts b/src/format.ts\n@@ -1,3 +1,3 @@\n-  return value.trim();\n+  return value.trim().toLowerCase();\n",
+    "requirement": "Normalize user display names to lowercase.",
+    "report": {
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The change could corrupt mixed-case names; reject.",
+      "findings": [
+        {
+          "severity": "CRITICAL",
+          "file": "src/format.ts",
+          "line": 3,
+          "message": "Lowercasing a display name is a data-integrity emergency."
+        }
+      ]
+    },
+    "gold": { "severity": 0.1, "routing": 0.4, "useful": false }
+  },
+  {
+    "id": "seed-005",
+    "source": "phase2-review-redacted-005",
+    "prDiff": "diff --git a/src/queue.ts b/src/queue.ts\n@@ -20,3 +20,3 @@\n-  job.run();\n+  await job.run();\n",
+    "requirement": "Ensure queued jobs are awaited before the worker exits.",
+    "report": {
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The await is the correct fix; also recommend a timeout guard.",
+      "findings": [
+        {
+          "severity": "MAJOR",
+          "file": "src/queue.ts",
+          "line": 21,
+          "message": "Job is now awaited, but there is no timeout bound.",
+          "suggestion": "Wrap the await in a timeout."
+        }
+      ]
+    },
+    "gold": { "severity": 0.8, "routing": 0.9, "useful": true }
+  },
+  {
+    "id": "seed-006",
+    "source": "phase2-review-redacted-006",
+    "prDiff": "diff --git a/src/parse.ts b/src/parse.ts\n@@ -5,4 +5,4 @@\n-  if (line.length === 0) return;\n+  if (!line) return;\n",
+    "requirement": "Throw a clear error when a required config line is empty.",
+    "report": {
+      "verdict": "COMMENT",
+      "summary": "The guard is a minor cleanup but does not raise an error as required.",
+      "findings": [
+        {
+          "severity": "MAJOR",
+          "file": "src/parse.ts",
+          "line": 6,
+          "message": "Empty lines are now silently skipped instead of raising the required error."
+        }
+      ]
+    },
+    "gold": { "severity": 0.85, "routing": 0.15, "useful": false }
+  }
+]

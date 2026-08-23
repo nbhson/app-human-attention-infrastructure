@@ -39,6 +39,7 @@ const elements = [
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'memory', pattern: 'packages/memory/**' },
   { type: 'judge', pattern: 'packages/judge/**' },
+  { type: 'benchmark', pattern: 'packages/benchmark/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
   { type: 'evaluation', pattern: 'packages/evaluation/**' },
@@ -132,6 +133,13 @@ const elementTypesRules = [
     // it never imports a sibling engine (its LLM is the domain seam, not
     // `agent-runtime`).
     allow: ['domain', 'di', 'judge'],
+  },
+  {
+    from: 'benchmark',
+    // The read-only evaluator (day-24 §2.3): reads domain value types, persists
+    // via db (the review_examples table), and runs the judge through its seam.
+    // Never a sibling engine (attention/context) or the review package.
+    allow: ['domain', 'db', 'judge', 'benchmark'],
   },
   { from: 'auth', allow: [...SHARED, 'auth'] },
   {
