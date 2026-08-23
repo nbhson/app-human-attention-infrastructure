@@ -48,3 +48,13 @@ export type {
   RankWeights,
   VariantConfig,
 } from './harness/variant.js';
+
+// Review-quality calibration (days 23–25): pure weight fitting, the judge-signal
+// dataset/refit, and the Week-5 checkpoint decision — exported so the app host
+// (the only layer allowed to import both judge + benchmark + evaluation) can wire
+// the end-to-end calibration report across package boundaries.
+export * from './calibration/extractor.js';
+export * from './calibration/weight-fitter.js';
+export * from './calibration/judge-dataset.js';
+export * from './calibration/judge-fit-report.js';
+export * from './calibration/calibration-report.js';

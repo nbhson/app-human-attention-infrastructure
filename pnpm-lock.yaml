@@ -59,6 +59,9 @@ importers:
       '@harness/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@harness/benchmark':
+        specifier: workspace:*
+        version: link:../../packages/benchmark
       '@harness/code-index':
         specifier: workspace:*
         version: link:../../packages/code-index
