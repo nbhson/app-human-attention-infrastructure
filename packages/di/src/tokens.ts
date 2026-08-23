@@ -53,6 +53,8 @@ export const TOKENS = {
   TicketProvider: 'TicketProvider',
   // Review-reorient Phase 3: the MCP connection layer (day-02).
   McpServerRegistry: 'McpServerRegistry',
+  // Review-reorient Phase 3: the write-back seam (day-06).
+  WriteBackService: 'WriteBackService',
 } as const;
 
 /** The string union of every known token. */

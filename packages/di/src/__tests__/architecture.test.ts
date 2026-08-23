@@ -152,6 +152,22 @@ describe('dependency rules (Spec 1 §5)', () => {
       ['@harness/domain', '@harness/mcp'].sort(),
     );
   });
+
+  it('R15: @harness/writeback depends only on domain, mcp, git-provider, ticket-provider', () => {
+    // Review-reorient Phase 3 day-06: the write-back seam reads the intent/result
+    // contract (domain), rides the protocol leaf (mcp), and re-uses the two
+    // provider seams' capability→tool-name tables (git-provider + ticket-provider)
+    // so write + read stay on one transport. It needs no db (audit lands later),
+    // no event-bus, no sibling engine.
+    expect(harnessDependencies('writeback').sort()).toEqual(
+      [
+        '@harness/domain',
+        '@harness/git-provider',
+        '@harness/mcp',
+        '@harness/ticket-provider',
+      ].sort(),
+    );
+  });
 });
 
 /**

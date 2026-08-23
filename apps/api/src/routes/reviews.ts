@@ -15,11 +15,18 @@ import { asc, eq } from 'drizzle-orm';
 
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
+import { newWritebackID, WritebackAction } from '@harness/domain';
 import type { ReviewReportID } from '@harness/domain';
 import { fixSuggestions, reviewFindings, reviewReports } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
+import { parseRepoPath, StaticGitToolMap } from '@harness/git-provider';
+import { WriteBackError } from '@harness/writeback';
+import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
+
+/** The per-host tool map, reused to resolve a report's repo slug to a write-back host. */
+const GIT_TOOL_MAP = new StaticGitToolMap();
 
 interface CreateReviewBody {
   readonly prUrl?: string;
@@ -29,6 +36,10 @@ interface CreateReviewBody {
 interface DecideBody {
   readonly decision?: string;
   readonly rationale?: string;
+  /** When true, write a review comment back to the PR (behind the write-back toggle). */
+  readonly writeback?: boolean;
+  /** Optional comment text for the write-back; defaults to a decision summary. */
+  readonly comment?: string;
 }
 
 const DECISIONS = new Set(['APPROVE', 'REQUEST_CHANGES', 'REJECT']);
@@ -128,13 +139,46 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         .from(reviewReports)
         .where(eq(reviewReports.id, id))
         .limit(1);
-      if (!reportRows[0]) {
+      const report = reportRows[0];
+      if (!report) {
         return reply.code(404).send({ error: 'review report not found' });
       }
 
-      // The human decision is acknowledged here. Persisting it (a decisions-analog
-      // for review reports) and the optional PR/Jira write-back land in Phase 3.
-      return { reportId: id, decision };
+      // The human decision is acknowledged here (its persistence is a later day).
+      // When the optional write-back flag is set, a COMMENT intent is posted to the
+      // PR through the WriteBackService seam — behind the `WRITEBACK_*` env toggle,
+      // so nothing external happens unless armed. Day 09 promotes this to a
+      // per-review decision toggle.
+      if (request.body?.writeback !== true) {
+        return { reportId: id, decision };
+      }
+
+      const { host } = parseRepoPath(report.repo);
+      const provider = GIT_TOOL_MAP.resolveHost(host);
+      if (provider === undefined) {
+        return reply.code(422).send({ error: `write-back unsupported for repo host "${host}"` });
+      }
+
+      const writeback = container.resolve<WriteBackService>(TOKENS.WriteBackService);
+      const comment = request.body.comment?.trim();
+      const intent = {
+        id: newWritebackID(),
+        provider,
+        externalId: String(report.pr_number),
+        action: WritebackAction.Comment,
+        body: comment && comment.length > 0 ? comment : `Review decision: ${decision}`,
+        repo: report.repo,
+      };
+
+      try {
+        const result = await writeback.write(intent);
+        return { reportId: id, decision, writeback: result };
+      } catch (error) {
+        if (error instanceof WriteBackError) {
+          return reply.code(422).send({ error: error.message });
+        }
+        throw error;
+      }
     },
   );
 }

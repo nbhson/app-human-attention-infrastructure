@@ -91,12 +91,14 @@ import {
   VerificationEngine,
 } from '@harness/verification-engine';
 
-import { GitHubProvider } from '@harness/git-provider';
+import { GitHubProvider, StaticGitToolMap } from '@harness/git-provider';
 import type { GitProvider } from '@harness/git-provider';
 import { loadMcpConfig, McpServerRegistryImpl } from '@harness/mcp';
 import type { McpServerRegistry } from '@harness/mcp';
-import { JiraProvider } from '@harness/ticket-provider';
+import { JiraProvider, StaticTicketToolMap } from '@harness/ticket-provider';
 import type { TicketProvider } from '@harness/ticket-provider';
+import { MCPWriteBack } from '@harness/writeback';
+import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestService } from './services/review-ingest.js';
 
@@ -603,6 +605,18 @@ export function buildContainer(): Container {
   c.register(TOKENS.McpServerRegistry, (): McpServerRegistry => {
     const path = process.env.MCP_CONFIG_PATH ?? './mcp.config.json';
     return new McpServerRegistryImpl(loadMcpConfig(path, process.env));
+  });
+
+  // Review-reorient Phase 3 (day-06): the write-back seam. One entry point for
+  // commentary/status write-back, backed by the same MCP transport Week 1
+  // connected — no second REST channel. The `enabled` guard defaults to the
+  // `WRITEBACK_*` env toggle (off), so nothing external is written unless armed.
+  c.register(TOKENS.WriteBackService, (container): WriteBackService => {
+    return new MCPWriteBack(
+      container.resolve<McpServerRegistry>(TOKENS.McpServerRegistry),
+      new StaticGitToolMap(),
+      new StaticTicketToolMap(),
+    );
   });
 
   c.register(TOKENS.ReviewAgent, (container) => {

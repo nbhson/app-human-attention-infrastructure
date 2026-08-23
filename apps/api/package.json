@@ -34,6 +34,7 @@
     "@harness/sandbox": "workspace:*",
     "@harness/ticket-provider": "workspace:*",
     "@harness/verification-engine": "workspace:*",
+    "@harness/writeback": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.1.0"
   },

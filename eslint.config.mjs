@@ -33,6 +33,7 @@ const elements = [
   { type: 'sandbox', pattern: 'packages/sandbox/**' },
   { type: 'git-provider', pattern: 'packages/git-provider/**' },
   { type: 'ticket-provider', pattern: 'packages/ticket-provider/**' },
+  { type: 'writeback', pattern: 'packages/writeback/**' },
   { type: 'mcp', pattern: 'packages/mcp/**' },
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
@@ -85,6 +86,14 @@ const elementTypesRules = [
     // MCP-backed provider (Phase 3). No db, no event-bus, no sibling engine.
     allow: ['domain', 'mcp', 'ticket-provider'],
   },
+  {
+    from: 'writeback',
+    // The write-back seam reads the intent/result contract (domain), the
+    // protocol leaf (mcp), and the two provider seams' capability→tool-name
+    // tables (git-provider + ticket-provider) — never a db, event-bus, engine,
+    // or host REST adapter.
+    allow: ['domain', 'mcp', 'git-provider', 'ticket-provider', 'writeback'],
+  },
   { from: 'di', allow: [...SHARED, 'di'] },
   {
     from: 'embeddings',
@@ -127,6 +136,7 @@ const elementTypesRules = [
       'mcp',
       'git-provider',
       'ticket-provider',
+      'writeback',
       ...ENGINE_TYPES,
       'app',
     ],
