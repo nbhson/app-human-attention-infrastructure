@@ -2,7 +2,7 @@
 
 **Version:** v0.1
 **Created:** 2026-08-19
-**Specs:** `docs/core/1..7, 9, 11` (updated v0.1, reviewed — see `docs/summary/core_docs_review.md`). Spec 9 = Memory/Evidence (evidence store in Phase 1); Spec 11 = Evaluation Engine (Phase 2+).
+**Specs:** `docs/core/1..7, 9, 11` (updated v0.1, reviewed). Spec 9 = Memory/Evidence (evidence store in Phase 1); Spec 11 = Evaluation Engine (Phase 2+).
 
 ---
 

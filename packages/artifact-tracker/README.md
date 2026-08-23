@@ -1,164 +1,123 @@
-# @harness/artifact-tracker — Artifact / Change Tracker
+# @harness/artifact-tracker — Artifact Capture, Diff & Provenance
 
-## Hiểu nhanh
+Tracks what the agent changed: snapshots on seen artifacts, diffs between
+versions, and the provenance chain that proves which task produced which change.
 
-**Nhiệm vụ:** "người ghi chép" — theo dõi mọi file (artifact) AI tạo ra, kèm hash, snapshot và diff.
-
-Nói nôm na: mỗi lần AI sửa file, gói này chụp "trước/sau" và ghi nhận ai tạo, tạo gì, khác gì. Nó là bằng chứng cho câu hỏi "AI đã đổi những gì?".
-
----
-
-## Trạng thái hiện tại
-
-**Đã implement (Day 13–14):**
-
-- `src/capture/artifact-capture-subscriber.ts` — nghe `artifact.created`, forward sang tracker.
-- `src/snapshot-store.ts` — `SnapshotStore`: snapshot content-addressed, dedup theo SHA-256.
-- `src/artifact-tracker.ts` — `ArtifactTracker.capture`: transaction get-or-create artifact → change (PENDING) → snapshot.
-- `src/change-status-subscriber.ts` — writer duy nhất của `changes.status` (PENDING → VERIFIED → REVIEWED, any → ROLLED_BACK).
-
-Chưa có: diff engine (Day 17), provenance chain assembly (Day 17+).
+**Status:** Phase 1 complete (as-built) ·
+**Boundary rule:** engine — imports only shared packages; **sole writer** of `changes.status`.
 
 ---
 
-## Mục đích
+## Purpose
 
-Tracking mọi artifact generated bởi AI agent — maintained provenance, content-addressed snapshots, event-driven status transitions.
+1. **Capture** a snapshot whenever an artifact is created or changed.
+2. **Diff** the new version against the previous one.
+3. **Record provenance** — which task, agent run, and model produced the change.
+4. **Own `changes.status`** — the single writer, so readers see a consistent transition.
 
 ---
 
-## Công việc cần làm
+## Flow
 
-### Day 13 — Capture stub
-
-```typescript
-// src/artifact-capture-subscriber.ts
-export class ArtifactCaptureSubscriber {
-  constructor(private db: Db, private bus: IEventBus) {
-    // Listen for tool calls that write files
-    this.bus.subscribe('tool.write_file', async (event) => {
-      const { taskId, agentRunId, filePath, content } = event.payload;
-      await this.capture(taskId, agentRunId, filePath, content);
-    });
-  }
-
-  async capture(taskId: TaskID, agentRunId: AgentRunID, filePath: string, content: string): Promise<void> {
-    const artifactId = newArtifactID();
-    const hash = sha256(content);
-    await this.db.insert(artifacts).values({
-      id: artifactId,
-      task_id: taskId,
-      agent_run_id: agentRunId,
-      file_path: filePath,
-      content_hash: hash,
-      status: 'PENDING',
-      created_at: new Date(),
-    });
-  }
-}
-```
-
-### Day 14 — Full tracker + content-addressed snapshots
-
-```typescript
-// src/snapshot-store.ts
-export class SnapshotStore {
-  async save(content: string): Promise<{ snapshotId: string; deduped: boolean }> {
-    const hash = sha256(content);
-    // snapshots.id = sha256 hash → INSERT ... ON CONFLICT DO NOTHING = free dedup
-    const res = await this.db.insert(snapshots)
-      .values({ id: hash, content })
-      .onConflictDoNothing()
-      .returning('id');
-    return { snapshotId: hash, deduped: res.length === 0 };
-  }
-}
-```
-
-### Day 14 — Diff engine
-
-```typescript
-// src/diff-engine.ts
-import { structuredPatch } from 'diff'; // npm package
-
-export class DiffEngine {
-  async computeDiff(filePath: string, before: string, after: string): Promise<FileDiff> {
-    const patch = structuredPatch(filePath, before ?? '', after, '', '', { context: 3 });
-    return {
-      path: filePath,
-      diff: patchToString(patch),
-      linesAdded: patch.hunks.reduce((sum, h) => sum + h.added, 0),
-      linesRemoved: patch.hunks.reduce((sum, h) => sum + h.removed, 0),
-    };
-  }
-}
-```
-
-### Day 14 — Event-driven Change.status
-
-```typescript
-// src/change-status-subscriber.ts
-export class ChangeStatusSubscriber {
-  constructor(private db: Db, private bus: IEventBus) {
-    // verification.completed → PENDING → VERIFIED
-    this.bus.subscribe('verification.completed', async (event) => {
-      if (event.payload.result === 'PASSED') {
-        await this.db.update(changes)
-          .set({ status: 'VERIFIED', updated_at: new Date() })
-          .where(eq(changes.id, event.payload.changeId));
-      }
-    });
-
-    // review.decision_submitted → VERIFIED → REVIEWED
-    this.bus.subscribe('review.decision_submitted', async (event) => {
-      await this.db.update(changes)
-        .set({ status: 'REVIEWED', updated_at: new Date() })
-        .where(eq(changes.changeId, event.payload.changeId));
-    });
-  }
-}
-```
-
-### Day 17 — Evidence linking
-
-```typescript
-// Link verification results to artifacts
-// Table: evidence_links (evidence_id, artifact_id, change_id)
+```text
+        artifact.created / artifact.changed  (from agent-runtime)
+                            │
+                            ▼
+        ┌─────────────────────────────────────────┐
+        │   artifact-capture-subscriber            │
+        │   (listens, then captures)               │
+        └──────────────────┬──────────────────────┘
+                           ▼
+        ┌─────────────────────────────────────────┐
+        │   artifact-tracker.capture()             │
+        │   1. snapshot-store: store snapshot      │
+        │   2. diff-engine: diff vs previous        │
+        │   3. provenance: task → run → change      │
+        └──────────────────┬──────────────────────┘
+                           ▼
+        ┌─────────────────────────────────────────┐
+        │   change-status-subscriber               │
+        │   (sole writer of changes.status)        │
+        └─────────────────────────────────────────┘
 ```
 
 ---
 
-## Dependency rule
+## Provenance
 
-```
-packages/artifact-tracker → import @harness/domain, @harness/event-bus, @harness/db
-                          → KHÔNG import các engine packages khác
+Every diff carries its provenance, closing the loop from "what changed" to
+"who/why":
+
+```text
+Change
+├── Task        (which task)
+├── Agent run   (which execution)
+├── Model       (which model)
+├── Files       (which paths)
+├── Diff        (what changed)
+└── Snapshot    (content-addressed before/after)
 ```
 
 ---
 
-## Key design
+## Modules
 
-- **Content-addressed dedup**: `snapshots.id = sha256(content)` — INSERT ... ON CONFLICT DO NOTHING
-- **Provenance is never deleted**: metadata rows (changes, artifacts, links, hashes) là append-only
-- **Event-driven status**: Change.status changes ONLY qua events, không qua direct API mutation
-- **Tracker vs Git boundary**: Tracker = source of truth BEFORE commit; Git = source of truth AFTER merge
+| Module | What it provides |
+| --- | --- |
+| `artifact-tracker.ts` | `capture()` — snapshot + diff + provenance on change. |
+| `snapshot-store.ts` | Content-addressed artifact snapshots. |
+| `diff-engine.ts` | Diff computation (the `FileDiff` shape). |
+| `provenance.ts` | The task → run → change provenance chain. |
+| `change-status-subscriber.ts` | Sole writer of `changes.status`. |
+| `capture/artifact-capture-subscriber.ts` | Listens for artifact events and captures. |
 
 ---
 
-## Files cần tạo
+## Interaction with other packages
+
+```text
+    agent-runtime ──(artifact.created/changed)──▶ artifact-tracker
+    artifact-tracker ──(change.recorded)────────▶ context-engine, embeddings (consume)
+```
+
+Single-writer rule: no other package mutates `changes.status`. The tracker
+publishes for downstream consumers; it never imports an engine.
+
+---
+
+## Key invariants
+
+- **Single-writer.** `changes.status` has exactly one writer — no concurrent
+  partial write is observable.
+- **Content-addressed snapshots.** Identical content dedupes; a snapshot is an
+  address, not a mutable blob.
+- **Provenance-backed diffs.** Every computed diff references the task and run
+  that produced it.
+
+---
+
+## Directory structure
 
 ```
 src/
 ├── index.ts
-├── artifact-tracker.ts            # Capture service (transactional)
-├── snapshot-store.ts              # Content-addressed storage
-├── change-status-subscriber.ts    # Sole writer of changes.status
-├── capture/
-│   └── artifact-capture-subscriber.ts
-└── __tests__/
-    ├── artifact-tracker.test.ts
-    ├── snapshot-store.test.ts
-    ├── change-status-subscriber.test.ts
-    └── no-delete.test.ts
+├── artifact-tracker.ts
+├── snapshot-store.ts
+├── diff-engine.ts
+├── provenance.ts
+├── change-status-subscriber.ts
+└── capture/artifact-capture-subscriber.ts
 ```
+
+## Public API surface
+
+```typescript
+// ArtifactTracker (capture), SnapshotStore, DiffEngine (FileDiff),
+// Provenance, ChangeStatusSubscriber, ArtifactCaptureSubscriber
+// domain re-exports: Artifact, Change, ArtifactSnapshot, FileChange, etc.
+```
+
+## Wiring
+
+Registered in `apps/api/src/bootstrap.ts`; the capture subscriber is wired to the
+`@harness/event-bus`.

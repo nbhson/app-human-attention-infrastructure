@@ -74,7 +74,7 @@ Structure — blameless, numbers-first:
 4. **Spec quality review** — which v0.1 specs needed the most v0.2 reconciliation? That's a signal about where upfront design helps vs. where it guesses.
 5. **Attention-economics sanity check** — did the harness's own build process validate the thesis? (You reviewed its outputs constantly; note where review effort actually went vs. where the Attention Engine would have predicted.)
 
-### 2.3 Phase 2 backlog (`docs/plan/phase-2-backlog.md`)
+### 2.3 Phase 2 backlog (`docs/plan/phase-2-backlog.md`, superseded by `docs/plan/phase-3/backlog.md`)
 
 Prioritized by **trust-leverage** (does it make human attention better spent?), not by coolness. Each item: one paragraph + rough size (S/M/L) + what Phase-1 evidence motivates it.
 
@@ -121,7 +121,7 @@ Tag message body lists: spec versions (all v0.2), migration count, test count, l
 - [ ] 30-min team discussion; amend the doc with dissent where it exists (don't launder disagreement into consensus)
 
 ### 3.4 Backlog + release (2h)
-- [ ] Write `docs/plan/phase-2-backlog.md` per §2.3; file P0/P1 items as tickets
+- [ ] Write `docs/plan/phase-2-backlog.md` per §2.3 (superseded → `docs/plan/phase-3/backlog.md`); file P0/P1 items as tickets
 - [ ] Tag `v0.1.0-harness`; update root README status badge/section
 - [ ] Final green run: `pnpm test && pnpm lint && pnpm e2e && pnpm load:smoke`
 
@@ -133,7 +133,7 @@ Tag message body lists: spec versions (all v0.2), migration count, test count, l
 | --- | --- |
 | Demo recording | Rehearsal recording + live session notes |
 | `docs/retro/phase-1.md` | Plan-vs-actual, scoreboard, keep/change, spec-quality review |
-| `docs/plan/phase-2-backlog.md` | Prioritized P0–P3 backlog with sizes and motivations |
+| `docs/plan/phase-3/backlog.md` | Prioritized P0–P3 backlog with sizes and motivations (superseded `phase-2-backlog.md`) |
 | `v0.1.0-harness` git tag | Phase-1 release anchor |
 | Updated root README | Status: Phase 1 complete |
 

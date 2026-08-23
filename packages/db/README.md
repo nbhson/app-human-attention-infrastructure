@@ -1,122 +1,142 @@
 # @harness/db — Database Layer
 
-## Hiểu nhanh
+PostgreSQL access for the whole system: the schema (36 tables), migrations,
+seeding, and the data-access surface every package reads/writes through.
 
-**Nhiệm vụ:** "kho lưu trữ" — PostgreSQL schema (12 bảng), migration, và lớp truy cập dữ liệu để mọi package đọc/ghi.
-
-Nói nôm na: đây là tủ hồ sơ của cả hệ thống. Mọi thứ ghi vào đây để không mất và truy vết được về sau. Riêng bảng `event_log` là **append-only** — nguồn sự thật về "*chuyện gì đã xảy ra*"; các bảng còn lại chỉ là "ảnh chụp hiện trạng" có thể dựng lại bằng cách replay `event_log`.
-
----
-
-## Trạng thái hiện tại
-
-**Đã triển khai (Day 04).** Schema đầy đủ 12 bảng, migration đầu tiên đã sinh & áp dụng, seed data, `createDb`, và `EventLogWriter`.
+**Status:** Phase 1 + Phase 2 complete (as-built) ·
+**Boundary rule:** imports only `@harness/domain` + `@harness/event-bus`; never an engine.
 
 ---
 
-## Mục đích
+## Purpose
 
-Trừu tượng hoá PostgreSQL storage qua **Drizzle ORM** (driver `postgres.js`). Cung cấp schema definitions, migration runner, and a repository/migration surface cho các package phía trên.
+1. **Abstract PostgreSQL** behind Drizzle ORM (driver `postgres.js`).
+2. **Hold the schema** — 36 tables, each owned by exactly one package's logic.
+3. **Keep `event_log` append-only** — the source of truth for *what happened*.
+4. **Expose data access** — `createDb`, `asReadonlyDb`, `AbStore`, `EventLogWriter`, audit helpers.
 
 ---
 
-## Cài đặt & chạy (local)
+## The append-only model
+
+One table — `event_log` — is **append-only** (no UPDATE/DELETE): it is the
+source of truth for "*what actually happened*". Every other table is a
+current-state snapshot that can be rebuilt by replaying `event_log`.
+
+```text
+                       ┌─────────────────────────────┐
+                       │         event_log          │  append-only
+                       │  (correlation_id, event_type, occurred_at)│
+                       └─────────────────────────────┘
+                                     │ replay
+                                     ▼
+                       ┌─────────────────────────────┐
+                       │  tasks, changes, decisions … │  current-state
+                       │  (rebuildable projections)  │  (mutable snapshots)
+                       └─────────────────────────────┘
+```
+
+---
+
+## Schema — 36 tables, grouped by owning domain
+
+| Domain | Tables |
+| --- | --- |
+| **Orchestrator** | `projects`, `tasks`, `task-state-history`, `task-step-log`, `dispatch-log`, `retry-log` |
+| **Agent runtime** | `agent-runs`, `trajectory-steps`, `llm-call-log`, `code-mode-sessions` |
+| **Artifact tracker** | `artifacts`, `changes`, `snapshots` |
+| **Context engine** | `contexts`, `context-source-cache`, `context-source-embeddings`, `shadow-rank-comparisons` |
+| **Verification** | `verification-requests`, `verification-results`, `verification-check-results`, `verification-test-results`, `verification-reports` |
+| **Attention** | `assessments`, `assessment-feedback`, `attention-thresholds`, `calibration`, `auto-approve-kill-switch` |
+| **Review** | `review-queue`, `decisions` |
+| **Evidence / memory** | `evidence`, `event-log` |
+| **Identity** | `users`, `sessions` |
+| **Observability** | `trace-correlation` |
+| **Evaluation** | `evaluation-reports`, `ab-harness` |
+
+---
+
+## Schema design rules
+
+- **Primary key**: `text` (a UUIDv7 string from domain) — never `serial int`.
+- **Status/type columns**: `text` + **CHECK constraint** (readable in raw SQL),
+  enumerated in `schema/enums.ts` and kept in lockstep with `@harness/domain` by
+  the drift test `enums.test.ts`.
+- **Timestamps**: `timestamptz` (UTC). **JSON**: `jsonb`.
+- **`event_log`**: append-only, indexed on `correlation_id`, `event_type`, `occurred_at`.
+
+---
+
+## Data-access surface
+
+| Component | What it provides |
+| --- | --- |
+| `client.ts` | `createDb(connectionString)` → `DrizzleDB`. |
+| `readonly-db.ts` | `asReadonlyDb` / `ReadonlyDb` — read-only view for consumers. |
+| `event-log-writer.ts` | Subscribes every `EventType` to the bus and writes it to `event_log`; duplicate `event_id` is a no-op via `onConflictDoNothing()`. |
+| `ab-store.ts` | `AbStore` — A/B experiment storage. |
+| `audit-orphans.ts` | Orphaned-state audit queries. |
+| `faults.ts` | Fault-injection helpers. |
+| `migrate.ts` / `seed.ts` | Migration runner / dev seed. |
+
+---
+
+## Local setup
 
 ```bash
-docker compose up -d postgres        # Postgres 16 healthy
+docker compose up -d postgres
 cp .env.example .env                 # DATABASE_URL=postgres://harness:harness@localhost:5432/harness
-
-pnpm --filter @harness/db generate   # sinh migration từ diff schema (chỉ khi sửa schema)
-pnpm --filter @harness/db migrate    # áp migration
-pnpm --filter @harness/db seed       # nạp 1 project + 3 tasks mẫu
-pnpm --filter @harness/db build      # tsc build
-pnpm test                            # chạy toàn bộ test (gồm db) từ repo root
+pnpm --filter @harness/db generate   # generate migration from schema diff
+pnpm --filter @harness/db migrate    # apply migrations
+pnpm --filter @harness/db seed       # seed sample data
 ```
 
-> **Không dùng `drizzle-kit push`** sau migration đầu tiên — `push` bỏ qua lịch sử migration. Luôn `generate` → review → `migrate`.
-
----
-
-## Schema — 12 bảng
-
-| File | Bảng | Package sở hữu logic |
-|------|------|---------------------|
-| `projects.ts` | `projects` | orchestrator |
-| `tasks.ts` | `tasks` | orchestrator |
-| `agent-runs.ts` | `agent_runs` | agent-runtime |
-| `artifacts.ts` | `artifacts` | artifact-tracker |
-| `changes.ts` | `changes` | artifact-tracker |
-| `snapshots.ts` | `snapshots` | artifact-tracker |
-| `contexts.ts` | `contexts` | context-engine |
-| `verification-requests.ts` | `verification_requests` | verification-engine |
-| `verification-results.ts` | `verification_results` | verification-engine |
-| `assessments.ts` | `assessments` | attention-engine |
-| `decisions.ts` | `decisions` | review |
-| `event-log.ts` | `event_log` | db (own) |
-
-*(`review_queue` và `trajectory_steps` không thuộc Day 04 — thêm sau khi spec yêu cầu.)*
-
----
-
-## Quy tắc thiết kế schema
-
-- **Primary key**: `text` (chuỗi UUIDv7 từ domain) — không dùng `serial int`.
-- **Status/type columns**: `text` + **CHECK constraint** (đọc được trong raw SQL). Giá trị được liệt kê tường minh trong `schema/enums.ts` và được khoá khớp với `@harness/domain` bằng drift-test `enums.test.ts`.
-- **`tasks.state`**: 13 trạng thái canonical (domain `TaskStatus`, gồm cả `RETRYING`) — CHECK liệt kê đầy đủ.
-- **Timestamp**: `timestamptz` (UTC) mọi nơi — `timestamp(..., { withTimezone: true })`.
-- **JSON**: `jsonb` (payload, metadata, sources, check_results, factors_unavailable).
-- **`event_log`**: append-only (không UPDATE/DELETE), indexed trên `correlation_id`, `event_type`, `occurred_at`.
-
----
-
-## EventLogWriter
-
-`src/event-log-writer.ts` — đăng ký tất cả `EventType` lên `IEventBus` và ghi mỗi event vào `event_log`. Ghi là **fire-and-forget** (Phase 1): `publish` không block lên DB write; `.catch(console.error)` để không nuốt lỗi. Duplicate `event_id` là no-op nhờ `onConflictDoNothing()`.
-
-```typescript
-const db = createDb(process.env.DATABASE_URL!);
-const writer = new EventLogWriter(db);
-writer.subscribeTo(bus);
-```
+> **Do not use `drizzle-kit push`** after the first migration — always `generate` → review → `migrate`.
 
 ---
 
 ## Test strategy
 
-- **Schema riêng** `harness_test` / `harness_test_writer`: `createTestDb()` tạo schema + `SET search_path` + migrate vào đó; `destroyTestDb()` drop toàn bộ bằng `DROP SCHEMA ... CASCADE`. Không bao giờ chạy test trên dev DB.
-- Migration SQL được sinh với FK reference **unqualified** (đã bỏ prefix `public`) để áp được vào schema bất kỳ qua `search_path`.
-- Tests chạy qua `pnpm test` (root vitest), không phải `pnpm --filter @harness/db test`.
+- **Dedicated schemas** `harness_test` / `harness_test_writer` (`createTestDb()`
+  creates the schema + `SET search_path` + migrates; `destroyTestDb()` drops via
+  `DROP SCHEMA … CASCADE`). Tests never run on the dev DB.
+- Migration SQL uses **unqualified** FK references so it applies via `search_path`.
+- Tests run through `pnpm test` (root vitest), not `pnpm --filter @harness/db test`.
 
 ---
+
+## Directory structure
+
+```
+src/
+├── index.ts            # schema barrel + createDb + EventLogWriter
+├── client.ts           # createDb
+├── readonly-db.ts      # asReadonlyDb / ReadonlyDb
+├── event-log-writer.ts
+├── ab-store.ts
+├── audit-orphans.ts
+├── faults.ts
+├── env.ts / migrate.ts / seed.ts / test-utils.ts
+└── schema/
+    ├── enums.ts        # CHECK constraints + value lists
+    ├── index.ts        # relational schema registry
+    └── *.ts            # 36 table definitions
+```
+
+## Public API surface
+
+```typescript
+// createDb, DrizzleDB, asReadonlyDb / ReadonlyDb, EventLogWriter, AbStore,
+// schema tables (36), enums (CHECK constraints), migration/seed helpers
+```
 
 ## Dependency rule
 
 ```
-packages/db → chỉ import @harness/domain + @harness/event-bus (cho IEventBus)
-            → KHÔNG import các engine packages khác
+packages/db → imports only @harness/domain + @harness/event-bus (for IEventBus)
+            → does NOT import other engine packages
 ```
 
-> Ghi chú: schema files KHÔNG import `@harness/domain` lúc runtime (để `drizzle-kit generate` không phải kéo ESM workspace package); toàn bộ status values nằm trong `schema/enums.ts` và được drift-test khoá với domain.
-
----
-
-## Files
-
-```
-src/
-├── index.ts               # barrel: schema + createDb + EventLogWriter
-├── client.ts              # createDb(connectionString): DrizzleDB
-├── event-log-writer.ts    # EventLogWriter
-├── env.ts                 # load .env + requireConnectionString()
-├── migrate.ts             # migration runner (tsx)
-├── seed.ts                # dev seed (tsx)
-├── schema/
-│   ├── enums.ts           # CHECK constraints + value lists
-│   ├── projects.ts / tasks.ts / agent-runs.ts / artifacts.ts / changes.ts
-│   ├── snapshots.ts / contexts.ts / verification-requests.ts
-│   ├── verification-results.ts / assessments.ts / decisions.ts / event-log.ts
-│   └── index.ts           # table barrel (relational schema registry)
-└── __tests__/helpers.ts   # createTestDb / destroyTestDb
-migrations/                # generated SQL (committed)
-drizzle.config.ts
-```
+Schema files do **not** import `@harness/domain` at runtime (so `drizzle-kit
+generate` never pulls an ESM workspace package); all status values live in
+`schema/enums.ts` and are drift-tested against domain.

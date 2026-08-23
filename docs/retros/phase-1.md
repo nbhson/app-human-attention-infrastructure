@@ -15,6 +15,7 @@ rather than a slip date:
 | Day 13 `⚠️` | Three sandbox tools built (`read_file`/`write_file`/`list_directory`); `run_command` was **deferred** to Phase 2 (untrusted shell is a Phase-3 sandbox concern). |
 | Day 16–21 `⚠️` | Trust pipeline shipped end-to-end, but `Attention` weights stay **placeholders** and `AUTO_APPROVABLE` sets a flag nobody acts on — both deliberate, gated on Phase-2 calibration. |
 | Day 27–28 `⚠️` | Observability + hardening shipped, but the "≥ 70% coverage" exit criterion was **not measured** — coverage tooling was never wired (see scoreboard gap). |
+| Day 14 (schema drift) | Day-14's `§2.3` migration sketch predated the Day-04 committed schema — `snapshots`/`changes`/`artifacts` already existed, so no migration shipped. `changes` is per-file (not per-`(task_id, attempt_number)`); artifacts use the `ArtifactStatus` lifecycle with a `PENDING` **change**, not a `PENDING` artifact; snapshot dedup keys on the existing `content_hash`. Event payloads were enriched (`artifact.created` += `content`, `verification.completed` += `change_id`, new `artifact.rollback_requested`) rather than shipping a new change model. |
 
 The `⚠️` markers are therefore *built-with-deferred-sub-items*, not unbuilt days.
 Every day's deliverable is real, tested, and pushed.
@@ -109,5 +110,5 @@ to fit them from the `was_useful` column the decision loop now collects.
 ---
 
 *Follows [wiring-map](../architecture/wiring-map.md) and the
-[Day-30 backlog](../plan/phase-2-backlog.md). Companion: the weekly retrospectives
+[Phase-3 backlog](../plan/phase-3/backlog.md). Companion: the weekly retrospectives
 in this directory.*

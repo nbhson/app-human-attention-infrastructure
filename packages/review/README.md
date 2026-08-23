@@ -1,139 +1,137 @@
 # @harness/review — Human Review Interface
 
-## Hiểu nhanh
+The review-queue state machine and service behind the reviewer UI — where humans
+claim, decide, release, escalate, or drop changes awaiting review.
 
-**Nhiệm vụ:** "bàn làm việc của người duyệt" — queue + API cho human reviewer xem đánh giá, diff, evidence rồi quyết định APPROVE/REJECT.
-
-Nói nôm na: đây là nơi con người cuối cùng bấm "duyệt" hay "từ chối", sau khi đã xem các bằng chứng do các gói kia chuẩn bị.
-
----
-
-## Trạng thái hiện tại
-
-Stubs: `src/index.ts` chỉ export string `'review'`. Chưa có implementation.
+**Status:** Phase 1 + Spec 8 lifecycle (Phase 2) complete (as-built) ·
+**Boundary rule:** engine (R6) — imports only shared packages + itself; cross-engine dependencies are injected as narrow structural seams.
 
 ---
 
-## Mục đích
+## Purpose
 
-Queue + decision API cho human reviewer — cho phép reviewer xem assessment, diff, evidence rồi quyết định APPROVE/REJECT.
-
----
-
-## Công việc cần làm
-
-### Day 22 — Review backend
-
-**API routes** (logic trong package, routes trong `apps/api`):
-
-```typescript
-// src/review-service.ts
-export class ReviewService {
-  async listQueue(status: 'QUEUED' | 'CLAIMED' = 'QUEUED'): Promise<ReviewQueueItem[]> {
-    // SELECT from review_queue ORDER BY position (priority desc, FIFO)
-  }
-
-  async getItemDetail(queueId: string): Promise<ReviewItemDetail> {
-    // Compose: assessment + verification report + diffs + task summary
-    // Read-only joins, no writes
-  }
-
-  async claim(queueId: string, reviewerId: string): Promise<void> {
-    // Optimistic concurrency: UPDATE ... WHERE status = 'QUEUED'
-    const result = await this.db.update(reviewQueue)
-      .set({ status: 'CLAIMED', claimed_by: reviewerId, claimed_at: new Date() })
-      .where(eq(reviewQueue.id, queueId))
-      .andWhere(eq(reviewQueue.status, 'QUEUED'));
-
-    if (result.count === 0n) throw new QueueConflictError(queueId);
-  }
-
-  async decide(queueId: string, input: DecisionInput): Promise<void> {
-    const item = await this.mustGet(queueId);
-    assertStatus(item, 'CLAIMED'); // only claimant may decide
-
-    await this.db.transaction(async (trx) => {
-      await trx.update(reviewQueue).set({ status: 'DECIDED' }).where(eq(reviewQueue.id, queueId));
-      await trx.insert(decisions).values({ queueId, ...input });
-      await transitionTask(trx, item.taskId, input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED', 'AWAITING_REVIEW');
-    });
-
-    this.bus.publish({ type: 'review.decision_submitted', payload: { taskId: item.taskId, decision: input.decision } });
-    await this.attention.reportAssessmentFeedback(item.assessmentId, input.wasUseful, input.comment);
-  }
-
-  async drop(queueId: string, reviewerId: string, rationale: string): Promise<void> {
-    // Drop requires rationale — never silent
-  }
-}
-```
-
-### Day 22 — Decision flow
-
-```
-APPROVE → task APPROVED → Change REVIEWED → (Day 24) trigger merge
-REJECT  → task REJECTED → Change REVIEWED → (Day 24) trigger REWORK → QUEUED
-```
-
-Event propagation:
-- `review.decision_submitted` → orchestrated by subscriber trong `artifact-tracker` để flip Change status
-- Đồng thời trigger task state transition
-
-### Day 23 — Web UI
-
-React + Vite component:
-
-```
-src/
-├── ReviewQueue.tsx        # List of queue items, ordered by priority
-├── ReviewItem.tsx         # Detail view: assessment factors + diffs + evidence
-├── DecisionForm.tsx       # Approve/Reject/RequestChanges with rationale
-└── ProvenanceChain.tsx    # Full provenance timeline
-```
-
-### Day 24 — Merge / Rework flow
-
-```typescript
-// In orchestrator, on APPROVE event:
-// - Trigger git merge of agent's branch into main
-// - Record commit_sha in Change.metadata
-// - Update Artifact status to MERGED
-
-// In orchestrator, on REJECT event:
-// - Create new attempt (attempt_number + 1)
-// - Transition task to REWORK → QUEUED
-```
+1. **Expose the queue** — list/detail read models over `review_queue` rows.
+2. **Enforce the lifecycle** — the Spec 8 legal-transition graph.
+3. **Capture decisions** — `APPROVE` / `REJECT` with a required rationale.
+4. **Handle the off-ramps** — `release` (claim timeout), `escalate` (higher authority), `drop`.
+5. **Feed the attention loop** — report reviewer usefulness back to calibration.
 
 ---
 
-## Dependency rule
+## Review-queue lifecycle
 
+```text
+                  QUEUED
+                    │ claim (atomic guarded UPDATE)
+                    ▼
+                 CLAIMED ───────────────┐
+                    │                   │
+        ┌───────────┼──────────┐        │
+        ▼           ▼          ▼        ▼
+     decide      release    escalate   drop
+        │           │          │        │
+        ▼           ▼          ▼        ▼
+     DECIDED      QUEUED     ESCALATED DROPPED
+     (APPROVE/   (claim      (higher-   (terminal)
+      REJECT)     returned)   authority)
 ```
-packages/review → import @harness/domain, @harness/event-bus, @harness/db, @harness/attention-engine
-                → ONLY engine import allowed: attention-engine (feedback loop)
-```
+
+| Action | Legal from | Effect |
+| --- | --- | --- |
+| `claim` | `QUEUED` | `QUEUED → CLAIMED` (atomic guarded UPDATE; losing racer → `QueueConflictError`) |
+| `decide` | `CLAIMED` | `CLAIMED → DECIDED`, records `APPROVE`/`REJECT` decision |
+| `release` | `CLAIMED` | `CLAIMED → QUEUED` (timed-out claim never orphans) |
+| `escalate` | `CLAIMED` | `CLAIMED → ESCALATED`, records `ESCALATED` decision |
+| `drop` | `QUEUED`, `CLAIMED` | → `DROPPED`, requires rationale |
+
+`claim` is deliberately **not** a read-then-assert — it is an acquire enforced by
+an atomic guarded UPDATE; the other actions read the row and assert against the
+state-machine table. A bad move throws `IllegalTransitionError`, never logs-and-continues.
 
 ---
 
-## Queue detail payload
+## Decisions
 
-`GET /api/review/queue/:id` composes:
-- Assessment (factors, label, combined_priority, rule_id, policy_version)
-- Verification report + check results + evidence ids
-- File diffs from DiffEngine cache
-- Task summary + attempt_number
+The Phase-1 API accepts `APPROVE` / `REJECT` (`DecisionChoice`). A submitted
+decision carries `rationale` (required) + `wasUseful` (feeds the Day-19
+alert-fatigue loop). `HumanDecisionType` also has `REQUEST_CHANGES`,
+`OVERRIDDEN`, `DEFERRED`, `ESCALATED`, and the machine `AUTO_APPROVED` (recorded
+by the attention engine, never passed through the review UI).
 
 ---
 
-## Files cần tạo
+## Structural seams (injected, not imported)
+
+Because review is an engine under R6, its three cross-engine needs are declared
+as narrow interfaces and injected by the composition root:
+
+| Seam | Provides |
+| --- | --- |
+| `TaskTransition` | Drive the task state machine (`transitionTask`) — e.g. `REJECT → REWORK`. |
+| `FeedbackReporter` | Report `wasUseful` + comment back to attention calibration. |
+| `DiffProvider` | Day-17 unified diffs (`diffChange → ReviewFileDiff[]`). |
+
+---
+
+## Modules
+
+| Module | What it provides |
+| --- | --- |
+| `types.ts` | `DecisionInput`, `DropInput`, `ReleaseInput`, `EscalateInput`, `QueueItem`/`QueueListItem`/`QueueItemDetail`, the three seams, and error classes. |
+| `state-machine.ts` | `ReviewAction`, `ALLOWED_FROM`, `canTransition`, `assertTransition`, `IllegalTransitionError`. |
+| `service.ts` | `ReviewService` — `list` / `detail` / `claim` / `decide` / `release` / `escalate` / `drop`. |
+
+Error taxonomy (mapped to HTTP status by the routes): `ReviewError` (base),
+`QueueConflictError` (409), `QueueStateError`, `QueueItemNotFoundError` (404),
+`MissingRationaleError`, `EvidenceNotFoundError`.
+
+---
+
+## Interaction with other packages
+
+```text
+   attention-engine ──(attention.item_routed)──▶ review (queue creation)
+   review ──(review.decision_submitted)────────▶ orchestrator (close/rewind task)
+   review ──(review.item_claimed/released/escalated)──▶ observability (dwell timers)
+```
+
+All inter-package traffic is by event or injected seam — review never imports an
+engine directly; `apps/web` talks to it through `apps/api` routes.
+
+---
+
+## Key invariants
+
+- **Claim is an acquire.** Two reviewers racing for the same item: one gets it,
+  the other gets a `QueueConflictError`.
+- **No silent drops.** `drop` and `escalate` require a rationale.
+- **Decisions are evidence.** Every decision records actor, rationale, and
+  usefulness, feeding both the audit trail and calibration.
+
+---
+
+## Directory structure
 
 ```
 src/
 ├── index.ts
-├── types.ts                    # ReviewQueueItem, HumanDecision, DecisionInput
-├── review-service.ts           # claim / decide / drop operations
-├── queue-repository.ts         # DB queries for queue list/detail
-└── __tests__/
-    ├── review-service.test.ts
-    └── queue-repository.test.ts
+├── types.ts         # inputs, read models, seams, errors
+├── state-machine.ts # ReviewAction, ALLOWED_FROM, assertTransition
+└── service.ts       # ReviewService
 ```
+
+## Public API surface
+
+```typescript
+// types: DecisionChoice, DecisionInput, DropInput, ReleaseInput, EscalateInput,
+//        QueueItem, QueueListItem, QueueItemDetail, FactorScore,
+//        VerificationCheckView, ReviewFileDiff, TaskTransition,
+//        FeedbackReporter, DiffProvider, + error classes
+// state-machine: ReviewAction, canTransition, assertTransition, IllegalTransitionError
+// service: ReviewService
+```
+
+## Wiring
+
+The service is registered in `apps/api/src/bootstrap.ts`; routes live in
+`apps/api/src/routes/review.ts`; the UI is `apps/web`.

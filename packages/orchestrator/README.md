@@ -1,194 +1,182 @@
 # @harness/orchestrator — Task / Work Orchestrator
 
-## Hiểu nhanh
+The canonical `Task` lifecycle and the machinery that walks every task through it:
+task creation, the single-source-of-truth state machine, the dispatch loop, the
+linear workflow runner, and the retry/failure taxonomy.
 
-**Nhiệm vụ:** "bộ não" — điều phối một Task đi đâu, chuyển trạng thái thế nào, bao giờ retry.
-
-Nói nôm na: gói này chỉ *điều phối*, giống quản đốc phân việc. Nó KHÔNG tự làm task (đó là việc của `agent-runtime`), KHÔNG tự kiểm tra (việc của `verification-engine`) — chỉ nhận task, gửi đi, theo dõi trạng thái và xử lý khi thất bại.
-
----
-
-## Trạng thái hiện tại
-
-Stubs: `src/index.ts` chỉ export string `'orchestrator'`. Chưa có implementation.
+**Status:** Phase 1 complete (as-built) ·
+**Boundary rule:** engine — imports only shared packages (`@harness/domain`, `@harness/event-bus`, `@harness/db`, `@harness/di`).
 
 ---
 
-## Mục đích
+## Purpose
 
-"Bộ não" của hệ thống — điều phối lifecycle của Task, quản lý workflow DAG, dispatch task đến Agent Runtime, xử lý retry/failure.
-
----
-
-## Công việc cần làm
-
-### Day 06 — State Machine
-
-12 canonical states theo Spec 2 §3:
-
-```
-PENDING → QUEUED → EXECUTING → VERIFYING → AWAITING_REVIEW
-                                          ↓         ↓
-                                      APPROVED   REJECTED
-                                          ↓         ↓
-                                      COMPLETED  REWORK → QUEUED
-                                                      ↓
-                                            AWAITING_HUMAN_INTERVENTION
-```
-
-```typescript
-// src/state-machine.ts
-export function canTransition(from: TaskStatus, to: TaskStatus): boolean {
-  const transitions: Record<TaskStatus, TaskStatus[]> = {
-    PENDING:        ['QUEUED'],
-    QUEUED:         ['EXECUTING'],
-    EXECUTING:      ['VERIFYING', 'FAILED', 'AWAITING_HUMAN_INTERVENTION'],
-    VERIFYING:      ['AWAITING_REVIEW', 'FAILED'],
-    AWAITING_REVIEW:['APPROVED', 'REJECTED'],
-    APPROVED:       ['COMPLETED'],
-    REJECTED:       ['REWORK'],
-    REWORK:         ['QUEUED'],
-    COMPLETED:      [],
-    FAILED:         ['AWAITING_HUMAN_INTERVENTION'],
-    AWAITING_HUMAN_INTERVENTION: ['QUEUED', 'CANCELLED'],
-    CANCELLED:      [],
-  };
-  return transitions[from]?.includes(to) ?? false;
-}
-
-export async function transitionTask(
-  db: Db,
-  taskId: TaskID,
-  newStatus: TaskStatus,
-  expectedStatus: TaskStatus,
-): Promise<void> {
-  const result = await db.update(tasks)
-    .set({ state: newStatus, updated_at: new Date() })
-    .where(eq(tasks.id, taskId))
-    .andWhere(eq(tasks.state, expectedStatus));
-
-  if (result.count === 0n) {
-    throw new StateConflictError(taskId, expectedStatus, newStatus);
-  }
-}
-```
-
-**Optimistic locking**: `UPDATE ... WHERE id = ? AND state = ?` → throw `StateConflictError` nếu conflict.
-
-### Day 08 — Dispatcher & Worker
-
-**Dispatcher** (pull-based):
-
-```typescript
-// src/dispatcher.ts
-export class Dispatcher {
-  async dispatchBatch(batchSize = 10): Promise<TaskID[]> {
-    // SELECT ... FOR UPDATE SKIP LOCKED
-    const tasks = await db.select()
-      .from(tasksTable)
-      .where(or(
-        eq(tasksTable.state, 'PENDING'),
-        and(eq(tasksTable.state, 'REWORK'), lt(tasksTable.attempt_number, tasksTable.max_attempts))
-      ))
-      .orderBy(asc(tasksTable.created_at))
-      .for('update', 'skip locked')
-      .limit(batchSize);
-
-    for (const task of tasks) {
-      await transitionTask(this.db, task.id, 'QUEUED', task.state);
-      this.bus.publish({ type: EVENT_TYPES.TASK_STATE_CHANGED, /* ... */ });
-    }
-    return tasks.map(t => t.id);
-  }
-}
-```
-
-**Worker** (single worker Phase 1):
-
-```typescript
-// src/worker.ts
-export class Worker {
-  async pollAndExecute(): Promise<void> {
-    const task = await this.db.select().from(tasksTable)
-      .where(eq(tasksTable.state, 'QUEUED'))
-      .limit(1)
-      .for('update', 'skip locked');
-
-    if (!task) return;
-
-    await transitionTask(this.db, task.id, 'EXECUTING', 'QUEUED');
-    this.bus.publish({ type: EVENT_TYPES.TASK_STATE_CHANGED, payload: { taskId: task.id, newState: 'EXECUTING' } });
-    // Agent Runtime will pick up via event subscription
-  }
-}
-```
-
-### Day 09 — Linear Workflow
-
-```typescript
-// src/workflow-runner.ts
-export class WorkflowRunner {
-  async runLinear(tasks: Task[]): Promise<void> {
-    for (const task of tasks) {
-      await this.dispatchAndAwait(task);
-    }
-  }
-}
-```
-
-### Day 10 — Retry & Idempotency
-
-```typescript
-// src/retry-handler.ts
-export class RetryHandler {
-  async handleFailure(task: Task): Promise<void> {
-    const newAttempt = task.attemptNumber + 1;
-    if (newAttempt >= task.maxAttempts) {
-      await transitionTask(this.db, task.id, 'AWAITING_HUMAN_INTERVENTION', 'EXECUTING');
-    } else {
-      await transitionTask(this.db, task.id, 'REWORK', 'FAILED');
-      await this.db.update(tasksTable)
-        .set({ attemptNumber: newAttempt })
-        .where(eq(tasksTable.id, task.id));
-    }
-  }
-}
-
-// Idempotency key = task_id:attempt_number
-// dispatch_log table để track đã dispatch chưa
-```
-
-### Day 24 — Decision Flow
-
-```typescript
-// On APPROVE: trigger merge → update Change status
-// On REJECT: trigger rework → REWORK → QUEUED
-```
+1. **Create tasks** — the smallest indivisible unit of work, keyed by UUIDv7.
+2. **Own the state machine** — the one place that decides which transitions are legal (no transition logic lives anywhere else).
+3. **Dispatch work** — poll runnable tasks and drive them forward.
+4. **Run workflows** — walk a declarative, ordered step list (`COLLECT_CONTEXT → EXECUTE → VERIFY`).
+5. **Classify failures & retry** — separate permanent vs transient vs resource failures and apply a retry policy.
+6. **Record history** — every transition is an append-only `task_state_history` row.
 
 ---
 
-## Dependency rule
+## The canonical state machine
 
+The `TaskStatus` union lives in `@harness/domain`; this package owns *which moves are legal*. The transition table **is** the spec — when in doubt, reject rather than infer.
+
+```text
+  PENDING ──▶ QUEUED ──▶ EXECUTING ──▶ VERIFYING ──▶ AWAITING_REVIEW ──▶ APPROVED ──▶ COMPLETED
+     │          │            │  │           │  │           │                 │
+     │          │            │  │           │  │           └──▶ REJECTED    │
+     │          │            │  │           │  │                │  │        │
+     │          │            │  │           │  └──▶ REWORK ◀────┘  │        │
+     │          │            │  │           └──────▶ FAILED        │        │
+     │          │            │  └──────▶ AWAITING_HUMAN_INTERVENTION          │
+     │          │            └─────▶ FAILED                                   │
+     │          │                                                              │
+     └──────────┴──────▶ CANCELLED   (terminal, alongside COMPLETED) ◀─────────┘
 ```
-packages/orchestrator → import @harness/domain, @harness/event-bus, @harness/db
-                      → KHÔNG import các engine packages khác
-```
+
+### Legal transitions (the table, exactly as enforced)
+
+| From | Legal targets |
+| --- | --- |
+| `PENDING` | `QUEUED`, `CANCELLED` |
+| `QUEUED` | `EXECUTING`, `CANCELLED` |
+| `EXECUTING` | `VERIFYING`, `FAILED`, `AWAITING_HUMAN_INTERVENTION` |
+| `VERIFYING` | `AWAITING_REVIEW`, `REWORK`, `FAILED`, `AWAITING_HUMAN_INTERVENTION` |
+| `AWAITING_REVIEW` | `APPROVED`, `REJECTED` |
+| `APPROVED` | `COMPLETED`, `AWAITING_HUMAN_INTERVENTION` |
+| `REJECTED` | `REWORK`, `FAILED`, `CANCELLED` |
+| `REWORK` | `QUEUED`, `CANCELLED`, `FAILED` |
+| `COMPLETED` | *(terminal)* |
+| `FAILED` | `QUEUED`, `CANCELLED` |
+| `AWAITING_HUMAN_INTERVENTION` | `QUEUED`, `CANCELLED` |
+| `CANCELLED` | *(terminal)* |
+| `RETRYING` | *(defined, currently unreachable — no inbound edge; added for the retry path)* |
+
+Terminal states are `COMPLETED` and `CANCELLED`. Human-driven transitions (e.g.
+`AWAITING_REVIEW → APPROVED/REJECTED`, any hand-off to `CANCELLED`) require a
+`rationale` on the history record — `MissingRationaleError` otherwise.
 
 ---
 
-## Files cần tạo
+## Failure classification & retry
+
+A failure is never just a string. `classifyError` maps it into a `FailureClass`
+(`PERMANENT` / `TRANSIENT` / `RESOURCE`), and `shouldRetry` + `computeDelay`
+(`DEFAULT_RETRY_POLICY`, exponential backoff) decide whether and when to
+retry. `RESOURCE` (quota/capacity — e.g. `MAX_STEPS_EXCEEDED`,
+`TOKEN_BUDGET_EXCEEDED`) is retried only after a cooldown, never as a logic
+failure.
+
+---
+
+## Core data shapes
+
+| Type | What it is |
+| --- | --- |
+| `TaskRecord` | Typed view of a persisted `tasks` row (`id`, `projectId`, `title`, `state`, `attemptNumber`, `maxAttempts`, `assignedAgent`, `idempotencyKey`, timestamps). |
+| `CreateTaskParams` | Minimal create input (`projectId`, `title`, `description?`, `maxAttempts?` → default 3). |
+| `TaskStateHistoryEntry` | One `task_state_history` audit-trail row: `fromState`, `toState`, `triggeredBy`, `triggerEventId`, `rationale`, `attemptNumber`. |
+| `StepKind` | `COLLECT_CONTEXT` / `EXECUTE` / `VERIFY`. |
+| `LINEAR_WORKFLOW_V1` | The single Phase-1 workflow: context (30 s) → execute (300 s) → verify (120 s). |
+
+---
+
+## Modules
+
+| Module | What it provides |
+| --- | --- |
+| `state-machine/task-state-machine.ts` | `TaskStateMachine` — `canTransition`, `legalTargets`, `isTerminal`, `requiresRationale`. |
+| `state-machine/errors.ts` | `IllegalTransitionError`, `MissingRationaleError`, `StateConflictError`, `TerminalStateError`. |
+| `task-service.ts` | `TaskService` — validated `transition()` (guards against version skew via `StateConflictError`) + `TransitionOptions`. |
+| `dispatch/dispatcher.ts` | `Dispatcher` + `DispatchResult`. |
+| `dispatch/dispatch-loop.ts` | `DispatchLoop` + `DispatchLoopLogger` — the poll-and-drive worker. |
+| `workflow/workflow-definition.ts` | `WorkflowDefinition`, `WorkflowStep`, `StepKind`, `LINEAR_WORKFLOW_V1`. |
+| `workflow/step-handler.ts` | `StepContext`, `StepHandler`, `StepResult`. |
+| `workflow/workflow-runner.ts` | `WorkflowRunner` — walks the step list. |
+| `retry/failure-class.ts` | `FailureClass`, `ClassifiedFailure`. |
+| `retry/classify-error.ts` | `classifyError`. |
+| `retry/retry-policy.ts` | `DEFAULT_RETRY_POLICY`, `computeDelay`, `shouldRetry`, `RetryPolicyConfig`. |
+| `types.ts` | `CreateTaskParams`, `TaskRecord`, `TaskStateHistoryEntry`. |
+
+---
+
+## Interaction with other packages
+
+```text
+            Tasks / transitions / events  (publishes task.*; consumes
+            orchestration events from engines via the bus)
+                          ▲
+                          │ @harness/event-bus
+                          │
+        ┌─────────────────┼──────────────────────┐
+        ▼                 ▼                      ▼
+  agent-runtime      verification-engine      review
+  (EXECUTE)          (VERIFY)                (AWAITING_REVIEW → decide)
+```
+
+The orchestrator never imports another engine — it drives them by advancing the
+state machine and reacting to the events they publish (`task.execution_finished`,
+`verification.completed`, `review.decision_submitted`). `TaskTrigger` records the
+actor: `orchestrator` | `agent_runtime` | `verification_engine` | `auto_approve` | `human`.
+
+---
+
+## Key invariants
+
+- **One source of truth.** Only `TaskStateMachine` encodes legal moves; everything else calls `canTransition`.
+- **No transition without evidence.** Human/rationale-required moves must record a reason.
+- **Append-only history.** Every hop lands in `task_state_history`; current state is a projection, never an UPDATE of history.
+- **Reject, don't infer.** A `(from, to)` not in the table throws `IllegalTransitionError`.
+
+---
+
+## Directory structure
 
 ```
 src/
-├── index.ts
-├── state-machine.ts        # 12-state transition logic + guards
-├── dispatcher.ts           # Poll queue → claim tasks
-├── worker.ts               # Pull QUEUED tasks → trigger execution
-├── workflow-runner.ts      # Linear / DAG workflow execution
-├── retry-handler.ts        # Retry policy, max_attempts
-├── idempotency.ts          # Dispatch log + idempotency key
-└── __tests__/
-    ├── state-machine.test.ts
-    ├── dispatcher.test.ts
-    └── retry-handler.test.ts
+├── index.ts                      # public barrel (see below)
+├── task-service.ts               # TaskService
+├── types.ts                      # TaskRecord / CreateTaskParams / TaskStateHistoryEntry
+├── state-machine/
+│   ├── task-state-machine.ts     # the transition table
+│   └── errors.ts
+├── dispatch/
+│   ├── dispatcher.ts
+│   └── dispatch-loop.ts
+├── workflow/
+│   ├── workflow-definition.ts    # StepKind, LINEAR_WORKFLOW_V1
+│   ├── step-handler.ts
+│   └── workflow-runner.ts
+└── retry/
+    ├── failure-class.ts
+    ├── classify-error.ts
+    └── retry-policy.ts
 ```
+
+## Public API surface
+
+```typescript
+// state machine + errors
+TaskStateMachine, IllegalTransitionError, MissingRationaleError,
+StateConflictError, TerminalStateError
+// service
+TaskService, TransitionOptions
+// dispatch
+Dispatcher, DispatchResult, DispatchLoop, DispatchLoopLogger
+// workflow
+StepKind, LINEAR_WORKFLOW_V1, WorkflowDefinition, WorkflowStep,
+StepContext, StepHandler, StepResult, WorkflowRunner
+// retry
+FailureClass, ClassifiedFailure, classifyError, DEFAULT_RETRY_POLICY,
+computeDelay, shouldRetry, RetryPolicyConfig
+// types
+CreateTaskParams, TaskRecord, TaskStateHistoryEntry
+```
+
+## Wiring
+
+`TaskService`, the dispatcher, and the workflow runner are registered in
+`apps/api/src/bootstrap.ts`. Task routes live in `apps/api/src/routes/tasks.ts`.

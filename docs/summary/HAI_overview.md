@@ -82,21 +82,21 @@ Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (qua
 
 ## 11 Phân hệ cốt lõi
 
-| # | Phân hệ | Spec | Vai trò |
-|---|---------|------|---------|
+| # | Phân hệ | Package | Vai trò |
+|---|---------|---------|---------|
 | 1 | **HAI Harness Architecture** | `docs/core/1_...` | Kiến trúc tổng thể, nguyên tắc, ranh giới module, lộ trình 3 phase |
-| 2 | **Task/Work Orchestrator** | `docs/core/2_...` | State machine 12 trạng thái, dispatch, workflow, retry |
-| 3 | **AI Agent Runtime** | `docs/core/3_...` | Thực thi agent (ReAct loop), ghi trajectory từng bước (append-only → fork/replay/resume ở Phase 2/3), tool sandbox |
-| 4 | **Context Engine** | `docs/core/4_...` | Chọn lọc context relevant theo budget token, kiểm tra freshness; Phase 2/3: hybrid search + RRF + re-ranking |
-| 5 | **Artifact/Change Tracker** | `docs/core/5_...` | Provenance: ai thay đổi gì, tại sao, evidence nào; snapshot content-addressed |
-| 6 | **Attention Engine** 🔑 | `docs/core/6_...` | Tính Risk/Impact/Novelty/Complexity/Confidence → priority → routing |
-| 7 | **Verification Engine** | `docs/core/7_...` | Xác minh độc lập với AI: compile, test, lint — kèm evidence |
-| 8 | **Human Review Interface** | *(Phase 2 standalone)* | UI quyết định: APPROVE/REJECT + rationale (thiết kế trong `day-22..27`) |
-| 9 | **Memory/Evidence System** | `docs/core/9_...` | Claim ≠ Evidence; evidence append-only, bất biến, có content hash; Phase 3: versioned memory + write-back (forget/update cross-checked) |
-| 10 | **Observability/Governance** | `docs/core/10_...` | Audit trail, metrics, policy enforcement — Spec 10 được promote trên Day 10 (v0.1) |
-| 11 | **Evaluation Engine** 🔁 | `docs/core/11_...` | Đo pipeline (routing precision/recall, attention efficiency), A/B harness, calibration; Phase 3: benchmark corpus (gold labels) + LLM-as-judge (rubric-scored) → đóng loop Learning |
+| 2 | **Task/Work Orchestrator** | `@harness/orchestrator` | State machine 13 trạng thái, dispatch, workflow, retry |
+| 3 | **AI Agent Runtime** | `@harness/agent-runtime` | Thực thi agent (ReAct loop), ghi trajectory từng bước, tool sandbox |
+| 4 | **Context Engine** | `@harness/context-engine` | Chọn lọc context relevant theo budget token, freshness, cache |
+| 5 | **Artifact/Change Tracker** | `@harness/artifact-tracker` | Provenance: ai thay đổi gì, tại sao, evidence nào; snapshot content-addressed |
+| 6 | **Attention Engine** 🔑 | `@harness/attention-engine` | Tính Risk/Impact/Novelty/Complexity/Confidence → priority → routing + auto-approve |
+| 7 | **Verification Engine** | `@harness/verification-engine` | Xác minh độc lập với AI: compile, test, sandbox — kèm evidence |
+| 8 | **Human Review Interface** | `@harness/review` (+ `apps/web`) | UI quyết định: APPROVE/REJECT + rationale |
+| 9 | **Memory/Evidence System** | `@harness/domain` (events) + `db.event_log` | Claim ≠ Evidence; evidence append-only, bất biến |
+| 10 | **Observability/Governance** | `@harness/observability` | Audit trail, metrics, policy enforcement |
+| 11 | **Evaluation Engine** 🔁 | `@harness/evaluation` | Đo pipeline (precision/recall, attention efficiency), A/B harness, calibration |
 
-Specs 1–7, 9, 11 đã có spec riêng. Spec 10 (Observability/Governance) được promote thành `docs/core/10_Observability_Governance_v0.1.md` trên Day 10. Spec 8 (Human Review Interface) được thiết kế chi tiết trong `docs/plan/phase-1/day-22..27` và sẽ được promote thành spec standalone trong Phase 2 (Day 24).
+Tài liệu as-built cho từng phân hệ hiện nằm trong **`README.md` của mỗi package** (`packages/*/README.md`) — các file `docs/core/2_...` → `11_...` đã được gỡ bỏ, chỉ giữ lại duy nhất spec kiến trúc `docs/core/1_...`. Xem bảng ánh xạ subsystem→package trong Architecture §5.
 
 > **Đối chiếu kỹ thuật nguồn:** xem `docs/summary/harness-fit-analysis.md` — bản đồ từ `AI-coding-skills-framework/harness` (11 chuyên đề + 4 mẫu DeepSeek Harness) sang 11 subsystem HAI: phần nào *đã hấp thụ*, phần nào *bổ sung* (kèm spec + phase), phần nào *tham khảo / loại*.
 
@@ -294,6 +294,6 @@ Các điểm "cần lưu ý" trước đây nay đã được giải quyết tro
 - ✅ **Data storage strategy** — PostgreSQL 16 cho tất cả; conventions rõ ràng; evidence append-only
 - ✅ **Error handling & fallback** — FailureClass (TRANSIENT/PERMANENT/RESOURCE), retry policy, escalation → AWAITING_HUMAN_INTERVENTION
 - ✅ **Spec 9 (Memory/Evidence) & Spec 11 (Evaluation Engine)** — đã formalize từ các ghi chú "Phase sau" thành spec riêng: Evidence store append-only (Phase 1) và Evaluation seam (Phase 2+)
-- ⚠️ **Auth** — vẫn là Phase 2 (P0 trong backlog, xem `docs/plan/phase-2-backlog.md`)
+- ⚠️ **Auth** — vẫn là Phase 2 (P0 trong backlog, xem `docs/plan/phase-3/backlog.md`)
 
 **Kết luận:** Kiến trúc giữ nguyên hướng đi đúng (tập trung human attention bottleneck, evidence > confidence), nay đã đủ chi tiết để implement — với 11 phân hệ (state machine chặt chẽ, event model có audit trail), lộ trình 3 phase rõ ràng, và kế hoạch 30 ngày (Phase 1) từng bước trong `docs/plan/`.

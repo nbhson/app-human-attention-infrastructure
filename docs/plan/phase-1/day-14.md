@@ -187,7 +187,7 @@ Append to `docs/architecture/wiring-map.md` + a new short ADR `docs/architecture
 | `packages/artifact-tracker/src/artifact-tracker.ts` | Capture service (transactional) |
 | `packages/artifact-tracker/src/change-status-subscriber.ts` | Sole writer of change/artifact status |
 | `docs/architecture/artifact-tracker-vs-git.md` | ADR: pre-commit vs post-merge boundary |
-| `docs/plan/week-2-checkpoint.md` | Checkpoint results + retro |
+| — (folded into `docs/retros/phase-1.md` §1 "schema drift") | Checkpoint results + retro |
 
 ---
 
@@ -201,7 +201,7 @@ Append to `docs/architecture/wiring-map.md` + a new short ADR `docs/architecture
 - [ ] No `DELETE`/`TRUNCATE` anywhere in `packages/artifact-tracker/src` (lint test).
 - [ ] `pnpm test`, `pnpm lint`, boundary tests all green.
 
-**Week 2 hard checkpoint** (mirror Day-07 format — go/no-go table in `docs/plan/week-2-checkpoint.md`):
+**Week 2 hard checkpoint** (mirror Day-07 format — go/no-go table, recorded in `docs/retros/phase-1.md`):
 
 - [ ] E2E smoke: create task → PENDING→QUEUED→EXECUTING→agent writes file→artifact captured PENDING (single script `scripts/week2-smoke.ts` against Docker Compose stack).
 - [ ] State machine: all 22 transitions still enforced; attempt/idempotency invariants hold (`attempt_number`, `task_id:attempt_number` keys, max_attempts=3).
