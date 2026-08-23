@@ -19,7 +19,6 @@ import {
   VerificationStatus,
   WritebackAction,
   WritebackStatus,
-  WritebackTarget,
 } from '@harness/domain';
 
 import {
@@ -41,7 +40,6 @@ import {
   verificationStatuses,
   writebackActions,
   writebackStatuses,
-  writebackTargets,
 } from './schema/enums.js';
 
 /**
@@ -112,10 +110,6 @@ describe('schema enum drift guards', () => {
 
   it('providerKinds match ProviderKind', () => {
     expect(providerKinds).toEqual(Object.values(ProviderKind));
-  });
-
-  it('writebackTargets match WritebackTarget', () => {
-    expect(writebackTargets).toEqual(Object.values(WritebackTarget));
   });
 
   it('writebackActions match WritebackAction', () => {

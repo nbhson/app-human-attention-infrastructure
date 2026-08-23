@@ -13,3 +13,5 @@
 
 export * from './writeback-service.js';
 export * from './mcp-writeback.js';
+export * from './dedup.js';
+export * from './redact.js';

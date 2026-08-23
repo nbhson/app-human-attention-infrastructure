@@ -60,7 +60,7 @@ import {
 import type { ContextCache } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
 import type { Logger } from '@harness/di';
-import { EventLogWriter, createDb } from '@harness/db';
+import { DrizzleWritebackLogStore, EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { AiProviderType } from '@harness/domain';
 import {
@@ -616,6 +616,7 @@ export function buildContainer(): Container {
       container.resolve<McpServerRegistry>(TOKENS.McpServerRegistry),
       new StaticGitToolMap(),
       new StaticTicketToolMap(),
+      new DrizzleWritebackLogStore(container.resolve<DrizzleDB>(TOKENS.Db)),
     );
   });
 

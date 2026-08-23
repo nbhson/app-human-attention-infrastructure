@@ -1,6 +1,6 @@
 /**
- * `MCPWriteBack` (Phase 3 day-06) — the {@link WriteBackService} adapter that
- * rides the Week-1 MCP transport for *write* calls.
+ * `MCPWriteBack` (Phase 3 day-06, audited day-08) — the {@link WriteBackService}
+ * adapter that rides the Week-1 MCP transport for *write* calls.
  *
  * Write-back never opens a second channel: a `WriteBackIntent` resolves to the
  * provider's MCP client, maps the action to a tool name via the same
@@ -10,13 +10,20 @@
  * exactly one way the harness talks to Git/ticket systems (day-06 §2.1).
  *
  * The `enabled(provider)` guard is the toggle: OFF means no tool is ever called
- * and the intent resolves to a successful no-op. The default reads a `WRITEBACK_*`
- * env var per provider; Day-09 promotes it to a per-review decision toggle.
+ * and the intent resolves to a successful no-op with nothing recorded (day-06
+ * §2.4). Day-09 promotes it to a per-review decision toggle.
  *
- * Day-07 completes the **full provider matrix**: the single class dispatches
- * GitHub/GitLab/Bitbucket comment + status and Jira comment + transition, with
- * the per-host variance living entirely in the tool maps — no per-host write
- * class exists (day-07 §2.1).
+ * Day-07 completes the **full provider matrix** — GitHub/GitLab/Bitbucket comment
+ * + status and Jira comment + transition — with the per-host variance living
+ * entirely in the tool maps, so no per-host write class exists.
+ *
+ * Day-08 adds the **audit + idempotency** layer: `write()` is claim-then-write.
+ * A deterministic dedup key is claimed on the injected {@link WritebackLogStore}
+ * before any tool is called; a retried or racing identical intent resolves to a
+ * `DUPLICATE` row with no second external call, and every other attempt records a
+ * `PENDING` row flipped to `SUCCEEDED`/`FAILED` (day-08 §2.4). Invalid intents are
+ * validated *before* the claim and throw {@link WriteBackError} — they are
+ * programming errors, not external write attempts, and are never logged.
  */
 
 import { TicketProviderType, WritebackAction } from '@harness/domain';
@@ -25,6 +32,7 @@ import type {
   WriteBackIntent,
   WriteBackProvider,
   WriteBackResult,
+  WritebackLogStore,
 } from '@harness/domain';
 import { McpConfigError } from '@harness/mcp';
 import type { McpClient, McpServerRegistry, ToolResult } from '@harness/mcp';
@@ -32,6 +40,8 @@ import { parseRepoPath } from '@harness/git-provider';
 import type { GitHost, GitToolMap } from '@harness/git-provider';
 import type { TicketSystem, TicketToolMap } from '@harness/ticket-provider';
 
+import { dedupKey, effectiveBody } from './dedup.js';
+import { credentialEnvValues, redactSensitive } from './redact.js';
 import { WriteBackError } from './writeback-service.js';
 import type { WriteBackService } from './writeback-service.js';
 
@@ -39,7 +49,8 @@ import type { WriteBackService } from './writeback-service.js';
 export interface MCPWriteBackOptions {
   /**
    * Whether write-back is enabled for a provider, defaulting to the env check
-   * (`WRITEBACK_<PROVIDER>=1|true`). Returning false is a successful no-op.
+   * (`WRITEBACK_<PROVIDER>=1|true`). Returning false is a successful no-op with
+   * no audit row.
    */
   readonly enabled?: (provider: WriteBackProvider) => boolean;
 }
@@ -98,13 +109,25 @@ function externalRef(result: ToolResult): string | undefined {
   return text;
 }
 
+/** Shape the `externalRef?` result field, omitting it (exactOptional) when absent. */
+function externalRefOf(result: ToolResult): { externalRef?: string } {
+  const ref = externalRef(result);
+  return ref === undefined ? {} : { externalRef: ref };
+}
+
 export class MCPWriteBack implements WriteBackService {
+  /** Env credentials used to scrub secret bytes out of logged errors (day-08 §2.3). */
+  private readonly secretValues: readonly string[];
+
   constructor(
     private readonly registry: McpServerRegistry,
     private readonly gitToolMap: GitToolMap,
     private readonly ticketToolMap: TicketToolMap,
+    private readonly store: WritebackLogStore,
     private readonly options: MCPWriteBackOptions = {},
-  ) {}
+  ) {
+    this.secretValues = credentialEnvValues(process.env);
+  }
 
   async write(intent: WriteBackIntent): Promise<WriteBackResult> {
     const enabled = this.options.enabled ?? envEnabled;
@@ -112,19 +135,53 @@ export class MCPWriteBack implements WriteBackService {
       return { ok: true, intentId: intent.id };
     }
 
+    // Invalid intents throw before any audit row exists — they are programming
+    // errors to fix, not external failures to log (day-06 §2.3).
+    this.validate(intent);
+
+    const claim = await this.store.claim({
+      intentId: intent.id,
+      provider: intent.provider,
+      externalId: intent.externalId,
+      action: intent.action,
+      body: effectiveBody(intent),
+      dedupKey: dedupKey(intent),
+    });
+    if (claim === 'duplicate') {
+      return { ok: true, intentId: intent.id };
+    }
+
     try {
-      return intent.provider === TicketProviderType.Jira
-        ? await this.writeTicket(intent)
-        : await this.writeGit(intent);
-    } catch (error) {
-      // An invalid intent is a programming error (stay loud); anything else is a
-      // write FAILURE (record it). A stray host REST failure surfaces here, never
-      // as an unhandled rejection.
-      if (error instanceof WriteBackError) {
-        throw error;
+      const result =
+        intent.provider === TicketProviderType.Jira
+          ? await this.writeTicket(intent)
+          : await this.writeGit(intent);
+      if (result.ok) {
+        await this.store.finalize(
+          result.externalRef === undefined
+            ? { intentId: intent.id, status: 'SUCCEEDED' }
+            : { intentId: intent.id, status: 'SUCCEEDED', externalRef: result.externalRef },
+        );
+        return result;
       }
+      const redacted = this.redact(result.error ?? 'write-back failed');
+      await this.store.finalize({
+        intentId: intent.id,
+        status: 'FAILED',
+        error: redacted,
+      });
+      return { ...result, error: redacted };
+    } catch (error) {
+      // Validation already passed, so this is a transport/host failure — a
+      // recordable FAILED attempt, never an unhandled rejection.
       const message = error instanceof Error ? error.message : String(error);
-      return { ok: false, intentId: intent.id, error: message };
+      const redacted = this.redact(message);
+      await this.store.finalize({
+        intentId: intent.id,
+        status: 'FAILED',
+        error: redacted,
+      });
+      return { ok: false, intentId: intent.id, error: redacted };
     }
   }
 
@@ -137,13 +194,25 @@ export class MCPWriteBack implements WriteBackService {
     });
   }
 
-  /** COMMENT → comment tool, STATUS → status tool, LABEL → label tool, TRANSITION → reject. */
-  private async writeGit(intent: WriteBackIntent): Promise<WriteBackResult> {
+  /** Redact secret bytes from a message before it is stored or returned (day-08 §2.3). */
+  private redact(message: string): string {
+    return redactSensitive(message, this.secretValues);
+  }
+
+  /** Validate an intent's shape without any side effect (day-08 §2.4). */
+  private validate(intent: WriteBackIntent): void {
+    if (intent.provider === TicketProviderType.Jira) {
+      this.validateTicket(intent);
+    } else {
+      this.validateGit(intent);
+    }
+  }
+
+  private validateGit(intent: WriteBackIntent): void {
     const gitHost = intent.provider as GitProviderType;
     if (intent.repo === undefined) {
       this.invalid(intent, `git write-back action "${intent.action}" requires a "repo" slug`);
     }
-    const { owner, name } = parseRepoPath(intent.repo);
     const number = Number(intent.externalId);
     if (!Number.isInteger(number)) {
       this.invalid(
@@ -151,6 +220,56 @@ export class MCPWriteBack implements WriteBackService {
         `git write-back externalId must be a PR/MR number, got "${intent.externalId}"`,
       );
     }
+    switch (intent.action) {
+      case WritebackAction.Comment:
+      case WritebackAction.Status:
+        break;
+      case WritebackAction.Label: {
+        const label = intent.label ?? intent.body;
+        if (label === undefined) {
+          this.invalid(intent, 'git label write-back requires a "label"');
+        }
+        break;
+      }
+      case WritebackAction.Transition:
+        this.invalid(
+          intent,
+          `TRANSITION is not supported for Git host "${gitHost}"; use the Jira provider`,
+        );
+        break;
+      default:
+        this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
+    }
+  }
+
+  private validateTicket(intent: WriteBackIntent): void {
+    switch (intent.action) {
+      case WritebackAction.Comment:
+        break;
+      case WritebackAction.Transition: {
+        const toState = intent.toState ?? intent.label;
+        if (toState === undefined) {
+          this.invalid(intent, 'jira transition write-back requires a "toState"');
+        }
+        break;
+      }
+      case WritebackAction.Status:
+      case WritebackAction.Label:
+        this.invalid(
+          intent,
+          `"${intent.action}" is not supported for ticket systems (use TRANSITION)`,
+        );
+        break;
+      default:
+        this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
+    }
+  }
+
+  /** COMMENT → comment tool, STATUS → status tool, LABEL → label tool. */
+  private async writeGit(intent: WriteBackIntent): Promise<WriteBackResult> {
+    const gitHost = intent.provider as GitProviderType;
+    const { owner, name } = parseRepoPath(intent.repo as string);
+    const number = Number(intent.externalId);
 
     const client = await this.clientFor(gitHost);
     const tools = this.gitToolMap.resolve(gitHost);
@@ -182,6 +301,8 @@ export class MCPWriteBack implements WriteBackService {
           : { ok: true, intentId: intent.id, ...externalRefOf(result) };
       }
       case WritebackAction.Label: {
+        // `validateGit` guarantees a value, but narrowing the local union is the
+        // guard the label tool's argument type needs.
         const label = intent.label ?? intent.body;
         if (label === undefined) {
           this.invalid(intent, 'git label write-back requires a "label"');
@@ -192,18 +313,13 @@ export class MCPWriteBack implements WriteBackService {
           ? { ok: false, intentId: intent.id, error: `git label failed: ${contentText(result)}` }
           : { ok: true, intentId: intent.id, ...externalRefOf(result) };
       }
-      case WritebackAction.Transition:
-        this.invalid(
-          intent,
-          `TRANSITION is not supported for Git host "${gitHost}"; use the Jira provider`,
-        );
-        break;
       default:
-        this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
+        // Unreachable: `validateGit` rejects TRANSITION and unknown actions.
+        return this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
     }
   }
 
-  /** COMMENT → comment tool, TRANSITION → transition tool, STATUS/LABEL → reject. */
+  /** COMMENT → comment tool, TRANSITION → transition tool. */
   private async writeTicket(intent: WriteBackIntent): Promise<WriteBackResult> {
     // Today there is exactly one ticket system; `intent.provider` is `jira` here.
     const system = TicketProviderType.Jira;
@@ -243,15 +359,9 @@ export class MCPWriteBack implements WriteBackService {
             }
           : { ok: true, intentId: intent.id, ...externalRefOf(result) };
       }
-      case WritebackAction.Status:
-      case WritebackAction.Label:
-        this.invalid(
-          intent,
-          `"${intent.action}" is not supported for ticket systems (use TRANSITION)`,
-        );
-        break;
       default:
-        this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
+        // Unreachable: `validateTicket` rejects STATUS/LABEL and unknown actions.
+        return this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
     }
   }
 
@@ -269,10 +379,4 @@ export class MCPWriteBack implements WriteBackService {
       throw error;
     }
   }
-}
-
-/** Shape the `externalRef?` result field, omitting it (exactOptional) when absent. */
-function externalRefOf(result: ToolResult): { externalRef?: string } {
-  const ref = externalRef(result);
-  return ref === undefined ? {} : { externalRef: ref };
 }

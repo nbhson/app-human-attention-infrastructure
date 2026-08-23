@@ -225,6 +225,13 @@
       "when": 1787469994451,
       "tag": "0031_mean_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787495006530,
+      "tag": "0032_sturdy_colossus",
+      "breakpoints": true
     }
   ]
 }

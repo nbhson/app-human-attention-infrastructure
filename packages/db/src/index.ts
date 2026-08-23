@@ -11,3 +11,4 @@ export type {
   CreateExperimentInput,
   RecordRunInput,
 } from './ab-store.js';
+export { DrizzleWritebackLogStore } from './writeback-log-store.js';

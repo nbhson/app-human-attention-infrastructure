@@ -154,14 +154,6 @@ export interface ProviderConfig {
 
 // --- Write-back model ------------------------------------------------------
 
-/** The external target a write-back posts to. */
-export const WritebackTarget = {
-  Pr: 'pr',
-  Ticket: 'ticket',
-} as const;
-/** A write-back target. */
-export type WritebackTarget = (typeof WritebackTarget)[keyof typeof WritebackTarget];
-
 /** The external action a write-back performs. */
 export const WritebackAction = {
   Comment: 'comment',
@@ -172,28 +164,41 @@ export const WritebackAction = {
 /** A write-back action. */
 export type WritebackAction = (typeof WritebackAction)[keyof typeof WritebackAction];
 
-/** The lifecycle state of a write-back attempt. */
+/**
+ * The lifecycle state of a write-back attempt (day-08 §2.1). `DUPLICATE` marks
+ * an attempt that was skipped because an identical write had already succeeded —
+ * it never reached the external host.
+ */
 export const WritebackStatus = {
   Pending: 'PENDING',
   Succeeded: 'SUCCEEDED',
   Failed: 'FAILED',
+  Duplicate: 'DUPLICATE',
 } as const;
 /** A write-back status. */
 export type WritebackStatus = (typeof WritebackStatus)[keyof typeof WritebackStatus];
 
 /**
- * One attempt to push an outcome back to the PR or the ticket. Written behind a
- * per-provider toggle; when toggled off, no row is created and nothing external
- * happens.
+ * One attempt to push an outcome back to the PR or the ticket (day-08). The
+ * audit row is keyed by the *intent* — concrete provider, external target, and
+ * dedup fingerprint — and is written behind a per-provider toggle; when toggled
+ * off, no row is created and nothing external happens.
  */
 export interface WritebackEntry {
   readonly id: WritebackID;
-  readonly reviewReportId: string;
-  readonly target: WritebackTarget;
+  /** Concrete host/ticket-system slug the write targeted. */
+  readonly provider: GitProviderType | TicketProviderType;
+  /** The PR/MR number or ticket key the write targeted. */
+  readonly externalId: string;
   readonly action: WritebackAction;
-  /** Free-form body (comment text / status summary / label name). */
+  /** The external payload written (comment text / status summary / label / target status). */
   readonly body: string;
+  /** Idempotency fingerprint (day-08 §2.2). */
+  readonly dedupKey: string;
   readonly status: WritebackStatus;
+  /** Host handle for the written thing (present once SUCCEEDED). */
+  readonly externalRef?: string;
+  /** Redacted error (present on FAILED). */
   readonly error?: string;
   readonly createdAt: Date;
 }

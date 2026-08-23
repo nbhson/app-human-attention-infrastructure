@@ -31,6 +31,7 @@ export * from './provenance.js';
 export * from './integration.js';
 export * from './review-report.js';
 export * from './writeback.js';
+export * from './writeback-store.js';
 
 // Events.
 export * from './events/index.js';

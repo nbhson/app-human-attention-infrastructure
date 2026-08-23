@@ -263,14 +263,11 @@ export const reviewSeverities = ['CRITICAL', 'MAJOR', 'MINOR', 'NIT', 'INFO'] as
 /** `provider_configs.kind` — what a provider config configures. */
 export const providerKinds = ['git', 'ticket', 'ai'] as const;
 
-/** `writeback_log.target` — the external target of a write-back. */
-export const writebackTargets = ['pr', 'ticket'] as const;
-
 /** `writeback_log.action` — the external action performed. */
 export const writebackActions = ['comment', 'status', 'label', 'transition'] as const;
 
-/** `writeback_log.status` — a write-back attempt lifecycle. */
-export const writebackStatuses = ['PENDING', 'SUCCEEDED', 'FAILED'] as const;
+/** `writeback_log.status` — a write-back attempt lifecycle (day-08 §2.1). */
+export const writebackStatuses = ['PENDING', 'SUCCEEDED', 'FAILED', 'DUPLICATE'] as const;
 
 /** `review_reports.ai_provider`. */
 export const aiProviderCheck = inList(
@@ -295,13 +292,6 @@ export const reviewSeverityCheck = inList(
 
 /** `provider_configs.kind`. */
 export const providerKindCheck = inList('provider_configs_kind_check', 'kind', providerKinds);
-
-/** `writeback_log.target`. */
-export const writebackTargetCheck = inList(
-  'writeback_log_target_check',
-  'target',
-  writebackTargets,
-);
 
 /** `writeback_log.action`. */
 export const writebackActionCheck = inList(
