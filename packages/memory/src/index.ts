@@ -9,6 +9,8 @@
  * - `versioned-append` — dedup-keyed, `supersedes`-chained append + confidence.
  * - `memory-ingestor`  — event-bus subscriber (`review.report_created` /
  *   `review.decision_submitted`) that grounds each entry in an evidence row.
+ * - `chain-resolve`    — `resolveChainHeads` (supersede-chain → head, day-18).
+ * - `memory-retriever` — lexical+confidence+recency relevance rank (day-18).
  */
 
 export * from './types.js';
@@ -16,3 +18,5 @@ export * from './memory-store.js';
 export * from './memory-distiller.js';
 export * from './versioned-append.js';
 export * from './memory-ingestor.js';
+export * from './chain-resolve.js';
+export * from './memory-retriever.js';

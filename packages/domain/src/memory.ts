@@ -95,3 +95,36 @@ export function createMemoryEntry(input: CreateMemoryEntryInput): MemoryEntry {
     createdAt: input.createdAt ?? new Date(),
   };
 }
+
+/**
+ * A retrieval request (day-18 §2.1). `text` is the reviewer's query — the PR
+ * title + diff summary + ticket requirement — fed to the lexical recall step.
+ */
+export interface MemoryQuery {
+  /** Free-text query. Empty/whitespace is legal: ranking degrades to recency+confidence. */
+  readonly text: string;
+  /** Max entries returned, defaulting to a caller-side top-K. */
+  readonly limit?: number;
+  /** Restrict to these tiers; all four when omitted or empty. */
+  readonly kinds?: readonly MemoryKind[];
+}
+
+/**
+ * One retrieved entry plus its relevance score (day-18 §2.1). `relevance` is in
+ * `[0, 1]` and is the *output* of the retriever's rank — never stored on the
+ * entry itself (scoring is query-dependent).
+ */
+export interface MemoryRetrievalResult {
+  readonly entry: MemoryEntry;
+  readonly relevance: number;
+}
+
+/**
+ * The review-memory provider seam (day-18 §2.3). Engines read top-K memory
+ * through this contract — never by importing `@harness/memory` — so the concrete
+ * retriever (lexical today, semantic-shadow later) stays swappable behind DI.
+ */
+export interface MemoryProvider {
+  /** Return relevance-ordered, head-of-chain memory for `query`. */
+  retrieve(query: MemoryQuery): Promise<readonly MemoryRetrievalResult[]>;
+}

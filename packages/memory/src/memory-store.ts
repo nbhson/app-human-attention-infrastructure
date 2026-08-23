@@ -14,7 +14,7 @@
  * context/attention via the event bus, never by a sibling engine importing it.
  */
 
-import { eq, inArray, desc } from 'drizzle-orm';
+import { eq, inArray, desc, sql } from 'drizzle-orm';
 
 import { memoryEntries, memoryEntryEvidence } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -143,6 +143,21 @@ export class MemoryStore {
     return rows
       .map((row) => toEntry(row, links.get(row.id) ?? []))
       .filter((entry) => entry.sourceEvidence.length > 0);
+  }
+
+  /**
+   * Record a retrieval of this entry (day-18 §2.4): bump the access counter and
+   * stamp the timestamp. Called fire-and-forget by the retriever after the result
+   * is served, so the hot read path never waits on this write.
+   */
+  async recordAccess(id: MemoryID): Promise<void> {
+    await this.db
+      .update(memoryEntries)
+      .set({
+        retrieved_count: sql`${memoryEntries.retrieved_count} + 1`,
+        last_retrieved_at: new Date(),
+      })
+      .where(eq(memoryEntries.id, id));
   }
 
   /** Evidence-link ids grouped by entry id, for a batch of entries. */

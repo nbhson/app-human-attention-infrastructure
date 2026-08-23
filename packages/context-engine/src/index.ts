@@ -14,6 +14,7 @@
  * - `freshness` — `checkFreshness` + `sha256` (day-21).
  * - `render`    — `renderContextPrompt` structured prompt (day-21).
  * - `retrieval` — semantic retriever/ranker + shadow rank-comparison (day-18).
+ * - `memory-resolver` — inject top-K review memory into a snapshot (day-18).
  */
 
 export * from './types.js';
@@ -31,3 +32,4 @@ export * from './cache/cache-invalidating-listener.js';
 export * from './retrieval/semantic-retriever.js';
 export * from './retrieval/semantic-ranker.js';
 export * from './retrieval/shadow.js';
+export * from './memory-resolver.js';

@@ -57,6 +57,9 @@ export const TOKENS = {
   WriteBackService: 'WriteBackService',
   // Review-reorient Phase 3: review memory (day-16).
   MemoryStore: 'MemoryStore',
+  // Review-reorient Phase 3: review memory retrieval (day-18).
+  MemoryProvider: 'MemoryProvider',
+  MemoryContextResolver: 'MemoryContextResolver',
 } as const;
 
 /** The string union of every known token. */

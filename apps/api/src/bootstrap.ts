@@ -52,6 +52,7 @@ import {
   ContextEngine,
   FileCollector,
   KeywordDependencyRanker,
+  MemoryContextResolver,
   PostgresContextCache,
   SemanticRanker,
   SemanticRetriever,
@@ -63,6 +64,7 @@ import type { Logger } from '@harness/di';
 import { DrizzleWritebackLogStore, EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { AiProviderType } from '@harness/domain';
+import type { MemoryProvider } from '@harness/domain';
 import {
   EmbeddingIndexer,
   OpenAICompatibleEmbedder,
@@ -73,7 +75,7 @@ import type { Embedder } from '@harness/embeddings';
 import { MetricsComputer } from '@harness/evaluation';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import { MemoryStore } from '@harness/memory';
+import { MemoryRetriever, MemoryStore } from '@harness/memory';
 import { TaskService, TaskStateMachine } from '@harness/orchestrator';
 import type { ContentStore } from '@harness/object-store';
 import {
@@ -651,6 +653,23 @@ export function buildContainer(): Container {
       container.resolve<IEventBus>(TOKENS.EventBus),
       container.resolve<Logger>(TOKENS.Logger),
     );
+  });
+
+  // Review-reorient Phase 3 (day-18): the memory *read* seam. `MemoryRetriever`
+  // ranks head-of-chain entries behind the domain `MemoryProvider` contract (so
+  // `@harness/context-engine` reads it without importing `@harness/memory`), and
+  // `MemoryContextResolver` injects the top-K as a `memory` section on a context
+  // snapshot.
+  c.register(TOKENS.MemoryProvider, (container) => {
+    return new MemoryRetriever(
+      container.resolve<MemoryStore>(TOKENS.MemoryStore),
+      () => new Date(),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+  });
+
+  c.register(TOKENS.MemoryContextResolver, (container) => {
+    return new MemoryContextResolver(container.resolve<MemoryProvider>(TOKENS.MemoryProvider));
   });
 
   // Day 22: the review backend. It drives the task state machine, the Day-19
