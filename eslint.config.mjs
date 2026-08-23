@@ -141,6 +141,7 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/coverage/**',
       'packages/mcp/src/__tests__/fixtures/**',
+      'packages/mcp/src/__tests__/stub-servers/**',
       'sandbox/**',
       'working-repo/**',
       '**/*.config.ts',
