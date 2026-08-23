@@ -43,3 +43,4 @@ export * from './review-decisions.js';
 export * from './fix-suggestions.js';
 export * from './provider-configs.js';
 export * from './writeback-log.js';
+export * from './code-index.js';

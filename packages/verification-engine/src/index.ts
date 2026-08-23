@@ -35,3 +35,10 @@ export type {
   CloneVerificationReport,
   CloneWorktree,
 } from './clone-verifier.js';
+export { TargetedVerifier } from './targeted-verifier.js';
+export type {
+  AffectedTests,
+  AffectedTestsResolver,
+  TargetedRunResult,
+  TargetedVerifierOptions,
+} from './targeted-verifier.js';

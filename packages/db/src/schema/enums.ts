@@ -316,3 +316,22 @@ export const reviewDecisionTypeCheck = inList(
   'decision',
   reviewDecisionTypes,
 );
+
+// --- Day-14 (Phase 3) code-index -------------------------------------------
+// Lowercase verbatim copies of the `@harness/code-index` in-memory kinds
+// (`'definition' | 'reference'`, `'static' | 'dynamic'`), so a later ingestion
+// writes the indexer's payload directly into these rows with no mapping. `db`
+// may not import `code-index` (boundary R4), so the lists live here, mirroring
+// how `checkStatuses` above tracks the engine's `CheckStatus`.
+
+/** `code_index_symbols.kind` — a definition (an export) or a reference (an import). */
+export const symbolKinds = ['definition', 'reference'] as const;
+
+/** `code_index_deps.kind` — a static ESM edge or a dynamic `import()`/`require()`. */
+export const dependencyKinds = ['static', 'dynamic'] as const;
+
+/** `code_index_symbols.kind`. */
+export const symbolKindCheck = inList('code_index_symbols_kind_check', 'kind', symbolKinds);
+
+/** `code_index_deps.kind`. */
+export const dependencyKindCheck = inList('code_index_deps_kind_check', 'kind', dependencyKinds);

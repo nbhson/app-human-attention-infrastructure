@@ -33,6 +33,7 @@ const elements = [
   { type: 'sandbox', pattern: 'packages/sandbox/**' },
   { type: 'git-provider', pattern: 'packages/git-provider/**' },
   { type: 'ticket-provider', pattern: 'packages/ticket-provider/**' },
+  { type: 'code-index', pattern: 'packages/code-index/**' },
   { type: 'writeback', pattern: 'packages/writeback/**' },
   { type: 'mcp', pattern: 'packages/mcp/**' },
   { type: 'review', pattern: 'packages/review/**' },
@@ -87,6 +88,15 @@ const elementTypesRules = [
     allow: ['domain', 'mcp', 'ticket-provider'],
   },
   {
+    from: 'code-index',
+    // The dependency-graph leaf (day-14 §2.4): builds a symbol import/index and
+    // computes affected tests from file bytes. It may read domain/db/di types
+    // for a persistence layer, but today the graph is pure (node built-ins only),
+    // like object-store/sandbox. Consumed by the app host, never imported by a
+    // sibling engine — verification-engine reaches it through the resolver seam.
+    allow: ['domain', 'db', 'di', 'code-index'],
+  },
+  {
     from: 'writeback',
     // The write-back seam reads the intent/result contract (domain), the
     // protocol leaf (mcp), and the two provider seams' capability→tool-name
@@ -136,6 +146,7 @@ const elementTypesRules = [
       'mcp',
       'git-provider',
       'ticket-provider',
+      'code-index',
       'writeback',
       ...ENGINE_TYPES,
       'app',
