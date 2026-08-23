@@ -132,11 +132,15 @@ describe('dependency rules (Spec 1 §5)', () => {
     expect(harnessDependencies('sandbox')).toEqual([]);
   });
 
-  it('R13: @harness/git-provider depends only on @harness/domain', () => {
+  it('R13: @harness/git-provider depends only on @harness/domain and @harness/mcp', () => {
     // Review-reorient Phase 3: the Git-host read seam returns a domain
-    // `PullRequest`, so it needs only the domain value objects — no db (the
-    // report persistence lives in apps/api), no event-bus, no sibling engine.
-    expect(harnessDependencies('git-provider')).toEqual(['@harness/domain']);
+    // `PullRequest` (its only domain need, like every provider seam), and it
+    // fronts any Git host through MCP — so it reads the MCP protocol leaf for
+    // the `McpServerRegistry`/`ToolResult` types. It needs no db (report
+    // persistence lives in apps/api), no event-bus, no sibling engine.
+    expect(harnessDependencies('git-provider').sort()).toEqual(
+      ['@harness/domain', '@harness/mcp'].sort(),
+    );
   });
 
   it('R14: @harness/ticket-provider depends only on @harness/domain', () => {

@@ -8,7 +8,7 @@
  * past this package. Depends only on `@harness/domain`.
  */
 
-import type { GitProviderType, PullRequest } from '@harness/domain';
+import type { PullRequest } from '@harness/domain';
 
 /** Which PR/MR to fetch, from a host the provider already knows how to reach. */
 export interface FetchPullRequestInput {
@@ -18,11 +18,15 @@ export interface FetchPullRequestInput {
   readonly number: number;
 }
 
-/** The narrow git-host surface the review slice depends on. */
+/**
+ * The narrow git-host surface the review slice depends on.
+ *
+ * Note: the seam carries no single `type` — one provider (the MCP-backed one,
+ * Day 03) fronts *any* Git host, so the actual host is resolved per-request and
+ * stamped onto {@link PullRequest.provider}. A single-host provider like
+ * `GitHubProvider` still declares its own `type` for its internal mapper.
+ */
 export interface GitProvider {
-  /** The host this provider talks to. */
-  readonly type: GitProviderType;
-
   /** Fetch the PR metadata + diff. */
   fetchPullRequest(input: FetchPullRequestInput): Promise<PullRequest>;
 

@@ -491,6 +491,9 @@ importers:
       '@harness/domain':
         specifier: workspace:^
         version: link:../domain
+      '@harness/mcp':
+        specifier: workspace:^
+        version: link:../mcp
     devDependencies:
       '@types/node':
         specifier: ^22.10.1
