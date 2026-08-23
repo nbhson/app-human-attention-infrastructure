@@ -13,12 +13,14 @@
     "seed:e2e-fixture": "tsx scripts/seed-e2e-fixture.ts",
     "demo:mcp-connectivity": "tsx scripts/demo-mcp-connectivity.ts",
     "demo:writeback-toggle": "tsx scripts/demo-writeback-toggle.ts",
-    "demo:writeback": "tsx scripts/demo-writeback.ts"
+    "demo:writeback": "tsx scripts/demo-writeback.ts",
+    "demo:verification": "tsx scripts/demo-verification.ts"
   },
   "dependencies": {
     "@harness/agent-runtime": "workspace:*",
     "@harness/artifact-tracker": "workspace:*",
     "@harness/attention-engine": "workspace:*",
+    "@harness/code-index": "workspace:*",
     "@harness/auth": "workspace:*",
     "@harness/context-engine": "workspace:*",
     "@harness/db": "workspace:*",

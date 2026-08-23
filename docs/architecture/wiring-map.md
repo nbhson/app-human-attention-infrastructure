@@ -77,6 +77,29 @@ were **retired** in `review-reorient`, so those two stubs now simply mark the ab
 names. `AttentionEngine`'s live integration points remain `AttentionSubscriber` +
 `AttentionRouter`. `bootContainer()` (below) deliberately resolves only the subscriber/service tokens.
 
+### Verification breadth (Phase 3) — seams, not DI tokens
+
+The clone → sandbox → targeted-verify path (days 11–15) is assembled at the **app
+host**, not in `buildContainer()`. Several seams carry it, and none registers a DI
+token — they are structural, bound where the app is allowed to import both a graph
+leaf and an engine (rule R5 / R4):
+
+| Seam | Package (day) | Role | How the app binds it |
+|---|---|---|---|
+| `cloneAndCheckout` | `git-provider/src/clone.ts` (day-11) | Shallow clone + fetch head SHA + detach-checkout-at-SHA; injectable `RunGit`; throws `CloneError` on any non-zero git exit (never a silently-empty worktree) | `CloneResult` is structurally identical to the engine's `CloneWorktree`, so the host maps provider output → engine input without the engine importing `git-provider` (rule R4). The engine never names a Git host. |
+| `CloneVerifier` | `verification-engine/src/clone-verifier.ts` (day-12) | COMPILE → TEST, **fail-closed**: a non-passing COMPILE short-circuits TEST to `SKIPPED` | Consumes a `CloneWorktree` (above); runs the clone's own `build`/`test` scripts in the Docker sandbox via `computeWorkdirManifest` + `SandboxRunner`. |
+| `code-index` | `code-index/src/{indexer,graph,affected}.ts` (day-14) | Pure leaf (node built-ins only): `indexFiles` → `buildGraph` → `affectedTests` computes the transitive affected-test closure; `complete:false` on a graph gap | Consumed by the app host only — **never** imported by `verification-engine` (rule R4). |
+| `TargetedVerifier` | `verification-engine/src/targeted-verifier.ts` (day-14) | The *routing policy*: affected set when complete and non-empty, else full suite | The app injects `resolveAffected = (changed) => affectedTests(changed, graph)` — the engine owns the policy, the leaf owns the graph; neither imports the other. |
+
+`scripts/demo-verification.ts` (`pnpm demo:verification`, day-15) is the
+integration point that binds these four together over a recorded fixture: it
+proves targeted verdict == full verdict on every case (green *and* red) with fewer
+tests, falls back to the full suite on any graph gap / unindexed file / empty
+affected set, and shows a FAILED clone surfaces as a `CloneError`, teardown runs on
+failure, and the day-13 `flagReport`/`renderFlag` output annotates (never gates)
+the review. The actual sandbox execution legs are unit-covered by `clone-verifier`
++ `sandboxed-check` parity, so the demo runs credential-free (no Docker, no network).
+
 ### Tracing bootstrap (not a DI token)
 
 Day-03's OpenTelemetry provider is deliberately **not** container-injected: the
