@@ -19,6 +19,8 @@ as a deliberate exception.**
 | `retry_log` | ~~`WorkflowRunner.insertRetryLog`~~ (retired `review-reorient`) | No natural key — **accepted** | The table remains; no live writer (the retry/logic taxonomy was retired). |
 | `tasks` | `TaskService.createTask` (`task-service.ts`) | Fresh UUIDv7 PK (and caller-supplied `input.id`) | No `ON CONFLICT`: a fresh UUID can't collide. Callers wanting idempotent creation pass a stable `id`. |
 | `review_reports` | `ReviewIngestService.ingest` (get-or-create project + fresh report id) | Fresh UUIDv7 PK | The owning `projects` row is get-or-create on `repo_path` (idempotent); the report/findings/suggestions rows use fresh UUIDs. |
+| `writeback_log` | `MCPWriteBack.write` → `DrizzleWritebackLogStore.claim`/`finalize` (the `WritebackLogStore` port) | Claim-then-write + unique partial index `writeback_log_dedup_succeeded_uniq` ON `dedup_key` WHERE `status='SUCCEEDED'` | A retried or racing identical intent records a `DUPLICATE` row and never reaches the host — exactly one external write per decision (day-08, verified end-to-end day-10). |
+| `review_decisions` | `routes/reviews.ts` (`POST /api/reviews/:id/decision`) | Fresh UUIDv7 `id` | Each human verdict is a distinct row by design; re-approving with the same comment body still dedups downstream because the write-back fingerprint folds provider+externalId+action+body — **not** `decision_id` (day-09/10). |
 | `projects` | `seed.ts` | `onConflictDoNothing()` | Dev-time fixture only; re-running the seed is a no-op. |
 
 ## Exceptions (no guard, deliberate)

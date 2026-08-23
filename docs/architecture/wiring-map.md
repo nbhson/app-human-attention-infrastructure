@@ -52,6 +52,8 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `TaskService` | `TaskService(db, EventBus, TaskStateMachine)` | Day 06 | `ReviewService` (transition seam), `AutoApproveExecutor` (transition seam), `ReviewIngestService` (createTask + immediate CANCELLED anchor) |
 | `GitProvider` | `GitHubProvider(token, baseUrl)` when `GITHUB_TOKEN` set, else `null` | review-reorient | `ReviewIngestService` (fetch the PR diff/metadata) |
 | `TicketProvider` | `JiraProvider(token, baseUrl)` when `JIRA_TOKEN`/`JIRA_BASE_URL` set, else `null` | review-reorient | `ReviewIngestService` (fetch the requirement) |
+| `McpServerRegistry` | `McpServerRegistryImpl(loadMcpConfig(path, env))` | review-reorient (day-02) | `routes/settings.ts` (list configured servers), `WriteBackService` (lazy client per provider) |
+| `WriteBackService` | `MCPWriteBack(McpServerRegistry, StaticGitToolMap, StaticTicketToolMap, DrizzleWritebackLogStore(Db))` | review-reorient (day-06, audit day-08, toggle day-09) | `routes/reviews.ts` (`POST /api/reviews/:id/decision` — the `writebackEnabled` gate decides whether a COMMENT + STATUS / COMMENT + TRANSITION is emitted to the external host) |
 | `ReviewAgent` | `ReviewAgent(LLMProvider)` | review-reorient | `ReviewIngestService` (LLM → structured report + findings + fix suggestions) |
 | `ReviewIngestService` | `ReviewIngestService(db, bus, taskService, gitProvider, ticketProvider, reviewAgent, aiProvider, model, logger)` | review-reorient | `routes/reviews.ts` (`POST /api/reviews`, `GET /api/reviews/:id`) |
 | `ReviewService` | `ReviewService(db, EventBus, {transitionTask, reportAssessmentFeedback, diffChange}, logger)` | Day 22 | `routes/review.ts` (claim/decide/drop + release/escalate); `DiffEngine` is constructed inline to back `diffChange` |
@@ -59,6 +61,14 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `Orchestrator` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (no longer developed; the dispatch/workflow/retry loop was retired) |
 | `AgentRuntime` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (the code-gen runner was retired; the review work landed under `ReviewAgent` + `ReviewIngestService`) |
 | `AttentionEngine` | stub `Proxy` ("not yet implemented") | Day 05 (stub) | — (the real work landed in `AttentionSubscriber` + `AttentionRouter`) |
+
+The write-back subsystem persists to two tables: `writeback_log` (the append-only
+audit of every external write attempt — `PENDING`→`SUCCEEDED`/`FAILED`/`DUPLICATE`,
+with a unique partial index on `dedup_key WHERE status='SUCCEEDED'` enforcing one
+external write per decision, day-08) and `review_decisions` (the human verdict,
+linked back from `writeback_log.decision_id`, day-09). `WriteBackService` is
+resolved lazily by the decision route — it is **not** in `bootContainer()`'s eager
+list, so a review decision is the only thing that ever reaches an external MCP tool.
 
 The three `ENGINE_STUB_TOKENS` (`Orchestrator`, `AgentRuntime`, `AttentionEngine`) are the
 Day-05 placeholder names. `Orchestrator` and `AgentRuntime`'s code-generation concretions
@@ -166,11 +176,13 @@ The review slice (`ReviewIngestService` / `ReviewAgent` / `GitProvider` /
 32. `TaskService` — needs `Db`, `EventBus`, `TaskStateMachine`.
 33. `GitProvider` — `GITHUB_TOKEN` (else `null`).
 34. `TicketProvider` — `JIRA_BASE_URL` + `JIRA_TOKEN` (else `null`).
-35. `ReviewAgent` — needs `LLMProvider`.
-36. `ReviewIngestService` — needs `Db`, `EventBus`, `TaskService`, `GitProvider`, `TicketProvider`, `ReviewAgent`, `aiProvider`, `model`, `Logger`.
-37. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
-38. `MetricsComputer` — no deps.
-39. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
+35. `McpServerRegistry` — needs `MCP_CONFIG_PATH` (default `./mcp.config.json`); parsed once at startup (day-02).
+36. `WriteBackService` — needs `McpServerRegistry`, `Db`, the git/ticket tool maps (day-06).
+37. `ReviewAgent` — needs `LLMProvider`.
+38. `ReviewIngestService` — needs `Db`, `EventBus`, `TaskService`, `GitProvider`, `TicketProvider`, `ReviewAgent`, `aiProvider`, `model`, `Logger`.
+39. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
+40. `MetricsComputer` — no deps.
+41. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 

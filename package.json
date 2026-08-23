@@ -16,6 +16,8 @@
     "seed:metrics-checkpoint": "pnpm --filter @harness/api seed:metrics-checkpoint",
     "seed:e2e-fixture": "pnpm --filter @harness/api seed:e2e-fixture",
     "demo:mcp-connectivity": "pnpm --filter @harness/api demo:mcp-connectivity",
+    "demo:writeback-toggle": "pnpm --filter @harness/api demo:writeback-toggle",
+    "demo:writeback": "pnpm --filter @harness/api demo:writeback",
     "eval:metrics": "pnpm --filter @harness/evaluation eval:metrics",
     "eval:report": "pnpm --filter @harness/evaluation eval:report",
     "eval:replay": "pnpm --filter @harness/evaluation eval:replay",
