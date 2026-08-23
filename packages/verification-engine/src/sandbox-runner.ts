@@ -163,6 +163,7 @@ export function toCheckResult(
         ? CheckStatus.PASSED
         : CheckStatus.FAILED,
     durationMs,
+    exitCode: result.exitCode,
     output: truncateOutput(combined),
     evidenceBody: combined,
   };

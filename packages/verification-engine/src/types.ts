@@ -54,6 +54,9 @@ export interface CheckResult {
   readonly status: CheckStatus;
   /** Wall-clock duration in milliseconds. */
   readonly durationMs: number;
+  /** The raw process exit code (day-13 §2.2). `137` for a container kill
+   * (TIMED_OUT); absent for in-process checks that never surfaced a code. */
+  readonly exitCode?: number;
   /** Truncated stdout/stderr (64 KB cap). */
   readonly output: string;
   /** Set on Day 17 when the full output moves to evidence storage. */
