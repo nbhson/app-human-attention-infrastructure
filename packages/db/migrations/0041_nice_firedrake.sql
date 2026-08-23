@@ -1,0 +1,2 @@
+DROP INDEX "writeback_log_dedup_succeeded_uniq";--> statement-breakpoint
+CREATE UNIQUE INDEX "writeback_log_dedup_inflight_uniq" ON "writeback_log" USING btree ("dedup_key") WHERE "writeback_log"."status" IN ('PENDING', 'SUCCEEDED');

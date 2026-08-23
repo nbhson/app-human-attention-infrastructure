@@ -12,11 +12,14 @@ import { reviewDecisions } from './review-decisions.js';
  * full write-back history is replayable. Written behind a per-provider toggle;
  * when toggled off, no row exists and nothing external happens.
  *
- * Idempotency (day-08 §2.2): `dedup_key` is the deterministic fingerprint of an
- * intent (provider | external target | action | normalized payload); the partial
- * unique index below allows at most one `SUCCEEDED` row per key, so a retried or
- * racing identical write is caught by the store and marked `DUPLICATE` instead of
- * double-posting.
+ * Idempotency (day-08 §2.2, hardened day-36): `dedup_key` is the deterministic
+ * fingerprint of an intent (provider | external target | action | normalized
+ * payload); the partial unique index below allows at most one *in-flight*
+ * (`PENDING` or `SUCCEEDED`) row per key, so a retried or racing identical write
+ * is caught by the store **at claim time** — before any external call — and
+ * marked `DUPLICATE` instead of double-posting. The `WHERE` scopes to
+ * `PENDING`/`SUCCEEDED` (not `FAILED`), so a failed attempt still lets a retry
+ * append a fresh `PENDING` row and try again (day-36 §2.1).
  */
 export const writebackLog = pgTable(
   'writeback_log',
@@ -36,9 +39,9 @@ export const writebackLog = pgTable(
   (table) => [
     writebackActionCheck,
     writebackStatusCheck,
-    uniqueIndex('writeback_log_dedup_succeeded_uniq')
+    uniqueIndex('writeback_log_dedup_inflight_uniq')
       .on(table.dedup_key)
-      .where(sql`${table.status} = 'SUCCEEDED'`),
+      .where(sql`${table.status} IN ('PENDING', 'SUCCEEDED')`),
     index('writeback_log_provider_external_idx').on(table.provider, table.external_id),
     index('writeback_log_decision_id_idx').on(table.decision_id),
   ],

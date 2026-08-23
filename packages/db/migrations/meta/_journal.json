@@ -288,6 +288,13 @@
       "when": 1787519131181,
       "tag": "0040_easy_maggott",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787522162882,
+      "tag": "0041_nice_firedrake",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import type { WritebackClaim, WritebackFinalize, WritebackLogStore } from '@harness/domain';
 
@@ -30,15 +30,23 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
- * The Drizzle implementation of the {@link WritebackLogStore} port (day-08).
+ * The Drizzle implementation of the {@link WritebackLogStore} port (day-08,
+ * hardened day-36).
  *
- * Idempotency is *claim-then-write*: `claim` atomically checks for an existing
- * `SUCCEEDED` row with the same `dedup_key` and records either `DUPLICATE` (no
- * proceed) or `PENDING` (proceed). `finalize` moves a claimed row to its terminal
- * state; the `SUCCEEDED` update races the partial unique index on
- * `(dedup_key) WHERE status = 'SUCCEEDED'`, so a concurrent identical write
- * degrades its late winner to `DUPLICATE` rather than double-recording a success.
- * A `FAILED` update has no constraint to race and writes its redacted `error`.
+ * Idempotency is *claim-then-write*: `claim` attempts an `ON CONFLICT DO NOTHING`
+ * insert against the in-flight partial unique index, recording `PENDING` when it
+ * wins and `DUPLICATE` (no proceed) when a racing or prior identical claim holds
+ * the key. Since day-36 the index scopes to `PENDING`/`SUCCEEDED` (not just
+ * `SUCCEEDED`), so a **concurrent** identical claim — or a retry that races a
+ * crashed `PENDING` — resolves to `DUPLICATE` *before any external call*.
+ * `finalize` moves a claimed row to its terminal state; the `SUCCEEDED` update
+ * still races the index, so a late winner degrades to `DUPLICATE` rather than
+ * double-recording a success. A `FAILED` update has no constraint to race and
+ * writes its redacted `error`.
+ *
+ * The `WHERE` scopes to `PENDING`/`SUCCEEDED` — not `FAILED` — so a failed
+ * attempt's row leaves the index and a retry may append a fresh `PENDING` row
+ * (retry-after-failure is safe: the external write did not happen).
  *
  * The row id is the *intent id* (see {@link WritebackClaim.intentId}); each
  * attempt carries a fresh intent id from the caller, so a retry of the same
@@ -50,29 +58,41 @@ export class DrizzleWritebackLogStore implements WritebackLogStore {
 
   async claim(input: WritebackClaim): Promise<'claimed' | 'duplicate'> {
     return this.db.transaction(async (tx) => {
-      const existing = await tx
-        .select({ id: writebackLog.id })
-        .from(writebackLog)
-        .where(
-          and(eq(writebackLog.dedup_key, input.dedupKey), eq(writebackLog.status, 'SUCCEEDED')),
-        )
-        .limit(1);
+      // The in-flight partial unique index — `(dedup_key) WHERE status IN
+      // ('PENDING','SUCCEEDED')` — is the atomic serialization point. We try to
+      // insert a `PENDING` row with `ON CONFLICT DO NOTHING` targeting that
+      // index; when a racing identical claim already holds the key (still
+      // PENDING or already SUCCEEDED), this inserts nothing, and we record the
+      // audit skip without ever reaching the external host (day-36 §2.1).
+      const attempted = await tx
+        .insert(writebackLog)
+        .values(this.rowValues(input, 'PENDING'))
+        .onConflictDoNothing({
+          target: writebackLog.dedup_key,
+          where: sql`${writebackLog.status} IN ('PENDING', 'SUCCEEDED')`,
+        })
+        .returning({ id: writebackLog.id });
 
-      const status: WritebackStatus = existing.length > 0 ? 'DUPLICATE' : 'PENDING';
-
-      await tx.insert(writebackLog).values({
-        id: input.intentId,
-        provider: input.provider,
-        external_id: input.externalId,
-        action: input.action,
-        body: input.body,
-        dedup_key: input.dedupKey,
-        status,
-        ...(input.decisionId === undefined ? {} : { decision_id: input.decisionId }),
-      });
-
-      return existing.length > 0 ? 'duplicate' : 'claimed';
+      if (attempted.length > 0) {
+        return 'claimed';
+      }
+      await tx.insert(writebackLog).values(this.rowValues(input, 'DUPLICATE'));
+      return 'duplicate';
     });
+  }
+
+  /** The audit-row values for one claim, at the given status. */
+  private rowValues(input: WritebackClaim, status: WritebackStatus) {
+    return {
+      id: input.intentId,
+      provider: input.provider,
+      external_id: input.externalId,
+      action: input.action,
+      body: input.body,
+      dedup_key: input.dedupKey,
+      status,
+      ...(input.decisionId === undefined ? {} : { decision_id: input.decisionId }),
+    };
   }
 
   async finalize(input: WritebackFinalize): Promise<void> {

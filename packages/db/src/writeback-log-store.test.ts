@@ -61,24 +61,42 @@ describe('DrizzleWritebackLogStore', () => {
     expect(rows.filter((r) => r.status === 'SUCCEEDED')).toHaveLength(1);
   });
 
-  it('two PENDING claims racing to SUCCEEDED: the loser degrades to DUPLICATE', async () => {
+  it('a concurrent identical PENDING claim is blocked at claim time (day-36 §2.1)', async () => {
     const store = new DrizzleWritebackLogStore(testDb.db);
     const key = 'dedup-race';
 
+    // The first claim records PENDING and owns the in-flight slot.
     expect(await store.claim(claim({ intentId: 'wb-a', dedupKey: key }))).toBe('claimed');
-    expect(await store.claim(claim({ intentId: 'wb-b', dedupKey: key }))).toBe('claimed');
 
-    // Both wrote PENDING and both "succeed" externally; the partial unique index
-    // admits only one SUCCEEDED per key, so the later finalize degrades.
+    // A second, identical intent — racing before the first finalizes — must not
+    // proceed: the in-flight index scopes to PENDING+SUCCEEDED, so this resolver
+    // loses and returns 'duplicate' *before any external call* (day-36 §2.1).
+    expect(await store.claim(claim({ intentId: 'wb-b', dedupKey: key }))).toBe('duplicate');
+
     await store.finalize({ intentId: 'wb-a', status: 'SUCCEEDED', externalRef: 'comment-a' });
-    await store.finalize({ intentId: 'wb-b', status: 'SUCCEEDED', externalRef: 'comment-b' });
 
     const rows = await rowsFor(key);
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId['wb-a']?.status).toBe('SUCCEEDED');
+    expect(byId['wb-b']?.status).toBe('DUPLICATE');
     expect(rows.filter((r) => r.status === 'SUCCEEDED')).toHaveLength(1);
-    expect([byId['wb-a']?.status, byId['wb-b']?.status]).toEqual(
-      expect.arrayContaining(['SUCCEEDED', 'DUPLICATE']),
-    );
+  });
+
+  it('a FAILED attempt leaves the in-flight index, so a retry may claim again', async () => {
+    const store = new DrizzleWritebackLogStore(testDb.db);
+    const key = 'dedup-fail-retry';
+
+    expect(await store.claim(claim({ intentId: 'wb-fail-a', dedupKey: key }))).toBe('claimed');
+    await store.finalize({ intentId: 'wb-fail-a', status: 'FAILED', error: 'host unreachable' });
+
+    // FAILED is outside the PENDING/SUCCEEDED scope, so the retry is not a dup.
+    expect(await store.claim(claim({ intentId: 'wb-fail-b', dedupKey: key }))).toBe('claimed');
+    await store.finalize({ intentId: 'wb-fail-b', status: 'SUCCEEDED', externalRef: 'comment-2' });
+
+    const rows = await rowsFor(key);
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId['wb-fail-a']?.status).toBe('FAILED');
+    expect(byId['wb-fail-b']?.status).toBe('SUCCEEDED');
   });
 
   it('finalize FAILED records the (redacted) error', async () => {
