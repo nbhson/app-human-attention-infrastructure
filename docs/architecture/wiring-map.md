@@ -139,6 +139,22 @@ round-trip — default → `'hybrid'` → kill-switch `'keyword'` → default �
 real `LexicalRetriever` + `HybridRetriever` (RRF) hermetically: only the embedder's
 cosine ranking is stubbed.
 
+### Learning loop (Phase 3, day-31) — Evaluate → Calibrate → (measured) Deploy
+
+`CalibrationJob` (in `@harness/attention-engine/src/learning/`) is a **structural
+seam, not a DI token**, and it is **not** eagerly started: like `MemoryLifecycle`,
+a server entrypoint (or the `demo:learning-loop` script) drives `run(since)` on a
+cadence. It composes three injected pieces — a `CollectSeam` (reads new
+`was_useful` + judge + factor facts from the DB), a `FitSeam` (the app binds
+evaluation's `fitJudgeWeights` across the boundary, since `attention-engine` may
+not import `evaluation` — R4), and `decidePromotion` (the measured PROMOTE/HOLD
+guardrail). Automation stops at the gate: a candidate that does not **win** its
+held-out ranking comparison against the incumbent — or that trips the
+`judgeSignalDominates` overfit alarm — is `HOLD`, and the job never applies a
+weight vector itself (day-31 §2.2). The `WeightsProvider` on the routing hot path
+is unchanged: `StaticWeightsAdapter` still returns the placeholder until a
+promotion is explicitly adopted. See `scripts/demo-learning-loop.ts`.
+
 ### Tracing bootstrap (not a DI token)
 
 Day-03's OpenTelemetry provider is deliberately **not** container-injected: the

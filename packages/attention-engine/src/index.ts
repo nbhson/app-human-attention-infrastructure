@@ -25,4 +25,5 @@ export * from './auto-approve/gate.js';
 export * from './auto-approve/kill-switch.js';
 export * from './auto-approve/sampler.js';
 export * from './auto-approve/executor.js';
+export * from './learning/index.js';
 export { AttentionSubscriber } from './attention-subscriber.js';
