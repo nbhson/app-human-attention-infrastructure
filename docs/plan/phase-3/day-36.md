@@ -1,11 +1,11 @@
-# Day 36 — Hardening: Multi-Agent Runaway Guards, Memory Growth, Hybrid Latency
+# Day 36 — Hardening: Write-back Idempotency, Token Redaction, Multi-provider Concurrency
 
 | | |
 |---|---|
-| **Week** | 8 — Harden, document, exit |
-| **Spec refs** | Spec 3 §14 (runaway/cost guards), Spec 9 §4.4–4.5 (decay/retention bounds), Spec 4 §5.1 (hybrid retrieval latency) |
-| **Estimated effort** | 8h |
-| **Prerequisites** | Day 35 (Week 7 checkpoint — closed loop demonstrable) |
+| **Week** | 8 — Harden + exit |
+| **Spec refs** | Phase-3 README §7 (exit criteria); Architecture §7 (token hygiene, append-only); Days 03/08 schemas |
+| **Estimated effort** | 7h |
+| **Prerequisites** | Days 08 (writeback_log), 03 (provider_configs redaction), 05 (registry) all live |
 
 ---
 
@@ -13,64 +13,56 @@
 
 By end of day you will have:
 
-1. **Multi-agent runaway hardening** — the Day 22 guards proven under adversarial workloads: nested loops, sub-agent fan-out, and a stubbornly unyielding primitive all terminate with sane budget use.
-2. **Memory growth hardening** — the seven-kind memory store (Days 1–7) shown to stay bounded: consolidation, decay, archive, and `supersedes` chains capped so the store can't grow unboundedly in production.
-3. **Hybrid latency hardening** — the Day 16–18 hybrid pipeline (BM25 + embeddings + RRF + re-rank + optional RAG Fusion) has measured, bounded latency (p95 targets), with RAG Fusion's cost guard proven under burst.
-4. A **hardening report** capturing the bounded-by-construction guarantees and any residual risks.
+1. **Write-back idempotency hardened** — re-verify no duplicate comments under failure injection (concurrent retries, crash-between-insert-and-call) and close any gaps found since Day 08.
+2. **Token redaction hardened** — a systematic sweep proving provider tokens are never logged, never in events, never in error bodies, across all new Phase-3 code paths.
+3. **Multi-provider concurrency** — two reviews against two different providers (or two configs) resolve independently with no shared-token bleed, no cross-host race.
+4. A hardening report summarizing findings + fixes.
 
-This is the phase's strength day: make sure the things we built "bounded" actually are, before the E2E load profile (Day 37) hammers them.
+This is the security/robustness pass before the Day 37 E2E and Day 40 exit review.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Runaway: treat budgets as *system* property, not per-call
+### 2.1 Idempotency re-verified under fault injection
 
-- Sub-agents inherit their parent's budget ceiling (a MapReduce spawning N Coder sub-agents must not be 5× the parent's token allowance).
-- A fan-out primitive (MapReduce/Ensemble) has a **fan-out cap** and a **cumulative budget**; exceeding the parent budget escalates, even if each sub-agent individually stayed within limits.
-- A primitive that returns "stuck but not erroring" repeatedly → no-progress escalation *across* the fan-out, not per leaf.
+Day 08 shipped the unique partial index; today *attacks* it: concurrent duplicate intents, retry-after-crash, reformatted body dedup. Any path that produces a second external comment is a bug to close, not document.
 
-### 2.2 Memory growth: bounded store
+### 2.2 Redaction is a tested invariant, not a convention
 
-- Decay (`0.99^days`) + archive (90d) + retain policy already exist (Days 6–7). Hardening adds:
-  - `supersedes` chain **length cap** (e.g. 8) — beyond it, older superseded entries are hard-archived and the chain keeps only the newest `cap` links.
-  - **Size budgets** per kind (row count + byte size) with page-out to the cold tier at `0.8 × cap`.
-  - `retrievedCount`/`lastRetrievedAt` based eviction so hot-but-bounded wins over unbounded-cold.
-- Prove growth is sublinear over simulated weeks (a growth test, not a promise).
+Add/strengthen the "grep emitted events + error bodies + log rows for token bytes" test that fails on any leak. The redaction boundary (`redactProviderConfig`) is enforced at the seam; today closes the remaining paths (adapter `error` strings, demos, ops endpoints).
 
-### 2.3 Hybrid latency: p95 budget
+### 2.3 Concurrency = config isolation
 
-- Targets (config, CI-asserted): lexical+semantic parallel fetch + RRF + re-rank ≤ p95 250ms (cold) / 150ms (warm); RAG Fusion opt-in keeps the total within a `MAX_RAG_FUSION_QUERIES=3` cost cap and a wall-clock ceiling.
-- Re-rankers must be O(pinned results), not O(all candidates) — protect hot path.
-- Latency is measured with the real (not mock) retrieval path against the seeded corpus, so the number is honest.
+Each review resolves its provider from its own `provider_configs` row; tests assert two interleaved reviews (GitHub + GitLab) retrieve *their own* tokens/endpoints with zero cross-contamination, and that a scoped token can't read another host's row.
 
-### 2.4 Hardening is measurement + bound, not "more tuning"
+### 2.4 No live keys anywhere
 
-No new features. Each guardianship is *already* there in some form; today proves the bound and closes the gaps (fan-out budget inheritance, supersedes cap, hot-path p95). Results go into the hardening report.
+Confirm `.env.example`-only hygiene across the whole repo (git grep for key patterns), including the new packages added this phase.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Runaway hardening (180 min)
+### 3.1 Idempotency fault injection (90 min)
 
-- [ ] Fan-out budget inheritance + cumulative ceilings for MapReduce/Ensemble (§2.1).
-- [ ] Tests: N sub-agents where N×per-leaf-budget > parent → escalates; stuck-fan-out → no-progress escalation.
-- [ ] Adversarial MockLLM suite: nested loops, refusing primitive, exploding fan-out.
+- [ ] Concurrent + crash + reformat retry scenarios; fix any double-write found.
 
-### 3.2 Memory growth hardening (150 min)
+### 3.2 Redaction sweep (90 min)
 
-- [ ] `supersedes` chain-length cap + kind-level size budgets + cold-tier page-out (§2.2).
-- [ ] Simulated multi-week growth test: store size stays bounded; hot entries retained, decayed entries archived.
+- [ ] Grep-for-token-bytes test across events/errors/logs; close leaks; verify `token_hint`-only anywhere a token is shown.
 
-### 3.3 Hybrid latency hardening (150 min)
+### 3.3 Concurrency isolation (90 min)
 
-- [ ] Instrument the real retrieval path; assert p95 targets (§2.3).
-- [ ] Re-rank complexity bound check; RAG Fusion cost + wall-clock cap proven under burst (concurrent queries).
+- [ ] Interleaved multi-provider tests; scoped-token isolation test.
 
-### 3.4 Hardening report (60 min)
+### 3.4 Key hygiene audit (45 min)
 
-- [ ] `docs/reports/phase3-hardening.md` — bounded-by-construction claims with measured numbers + residual risks.
+- [ ] `git grep` for live-key patterns; confirm `.env.example`-only.
+
+### 3.5 Hardening report (30 min)
+
+- [ ] `docs/retros/phase3-hardening.md` — findings + fixes.
 
 ---
 
@@ -78,34 +70,30 @@ No new features. Each guardianship is *already* there in some form; today proves
 
 | File | Description |
 |------|-------------|
-| `packages/multi-agent/src/fanout-budget.ts` | Fan-out budget inheritance |
-| `packages/context-engine/src/memory-bounds.ts` | Supersedes cap + tier page-out |
-| `packages/context-engine/src/latency.ts` | p95 instrumentation |
-| `packages/.../__tests__/*.test.ts` (adversarial/growth/latency) | Hardening tests |
-| `docs/reports/phase3-hardening.md` | Hardening report |
+| `packages/writeback/src/__tests__/idempotency-fault.test.ts` | Fault-injection idempotency |
+| `apps/api/src/__tests__/redaction-sweep.test.ts` | Token redaction sweep |
+| `packages/git-provider/src/__tests__/concurrency.test.ts` | Multi-provider isolation |
+| `docs/retros/phase3-hardening.md` | Hardening report |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] Runaway: nested/fan-out/stuck workloads all terminate within budget (cumulative ceilings enforced).
-- [ ] Memory: simulated multi-week growth stays bounded; `supersedes` chains capped; cold tier pages out at cap.
-- [ ] Hybrid: p95 ≤ targets (cold 250ms / warm 150ms); RAG Fusion cost + wall-clock capped under burst.
-- [ ] Bounds are *measured* (real paths, adversarial workloads) and recorded in `phase3-hardening.md`.
-- [ ] No new features introduced; existing tests still green.
-- [ ] `pnpm lint` clean; boundary intact.
+- [ ] No duplicate external write under concurrent retry / crash / reformat.
+- [ ] Token bytes absent from every event, error body, and log row (grep test green).
+- [ ] Two interleaved reviews across two providers resolve independent configs with no bleed.
+- [ ] No live key committed anywhere (git grep clean).
+- [ ] `pnpm test && pnpm lint` green.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Budgets that don't compose are budgets you don't have.** A MapReduce whose leaves each stay under budget but whose sum explodes is a runaway wearing a compliance costume. Cumulative + inherited ceilings are the fix.
-- **Memory "bounded" must survive simulated time.** A store that's fine on day 1 and unbounded on day 90 isn't bounded. The multi-week growth test catches what a unit test can't.
-- **`supersedes` chains grow forever if nothing caps them.** Versioned write-back is good, but an unbounded append-only history is the memory equivalent of a runaway. Cap the chain; archive the tail.
-- **Latency numbers only count on the real path.** A mock-LLM p95 of 3ms is fiction. Measure the seeded real retrieval path, under actual concurrence, and record it honestly.
-- **RAG Fusion is the latency/cost trap.** It's opt-in for a reason. Its burst behavior must be capped or it turns a fine default into a p99 catastrophe under load.
-- **Tomorrow (Day 37):** E2E full system under Phase-3 infra + load profile.
+- **Attack the seams you built, don't trust them.** Day 08's index is only as strong as the paths that reach it; fault injection, not code review, is the proof.
+- **Redaction failure is a security bug, not a style issue.** A leaked `Authorization` header in an error body is an incident; the grep test is the tripwire.
+- **Concurrency bugs look like "wrong token used".** The isolation test must assert *which* host a request hit, not just that it succeeded.
+- **Day 37:** E2E full system under Phase-3 infra + load profile.
 
 ---
 
-*Prev: [Day 35 — Week 7 Checkpoint: Closed Loop Demonstrable Autonomously](day-35.md) | Next: [Day 37 — E2E Full System Under Phase-3 Infrastructure + Load Profile](day-37.md)*
+*Next: [Day 37 — E2E Full System under Phase-3 Infra + Load Profile](day-37.md)*

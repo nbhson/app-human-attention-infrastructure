@@ -131,6 +131,19 @@ describe('dependency rules (Spec 1 §5)', () => {
     // Code Mode (Day 23) can both import the `Sandbox` interface with no cycle.
     expect(harnessDependencies('sandbox')).toEqual([]);
   });
+
+  it('R13: @harness/git-provider depends only on @harness/domain', () => {
+    // Review-reorient Phase 3: the Git-host read seam returns a domain
+    // `PullRequest`, so it needs only the domain value objects — no db (the
+    // report persistence lives in apps/api), no event-bus, no sibling engine.
+    expect(harnessDependencies('git-provider')).toEqual(['@harness/domain']);
+  });
+
+  it('R14: @harness/ticket-provider depends only on @harness/domain', () => {
+    // Review-reorient Phase 3: the ticket read seam returns a domain `Issue`,
+    // so it needs only the domain value objects — mirroring R13.
+    expect(harnessDependencies('ticket-provider')).toEqual(['@harness/domain']);
+  });
 });
 
 /**

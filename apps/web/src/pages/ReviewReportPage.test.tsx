@@ -1,0 +1,98 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { reviewsApi, type ReviewReport } from '../api/reviews';
+import ReviewReportPage from './ReviewReportPage';
+
+vi.mock('../api/reviews', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/reviews')>();
+  return {
+    ...actual,
+    reviewsApi: { ...actual.reviewsApi, getReport: vi.fn(), decide: vi.fn() },
+  };
+});
+
+const mocked = vi.mocked(reviewsApi);
+
+const report: ReviewReport = {
+  id: 'report-abc',
+  prUrl: 'https://github.com/acme/app/pull/123',
+  prNumber: 123,
+  repo: 'github.com/acme/app',
+  prTitle: 'Add rate limiting',
+  aiProvider: 'custom',
+  model: 'gpt-4.1',
+  summary: 'Solid change, one correctness concern.',
+  overallVerdict: 'REQUEST_CHANGES',
+  createdAt: '2026-08-23T00:00:00.000Z',
+  findings: [
+    {
+      id: 'finding-1',
+      severity: 'MAJOR',
+      file: 'src/limit.ts',
+      line: 42,
+      message: 'Off-by-one in the window check.',
+      suggestion: 'Compare against `>` instead of `>=`.',
+      orderIndex: 0,
+    },
+  ],
+  suggestions: [
+    {
+      id: 'suggestion-1',
+      file: 'src/limit.ts',
+      hunk: '@@ -42,3 +42,3 @@',
+      proposed: 'if (count > limit) reject();',
+      rationale: 'The current bounds gate admits one request too many.',
+      orderIndex: 0,
+    },
+  ],
+};
+
+function renderReport(): void {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={['/reviews/report-abc']}>
+        <Routes>
+          <Route path="/reviews/:id" element={<ReviewReportPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+describe('ReviewReportPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders verdict, findings, and fix suggestions into distinct sections', async () => {
+    mocked.getReport.mockResolvedValue(report);
+
+    renderReport();
+
+    expect(await screen.findByText('Add rate limiting')).toBeInTheDocument();
+    expect(screen.getByText('REQUEST_CHANGES')).toBeInTheDocument();
+    expect(screen.getByText('Findings (1)')).toBeInTheDocument();
+    expect(screen.getByText('Off-by-one in the window check.')).toBeInTheDocument();
+    expect(screen.getByText('Fix suggestions (1)')).toBeInTheDocument();
+    expect(screen.getByText('if (count > limit) reject();')).toBeInTheDocument();
+  });
+
+  it('submits a human decision to the decide endpoint', async () => {
+    mocked.getReport.mockResolvedValue(report);
+    mocked.decide.mockResolvedValue({ reportId: 'report-abc', decision: 'APPROVE' });
+
+    renderReport();
+
+    fireEvent.click(await screen.findByRole('radio', { name: /APPROVE/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Submit/ }));
+
+    expect(await screen.findByText('APPROVE')).toBeInTheDocument();
+    expect(mocked.decide).toHaveBeenCalledWith('report-abc', 'APPROVE');
+  });
+});

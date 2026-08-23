@@ -1,28 +1,28 @@
-# HAI Harness — 30-Day Implementation Plan
+# HAI Harness — Phase 1: Prove the Review Core Loop
 
-**Version:** v0.1
+**Version:** v0.2 (re-authored under `review-reorient`)
 **Created:** 2026-08-19
-**Specs:** `docs/core/1..7, 9, 11` (updated v0.1, reviewed). Spec 9 = Memory/Evidence (evidence store in Phase 1); Spec 11 = Evaluation Engine (Phase 2+).
+**Status:** ✅ **Complete** — tagged `v0.1.0-harness`
+**Specs:** `docs/core/1..7, 9, 11` (updated v0.2). Spec 9 = Memory/Evidence (evidence store in Phase 1); Spec 11 = Evaluation Engine (Phase 2+).
 
 ---
 
 ## 1. Goal of the 30 Days
 
-By **Day 30**, deliver a working **vertical slice** of HAI Harness:
+By **Day 30**, deliver a working **vertical slice** of the review control plane:
 
 ```text
-Task → Context → AI Agent execution → Artifact/Change tracking
-     → Independent Verification → Attention Assessment
-     → Human Review → Decision (APPROVE → merge / REJECT → rework)
-     → Evidence recorded & queryable
+PR/MR + Jira ticket  →  fetch diff + requirement  →  AI review (report + findings + fix suggestions)
+                     →  independent verification  →  attention assessment
+                     →  human review → decision  →  evidence recorded & queryable
 ```
 
 Not a production system — a **correctly-architected, tested, end-to-end demonstrable** modular monolith that proves the core principles:
 
-- **Evidence before confidence** — no change is "done" without verification evidence.
+- **Evidence before confidence** — no review is "done" without verification evidence.
 - **Human Attention as a first-class resource** — every review request is prioritized by the Attention Engine.
 - **Claim ≠ Evidence** — the AI's report is never trusted without independent verification.
-- **Full provenance** — every artifact answers: who, what, why, which model, which context, which evidence.
+- **Full provenance** — every review answers: who, what, why, which model, which context, which evidence.
 
 ---
 
@@ -32,17 +32,17 @@ Not a production system — a **correctly-architected, tested, end-to-end demons
 |-------|--------|-----------|
 | Language | TypeScript (Node 20+) | Matches all specs; fast iteration |
 | Repo | pnpm workspaces + Turborepo | Modular monolith with enforced boundaries |
-| Database | PostgreSQL 16 (+ Drizzle ORM) | Durable state for tasks/artifacts/evidence |
+| Database | PostgreSQL 16 (+ Drizzle ORM) | Durable state for reviews/evidence/decisions |
 | Events | In-process `IEventBus` (EventEmitter impl) | Per Orchestrator spec §8; swap for Kafka/NATS later |
-| LLM | `LLMProvider` adapter; Anthropic SDK + MockLLM | Per Agent Runtime spec |
+| LLM | `LLMProvider` adapter; Anthropic + OpenAI-compatible (`key`+`baseUrl`+`model`) + MockLLM | Provider-agnostic review seam |
 | Tests | Vitest | Fast, TS-native |
-| API | Fastify | Lightweight REST for Review Interface |
-| Web UI | React + Vite (minimal) | Review queue + diff viewer |
+| API | Fastify | Lightweight REST for review + decision |
+| Web UI | React + Vite (minimal) | Review queue + diff + report viewer |
 | Infra | Docker Compose (postgres only) | Keep dev setup to one command |
 
-**Explicitly out of scope for 30 days:** multi-agent orchestration, embeddings/semantic search, Kafka, container-sandboxed verification, dependency-graph targeted verification, learning/calibration, Evaluation Engine (Spec 11).
+**Explicitly out of scope for 30 days:** GitLab/Bitbucket providers (GitHub only), write-back to PR/Jira, multi-provider breadth, embeddings/semantic search, container-sandboxed verification, dependency-graph targeted verification, learning/calibration, Evaluation Engine (Spec 11).
 
-> Phase model: the 30-day plan is **Phase 1** (prove the core loop). **Phase 2** builds the Evaluation Engine v0 (metrics + shadow A/B via trajectory Replay) + attention-calibration + hybrid semantic ranking behind the Ranker seam. **Phase 3** builds the full Memory subsystem (versioned write-back), targeted verification, trajectory Fork/Resume, benchmark corpus + LLM-as-judge quality signals, and the closed learning loop. See Spec 1 §24 for exit criteria.
+> Phase model: the 30-day plan is **Phase 1** (prove the review loop). **Phase 2** builds the Evaluation Engine v0 (metrics + shadow A/B via review replay) + attention-calibration + hybrid semantic ranking behind the Ranker seam. **Phase 3** builds provider breadth (GitLab/Bitbucket/Jira), write-back, review memory, targeted verification, benchmark + LLM-as-judge quality signals, and the closed learning loop. See Spec 1 §24 for exit criteria.
 
 ---
 
@@ -51,24 +51,27 @@ Not a production system — a **correctly-architected, tested, end-to-end demons
 ```text
 harness/
 ├── apps/
-│   ├── api/                  # Fastify server (review queue, decisions, queries)
+│   ├── api/                  # Fastify server (reviews, decisions, queries)
 │   └── web/                  # React review interface
 ├── packages/
-│   ├── domain/               # Shared types: Task, Change, Artifact, IDs, events
+│   ├── domain/               # Shared types: Review, Finding, FixSuggestion, Task, IDs, events
 │   ├── event-bus/            # IEventBus + in-process implementation
 │   ├── db/                   # Drizzle schema + migrations + repositories
-│   ├── orchestrator/         # Task/Work Orchestrator (spec 2)
-│   ├── agent-runtime/        # AI Agent Runtime (spec 3)
-│   ├── context-engine/       # Context Engine (spec 4)
-│   ├── artifact-tracker/     # Artifact/Change Tracker (spec 5)
+│   ├── di/                   # DI container + TOKENS
+│   ├── orchestrator/         # Task state machine (spec 2)
+│   ├── agent-runtime/        # AI reviewer: LLMProvider + ReviewAgent (spec 3)
+│   ├── git-provider/         # GitProvider seam + GitHubProvider (PR fetch)
+│   ├── ticket-provider/      # TicketProvider seam + JiraProvider (issue fetch)
+│   ├── context-engine/       # Context Engine (spec 4) — context the reviewer sees
+│   ├── artifact-tracker/     # Artifact/Change Tracker (spec 5) — captures the PR diff
 │   ├── attention-engine/     # Attention Engine (spec 6)
 │   ├── verification-engine/  # Verification Engine (spec 7)
 │   └── review/               # Human Review backend (queue, decisions)
-├── fixtures/                 # Sample target project the agent works on
+├── fixtures/                 # Sample PR/diff fixtures
 └── docker-compose.yml
 ```
 
-**Dependency rule (enforced by tooling, Day 5):** packages may only depend inward — `domain`, `event-bus`, `db` have no outgoing deps to other packages; engines never import each other, they integrate via events + orchestrator.
+**Dependency rule (enforced by tooling, Day 5):** packages may only depend inward — `domain`, `event-bus`, `db`, `di` have no outgoing deps to other packages; engines never import each other, they integrate via events + DI. `git-provider`/`ticket-provider` import **only** `domain` (boundary rules R13/R14).
 
 ---
 
@@ -76,10 +79,10 @@ harness/
 
 | Week | Theme | Milestone (demo-able at week's end) |
 |------|-------|-------------------------------------|
-| **W1 (D1–7)** | Foundation | Task CRUD persisted in Postgres; canonical state machine with transition validation; events flowing on IEventBus |
-| **W2 (D8–14)** | Execution core | Orchestrator dispatches a task → Mock/Real LLM agent runs ReAct loop with tools → artifacts recorded with content hashes |
-| **W3 (D15–21)** | Trust pipeline | Change verified independently (tsc + tests) → evidence stored → Attention Engine scores & routes → context snapshot served to agent |
-| **W4 (D22–30)** | Human loop + E2E | Web UI review queue with diffs → approve/reject drives merge/rework → full vertical slice demo + hardening + docs |
+| **W1 (D1–7)** | Foundation | Domain/events/db/DI wired; canonical state machine; events flowing on IEventBus |
+| **W2 (D8–14)** | Review ingest core | GitHubProvider fetches a PR diff; ReviewAgent produces a report; review slice persists findings + suggestions |
+| **W3 (D15–21)** | Trust pipeline | Change verified independently (tsc + tests) → evidence stored → Attention scores & routes → context served to Reviewer |
+| **W4 (D22–30)** | Human loop + E2E | Review UI queue with diff + report → human decision → full vertical slice demo + hardening + docs |
 
 ---
 
@@ -90,35 +93,35 @@ Each day has its own file with objectives, tasks, deliverables, and acceptance c
 | Day | File | Focus |
 |-----|------|-------|
 | 1 | [day-01.md](day-01.md) | Monorepo scaffold, tooling, CI skeleton |
-| 2 | [day-02.md](day-02.md) | `packages/domain` — core types & branded IDs |
+| 2 | [day-02.md](day-02.md) | `packages/domain` — core types, branded IDs, review-report types |
 | 3 | [day-03.md](day-03.md) | Event model + `IEventBus` |
-| 4 | [day-04.md](day-04.md) | PostgreSQL schema + migrations |
+| 4 | [day-04.md](day-04.md) | PostgreSQL schema + migrations (incl. review tables) |
 | 5 | [day-05.md](day-05.md) | Module boundaries + DI + dependency enforcement |
-| 6 | [day-06.md](day-06.md) | Canonical Task state machine |
-| 7 | [day-07.md](day-07.md) | Week 1 integration checkpoint |
-| 8 | [day-08.md](day-08.md) | Orchestrator core: queue + pull dispatch |
-| 9 | [day-09.md](day-09.md) | Linear workflow execution |
-| 10 | [day-10.md](day-10.md) | Retry, failure, idempotency |
-| 11 | [day-11.md](day-11.md) | LLMProvider adapter + MockLLM |
-| 12 | [day-12.md](day-12.md) | ReAct loop |
-| 13 | [day-13.md](day-13.md) | Tools + TrajectoryRecorder |
-| 14 | [day-14.md](day-14.md) | Artifact Tracker Phase 1 + Week 2 checkpoint |
-| 15 | [day-15.md](day-15.md) | Verification Engine: request handler + compile check |
-| 16 | [day-16.md](day-16.md) | Test executor, timeouts, flaky handling |
+| 6 | [day-06.md](day-06.md) | Canonical Task state machine (13 states) |
+| 7 | [day-07.md](day-07.md) | **Week 1 checkpoint** — E2E smoke test |
+| 8 | [day-08.md](day-08.md) | `GitProvider` seam + `GitHubProvider` (fetch PR diff/metadata) |
+| 9 | [day-09.md](day-09.md) | `TicketProvider` seam + `JiraProvider` (fetch issue) |
+| 10 | [day-10.md](day-10.md) | `LLMProvider` seam + `OpenAICompatibleProvider` + MockLLM |
+| 11 | [day-11.md](day-11.md) | `ReviewAgent` — structured ReviewAgentOutput (report + findings + suggestions) |
+| 12 | [day-12.md](day-12.md) | `ReviewIngestService` — parse PR URL → fetch → create task (CANCELLED) → review → persist |
+| 13 | [day-13.md](day-13.md) | `POST/GET /api/reviews` + decision route |
+| 14 | [day-14.md](day-14.md) | **Week 2 checkpoint** — review vertical slice (GitHub + real/mock LLM) |
+| 15 | [day-15.md](day-15.md) | Verification Engine: request handler + compile check (`CompileCheck`) |
+| 16 | [day-16.md](day-16.md) | Test executor, timeouts, flaky handling (`TestCheck`) |
 | 17 | [day-17.md](day-17.md) | Evidence storage + provenance linking + diff engine |
-| 18 | [day-18.md](day-18.md) | Attention Engine scoring (Phase 1 factors) |
-| 19 | [day-19.md](day-19.md) | AttentionPolicy rules + routing |
-| 20 | [day-20.md](day-20.md) | Context Engine: collect → rank → budget |
-| 21 | [day-21.md](day-21.md) | Context delivery, freshness + Week 3 checkpoint |
-| 22 | [day-22.md](day-22.md) | Review backend: queue API + decisions |
-| 23 | [day-23.md](day-23.md) | Review UI: queue + diff view |
-| 24 | [day-24.md](day-24.md) | Decision flow: merge on approve, rework on reject |
-| 25 | [day-25.md](day-25.md) | E2E vertical slice — happy path |
-| 26 | [day-26.md](day-26.md) | E2E — failure paths + provenance query UI |
-| 27 | [day-27.md](day-27.md) | Observability: logs, correlation IDs, audit queries |
-| 28 | [day-28.md](day-28.md) | Hardening: concurrency, failure injection, load smoke |
-| 29 | [day-29.md](day-29.md) | Documentation: specs → v0.2, dev guide, runbook |
-| 30 | [day-30.md](day-30.md) | Final demo + retrospective + Phase 2 backlog |
+| 18 | [day-18.md](day-18.md) | Attention Engine scoring (Risk/Impact/Novelty/Complexity/Confidence) |
+| 19 | [day-19.md](day-19.md) | AttentionPolicy rules + routing (REVIEW_REQUIRED vs AUTO_APPROVABLE) |
+| 20 | [day-20.md](day-20.md) | Context Engine: collect → rank → budget (for the reviewer) |
+| 21 | [day-21.md](day-21.md) | **Week 3 checkpoint** — context delivery, freshness check |
+| 22 | [day-22.md](day-22.md) | Review UI: queue + diff view + AI report & fix-suggestions panels |
+| 23 | [day-23.md](day-23.md) | E2E vertical slice — happy path (PR → report → decision) |
+| 24 | [day-24.md](day-24.md) | E2E — failure paths + provenance query UI |
+| 25 | [day-25.md](day-25.md) | Observability: logs, correlation IDs, audit queries |
+| 26 | [day-26.md](day-26.md) | Hardening: concurrency, failure injection, load smoke |
+| 27 | [day-27.md](day-27.md) | Provider config hygiene: token redaction, sanitized env, no live keys |
+| 28 | [day-28.md](day-28.md) | Documentation: specs → v0.2, dev guide, runbook |
+| 29 | [day-29.md](day-29.md) | **Final demo + retrospective** |
+| 30 | [day-30.md](day-30.md) | **Tag `v0.1.0-harness` + Phase 2 backlog** |
 
 ---
 
@@ -126,16 +129,21 @@ Each day has its own file with objectives, tasks, deliverables, and acceptance c
 
 1. **One file per day.** Start the day by reading the file end-to-end before coding.
 2. **Acceptance criteria are the contract.** A day is "done" only when every criterion passes; if not, carry the remainder into the next morning — do not silently skip.
-3. **Specs are the source of truth.** Each daily file references the relevant spec sections. If implementation reveals a spec problem, fix the spec first (this is how specs reach v0.2 on Day 29).
+3. **Specs are the source of truth.** Each daily file references the relevant spec sections. If implementation reveals a spec problem, fix the spec first (this is how specs reach v0.2 on Day 28).
 4. **Checkpoints are non-negotiable.** Days 7, 14, 21 are integration checkpoints: stop feature work, make the week's slice demonstrable, fix integration debt immediately.
 5. **Tests are part of the deliverable,** not a follow-up. Every package ships with unit tests; checkpoints add integration tests.
 
 ## 7. Day-30 Success Criteria (definition of done)
 
-- [ ] `docker compose up && pnpm dev` starts the whole system with one fixture project.
-- [ ] Scripted demo: create task → agent executes → change verified → scored → reviewed in UI → approved → merged, with provenance chain queryable end-to-end.
-- [ ] Reject path demo: verification failure → task REWORK → retry limit → AWAITING_HUMAN_INTERVENTION.
+- [ ] `docker compose up && pnpm dev` starts the whole system with one fixture provider config.
+- [ ] Scripted demo: paste PR URL → fetch diff → AI review (report + findings + suggestions) → verified → scored → reviewed in UI → decision recorded, with provenance chain queryable end-to-end.
+- [ ] Reject path demo: verification failure → flagged in report → decision recorded.
 - [ ] All packages ≥ 70% line coverage on core logic (state machine, scoring, verification parsing).
 - [ ] Specs updated to v0.2 reflecting as-built reality; known gaps documented as Phase 2 backlog.
 - [ ] Spec 9 (Memory/Evidence) preserved: evidence store is append-only and queryable end-to-end; Memory subsystem explicitly deferred to Phase 3.
 - [ ] Spec 11 (Evaluation Engine) left as a Phase-2 seam only: event log, evidence, and decision log are recorded such that offline metrics can later be computed without schema rework.
+- [ ] No live API keys in the repo: `.env.example` carries only placeholders; tokens redacted from logs.
+
+---
+
+*Next phase: [Phase 2 — Calibrate & Secure the Review Pipeline](../phase-2/README.md)*

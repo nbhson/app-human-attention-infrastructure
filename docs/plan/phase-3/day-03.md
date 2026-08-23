@@ -1,11 +1,11 @@
-# Day 03 — Memory Retrieval: Relevance Scoring Served to Context
+# Day 03 — Provider Registry + `provider_configs` (Redacted) Resolution
 
 | | |
 |---|---|
-| **Week** | 1 — Memory store & retrieve |
-| **Spec refs** | Spec 9 §4.5 (relevance scoring, retrieval patterns), §4.3 (retrieval via Context ranking signal, not auto-injection) |
+| **Week** | 1 — Provider breadth |
+| **Spec refs** | git-provider §2 (seam), §6 (public API); Architecture §7 (boundary rule, token hygiene) |
 | **Estimated effort** | 7h |
-| **Prerequisites** | Day 02 (distillation + versioned append-only writes, `MemoryIngestion`) |
+| **Prerequisites** | Days 01–02 (`GitLabProvider`, `BitbucketProvider` ship; `GitHubProvider` exists) |
 
 ---
 
@@ -13,120 +13,86 @@
 
 By end of day you will have:
 
-1. A **relevance scorer** implementing Spec 9 §4.5 exactly: `score = 0.6·similarity + 0.2·recency + 0.2·access_frequency`.
-2. A **retrieval API** (`MemoryStore.retrieve(query, kind?, limit)`) that ranks candidates by that score and increments retrieval counters.
-3. A **Context-facing seam**: memory results surface as a ranking *signal* to the Context Engine (Spec 9 §4.3 — "retrieval via Context Engine ranking signal, not auto-injection"), behind a resolver registered in DI, not a direct import.
-4. Retrieval counters (`retrievedCount`, `lastRetrievedAt`) updated transactionally on every serve, so Day 03's access signal feeds Day 04's write-back and Day 06's decay.
+1. A `provider-registry.ts` that resolves any PR/MR **URL** to the right `GitProvider` instance (`github` | `gitlab` | `bitbucket`).
+2. A `provider_configs` table + resolution path: host-scoped config (token, `baseUrl`) resolved per request, with **tokens stored redacted/encrypted and never logged**.
+3. A hosted `resolveProvider(url)` used by the ingress route instead of the Phase-2 hard-coded `GitHubProvider`.
+4. Fixture-tested registry + config resolution and token-redaction tests.
 
-This is the "read" half of the Memory store, and the first point where Memory feeds another subsystem.
+This is the day the "provider breadth" slice becomes a *configurable seam*, not three hard-coded classes.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 The scoring function (Spec 9 §4.5, verbatim)
-
-```
-rank = 0.6 · similarity + 0.2 · recency + 0.2 · access_frequency
-```
-
-| Term | Definition | Source of truth |
-|------|-----------|-----------------|
-| `similarity` | cosine similarity between query embedding and entry `content` embedding (fallback: keyword/Jaccard overlap when no embedding yet) | `Embedder` (Phase 2) / `pgvector` |
-| `recency` | normalized recency of `lastRetrievedAt` (or `createdAt` if never retrieved) | `memory_entries.last_retrieved_at` |
-| `access_frequency` | normalized `retrievedCount` (log-scaled, capped) | `memory_entries.retrieved_count` |
-
-Normalize each term to `[0,1]` before weighting. `recency = exp(-days_since_last_use / τ)` with `τ = 30` (decays to ~0.37 after a month) — or, if never used, `recency = exp(-days_since_created / τ)`.
-
-### 2.2 Similarity has two stages (no embedding yet → not a blocker)
-
-Phase 2 installed `pgvector` + `Embedder` in **shadow**. Memory must work before hybrid becomes default. So `similarity` degrades gracefully:
-
-1. **If an embedding exists** for the entry `content` → cosine via `pgvector`.
-2. **Otherwise** → lexical fallback: `Jaccard`/keyword overlap between the query tokens and the entry `content` (mirrors Phase 1's `keyword_overlap` term).
-
-The `SimilarityProvider` interface hides both cases; Day 16's hybrid retriever reuses it.
+### 2.1 Registry keyed by host, resolved from URL
 
 ```typescript
-export interface SimilarityProvider {
-  similarity(query: string, content: string): Promise<number>;  // [0,1]
+// packages/git-provider/src/provider-registry.ts
+export interface GitProviderRegistry {
+  resolve(url: string): Promise<GitProvider>;   // throws UnknownProviderHostError
 }
 ```
 
-### 2.3 Serve = rank + count (atomic)
+`parseRepoPath(url)` (Days 01–02) yields a host; the registry maps `host ∈ {github.com, gitlab.com, bitbucket.org, …self-hosted}` → provider. Self-hosted orgs register their `baseUrl` in `provider_configs` and match by host prefix.
 
-`retrieve()` ranks, then increments `retrievedCount`/`lastRetrievedAt` for the *served* entries in the same transaction as the read. If the counter update is a separate step, a crash between "returned" and "counted" silently loses the access signal that Day 04/06 depend on.
-
-```sql
--- after selecting the top-N rows:
-UPDATE memory_entries
-SET retrieved_count = retrieved_count + 1,
-    last_retrieved_at = now()
-WHERE id = ANY($served_ids)
-RETURNING id;
-```
-
-### 2.4 Context seam (no engine→engine import)
-
-Memory is consumed by the Context Engine as a *signal source*, not by calling into Memory. Two allowed channels:
-
-1. **Resolver in DI:** `ContextEngine` receives a `DecisionCollector` / `MemorySignalSource` that the bootstrap wires to `MemoryStore.retrieve`. The Context Engine only sees the interface.
-2. **Event/query:** contexts read memory when resolving a `ContextRequest` (Spec 4 §4.5 "Previous Decision Retriever").
+### 2.2 `provider_configs` schema (Drizzle, in `@harness/db`)
 
 ```typescript
-// packages/context-engine sees this interface (from @harness/domain or a shared contract)
-export interface MemorySignalSource {
-  retrieve(query: string, kind?: MemoryKind, limit?: number): Promise<MemoryEntry[]>;
-}
+export const providerConfigs = pgTable('provider_configs', {
+  id:           text('id').primaryKey(),        // uuidv7
+  host:         text('host').notNull(),         // 'github.com' | 'gitlab.com' | self-hosted base
+  provider_type:text('provider_type').notNull(),// 'github' | 'gitlab' | 'bitbucket'
+  token_enc:    text('token_enc').notNull(),    // AES-GCM ciphertext, base64
+  token_hint:   text('token_hint'),             // last-4 only, for the human UI — never the token
+  base_url:     text('base_url'),               // nullable → provider default
+  enabled:      boolean('enabled').notNull().default(true),
+  created_at:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ hostIdx: index('provider_configs_host_idx').on(t.host) }));
 ```
 
-`MemoryStore` *implements* `MemorySignalSource`; the wiring lives in `bootstrap.ts`. **Neither package imports the other.**
+- **Never plaintext tokens.** `token_enc` is AES-GCM encrypted with a per-environment key from `process.env.HARNESS_CONFIG_KEY`; `token_hint` (last 4) is the only cleartext token material — safe for the settings UI and audit log.
+- **Redaction at the boundary.** Every log/event emitter for these rows goes through a `redactProviderConfig()` that strips `token_enc` and keeps only `id`, `host`, `provider_type`, `token_hint`.
 
-### 2.5 Retrieval patterns (Spec 9 §4.5) mapped to kinds
+### 2.3 Decrypt-at-use, never at load
 
-| Pattern | Kind | Injection policy |
-|---------|------|------------------|
-| Summary Memory | `PROJECT`, `ARCHITECTURE` | Global (Level 0/1 in Spec 4 §5.2.1) |
-| Entity Memory | `TASK`, `SESSION` | Pulled when the entity enters context |
-| Failure Memory | `FAILURE` | Pulled for risk scoring (Spec 6 / Attention) |
-
-Memory retrieval is **targeted** — the *previously retrieved* counter matters because frequently retrieved entries must not be drowned by a pure similarity score (§4.5: "frequently-retrieved entries are not lost to a pure embedding score").
+The registry fetches the config row for the host and decrypts `token_enc` *inside* the provider call scope, then passes the decrypted token straight to the adapter — it is never held on a long-lived object and never leaves the process boundary.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 `SimilarityProvider` (45 min)
+### 3.1 Schema + migration (60 min)
 
-- [ ] `packages/memory/src/similarity.ts` — interface + `EmbeddingSimilarityProvider` (pgvector cosine) + `LexicalSimilarityProvider` (Jaccard).
-- [ ] Unit tests: identical strings → 1.0; unrelated strings → ~0; embedding mock returns deterministic values.
+- [ ] `packages/db/src/schema/provider-config.ts` — `providerConfigs` (§2.2).
+- [ ] Generate + apply migration.
 
-### 3.2 Scorer (60 min)
+### 3.2 Token crypto helper (60 min)
 
-- [ ] `packages/memory/src/scorer.ts` — `scoreEntry(query, entry, similarityProvider)` returns `{ similarity, recency, access, rank }`.
-- [ ] Tests: the weights sum to 1.0 and each term contributes its stated fraction (fix two terms, vary the third, assert the slope).
+- [ ] `packages/git-provider/src/crypto.ts` — `encryptToken`/`decryptToken` (AES-256-GCM, key from `HARNESS_CONFIG_KEY`).
+- [ ] `redactProviderConfig()` — strips `token_enc`, keeps `token_hint`.
+- [ ] Unit tests: round-trip; tampered ciphertext → throw; redaction leaves no token bytes.
 
-### 3.3 `MemoryStore.retrieve` (90 min)
+### 3.3 `provider-registry.ts` (90 min)
 
-- [ ] `retrieve(query, kind?, limit = 10)`:
-  - Load candidates (optionally by `kind`), excluding superseded heads' predecessors (serve the *current* version, per §4.4 "retrieval always reads current pointer").
-  - Score each candidate; sort desc; take `limit`.
-  - Atomically bump `retrievedCount`/`lastRetrievedAt` for served entries.
-  - Publish `memory.entries_retrieved { query, entryIds, kind }` at most once per call (a batch event, not per-entry).
-- [ ] Tests: ordering by score; limit respected; counters bumped exactly once; predecessor versions excluded.
+- [ ] Registry mapping host → provider class; self-hosted host-prefix match from `base_url`.
+- [ ] `resolve(url)` → load row for host → decrypt → instantiate provider with `{ token, baseUrl }`.
+- [ ] `UnknownProviderHostError` on no match / disabled config.
 
-### 3.4 Context seam + DI (60 min)
+### 3.4 Ingress wiring (45 min)
 
-- [ ] Define `MemorySignalSource` in `@harness/domain` (shared contract).
-- [ ] `MemoryStore` implements it; register `MemorySignalSource → MemoryStore` in DI (interface token, never the class).
-- [ ] In `context-engine`, add a `DecisionCollector` that calls the injected `MemorySignalSource` and folds results into the `DECISION`/`EVIDENCE` context sources (Spec 4 §4.5). Gate it behind the existing `ContextPolicy.include_previous_decisions`.
-- [ ] Update `docs/architecture/wiring-map.md`.
+- [ ] Swap the reviews route's hard-coded `GitHubProvider` for `registry.resolve(prUrl)`.
+- [ ] Ensure the decrypted token is passed into the adapter and immediately dropped from scope.
 
-### 3.5 Integration test (90 min)
+### 3.5 Config endpoint (45 min)
 
-- [ ] Seed 2 `DECISION` entries (one recent, one old, similar content); assert `retrieve('approve payment refactor', 'DECISION')` ranks the recent one higher when similarity is equal.
-- [ ] Assert retrieval bumps `retrievedCount` and the second call returns a higher `access_frequency` contribution for the served entry.
-- [ ] Assert the Context Engine's decision collector includes a memory `DECISION` source in the snapshot when `include_previous_decisions` is true.
+- [ ] `POST /api/provider-configs` + `GET /api/provider-configs` (redacted) — create/list with redaction applied on every response.
+
+### 3.6 Tests (60 min)
+
+- [ ] Registry: each host resolves the right provider; unknown host throws.
+- [ ] Config resolution: token round-trips; disabled config rejects.
+- [ ] Redaction: `list` response contains `token_hint`, never `token_enc`/plaintext.
+- [ ] Boundary grep: registry imports only `@harness/domain` + `@harness/db`.
 
 ---
 
@@ -134,39 +100,33 @@ Memory retrieval is **targeted** — the *previously retrieved* counter matters 
 
 | File | Description |
 |------|-------------|
-| `packages/memory/src/similarity.ts` | `SimilarityProvider` + embedding/lexical impls |
-| `packages/memory/src/scorer.ts` | `scoreEntry` (0.6/0.2/0.2) |
-| `packages/memory/src/memory-store.ts` (updated) | `retrieve()` + atomic counter bump |
-| `packages/domain/src/memory.ts` (updated) | `MemorySignalSource` contract |
-| `packages/context-engine/src/collectors/decision-collector.ts` | Memory-as-signal integration |
-| `apps/api/src/bootstrap.ts` (updated) | `MemorySignalSource` wiring |
-| `packages/memory/src/__tests__/*.test.ts` | Similarity, scorer, retrieval tests |
+| `packages/db/src/schema/provider-config.ts` | `provider_configs` schema |
+| `packages/db/migrations/0xxx_provider_configs.sql` | Migration |
+| `packages/git-provider/src/provider-registry.ts` | `GitProviderRegistry.resolve(url)` |
+| `packages/git-provider/src/crypto.ts` | `encryptToken`/`decryptToken`/`redactProviderConfig` |
+| `apps/api/src/routes/provider-configs.ts` | Create/list config endpoints (redacted) |
+| `apps/api/src/routes/reviews.ts` (updated) | Ingress uses registry |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/memory test` — all tests pass.
-- [ ] `score = 0.6·sim + 0.2·recency + 0.2·access` — weights proven by test, sum = 1.0.
-- [ ] `retrieve()` returns only **current** versions (superseded predecessors excluded).
-- [ ] `retrieve()` bumps `retrievedCount`/`lastRetrievedAt` exactly once per serve (idempotent under a retry of the *read*).
-- [ ] Memory results reach the Context Engine **only** via `MemorySignalSource` (grep proves no `@harness/memory` import in `context-engine/src`).
-- [ ] `ContextPolicy.include_previous_decisions = false` disables memory injection.
-- [ ] `memory.entries_retrieved` event is published as a single batch event per `retrieve()` call.
-- [ ] `pnpm -r build` green (new cross-package contract compiles in both packages).
+- [ ] Registry: `resolve("https://gitlab.com/acme/api/-/merge_requests/1")` → `GitLabProvider`; same for GitHub/Bitbucket.
+- [ ] Tokens stored as ciphertext; `token_hint` is the last-4 only.
+- [ ] Config `GET` response never contains `token_enc` or plaintext token.
+- [ ] `decryptToken` throws on a tampered ciphertext.
+- [ ] Ingress review path no longer hard-codes `GitHubProvider`.
+- [ ] `pnpm lint` clean; no live keys committed; `.env.example` documents `HARNESS_CONFIG_KEY`.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Do not auto-inject memory into context.** Spec 9 §4.3 is explicit: retrieval is a *ranking signal*, not automatic inclusion. The `MemorySignalSource` seam exists so the Context Engine *asks*; it never receives memory unprompted.
-- **Serve current, audit all.** Retrieval returns only the head version, but the superseded chain stays queryable for audit. Do not hide history from the audit query, only from ranking.
-- **Counter bump atomicity matters more than it looks.** If `retrievedCount` drifts, the `access_frequency` term drifts, which quietly re-ranks memory into the "frequently retrieved" bias. The bump must be in the same transaction as the serve.
-- **Log-scaling the access term.** Raw counts are heavy-tailed; a `log1p(retrievedCount)` normalization (capped at 1.0) prevents one hot entry from dominating forever. Decide the exact cap and write it down.
-- **Embedding vs lexical fallback is a real seam.** Until Day 16–19 flips hybrid to default, most memory still scores lexically. Keep the fallback honest (a Jaccard score, not a guessed 0.5) so later A/B comparisons aren't poisoned.
-- **Batch the retrieval event.** One `memory.entries_retrieved` per call, not one per entry — otherwise a 10-entry serve floods the event log.
-- **Tomorrow (Day 04):** versioned write-back with `supersedes` chains, rollback/forget, and the update cross-check.
+- **The config table is per provider host, not per user.** One `provider_configs` row per org/self-hosted base URL is the model; per-user tokens (if ever) are a later extension, not today.
+- **Never log the decrypted token.** The decrypt-at-use scope (§2.3) plus `redactProviderConfig()` is the countermeasure; add a test that greps any emitted event for token bytes and fails.
+- **`HARNESS_CONFIG_KEY` in CI.** The migration and crypto tests must run with a throwaway key injected by the test harness — not a committed default.
+- **Tomorrow (Day 04):** harden `JiraProvider` with comments + transition — the ticket side of breadth.
 
 ---
 
-*Prev: [Day 2 — Memory Ingestion: Evidence → Distillation → Versioned Writes](day-02.md) | Next: [Day 4 — Versioned Write-back: supersedes, Rollback, Forget/Update Cross-check](day-04.md)*
+*Next: [Day 04 — Harden `JiraProvider`: Comments + Transition Beside Fetch](day-04.md)*

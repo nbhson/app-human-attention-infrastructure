@@ -1,11 +1,11 @@
-# Day 04 — Versioned Write-back: supersedes, Rollback, Forget/Update Cross-check
+# Day 04 — Harden `JiraProvider`: Comments + Transition Beside Fetch
 
 | | |
 |---|---|
-| **Week** | 1 — Memory store & retrieve |
-| **Spec refs** | Spec 9 §4.4 (write-back & versioned memory: promotion revocable, current pointer), §3.2 (supersedes correction rule) |
-| **Estimated effort** | 8h |
-| **Prerequisites** | Day 03 (retrieval + relevance scoring, `MemorySignalSource` seam, retrieval counters) |
+| **Week** | 1 — Provider breadth |
+| **Spec refs** | ticket-provider §2 (TicketProvider seam), §4 (modules); Architecture §7 (boundary rule) |
+| **Estimated effort** | 6h |
+| **Prerequisites** | Day 03 (registry + `provider_configs`); `JiraProvider.fetchIssue` ships |
 
 ---
 
@@ -13,130 +13,69 @@
 
 By end of day you will have:
 
-1. A **Git-like version log** for every memory idea: each update appends, `supersedes` chains, nothing mutates.
-2. **Rollback** — promote a *previous* version back to "current" without deleting the bad write.
-3. **Forget** — demote/withdraw a memory from the rank signal (revocable promotion, per §4.4), with a `forgotten_at` tombstone rather than a delete.
-4. An **update cross-check**: every promotion/demotion verifies the version still has ≥ 1 evidence link, and a demotion can be reversed without breaking history.
+1. `JiraProvider` extended beyond `fetchIssue` with `postComment(issueKey, body)` and `transition(issueKey, toState)` — read + two external-write primitives, still *commentary/status*, never a code change.
+2. A `TicketProvider` seam extended accordingly, kept backward-compatible where GitHub-only callers didn't use it.
+3. ADF body construction for comments (the inverse of `adfToPlainText`: `plainTextToAdf`), fixture-tested.
+4. Transitions resolved by **name** (human-readable) against the Jira `/transitions` catalog, not by internal id.
 
-This completes the closed-loop write path from Spec 9 §4.4 — *"promotion is revocable … because retrieval always reads current pointer, not the raw stream."*
+This completes the ticket-provider side of provider breadth before the Day 05 checkpoint.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 The version chain is the write log (not a separate audit table)
+### 2.1 Write primitives are commentary, not code
 
-`memory_entries` rows are immutable. The chain:
+Jira comments and issue transitions are exactly the "commentary/status" class of external write the Phase-3 README sanctions. `transition()` moves a ticket to a status the human has configured (e.g. "In Review"); it never modifies a repository, never authors code. Document this in the interface JSDoc so the invariant is stated at the seam.
 
-```text
-v1 (foo, confidence 0.6)  ← initial write (supersedes = NULL)
-  ↑
-v2 (foo, confidence 0.7)  ← curation write (supersedes = v1)
-  ↑
-v3 (foo, confidence 0.3)  ← contradiction write (supersedes = v2)
-```
-
-- **"Current"** = the head with no successor (retrieval reads this, per §4.4).
-- **No `UPDATE` on `content`/`confidence`/`sourceEvidence`** — those are immutable columns. Only *counter/tombstone* columns (`retrieved_count`, `last_retrieved_at`, `promoted_at`, `forgotten_at`) may change.
-
-Add these lifecycle columns today (migration): `promoted_at timestamptz NULL`, `forgotten_at timestamptz NULL`.
-
-### 2.2 `writeBack` — the core API
+### 2.2 Extended seam
 
 ```typescript
-// packages/memory/src/write-back.ts
-export class MemoryWriteBack {
-  constructor(private readonly store: MemoryStore, private readonly bus: IEventBus) {}
-
-  // Create or supersede: always appends a new version.
-  async writeBack(input: WriteBackInput): Promise<MemoryEntry> {
-    // 1. find head by content_key (Day 02 findHead)
-    // 2. cross-check: union(sourceEvidence) non-empty (≥1 link) — else throw
-    // 3. insert new version with supersedes = head?.id ?? null
-    // 4. publish memory.entry_created { entryId, kind, supersedes }
-  }
-
-  // Rollback: re-promote a previous version to current.
-  async rollback(contentKey: string, toVersionId: MemoryId): Promise<MemoryEntry> {
-    // insert a NEW version whose content/sourceEvidence COPIED from toVersionId,
-    // supersedes = current head. (Never "un-delete" — the bad head stays in history.)
-  }
-
-  // Forget: demote current head from the rank signal; revocable.
-  async forget(contentKey: string, reason: string): Promise<void> {
-    // set forgotten_at = now() on the head; publish memory.entry_forgotten
-  }
-
-  // Un-forget: revoke a demotion.
-  async unforget(contentKey: string): Promise<void> {
-    // clear forgotten_at on the head; publish memory.entry_restored
-  }
+// packages/ticket-provider/src/ticket-provider.ts
+export interface TicketProvider {
+  readonly type: TicketProviderType;
+  fetchIssue(input: FetchIssueInput): Promise<Issue>;
+  postComment(input: FetchIssueInput, body: string): Promise<void>;
+  transition(input: FetchIssueInput, toState: string): Promise<void>;  // toState = human-readable status name
 }
 ```
 
-**Rollback is a write, not a pointer flip.** Appending a copy as the new head keeps the audit chain append-only; flipping a `current` pointer would break the "immutable rows" rule and complicate the event log replay.
+### 2.3 Comment = ADF document (inverse of fetch's flatten)
 
-### 2.3 Promotion is data, not a boolean of the row (Spec 9 §4.4)
+Fetch *flattens* ADF → text (`adfToPlainText`); write *constructs* ADF from text (`plainTextToAdf`) so the comment renders with paragraphs/lists. Round-trip test: `adfToPlainText(plainTextToAdf(x)) === x` for canonical inputs.
 
-`promoted_at` on a row means "this version is eligible to be offered as a rank signal." Demotion (calibration, Day 31) sets `promoted_at = NULL` or writes a demotion marker — it does **not** delete. Because retrieval reads the current head, demotion applies instantly to future reads but history is untouched.
+### 2.4 Transition by name, resolved at call time
 
-Promotion gates:
-- `sourceEvidence` non-empty (structural).
-- `confidence ≥ threshold` (heuristic — starts at 0.5; Day 31 calibrates).
-- **Not** yet observing usefulness — that's Day 31's job; today just ensure the field exists and retrieval filters on it.
-
-### 2.4 Cross-checks — what "forget/update" must verify (Spec 9 §4.4)
-
-| Operation | Cross-check | Failure mode |
-|-----------|-------------|--------------|
-| `writeBack` | valid `kind`, content non-empty, union evidence ≥ 1 | `MissingEvidenceError` |
-| `rollback` | `toVersionId` actually belongs to `contentKey`'s chain | `VersionChainError` |
-| `forget` | head exists and has a successor OR came from evidence | `NothingToForgetError` |
-| `unforget` | head currently `forgotten_at != NULL` | `NotForgottenError` |
-| retrieve | skip rows where `forgotten_at != NULL` or `promoted_at IS NULL` | — |
-
-### 2.5 Events (append to the audit trail)
-
-- `memory.entry_created { entryId, kind, supersedes }` (existing — now mandatory `supersedes` field)
-- `memory.entry_rolled_back { entryId, fromVersionId, toVersionId }`
-- `memory.entry_forgotten { entryId, reason }`
-- `memory.entry_restored { entryId }`
-
-All carry `correlation_id` = the memory `content_key` (so the whole version chain is one correlation root).
+`POST /rest/api/3/issue/{key}/transitions` requires a transition **id**; humans think in **names**. `transition()` calls `GET /rest/api/3/issue/{key}/transitions` first, matches `toState` against `transitions[].name`, and 404s with a clear error listing available names when there's no match. Failures return `TicketProviderError`.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Migration: lifecycle columns (30 min)
+### 3.1 Seam extension (30 min)
 
-- [ ] Add `promoted_at`, `forgotten_at` to `memory_entries` (nullable timestamptz). Generate + migrate.
-- [ ] Add index on `promoted_at` (retrieval filters on it).
+- [ ] Extend `TicketProvider` (§2.2); add JSDoc "commentary/status, never code" note.
+- [ ] Backward-compat: callers that only `fetchIssue` are unaffected (methods additive).
 
-### 3.2 `MemoryWriteBack` service (150 min)
+### 3.2 `postComment` + ADF builder (75 min)
 
-- [ ] `packages/memory/src/write-back.ts` — `writeBack`, `rollback`, `forget`, `unforget` (§2.2).
-- [ ] `content_key` = stable hash of a normalized content signature (not the full text), stored as a column `content_key` (add to schema) so chains group correctly across paraphrases.
+- [ ] `POST /rest/api/3/issue/{key}/comment` with ADF body from `plainTextToAdf(body)`.
+- [ ] `plainTextToAdf` — paragraphs + list rendering; round-trip fixture tests.
 
-### 3.3 Retrieval respects promotion + tombstone (60 min)
+### 3.3 `transition` by name (75 min)
 
-- [ ] `retrieve()` filters: head-only, `promoted_at IS NOT NULL`, `forgotten_at IS NULL`, decayed-not-expired (Day 06 adds decay; today at least expiry).
-- [ ] Update tests from Day 03 to seed `promoted_at` so existing assertions still pass.
+- [ ] `GET transitions` catalog → match name → `POST transition`.
+- [ ] No-match → `TicketProviderError` listing available names; 401/404 wrapping.
 
-### 3.4 Cross-check error types (45 min)
+### 3.4 Mapping + payload types (45 min)
 
-- [ ] `VersionChainError`, `NothingToForgetError`, `NotForgottenError`, `MissingEvidenceError` (reuse) in `errors.ts`.
-- [ ] Each carries the offending ids for audit.
+- [ ] `JiraCommentPayload`, `JiraTransitionsPayload` subsets; keep mapper pure.
 
-### 3.5 Tests (180 min)
+### 3.5 Tests (60 min)
 
-- [ ] `writeBack` on a fresh key inserts head with `supersedes = NULL`.
-- [ ] `writeBack` on an existing key appends v2 with `supersedes = v1.id`; v1 row is byte-identical after the write.
-- [ ] `rollback` appends a new head copied from the target version; the erroneous head remains in history.
-- [ ] `rollback` to a version outside the chain throws `VersionChainError`.
-- [ ] `forget` sets `forgotten_at`; subsequent `retrieve` excludes the entry; `unforget` re-includes it.
-- [ ] `writeBack` with empty union evidence throws `MissingEvidenceError`.
-- [ ] All four events are published with correct payloads (spy on bus).
+- [ ] Round-trip ADF; comment payload shape; transition name-match + no-match.
+- [ ] Stubbed-fetch error wrapping.
+- [ ] Boundary grep: only `@harness/domain` imports.
 
 ---
 
@@ -144,37 +83,32 @@ All carry `correlation_id` = the memory `content_key` (so the whole version chai
 
 | File | Description |
 |------|-------------|
-| `packages/memory/src/write-back.ts` | `MemoryWriteBack` service |
-| `packages/memory/src/memory-store.ts` (updated) | head/chain queries, promotion filter |
-| `packages/memory/src/errors.ts` (updated) | Cross-check error types |
-| `packages/db/src/schema/memory.ts` + migration | `promoted_at`, `forgotten_at`, `content_key` |
-| `packages/memory/src/__tests__/write-back.test.ts` | Rollback/forget/cross-check tests |
-| `docs/architecture/wiring-map.md` (updated) | `MemoryWriteBack` registration |
+| `packages/ticket-provider/src/ticket-provider.ts` (updated) | `postComment`/`transition` on the seam |
+| `packages/ticket-provider/src/jira-provider.ts` (updated) | Comment + transition impl |
+| `packages/ticket-provider/src/jira-mapper.ts` (updated) | `plainTextToAdf` + payload types |
+| `packages/ticket-provider/src/__tests__/jira-writeback.test.ts` | Comment/transition tests |
+| `packages/ticket-provider/README.md` (updated) | Status + new modules |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/memory test` — all tests pass.
-- [ ] Every `writeBack` appends; zero `UPDATE` statements touch `content`, `confidence`, or `sourceEvidence` (prove by search: only counter/tombstone columns are updatable).
-- [ ] `rollback` produces a new head while preserving the full chain (audit query returns all versions).
-- [ ] `forget` hides from retrieval but the row is recoverable via `unforget`.
-- [ ] Retrieval returns only `promoted_at IS NOT NULL AND forgotten_at IS NULL` heads.
-- [ ] Union-evidence cross-check prevents a zero-link write.
-- [ ] `memory.entry_created`, `memory.entry_rolled_back`, `memory.entry_forgotten`, `memory.entry_restored` all emitted with `correlation_id = content_key`.
-- [ ] `pnpm --filter @harness/memory build` + `pnpm lint` clean.
+- [ ] `pnpm --filter @harness/ticket-provider test` — green, fixtures only.
+- [ ] `postComment` posts an ADF document that round-trips through `adfToPlainText`.
+- [ ] `transition("In Review")` resolves the name → id and posts; unknown name returns an error listing available names.
+- [ ] 401/404 → `TicketProviderError` with correct status.
+- [ ] JSDoc/comments state the commentary/status boundary (never code).
+- [ ] `grep -r "from '@harness" packages/ticket-provider/src` shows only `@harness/domain`.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Rollback ≠ DELETE.** The single most dangerous choice today is implementing rollback as an in-place revert or a hard delete. A "rolled back" memory must still be able to say *why* it was rolled back. Append a copy as the new head.
-- **`content_key` vs raw `content`.** Grouping chains by exact text means "fix auth bug" and "fix authentication bug" never merge (that's Day 06 consolidation). But `content_key` by *exact* hash is correct for today: write-back chains must not silently attach to a paraphrase they don't literally extend.
-- **Supersedes chains can get long.** Cap the audit surface, not the write: keep every version (audit), but retrieval only ever touches the head. If `supersedes_idx` queries degrade, add a `chain_length` denormalized counter later — do not truncate history.
-- **Cross-check against evidence, not against other memory.** A forget/update must re-verify the *evidence* backing, not peer-compare against another entry. Peer comparison is consolidation (Day 06), a different operation with a different threshold.
-- **Promotion threshold is a placeholder today.** 0.5 is arbitrary. Day 31 fits it. Do not rename or hide the constant — make it a named, single-source value so calibration can swap it.
-- **Tomorrow (Day 05):** Week 1 checkpoint — memory write + read demonstrable end to end.
+- **Transition names are tenant-specific.** "In Review" may not exist in a given Jira workflow — always resolve from the `/transitions` catalog at call time, never cache or hard-code ids.
+- **ADF is a tree, not markdown.** The inverse builder must handle paragraph vs list vs inline; a naive `text → paragraph` only builder will render long comments as one blob. Keep it minimal but structured.
+- **Comments/transitions are the write-back primitives** that Day 07 will wrap under `WriteBackService` — do not yet add idempotency or audit; the seam just exposes the capability.
+- **Tomorrow (Day 05):** Week 1 checkpoint — fetch PR/MR from all three providers + Jira end-to-end.
 
 ---
 
-*Prev: [Day 3 — Memory Retrieval: Relevance Scoring Served to Context](day-03.md) | Next: [Day 5 — Week 1 Checkpoint: Memory Write + Read Demonstrable](day-05.md)*
+*Next: [Day 05 — Week 1 Checkpoint: Fetch PR/MR from All Three Providers + Jira](day-05.md)*

@@ -1,20 +1,20 @@
 # @harness/sandbox — Isolated Execution Seam
 
-The container-sandbox seam shared by verification and agent Code Mode — isolates
-untrusted or tooling-heavy execution so it never runs on the harness's own
-process or filesystem.
+The container-sandbox seam used by verification — isolates untrusted or
+tooling-heavy execution so it never runs on the harness's own process or
+filesystem.
 
-**Status:** Phase 2 (Day 22–23) complete (as-built) ·
+**Status:** Phase 2 (Day 22–23) complete (as-built); the agent Code-Mode consumer was retired in `review-reorient` — the sole live consumer is `verification-engine`. ·
 **Boundary rule:** shared package — imports only shared infrastructure; consumers resolve the `Sandbox` token, never the concrete backend.
 
 ---
 
 ## Purpose
 
-1. **Define the `Sandbox` seam** — the contract both verification and code mode build on.
+1. **Define the `Sandbox` seam** — the contract verification builds on.
 2. **Provide a Docker-backed implementation** — the real isolation boundary.
 3. **Map workdirs** — a manifest controls what enters and leaves the sandbox.
-4. **Select images** — pin the tooling image for a check or a code-mode run.
+4. **Select images** — pin the tooling image for a check.
 5. **Fail loudly** — timeouts and launch/exit failures are typed, not swallowed.
 
 ---
@@ -22,18 +22,16 @@ process or filesystem.
 ## Model
 
 ```text
-   verification-engine ─┐
-                        ├──▶ TOKENS.Sandbox (the seam) ──▶ DockerSandbox
-   agent-runtime        ─┘                                 (container)
-   (code mode)                                        ┌──────┴──────┐
-                                                      ▼             ▼
-                                              workdir-manifest   image.ts
-                                              (input/output)    (which image)
+   verification-engine ─────▶ TOKENS.Sandbox (the seam) ──▶ DockerSandbox
+                                                            (container)
+                                                       ┌──────┴──────┐
+                                                       ▼             ▼
+                                               workdir-manifest   image.ts
+                                               (input/output)    (which image)
 ```
 
-Consumers stay runtime-agnostic: `verification-engine` resolves `TOKENS.Sandbox`
-for `SandboxedCheck`, agent code mode for `SandboxedToolExecutor` — neither
-imports the concrete `DockerSandbox`.
+The consumer stays runtime-agnostic: `verification-engine` resolves `TOKENS.Sandbox`
+for `SandboxedCheck` — never importing the concrete `DockerSandbox`.
 
 ---
 
@@ -53,9 +51,9 @@ imports the concrete `DockerSandbox`.
 
 - **Isolation is the point.** A sandboxed check cannot touch the host process or
   leak secrets; it gets a clean env and a bounded workdir.
-- **One shared boundary.** Verification and code mode use the *same* sandbox
-  abstraction, so verification is genuinely independent of generation, not just
-  a different call site.
+- **One shared boundary.** Verification uses the sandbox abstraction so a check is
+  genuinely independent of the process that orchestrates it, not just a different
+  call site.
 
 ---
 

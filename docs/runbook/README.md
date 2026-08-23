@@ -6,6 +6,20 @@
 > doesn't work as written, that's a runbook bug — fix it, don't improvise in an
 > incident.
 
+> **`review-reorient` (v0.6) — scope note.** The code-generation path — the
+> dispatcher loop, the runtime loop, *and* the startup reconciler
+> (`apps/api/src/reconcile.ts`) — was retired. The live path is **review-only**:
+> `POST /api/reviews` fetches an external PR + Jira ticket, the AI reviews it
+> (report + findings + fix suggestions), and a `Task` is created then immediately
+> `CANCELLED`. This changes three entries:
+> - **R1** is historical — no live code path puts a task in `EXECUTING`/`VERIFYING`,
+>   and the `agent_runs` / `trajectory_steps` tables it queries are orphaned. Kept
+>   for provenance only.
+> - **R4** — keep the `llm_call_log` half; the `retry_log` / `agent_runs`
+>   diagnostics query orphaned tables.
+> - **R8** — the "startup reconciler recovers" claim is retired along with
+>   `reconcile.ts`; nothing re-runs orphan recovery at boot.
+
 The two most useful sources of truth live next door:
 
 - **[audit-queries.md](audit-queries.md)** — copy-paste SQL (Q1–Q9) for everything
@@ -298,7 +312,7 @@ pnpm build && pnpm --filter @harness/api start
 | Signal | Behaviour |
 | --- | --- |
 | `SIGTERM` / `Ctrl-C` | Graceful: both poll loops halt, then in-flight ticks drain. Do this when you can. |
-| `SIGKILL` | Not graceful, but **safe**: the startup reconciler recovers any stranded task on next boot (R1). The only loss is in-flight LLM calls (billed, un-recorded to `llm_call_log`). |
+| `SIGKILL` | Not graceful. *(Post-`review-reorient`: there is no poll loop or startup reconciler — an in-flight review ingest request is simply lost; its `task.created` may or may not have committed.)* |
 
 Read [limitations.md](limitations.md) §1–§3 before running more than one process,
 before expecting a message broker, or before "fixing" the nonexistent worker pool.

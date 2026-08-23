@@ -33,6 +33,15 @@ export const EventType = {
   // Day-14 (Phase 2): a sampled auto-approve was rejected by the human control
   // reviewer — the "auto-approvable-but-rejected" signal (Spec 11 §4.1).
   EscalationLeakage: 'evaluation.escalation_leakage',
+  // Review-reorient (Phase 3): the external-PR review slice. Ingestion events
+  // prove a provider seam was actually read; the report/suggestion events prove
+  // the AI reviewer produced output; writeback proves an external write happened
+  // (all append-only, correlation-joined).
+  IntegrationPrFetched: 'integration.pr_fetched',
+  IntegrationTicketFetched: 'integration.ticket_fetched',
+  ReviewReportCreated: 'review.report_created',
+  ReviewFixSuggestionCreated: 'review.fix_suggestion_created',
+  IntegrationWritebackCompleted: 'integration.writeback_completed',
 } as const;
 /** A domain event type string. */
 export type EventType = (typeof EventType)[keyof typeof EventType];

@@ -1,11 +1,11 @@
-# Day 19 — Integrate Hybrid Default: rank_method Cutover + A/B vs Shadow Baseline
+# Day 19 — Memory Lifecycle: Consolidation/Decay/Archive
 
 | | |
 |---|---|
-| **Week** | 4 — Hybrid context default |
-| **Spec refs** | Spec 4 §5.1 (hybrid default, RR F + re-rank), Spec 11 §5 (A/B harness: beat the incumbent before rollout) |
-| **Estimated effort** | 8h |
-| **Prerequisites** | Day 18 (RAG Fusion behind the seam) |
+| **Week** | 4 — Review memory |
+| **Spec refs** | Spec 9 §4 (lifecycle rules); Phase-3 README §3 (consolidation/decay/archive), §7 |
+| **Estimated effort** | 6h |
+| **Prerequisites** | Days 16–18 (tiers, ingestion, retrieval) |
 
 ---
 
@@ -13,93 +13,56 @@
 
 By end of day you will have:
 
-1. The **hybrid (BM25 + embeddings + RRF + re-rank) as the default `Retriever`**, via the `rank_method` column cutover — *after* the A/B proves it wins, not before.
-2. An **A/B comparison** against the Phase-2 shadow baseline (`keyword` ranker) on a held-out set of historical tasks, driven by the existing A/B harness (Spec 11 §5).
-3. A **rollout gate**: hybrid becomes default only if it beats the incumbent on a predefined metric (Spec 11 §5 "beat the incumbent" gate).
-4. A **cutover record** (`rank_method` flip + timestamp + winning metric) so the switch is auditable and reversible.
+1. **Consolidation** — merge many near-duplicate entries (same dedup idea, many versions) into a single head entry with aggregated confidence and evidence links.
+2. **Decay** — `confidence`/relevance decays over time when a memory is not retrieved or corroborated, down to a floor (not to zero, so history is recoverable).
+3. **Archive** — entries dropped below a utility threshold (or superseded beyond N versions) move to `ARCHIVED` and are excluded from retrieval but retained for audit.
+4. A scheduled lifecycle job emitting `memory.consolidated` / `memory.archived` events.
 
-This is where the week's invariant is *proven*: hybrid earns default by winning the A/B, not by being newer.
+Lifecycle keeps the memory store a *useful, current* signal, not an unbounded log.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 The cutover is a measured, reversible config flip
+### 2.1 Lifecycle is scheduled + idempotent
 
-`rank_method` is already a column (Phase 2 kept `keyword` as default). The cutover:
+`memory.lifecycle.tick` runs on a cadence (node-cron / a scheduled job), processes a bounded batch, and is idempotent — re-running a tick is a no-op for already-consolidated/archived entries.
 
-```sql
--- after the A/B gate passes:
-UPDATE projects SET context_rank_method = 'hybrid' WHERE ...;
--- or flip the default + record the change in an audit row
-INSERT INTO metric_gates (gate, incumbent, challenger, winner, metric_value, decided_at)
-VALUES ('context_rank_default', 'keyword', 'hybrid', 'hybrid', 0.18, now());
-```
+### 2.2 Consolidation collapses chains
 
-- **Default changes only after the gate passes.** The shadow baseline (`keyword`) stays live until then.
-- The flip is a **named, logged migration-like step**, not an implicit code change. Reversibility = set `rank_method` back + the audit row records both directions.
+For a `supersedes` chain: keep the head, fold superseded versions' `sourceEvidence` links into the head's link set, aggregate `confidence` (e.g. max or weighted mean), and mark superseded entries `ARCHIVED`. Retrieval then serves one clean entry.
 
-### 2.2 The A/B harness is reused, not rebuilt
+### 2.3 Decay as an exponential taper, floored
 
-Phase 2 built a shadow A/B harness (Spec 11 §5: replay historical tasks through two pipeline configs). Day 19 *uses* it:
+`confidence_t = max(floor, confidence_old · decayFactor^Δt)` where `Δt` is time since last corroboration/retrieval. Floor preserves the entry's history while demoting stale-but-unused memory.
 
-```typescript
-interface RankAbResult {
-  incumbent: 'keyword';
-  challenger: 'hybrid';
-  metric: 'top1_target_file_hit_rate' | 'routing_precision' | 'context_sufficiency';
-  incumbentScore: number;
-  challengerScore: number;
-  winner: 'incumbent' | 'challenger' | 'draw';
-}
-```
+### 2.4 Archive is soft-delete
 
-- Replay an identical held-out task set through both rankers; compare the *predefined* metric.
-- Do **not** invent a new metric today; use the metric Spec 11 §5.1 already names (e.g. "does re-ranking put the file that actually fixed the bug in the top-N" — `top-K target-file hit rate`).
-
-### 2.3 Winner rules
-
-- Hybrid becomes default **only if** `challengerScore > incumbentScore` on the predefined metric (no "newer wins" tie-break).
-- A **draw or loss** keeps `keyword` default; hybrid stays shadow and the result is written to the gate log for a later Day 32 re-fit.
-- The gate result is recorded (table above) so Day 39 regression can re-verify "hybrid still beats keyword."
-
-### 2.4 Shadow-during-cutover safety
-
-For a short window (Day 19–20), run hybrid as default while the *previous* keyword ranker still computes in shadow, so a regression can be caught and reverted immediately. Store both rankings in snapshot metadata (`shadow_keyword_order`) for the Day 20 freshness/lost-in-middle check.
-
-### 2.5 Freshness interaction (surfaced for Day 20)
-
-The cutover must re-verify Spec 4 §8 freshness + §5.2.4 validation on the hybrid path: target-file presence, token budget, STALE handling all still apply. Note any place where the hybrid retriever returns a source the keyword ranker would have pruned (or vice-versa) for Day 20's explicit test.
+`ARCHIVED` is a status, not a hard delete; retrieval excludes it, audit keeps it. A future "re-activate" is trivial.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 A/B run on held-out tasks (120 min)
+### 3.1 Lifecycle schema additions (30 min)
 
-- [ ] Assemble the held-out task set (reuse Phase 2 replay fixtures; ≥ 15 tasks including REWORK + defect-caught-later cases).
-- [ ] Run incumbent (`keyword`) vs challenger (`hybrid`) via the A/B harness; record `RankAbResult`.
+- [ ] Add `status` (`ACTIVE` | `ARCHIVED`) + `confidence_floor` to `memory_entries` (migration).
 
-### 3.2 Implement the rollout gate (90 min)
+### 3.2 Consolidation (90 min)
 
-- [ ] `evaluateRankCutover()` implements §2.3 winner rules; writes `metric_gates` row.
-- [ ] Gate result drives whether the default flips (no manual "just flip it").
+- [ ] `consolidateChain` — fold versions → head; archive superseded; aggregate confidence + evidence.
 
-### 3.3 Cutover + shadow window (90 min)
+### 3.3 Decay (60 min)
 
-- [ ] If (and only if) gate passes: flip `rank_method` default to `hybrid`; keep `keyword` shadow recorded in snapshot metadata (§2.4).
-- [ ] Audit row + `rank.cutover_applied` event.
+- [ ] `applyDecay` — exponential taper, floored; skip recently-retrieved entries.
 
-### 3.4 Reversibility drill (45 min)
+### 3.4 Archive + scheduler (60 min)
 
-- [ ] Script the rollback: set `rank_method` back; assert snapshots revert to keyword ordering. Run it once in a test DB to prove the path exists.
+- [ ] `archiveBelowThreshold`; cron job `memory.lifecycle.tick` + events.
 
-### 3.5 Tests (120 min)
+### 3.5 Tests (75 min)
 
-- [ ] Gate logic: challenger better → winner challenger; draw/loss → incumbent stays.
-- [ ] Cutover row + event written with metric values.
-- [ ] Shadow rankings present in snapshot metadata during the window.
-- [ ] Rollback restores `keyword` default (reversibility).
+- [ ] Chain consolidation merges evidence + archives superseded; decay reduces confidence to the floor; archived excluded from retrieval; scheduler idempotent.
 
 ---
 
@@ -107,36 +70,31 @@ The cutover must re-verify Spec 4 §8 freshness + §5.2.4 validation on the hybr
 
 | File | Description |
 |------|-------------|
-| `packages/context-engine/src/rank/gate.ts` | `evaluateRankCutover`, `metric_gates` write |
-| `packages/db/src/schema/gates.ts` + migration | `metric_gates` table |
-| `scripts/ab-rank-cutover.ts` | A/B + cutover orchestration script |
-| `packages/context-engine/src/__tests__/cutover.test.ts` | Gate/revert tests |
-| `docs/architecture/wiring-map.md` (updated) | Default ranker + gate |
+| `packages/memory/src/lifecycle/consolidate.ts` | Chain consolidation |
+| `packages/memory/src/lifecycle/decay.ts` | Confidence decay |
+| `packages/memory/src/lifecycle/archive.ts` | Archive below threshold |
+| `packages/memory/src/lifecycle/scheduler.ts` | `memory.lifecycle.tick` job |
+| `packages/db/migrations/0xxx_memory_lifecycle.sql` | `status` + `confidence_floor` |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/context-engine test` — all tests pass.
-- [ ] A/B result recorded with a predefined metric (top-K target-file hit rate) for incumbent vs challenger.
-- [ ] Hybrid becomes default **only if** the gate passes (challenger > incumbent); draw/loss keeps keyword.
-- [ ] `metric_gates` row records winner + metric value + timestamp (auditable).
-- [ ] Shadow keyword ranking is retained in snapshot metadata during the cutover window.
-- [ ] Rollback drill proven: set `rank_method` back → ordering reverts.
-- [ ] `rank.cutover_applied` event emitted if (and only if) the flip happened.
-- [ ] `pnpm lint` clean.
+- [ ] A multi-version chain consolidates to one head with merged evidence; superseded entries `ARCHIVED`.
+- [ ] `confidence` decays over time to a non-zero floor; recently-retrieved entries skip decay.
+- [ ] `ARCHIVED` entries excluded from retrieval, retained in audit.
+- [ ] Lifecycle tick idempotent; emits `memory.consolidated`/`memory.archived`.
+- [ ] `pnpm --filter @harness/memory test` green.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **The gate, not the engineer, flips the default.** If you manually set `hybrid` because "it obviously works," you've violated the one invariant that makes this phase trustworthy. The A/B result is the only authorized trigger.
-- **Predefine the metric before running.** Spec 11 §5.1: a new capability must beat the incumbent on a predefined metric. Choosing the metric *after* seeing results is the optimizer's self-deception. Write it down in the gate row *before* the score.
-- **A loss is a finding, not a failure.** If hybrid loses, that's valuable: record it, keep shadow, and let Day 32's ranking-parameter learning address it. A forced cutover hides a real quality gap.
-- **The shadow window is temporary.** It costs double ranking compute. Close it on Day 20 once freshness/lost-in-middle checks pass; do not leave a permanent double-rank in the hot path.
-- **Reversibility is not theoretical.** The rollback drill is a Day-19 acceptance criterion, not a note. A default you can't revert is a default you can't ship.
-- **Tomorrow (Day 20):** Week 4 checkpoint — lost-in-middle + freshness under hybrid; shadow→default cutover clean.
+- **Archive ≠ delete.** Hard-deleting memory destroys the audit trail the whole phase exists to protect; `ARCHIVED` retains it while removing noise.
+- **Decay floor protects recoverability.** A floor of 0.0 turns decay into deletion; keep it positive and configurable.
+- **Consolidation must merge evidence, not drop it.** Losing a `sourceEvidence` link in a merge breaks the ≥1-invariant provenance from Day 16.
+- **Day 20** checkpoint: review-memory write + read demonstrable.
 
 ---
 
-*Prev: [Day 18 — RAG Fusion: Multi-query + Reciprocal Ranking behind Retriever](day-18.md) | Next: [Day 20 — Week 4 Checkpoint: Lost-in-middle + Freshness Under Hybrid; Clean Cutover](day-20.md)*
+*Next: [Day 20 — Week 4 Checkpoint: Review Memory Write + Read Demonstrable](day-20.md)*

@@ -1,24 +1,66 @@
 # HAI Harness — Human-Attention Infrastructure
 
-**A control plane for human attention in AI-native development.** AI produces the
-work; the harness verifies, scores, and routes each change so a reviewer sees only
-what actually matters — never the flood. Every step lands in an append-only event
-log, so the entire trail is replayable, queryable, and auditable.
+**AI reviews external pull requests; a human decides.** Paste a PR / MR URL
+(+ an optional Jira ticket), and the harness fetches the diff + the requirement,
+asks the configured AI provider to review it, and stores a report with findings
+and fix suggestions — so a reviewer sees only what actually matters, never the
+flood. Every step lands in an append-only event log, so the trail is replayable,
+queryable, and auditable.
 
 | | |
 | --- | --- |
-| **Status** | Phase 2 complete · tagged `v0.2.0-harness` |
-| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 695 tests ✅ · e2e ✅ |
-| **Stack** | TypeScript · Fastify · React (Vite) · PostgreSQL (Drizzle) · OpenTelemetry · Docker |
-| **Boundary model** | 17 `@harness/*` packages; engines never import another engine |
+| **Status** | Review slice shipped · code-generation path retired (`review-reorient`) |
+| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 616 tests ✅ |
+| **Stack** | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker |
+| **Boundary model** | 19 `@harness/*` packages; engines never import another engine |
+
+> **Pivot note.** The harness no longer *authors* code. The internal loop — an
+> AI agent writing files, committing them, and auto-merging on approval — is
+> retired. The product is now a read-only **PR review control plane**: the AI is
+> the *reviewer*, not the author. See [§What changed](#what-changed) and the
+> [retirement record](docs/plan/phase-3/backlog.md).
 
 ---
 
 ## What it does
 
-A task moves through a canonical, 13-state machine while dedicated engines do the
-work. One DI container (`apps/api/src/bootstrap.ts`) wires the packages; no engine
-knows another's internals.
+The flow is a single review vertical slice:
+
+```text
+ Settings (web UI / env)             New review (web UI)
+   Git provider  : token + baseUrl     paste PR URL + Jira ticket (optional)
+   Jira          : token + baseUrl
+   AI            : provider, key, baseUrl, model
+          │                                    │
+          ▼                                    ▼
+   provider config                          POST /api/reviews { prUrl, jiraTicket }
+          │                                    │
+          ▼                                    ▼
+   GitProvider.fetchPullRequest ──▶ diff + metadata      TicketProvider.fetchIssue ──▶ requirement
+                                                    │
+                                        create Task (anchor, then CANCELLED)
+                                                    │
+                                   AI REVIEW (LLM → report + findings[] + fix suggestions[])
+                                                    │
+                               persist review_reports / review_findings / fix_suggestions
+                                                    │
+                                          UI shows report + suggestions
+                                                    │
+                              HUMAN DECISION (approve / request-changes / reject)
+                              WRITE-BACK (Phase 3 — optional comment/status → PR / Jira)
+```
+
+Two endpoints carry the slice today (`apps/api/src/routes/reviews.ts`):
+
+- `POST /api/reviews` — paste `{ prUrl, jiraTicket? }`; fetches the PR (GitHub
+  today; GitLab/Bitbucket are the Phase-3 providers), fetches the ticket if
+  given, asks the AI, and returns the stored report id.
+- `GET /api/reviews/:id` — the report, findings, and fix suggestions, ready for
+  the UI.
+
+On top of that retained-but-not-yet-wired-into-this-slice machinery sits the
+wider pipeline — the canonical task state machine, independent verification
+(clone → test in the Docker sandbox), and attention routing:
 
 ```text
  PENDING ─▶ QUEUED ─▶ EXECUTING ─▶ VERIFYING ─▶ AWAITING_REVIEW ─▶ APPROVED ─▶ COMPLETED
@@ -31,17 +73,38 @@ knows another's internals.
               └──▶ CANCELLED   (terminal, alongside COMPLETED)
 ```
 
+The review slice creates a task purely to anchor the provenance trail and
+immediately `CANCELLED` it — the retired dispatcher used to pull `PENDING`/`REWORK`
+tasks into the code-gen workflow, and a cancelled task is never consumed.
+
 | Engine | Role |
 | --- | --- |
-| **Orchestrator** | Owns the Task state machine, dispatch, workflow, retry |
-| **Context Engine** | Gathers, ranks, and budgets the context an agent sees (exact `tiktoken` tokens) |
-| **Agent Runtime** | Plans and executes agent steps; records the full trajectory |
+| **Orchestrator** | Owns the Task state machine + `TaskService` (the dispatch/workflow/retry loop is retired) |
+| **Agent Runtime** | The read-only **reviewer**: `LLMProvider` + `ReviewAgent` → structured report (the write/`write_file` tools are retired) |
+| **Context Engine** | Gathers, ranks, and budgets the context a reviewer sees (exact `tiktoken` tokens) |
 | **Verification Engine** | Independent compile + test + sandboxed checks (real tooling) |
 | **Attention Engine** | Scores each change and budgets human attention (+ gated auto-approve) |
 | **Review** | A human APPROVES / REJECTS every change, with rationale |
 | **Artifact Tracker** | Snapshots, diffs, and provenance for every change |
 
 See [the wiring map](docs/architecture/wiring-map.md) for the full object graph.
+
+## What changed
+
+The `review-reorient` pivot retired the code-generation path and kept everything
+that verifies, scores, routes, and records:
+
+- **Retired:** `AgentRunner` (ReAct + write tools), `RuntimePollLoop`,
+  `ToolRegistry`, `TrajectoryRecorder`, code-mode/tiers, `Dispatcher`/`DispatchLoop`,
+  `WorkflowRunner` + retry taxonomy, `MergeService` / `ReworkService` /
+  `GitAdapter` (`applyAndCommit`), `POST /api/tasks`, and the e2e/load scripts.
+- **Kept:** the task state machine, `TaskService`, the LLM-provider seam
+  (Anthropic + OpenAI-compatible), the **review slice** (`ReviewAgent`,
+  `ReviewIngestService`, `GitProvider`, `TicketProvider`), and the full
+  verification / attention / review / evidence / observability machinery.
+- **Next (Phase 3):** verification (clone + run tests in the Docker sandbox),
+  attention routing of reviews, write-back to PR/Jira behind a toggle, and the
+  GitLab/Bitbucket providers. See the [Phase 3 backlog](docs/plan/phase-3/backlog.md).
 
 ## Principles
 
@@ -53,13 +116,15 @@ See [the wiring map](docs/architecture/wiring-map.md) for the full object graph.
   append-only `event_log`, joined by one `correlation_id`.
 - **Shadow-then-default** — a new signal (semantic retrieval, fitted weights)
   earns the default by winning a measured comparison, never by being newer.
+- **No live keys in the repo** — the real provider paths are compile-tested only;
+  `.env.example` carries placeholders and execution is sandboxed.
 
 ## Packages
 
 | Layer | Packages |
 | --- | --- |
 | **Engines** | `orchestrator`, `agent-runtime`, `context-engine`, `artifact-tracker`, `attention-engine`, `verification-engine`, `review` |
-| **Phase-2 seams** | `auth`, `embeddings`, `evaluation`, `object-store`, `observability`, `sandbox` |
+| **Phase-2/3 seams** | `auth`, `embeddings`, `evaluation`, `object-store`, `observability`, `sandbox`, `git-provider`, `ticket-provider` |
 | **Shared foundation** | `domain`, `db`, `di`, `event-bus` |
 
 Each package documents its purpose, data model, invariants, and boundary rules in
@@ -72,10 +137,10 @@ git clone <repo-url> harness-human-attention-infrastructure
 cd harness-human-attention-infrastructure
 pnpm install                        # links the @harness/* workspace packages
 docker compose up -d                # Postgres :5432 · Prometheus :9090 · Grafana :3001 · MinIO :9000
-cp .env.example .env                # DATABASE_URL + placeholder ANTHROPIC_API_KEY
+cp .env.example .env                # DATABASE_URL + placeholder provider keys
 pnpm --filter @harness/db migrate   # apply migrations
 pnpm test                           # unit + integration (~2 min)
-pnpm e2e                            # full vertical slice (<3 min)
+pnpm dev                            # run the API + web UI
 ```
 
 **Requirements:** Node.js ≥ 20, pnpm ≥ 9 (pinned `9.15.4`), Docker. Full walkthrough
@@ -83,52 +148,24 @@ in the [Developer Guide](docs/dev-guide.md).
 
 ## Status & roadmap
 
-**Phase 2 is complete** (Days 01–30). The exit review
-([`docs/retros/phase2-metrics.md`](docs/retros/phase2-metrics.md)) marks **8 of 9**
-§7 exit criteria met, the ninth partial. The loop is now **measured**: routing
-precision **0.333** / recall **0.5** / escalation-leakage **1.0** (N=4); the A/B
-harness reports a real head-to-head with no production effect; `rank_method` stays
-`keyword` by construction; and auth, review, sandbox, object-store, and Spec 8/10
-are all green. The one honest gap: fitted attention weights (log-loss **0.316**)
-did *not* beat the Phase-1 placeholder (**0.262**), so calibration carries into
-Phase 3 as backlog rather than being claimed done.
+**The code-generation loop is retired** and the **review slice is shipped**
+(`POST/GET /api/reviews`). The verification + write-back breadth (clone → run
+tests in the Docker sandbox, attention routing of reviews, GitLab/Bitbucket
+providers, optional comment/status write-back) is tracked in the
+[Phase 3 backlog](docs/plan/phase-3/backlog.md).
 
-The decision is **go-with-caveats** — the full record of what held and what drifted
-is the [Week-6 retrospective](docs/retros/week-06.md).
+The historical record of Phases 1–2 — the measurement loop, calibration, A/B
+harness, and the honest exit review — is unchanged and lives in
+[`docs/retros/`](docs/retros/).
 
-### Phase 2 milestones
-
-| Week | Theme | Honest result | Checkpoint |
-|---|---|---|---|
-| W1 · D01–05 | Identity & observability | OIDC `sub`-keyed SSO, revocable JWT sessions, role gate (`ADMIN ⊇ REVIEWER ⊇ OPERATOR`); OTel `trace_id ↔ correlation_id` + Prometheus `/metrics` | [repo](docs/retros/week-01.md) · [demo](scripts/demo/week1.md) |
-| W2 · D06–10 | Evaluation & governance | Offline routing metrics, report scheduler, trajectory replay, read-only A/B shadow harness | [repo](docs/retros/week-02.md) |
-| W3 · D11–15 | Calibration & auto-approve | `eval:fit` from real data; auto-approve behind flag + kill-switch + sampling audit. **Fit lost to placeholder (0.316 vs 0.262)** → placeholder kept | [repo](docs/retros/week-03.md) · [demo](scripts/demo/week3-calibration.md) |
-| W4 · D16–20 | Semantic infra (shadow) | pgvector + `Embedder`, semantic retriever behind `resolveWithShadow`, exact tiktoken tokenizer, context cache. `rank_method` stays `keyword` | [repo](docs/retros/week-04.md) · [demo](scripts/demo/week4-shadow.md) |
-| W5 · D21–25 | Sandbox, object store, Spec 8 | `ContentStore` (S3/MinIO), container `SandboxedCheck`, Spec 8 promoted | — |
-| W6 · D26–30 | Harden + exit review | Failure injection, E2E under the Phase-2 stack, A/B dry-run (`tau = [-1, -1]`, guardrail HELD → *promote to a real A/B*), exit review + tag | [repo](docs/retros/week-06.md) · [A/B results](docs/retros/week6-ab-results.md) |
-
-<details>
-<summary>Phase 1 (complete) — the vertical slice</summary>
-
-Days 01–30 of Phase 1 built the full vertical slice: orchestrator, agent runtime,
-context, artifact tracking, verification, attention routing, review, and
-observability. It proved the loop end-to-end but was **unmeasured and
-uncalibrated** — a single `X-Reviewer-Id` header, placeholder weights, keyword-only
-ranking. The honest, numbers-first record is the
-[Phase 1 retrospective](docs/retros/phase-1.md); deliberate Phase-1 scope cuts are
-documented in [limitations.md](docs/runbook/limitations.md).
-
-</details>
-
-**Next up:** [Phase 3 — Learn & Automate Under Guardrails](docs/plan/phase-3/README.md),
-starting from the [Phase-3 backlog](docs/plan/phase-3/backlog.md).
+---
 
 ## Documentation
 
 | What | Where |
 | --- | --- |
-| **Specifications & package docs** | Architecture spec at [`docs/core/`](docs/core/) + one `README.md` per `@harness/*` package |
-| **Build plan** | [`docs/plan/`](docs/plan/README.md) — day-by-day plans (Phases 1–3) and backlog |
+| **Architecture spec** | [`docs/core/`](docs/core/) + one `README.md` per `@harness/*` package |
+| **Build plan & backlog** | [`docs/plan/`](docs/plan/README.md) — day-by-day plans (Phases 1–3) and the Phase-3 backlog |
 | **Operations runbook** | [`docs/runbook/`](docs/runbook/README.md) — incidents, exact commands, escalation rules |
 | **Developer guide** | [`docs/dev-guide.md`](docs/dev-guide.md) — clone-to-green in ~15 minutes |
 | **Wiring map** | [`docs/architecture/wiring-map.md`](docs/architecture/wiring-map.md) — the DI object graph |
@@ -138,11 +175,11 @@ starting from the [Phase-3 backlog](docs/plan/phase-3/backlog.md).
 
 | Path | What's in it |
 | --- | --- |
-| `packages/` | 17 engines and shared libraries (`@harness/*`) |
-| `apps/api` | Fastify API + the single DI bootstrap (`bootstrap.ts`) + reconcile |
+| `packages/` | 19 engines and shared libraries (`@harness/*`) |
+| `apps/api` | Fastify API + single DI bootstrap (`bootstrap.ts`) + the review slice |
 | `apps/web` | React + Vite review UI |
-| `docs/core/` | The architecture specification (subsystem docs live in each package's `README.md`) |
-| `docs/plan/` | Day-by-day build plans (Phases 1 / 2 / 3) |
+| `docs/core/` | The architecture overview (subsystem docs live in each package's `README.md`) |
+| `docs/plan/` | Day-by-day build plans (Phases 1 / 2 / 3) + backlog |
 | `docs/architecture/` | Wiring map and living architecture notes |
 | `docs/runbook/` | Audit-query cookbook + operational runbook + limitations |
 | `docs/retros/` | Honest weekly retrospectives |

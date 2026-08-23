@@ -1,199 +1,76 @@
-# Day 15 — Verification Engine: Request Handler & Compile Check
+# Day 15 — Verification Engine: request handler + compile check (CompileCheck)
 
 | | |
 |---|---|
-| **Week** | 3 — Trust Pipeline |
-| **Spec refs** | Spec 7 — Verification Engine (v0.1, updated); Spec 5 §3.1 |
-| **Estimated effort** | 6–7 h |
-| **Prerequisites** | Day 14 (changes/artifacts VERIFIED subscriber), Day 09 (VERIFY step stub) |
+| **Week** | W3 — Trust pipeline |
+| **Spec refs** | Spec 7 §1–2 (verification, CompileCheck), Spec 1 §3 (Claim ≠ Evidence) |
+| **Estimated effort** | 7h |
+| **Prerequisites** | Day 14 (review slice with a fresh PR diff in hand) |
 
 ---
 
 ## 1. Objectives
 
-1. Stand up `packages/verification-engine` with its public entry point: `VerificationEngine.verify(changeId)` returning a `VerificationReport`.
-2. Implement the **Check abstraction** (`VerificationCheck` interface) and the Phase-1 **Full/Parallel** execution strategy (per spec fix: Targeted/Incremental deferred to Phase 3).
-3. Ship the first real check: **CompileCheck** (`tsc --noEmit`) running **in-process on the agent's dedicated branch/worktree** (spec §5.5 Execution Environment).
-4. Wire the Day-09 VERIFY `StepHandler` stub to call the engine and publish `verification.completed` (consumed by Day-14 ChangeStatusSubscriber).
-5. Apply the **two timeout levels** from the spec fix: per-check timeout vs request-level timeout (§5.7).
-
-> **Why this matters:** verification is where "Claim ≠ Evidence" gets enforced. Today establishes the contract every later check (tests Day 16, lint/type/future checks) plugs into.
-
----
+- Build `@harness/verification-engine` — the component that **independently** verifies a change the AI reviewed, so "the AI says it's fine" is never the only evidence.
+- Implement the request handler + the first check: `CompileCheck` (runs `tsc --noEmit` against the change in the sandbox and parses compiler output into structured evidence).
+- Emit `verification.completed` with a pass/fail verdict, exit code, and captured diagnostics, joined to the review's `correlation_id`.
 
 ## 2. Design Decisions
 
-### 2.1 Types (extends `@harness/domain`)
+- Verification is **independent of the AI report**: the engine consumes the PR's diff/content, not the reviewer's opinion, so a bad review can be disproven by evidence.
 
 ```ts
-// packages/verification-engine/src/types.ts
-export const CheckKind = { COMPILE: 'COMPILE', TEST: 'TEST', LINT: 'LINT' } as const;
-export type CheckKind = typeof CheckKind[keyof typeof CheckKind];
-
-export const CheckStatus = { PASSED: 'PASSED', FAILED: 'FAILED', FLAKY: 'FLAKY', TIMED_OUT: 'TIMED_OUT', SKIPPED: 'SKIPPED' } as const;
-export type CheckStatus = typeof CheckStatus[keyof typeof CheckStatus];
-
+export interface VerificationRequest {
+  readonly changeId: ChangeID;     // or prUrl
+  readonly correlationId: string;
+  readonly checks: CheckKind[];    // ['COMPILE', ...]
+}
 export interface CheckResult {
-  checkKind: CheckKind;
-  status: CheckStatus;
-  durationMs: number;
-  output: string;              // truncated stdout/stderr (cap 64KB)
-  evidenceId?: string;         // set on Day 17 (evidence storage)
-}
-
-export interface VerificationCheck {
-  readonly kind: CheckKind;
-  readonly timeoutMs: number;  // per-check timeout (level 1)
-  run(ctx: CheckContext): Promise<CheckResult>;
-}
-
-export interface CheckContext {
-  changeId: string;
-  worktreePath: string;        // agent's dedicated branch/worktree (never main checkout)
-  sandboxRoot: string;
+  readonly kind: CheckKind;        // COMPILE | TEST
+  readonly status: 'PASS' | 'FAIL' | 'ERROR' | 'TIMEOUT';
+  readonly exitCode?: number;
+  readonly diagnostics: Diagnostic[];
+  readonly durationMs: number;
 }
 ```
 
-### 2.2 Request-level orchestration (two timeout levels)
-
-```ts
-export class VerificationEngine {
-  private readonly checks: VerificationCheck[];           // registry, Phase 1 = [CompileCheck] (+TestCheck Day 16)
-  private readonly requestTimeoutMs = env('VERIFY_REQUEST_TIMEOUT_MS', 120_000); // level 2 — matches Day-09 VERIFY step timeout
-
-  async verify(changeId: string): Promise<VerificationReport> {
-    const ctx = await this.buildContext(changeId);        // resolve worktree for change
-    const started = Date.now();
-    // Phase 1 strategy: FULL (all checks) + PARALLEL (Promise.all)
-    const results = await withTimeout(
-      Promise.all(this.checks.map(c => withTimeout(c.run(ctx), c.timeoutMs, 'CHECK_TIMEOUT'))),
-      this.requestTimeoutMs, 'REQUEST_TIMEOUT',
-    ).catch(err => this.timeoutReport(changeId, err));    // request timeout → all unfinished checks TIMED_OUT
-    const report = buildReport(changeId, results, Date.now() - started);
-    await this.persist(report);                            // verification_reports + verification_check_results
-    this.bus.publish(makeEvent('verification.completed', {
-      changeId, taskId: report.taskId,
-      result: report.overall,                              // PASSED | FAILED
-      reportId: report.id,
-    }));
-    return report;
-  }
-}
-```
-
-- **Overall result:** `PASSED` iff every check `PASSED` (FLAKY/TIMED_OUT count as not-passed; Day-16 retry-once converts FLAKY→PASSED or leaves FLAKY).
-- **Task transition:** on PASSED the VERIFY `StepHandler` lets WorkflowRunner continue (task → AWAITING_REVIEW); on FAILED, the handler returns `{ ok: false, failureClass: 'PERMANENT', retriable: false }` → workflow marks verification failed → task → REWORK (per Day-06 transition table) with the report attached.
-
-### 2.3 CompileCheck (in-process, dedicated worktree)
-
-```ts
-export class CompileCheck implements VerificationCheck {
-  readonly kind = 'COMPILE';
-  readonly timeoutMs = env('VERIFY_COMPILE_TIMEOUT_MS', 60_000);
-
-  async run(ctx: CheckContext): Promise<CheckResult> {
-    const t0 = Date.now();
-    const proc = spawn('pnpm', ['exec', 'tsc', '--noEmit', '-p', ctx.worktreePath], {
-      cwd: ctx.worktreePath, env: sanitizedEnv(),
-    });
-    const { code, out } = await collectOutput(proc, 64 * 1024);
-    return {
-      checkKind: 'COMPILE',
-      status: code === 0 ? 'PASSED' : 'FAILED',
-      durationMs: Date.now() - t0,
-      output: out,
-    };
-  }
-}
-```
-
-**Spec §5.5 fix applied:** checks run **in-process on the agent's dedicated branch/worktree** — Phase 1 does not use containers. The worktree path comes from `agent_runs.worktree_path` (join via change → task → latest run). `sanitizedEnv()` strips secrets (no `ANTHROPIC_API_KEY` in child env).
-
-### 2.4 Tables (migration `0015_verification.sql`)
-
-```sql
-CREATE TABLE verification_reports (
-  id           TEXT PRIMARY KEY,
-  change_id    TEXT NOT NULL REFERENCES changes(id),
-  task_id      TEXT NOT NULL REFERENCES tasks(id),
-  overall      TEXT NOT NULL CHECK (overall IN ('PASSED','FAILED')),
-  duration_ms  INTEGER NOT NULL,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE verification_check_results (
-  id           TEXT PRIMARY KEY,
-  report_id    TEXT NOT NULL REFERENCES verification_reports(id),
-  check_kind   TEXT NOT NULL,
-  status       TEXT NOT NULL CHECK (status IN ('PASSED','FAILED','FLAKY','TIMED_OUT','SKIPPED')),
-  duration_ms  INTEGER NOT NULL,
-  output       TEXT NOT NULL,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 2.5 VERIFY StepHandler wiring (replaces Day-09 stub)
-
-```ts
-// apps/api/src/bootstrap.ts
-registry.set('VERIFY', async (stepCtx) => {
-  const changeId = await findChangeId(db, stepCtx.taskId, stepCtx.attemptNumber);
-  const report = await verificationEngine.verify(changeId);
-  return report.overall === 'PASSED'
-    ? { ok: true, output: { reportId: report.id } }
-    : { ok: false, error: `verification failed: ${report.failedChecks.join(',')}`,
-        failureClass: 'PERMANENT', retriable: false };
-});
-```
-
-No `verification.completed` on REPORT-level timeout until the catch builds a TIMED_OUT report — ensure the catch path also persists + publishes so Day-14 subscriber + Day-27 observability always see a report.
-
----
+- `CompileCheck` runs a real `tsc` subprocess against the sandbox export (fixtures in Phase 1 — container isolation is Phase 2+), parses stdout/stderr lines into `{file, line, severity, message}`.
+- No AI, no git write, no test-run against a paid service; the engine only *observes* and records evidence.
 
 ## 3. Tasks
 
-- [ ] **3.1** Scaffold `packages/verification-engine` (package.json `@harness/verification-engine`, deps: domain/event-bus/db/di only — R4). (30 min)
-- [ ] **3.2** Migration `0015_verification.sql` + Drizzle schema. (45 min)
-- [ ] **3.3** Types + `VerificationCheck` registry + `buildReport`. (1 h)
-- [ ] **3.4** `VerificationEngine.verify` with two-level timeouts + persist + publish. (1.5 h)
-- [ ] **3.5** `CompileCheck` (spawn tsc in worktree, output cap, sanitized env). (1 h)
-- [ ] **3.6** Replace VERIFY stub in bootstrap; update wiring-map. (30 min)
-- [ ] **3.7** Tests: passing compile → PASSED + `verification.completed` → change VERIFIED (Day-14 subscriber, end-to-end); failing fixture → FAILED → task REWORK; per-check timeout → TIMED_OUT; request timeout → partial results TIMED_OUT; child env has no secrets. (1.5 h)
+### 3.1 Request handler + types (120 min)
+- [ ] `request-handler.ts` — enqueue/dispatch a `VerificationRequest`
+- [ ] `verification.ts` types — `CheckResult`, `Diagnostic`, `CheckKind`, statuses
 
----
+### 3.2 CompileCheck (180 min)
+- [ ] `checks/compile-check.ts` — spawn `tsc --noEmit`, parse output, timeout
+- [ ] `checks/tsc-parser.ts` — structured diagnostics from compiler text
+
+### 3.3 Events + tests (120 min)
+- [ ] Emit `verification.completed`; unit tests on a failing fixture + a passing fixture
 
 ## 4. Deliverables
 
 | File | Description |
-|---|---|
-| `packages/verification-engine/src/verification-engine.ts` | Orchestrator: full/parallel, two-level timeout, persist + publish |
-| `packages/verification-engine/src/checks/compile-check.ts` | `tsc --noEmit` in agent worktree |
-| `packages/verification-engine/src/types.ts` | CheckKind/CheckStatus/VerificationCheck/CheckContext |
-| `packages/verification-engine/migrations/0015_verification.sql` | reports + check results tables |
-| `fixtures/compile-fail/` | Fixture project that fails tsc |
-| `apps/api/src/bootstrap.ts` (edit) | VERIFY handler wired to engine |
-
----
+|------|-------------|
+| `packages/verification-engine/src/request-handler.ts` | Verification dispatch |
+| `packages/verification-engine/src/checks/compile-check.ts` | `CompileCheck` implementation |
+| `packages/verification-engine/src/checks/tsc-parser.ts` | Compiler-output parser |
+| `fixtures/verify/compile-fail/` | Fixture change that fails compile |
 
 ## 5. Acceptance Criteria
 
-- [ ] Passing change → report PASSED → `verification.completed` → change+artifacts flip to VERIFIED (integration test with real subscriber chain).
-- [ ] Failing change → report FAILED → task → REWORK with report linked in `task_state_history` metadata.
-- [ ] Per-check timeout produces TIMED_OUT result, does not hang the request; request-level timeout caps total wall time.
-- [ ] Check process environment contains no `ANTHROPIC_API_KEY` (assert in test).
-- [ ] Boundary tests still pass (verification-engine imports only domain/event-bus/db/di).
-- [ ] `pnpm test && pnpm lint` green.
-
----
+- [ ] `pnpm --filter @harness/verification-engine test` passes
+- [ ] A failing fixture yields `status: FAIL` with line-level diagnostics; a passing fixture yields `PASS`
+- [ ] `verification.completed` carries the same `correlation_id` as the review
+- [ ] A `tsc` unavailable/timeout produces `ERROR`/`TIMEOUT`, not a crash
 
 ## 6. Notes & Pitfalls
 
-- **Worktree resolution can fail** (change exists but its run's worktree was cleaned). Treat as check-infra error → `SKIPPED` + `task → AWAITING_HUMAN_INTERVENTION` rather than a fake FAILED.
-- **Output size:** tsc can emit megabytes on a broken workspace — cap at 64KB and mark truncation in `output` (`...[truncated]`); full output can live in evidence storage (Day 17).
-- **Parallel checks share the worktree:** checks must be read-only (compile/lint) or use isolated subdirs (tests Day 16) — never let two checks mutate the same files concurrently.
-- **`pnpm exec tsc` needs node_modules in the worktree** — document that worktrees share the repo's install (symlink or `pnpm install` at worktree creation in Day-12 runtime setup); smoke-test this path.
-- **Next:** [Day 16 — Test Executor, Timeouts & Flaky Handling](day-16.md) adds TestCheck with the spec's retry-once → FLAKY rule.
+- The engine's boundary rule holds: it imports only shared packages (never `agent-runtime`, `attention-engine`, etc.).
+- Keep the check registry pluggable so `TestCheck` (Day 16) slots in as a new `CheckKind`, not a rewrite.
 
 ---
 
-*Prev: [Day 14 — Artifact Tracker Phase 1 & Week 2 Checkpoint](day-14.md) | Next: [Day 16 — Test Executor, Timeouts & Flaky Handling](day-16.md)*
+*Next: [Day 16 — Test executor, timeouts, flaky handling (TestCheck)](day-16.md)*

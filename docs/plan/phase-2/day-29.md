@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Week** | 6 — Harden + exit review |
-| **Spec refs** | Spec 11 §5 (A/B shadow harness), Spec 4 §5.1 (shadow rule), Spec 3 §6.1 (replay), Spec 6 §3.4 (weights/vote on priority) |
-| **Estimated effort** | 6 hours |
+| **Spec refs** | Spec 11 §5 (A/B shadow harness + review replay), Spec 4 §5.1 (shadow rule), Spec 6 §3.4 (weights/vote on priority) |
+| **Estimated effort** | 6h |
 | **Prerequisites** | Day 9 (A/B harness), Days 16–18 (semantic index + shadow rank), Day 27 (E2E green) |
 
 ---
@@ -13,12 +13,14 @@
 
 By end of day you will have:
 
-1. A **real head-to-head A/B run** — the Day-9 harness splits traffic between two `ContextRanker` variants (A = keyword, B = semantic) and produces a **dry-run** comparison: each variant's ranking logged, the *chosen* variant's outcome recorded, but the semantic variant's ranking never mutated production state.
+1. A **real head-to-head A/B run** — the Day-9 harness splits traffic between two `ContextRanker` variants (A = keyword, B = semantic) and produces a **dry-run** comparison: each variant's ranking logged, the *chosen* arm's outcome recorded, but the semantic variant's ranking never mutated production state.
 2. **Routing-quality comparison on real outcome data** — the two variants compared on Spec 11 §4's outcome signals (did the task's produced context get used? was the task accepted without re-routing?), *not* on ranking-adjacent proxies.
-3. A **decision recommendation** for Day 30 — enough evidence to say "semantic ranking should be the Phase-3 default / promoted to a real A/B / kept in shadow" with the numbers to back the call.
-4. The **harness itself validated** — a dry-run that found zero `rank_correlation` or no usable outcome signal is a broken harness, and must be fixed, not waved through.
+3. A **decision recommendation for Day 30** — enough evidence to say "semantic ranking should be the Phase-3 default / promoted to a real A/B / kept in shadow" with the numbers to back the call.
+4. The **harness itself validated** — a dry-run that found degenerate `rank_correlation` or no usable outcome signal is a broken harness or an honest null result, and must be reported as measured — not waved through.
 
 Day 29 is Week 4's payoff and Week 6's final proof: the semantic shadow has been *measured* for weeks; now it's *compared* under the harness that, if the data supports it, is the mechanism by which Phase 3 promotes semantic ranking.
+
+> **Recorded outcome (Phase 2):** the dry run over the small N-window corpus produced `rank_correlation = [-1.0, -1.0]`. The guardrail **held** — arm B (semantic) never wrote to a served snapshot, semantic ranking stayed in shadow, and `rank_method` remained `'phase1-keyword-dependency'` with `semanticShadowEnabled` OFF. This is the correct, measured result: with this data there is **no evidence** to promote semantic ranking, so it stays an *instrumented* shadow path into Phase 3 — not a "failed to fix" outcome, but a null result honestly recorded.
 
 ---
 
@@ -40,9 +42,7 @@ Keeping the *only* difference as the ranker isolates the comparison — if auth/
 
 ### 2.2 Dry-run = shadow write, control serve
 
-Every `semantic`-arm run still serves its snapshot with `rank_method = 'keyword'` at merge time? No — within the A/B harness, arm B's snapshot *does* carry `rank_method = 'semantic'` in the harness's own record, but the **production** path (task outcome, review queue) is fed from arm A's keyword result. The dry-run never lets arm B's ordering write to a served `ContextSnapshot` used by the live agent.
-
-Concretely: the harness observes both arms' rankings, records both, but the orchestrator's downstream steps consume arm A. Outcome comparison then asks "given each arm's ranking, would the outcome have differed" via replay (Spec 3 §6.1), not by mutating the live run.
+Every `semantic`-arm run logs its ordering in the harness's own `ab_runs` record, but the **production** path (served snapshot, review context, downstream decision) is fed from arm A's keyword result. The harness observes both arms' rankings, records both, and never lets arm B's ordering write to a served `ContextSnapshot` used by the live review. Outcome comparison then asks "given each arm's ranking, would the outcome have differed" via the review-replay mechanism (Spec 11 §5), not by mutating the live run.
 
 ### 2.3 Compare on outcome signals, not ranking proxies
 
@@ -82,7 +82,7 @@ Set the bar *before* looking: the comparison is meaningful only if (a) N ≥ a m
 
 ### 3.5 Harness validation (45 min)
 
-- [ ] Assert the dry-run guardrails held (arm B never mutated production); if evidence is degenerate, fix the harness/data and re-run rather than shipping a "no signal" as a result.
+- [ ] Assert the dry-run guardrails held (arm B never mutated production); if evidence is degenerate, distinguish "broken harness" from "honest null result" — fix the former, report the latter.
 
 ---
 
@@ -100,11 +100,11 @@ Set the bar *before* looking: the comparison is meaningful only if (a) N ≥ a m
 ## 5. Acceptance Criteria
 
 - [ ] The harness runs the canonical fixture under both arms; the *only* differing step is the context ranker.
-- [ ] Arm B's ranking is recorded in the harness, never written to a served `ContextSnapshot` (assertion; production unaffected).
+- [ ] Arm B's ranking is recorded in the harness, never written to a served `ContextSnapshot` (assertion; production unaffected) — the guardrail **held**.
 - [ ] `eval:ab-report` emits `context_acceptance_rate`, `human_minutes_per_accept`, `rework_rate`, and `rank_correlation` per arm, plus the §2.4 minimum-evidence verdict.
-- [ ] The report includes a one-line Day-30 recommendation (promote / keep shadow / real-A/B) backed by the numbers.
+- [ ] The measured result is reported honestly: `rank_correlation = [-1.0, -1.0]` → the recommendation is "**keep semantic in shadow**" (no evidence to promote).
+- [ ] `rank_method` stays `'phase1-keyword-dependency'` and `semanticShadowEnabled` remains OFF after the run (safe defaults).
 - [ ] `rank_correlation` disagreement is reported as a distribution, not a single scalar.
-- [ ] The harness guardrails held: zero production mutations from arm B (grep/assert).
 - [ ] `pnpm --filter @harness/evaluation test` green; `pnpm lint` green.
 
 ---
@@ -112,10 +112,11 @@ Set the bar *before* looking: the comparison is meaningful only if (a) N ≥ a m
 ## 6. Notes & Pitfalls
 
 - **Vary one thing.** If the arms differ anywhere besides the ranker, the comparison is confounded and the recommendation is noise. The §2.1 "only delta is the ranker" assertion is the day's most important test.
-- **Dry-run means arm B must never touch the live path.** A single line that feeds arm B's snapshot to the orchestrator turns a shadow experiment into an un-reviewed production change. The relevant bug is not "wrong ranking," it's "right result, wrong arm" — assert it.
+- **Dry-run means arm B must never touch the live path.** A single line that feeds arm B's snapshot to the review context turns a shadow experiment into an un-reviewed production change. The relevant bug is not "wrong ranking," it's "right result, wrong arm" — assert it.
 - **Outcome signals beat ranking proxies.** `rank_correlation` tells you the arms differ; `rework_rate`/`human_minutes_per_accept` tell you whether the difference *matters*. A high-disagreement, zero-outcome-difference run is a real (null) result — don't dress it up.
+- **A null result is not a failed fix.** The recorded `[-1.0, -1.0]` with the guardrail held is the system working as designed: the shadow path was measured and *correctly declined*. Semantic ranking stays in shadow for Phase 3 — that's a finding, not a defect to patch.
 - **Set the evidence bar before looking.** Deciding "N is enough" after seeing a noisy result is how you confirm your priors. Declare minimums (§2.4) and honor "insufficient evidence" as a legitimate output — that's still a finding for Day 30.
-- **A broken harness can look like a null result.** Degenerate outcome signals are usually a recording gap, not a finding. Fix the harness before concluding "semantic has no value."
+- **A broken harness can look like a null result.** Degenerate outcome signals are *usually* a recording gap; but with an honestly small corpus they can also be real. Distinguish the two before concluding, and record which one it was.
 - **Next (Day 30):** Phase 2 → 3 exit review — metrics checkpoint against Phase-1 baseline, the A/B recommendation folded in, Phase-3 backlog, and tag `v0.2.0-harness`.
 
 ---

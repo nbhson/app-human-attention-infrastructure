@@ -1,70 +1,60 @@
-# Day 25 — Week 5 Checkpoint: Multi-agent Demo + Guardrail Proofs
+# Day 25 — Week 5 Checkpoint: Judge + Calibration Run End-to-end
 
 | | |
 |---|---|
-| **Week** | 5 — Multi-agent, bounded |
-| **Spec refs** | Spec 3 §4/§14 (roles, bounded execution), Spec 2 §10 (Decomposer), Architecture §4.2 (AI not authority) |
-| **Estimated effort** | 6h |
-| **Prerequisites** | Day 24 (Decomposer + planning guardrails) |
+| **Week** | 5 — Review-quality calibration |
+| **Spec refs** | Phase-3 README §5 (W5 milestone), §7 (judge exit criteria) |
+| **Estimated effort** | 5h |
+| **Prerequisites** | Days 21–24 (judge, agreement, weight-fitting, gold corpus) |
 
 ---
 
 ## 1. Objectives
 
-This is a **hard checkpoint**, not a build day. No new features. By end of day you will have:
+By end of day you will have:
 
-1. A **multi-agent demo** — a bounded MapReduce + Critique-Revision + Decomposition run end-to-end on a real-ish task, narrated, with every loop metered.
-2. **Guardrail proofs**: (a) runaway halt, (b) no-progress halt, (c) role-bypass rejection, (d) AI-review-never-decides — each demonstrated live, not asserted in a comment.
-3. A **Week 5 retrospective note**.
+1. A demonstrable Week-5 milestone: **run the judge + calibration end-to-end** — judge a review report, compute inter-judge agreement + judge-vs-gold agreement, refit attention weights with judge signals, and report an A/B verdict against the incumbent.
+2. A calibration report (`scripts/calibration-report.ts` or evaluation report page) surfacing agreement numbers + the A/B outcome + the promotion decision (promote or hold).
+3. Integration debt closed: audit rows reproducible, corpus versions consistent, candidate weights runnable.
+4. W5 evidence in `docs/retros/`; a decision recorded (promote/hold) by the measurement, never by fiat.
 
-**Do not proceed to Day 26 until every acceptance criterion in §5 is green.**
+The checkpoint closes the review-quality loop: measure → fit → compare → decide.
 
 ---
 
-## 2. What Week 5 Has Built
+## 2. Design Decisions
 
-| Component | Package | Status |
-|-----------|---------|--------|
-| Multi-agent primitives (MapReduce / Critique-Revision / Ensemble) | `@harness/multi-agent` | ✅ Day 21 |
-| Bounded autonomous loops + runaway/no-progress guards | `@harness/multi-agent` | ✅ Day 22 |
-| Role taxonomy (Coder/Reviewer/Tester/Orchestrator) | `@harness/multi-agent` | ✅ Day 23 |
-| Decomposer (3-level, ReWOO, dynamic replan) | `@harness/multi-agent` | ✅ Day 24 |
+### 2.1 The checkpoint output is a *decision*, not just numbers
+
+The demo ends with an explicit **PROMOTE / HOLD** verdict from the A/B harness (tau-style comparison, Phase-2 machinery) plus the agreement metrics. If the candidate doesn't beat the incumbent, the verdict is HOLD — and that's a *successful* checkpoint (the gate worked).
+
+### 2.2 Three agreements, one report
+
+Surface (1) inter-judge agreement (Day 22), (2) judge-vs-gold agreement (Day 24), and (3) the weight-fit uplift (Day 23) together — quality of judge, quality of gold, quality of fit, each with provenance.
+
+### 2.3 Read the milestone literally
+
+W5 = "LLM-as-judge on reports (severity/routing agreement); `was_useful` → weight fitting." Demonstrable means a *human can watch* these three numbers come out of one run with source data behind each.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Multi-agent demo script (120 min)
+### 3.1 End-to-end calibration run (90 min)
 
-- [ ] `scripts/demo-week5.ts` (deterministic, MockLLM-driven):
-  1. Decompose a goal into atomic tasks with guardrails passing.
-  2. Run a bounded `MapReduce` over a sub-task; show per-iteration iteration/token/wall metering.
-  3. Run a `CritiqueRevision`; show the critique surfaced as advisory (not a decision) in the review queue.
-  4. End at the human APPROVE/REJECT gate — narrate that the loop *always* lands there.
+- [ ] `scripts/calibration-report.ts` — corpus → judge → agreement → refit → A/B → report.
 
-### 3.2 Guardrail proofs (150 min)
+### 3.2 Report surface (45 min)
 
-- [ ] `apps/api/src/__tests__/week5-guardrails.test.ts` with four live proofs:
-  - **Runaway**: forever-looper halts at the ceiling and escalates.
-  - **No-progress**: repeating tool call escalates early.
-  - **Role bypass**: a REVIEWER with `write_file` is rejected pre-dispatch.
-  - **AI review never decides**: a REVIEWER output containing a verdict is rejected; `review.decision_submitted.triggered_by === 'human'`.
+- [ ] Render agreement + A/B verdict + promote/hold decision (CLI or report page).
 
-### 3.3 Fix outstanding issues (as needed, 60 min)
+### 3.3 Integration debt pass (60 min)
 
-- [ ] `pnpm lint` — zero errors/warnings; `pnpm -r typecheck` — zero errors.
-- [ ] Verify `packages/multi-agent` boundary holds; no primitive bypasses the budget.
+- [ ] Audit recomputation verified; corpus version consistency; candidate weight variant loads clean.
 
-### 3.4 Week 5 retro (45 min)
+### 3.4 Evidence + decision record (45 min)
 
-File: `docs/retros/week-05-phase3.md` (`# Week 5 Phase 3 Retro — Multi-agent, bounded`), standard sections.
-
-Prompts: Did any primitive actually try to loop unbounded in the demo? Is the role-tier mapping too permissive (esp. TESTER `write_file`)? Is the Decomposer's guardrail set too strict/loose on real goals? Human-gate bypasses — any close calls?
-
-### 3.5 Update wiring map + README (30 min)
-
-- [ ] `docs/architecture/wiring-map.md` — primitives, roles, `BoundedLoop`, Decomposer.
-- [ ] `README.md` — "Phase 3 Week 5 Status" note.
+- [ ] `docs/retros/phase3-w5.md` — numbers + the promote/hold decision.
 
 ---
 
@@ -72,35 +62,29 @@ Prompts: Did any primitive actually try to loop unbounded in the demo? Is the ro
 
 | File | Description |
 |------|-------------|
-| `scripts/demo-week5.ts` | Multi-agent demo |
-| `apps/api/src/__tests__/week5-guardrails.test.ts` | Four guardrail proofs |
-| `docs/retros/week-05-phase3.md` | Retrospective |
-| `README.md` (updated) | Week 5 status section |
+| `scripts/calibration-report.ts` | Judge + calibration end-to-end report |
+| `packages/evaluation/src/report/…` (updated) | Calibration report generator |
+| `docs/retros/phase3-w5.md` | Week 5 checkpoint evidence + decision |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] Multi-agent demo runs end-to-end and lands at the human gate (never auto-decides).
-- [ ] Runaway guard proven live (halts + escalates).
-- [ ] No-progress guard proven live (escalates before budget exhausted).
-- [ ] Role-bypass rejection proven (REVIEWER write rejected pre-dispatch).
-- [ ] AI-review-never-decides proven (`triggered_by === 'human'`; verdict-bearing review output rejected).
-- [ ] `pnpm --filter @harness/multi-agent test` — all pass; `pnpm lint` — zero errors.
-- [ ] `docs/retros/week-05-phase3.md` exists.
-
-**Checkpoint rule:** If any guardrail proof is red, stop. Week 6 (benchmark + judge) builds *on* the assumption that multi-agent loops are safely bounded — an unbounded loop feeding a judge is a trust failure squared.
+- [ ] `pnpm calibration:report` runs corpus → judge → agreement → refit → A/B end-to-end.
+- [ ] Inter-judge and judge-vs-gold agreement numbers are printed with provenance.
+- [ ] A/B harness emits a definitive PROMOTE/HOLD verdict for the candidate weights.
+- [ ] Every number recomputes from audit rows.
+- [ ] `pnpm test && pnpm lint` green.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **A proof is a failing test that passes.** "Guardrail proof" means a test that would fail if the guard were absent, now green. Demonstrations without a corresponding negative assertion are just demos.
-- **The demo must end at the human.** A multi-agent demo that concludes with "and it auto-approved" is a *warning*, not a success. The point of the whole system is that AI execution converges on human attention.
-- **Guard against demo-only guardrails.** If a guard fails in the demo script but "works in the unit test," the unit test is too narrow or the demo path bypasses the guard — find which, today.
-- **Do not start the benchmark corpus today.** Week 6 (gold labels + judge) is a fresh subsystem with its own invariants. A clean multi-agent checkpoint with proven guardrails is the required foundation.
-- **Tomorrow (Day 26):** benchmark corpus — versioned gold labels (SWE-bench-style tasks) (Spec 11 §5.1).
+- **HOLD is a valid, successful result.** The discipline isn't "promote"; it's "the measurement decides". Logging a HOLD with clean evidence is the checkpoint done right.
+- **Provenance on every number.** A headline agreement figure without the run ids/report hashes behind it can't be defended in the Day 39 regression — wire provenance now.
+- **Week 6 pivots to hybrid context default** — judge/benchmark now feed calibration; don't refactor them mid-phase.
+- **Next (Day 26):** hybrid retriever default — BM25 + embeddings fused.
 
 ---
 
-*Prev: [Day 24 — Decomposer: 3-Level Hierarchical Planning, Plan-and-Solve/ReWOO, Dynamic Replanning](day-24.md) | Next: [Day 26 — Benchmark Corpus: Versioned Gold Labels (SWE-bench-style Tasks)](day-26.md)*
+*Next: [Day 26 — Hybrid Retriever Default: BM25 + Embeddings Fused](day-26.md)*

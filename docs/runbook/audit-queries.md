@@ -1,5 +1,12 @@
 # Audit Query Cookbook (Day 27)
 
+> **`review-reorient` (v0.6) — scope note.** Q8/Q9 (orphan detector / reconciler
+> recovery) and the *Sample output* section below are historical: they reference
+> `EXECUTING`/`VERIFYING` states, `task.orphan_recovered`, and the since-deleted
+> `scripts/e2e-happy-path.ts`, all retired with code-gen. The live trace for a
+> review is `review_reports` + `review_findings` + `fix_suggestions` (see Q10).
+> Add Q10 below.
+
 Copy-paste SQL to answer the questions an operator actually asks about the harness.
 Each query is named, explained in one line, and runnable against a live database:
 
@@ -167,6 +174,33 @@ FROM event_log
 WHERE event_type = 'task.orphan_recovered'
 GROUP BY 1
 ORDER BY 1 DESC;
+```
+
+## Q10 — Review reports, findings, and fix suggestions ("what did the AI flag?")
+
+The review slice (`POST /api/reviews`) lands its output in three tables. A
+report has N findings (severity + file + line) and M fix suggestions (file +
+hunk + proposed change). Join on `review_reports.id`.
+
+```sql
+-- latest reports
+SELECT id, repo_path, pr_number, overall_verdict, summary, created_at
+FROM review_reports
+ORDER BY created_at DESC
+LIMIT 20;
+
+-- findings per report (most severe first)
+SELECT report_id, severity, file, line, message
+FROM review_findings
+WHERE report_id = :report_id
+ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1
+         WHEN 'MEDIUM' THEN 2 WHEN 'LOW' THEN 3 ELSE 4 END;
+
+-- fix suggestions per report
+SELECT report_id, file, proposed, rationale
+FROM fix_suggestions
+WHERE report_id = :report_id
+ORDER BY file;
 ```
 
 ---

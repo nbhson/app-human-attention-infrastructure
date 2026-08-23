@@ -18,7 +18,7 @@ By end of day you will have:
 3. A hard guarantee that **`rank_method` default stays `keyword`** — no semantic result is ever written as the served `ContextSnapshot`'s `rank_method` in this phase.
 4. The **measure** to make shadow meaningful — the same task resolved both ways, with the ordering difference captured for the A/B harness (Day 29).
 
-This is the single most important day in Week 4. The shadow-then-default rule from the README, Spec 4 §5.1, and Architecture §24.2 all converge here: semantic ranking exists, is measured, and *does not* change what the agent receives.
+This is the single most important day in Week 4. The shadow-then-default rule from the README, Spec 4 §5.1, and Architecture §24.2 all converge here: semantic ranking exists, is measured, and *does not* change what the reviewer receives.
 
 ---
 

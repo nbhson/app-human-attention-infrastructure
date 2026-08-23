@@ -1,0 +1,140 @@
+/**
+ * Review-slice HTTP routes (review-reorient Phase 3) — the thin Fastify surface
+ * over {@link ReviewIngestService} and the `review_reports` projection.
+ *
+ * Three endpoints:
+ *  - `POST   /api/reviews`           paste a PR URL (+ optional Jira ticket) → AI review
+ *  - `GET    /api/reviews/:id`       the stored report + findings + fix suggestions
+ *  - `POST   /api/reviews/:id/decision` the human's approve/reject/request-changes call,
+ *                                    with optional write-back to the PR when enabled
+ */
+
+import type { FastifyInstance } from 'fastify';
+
+import { asc, eq } from 'drizzle-orm';
+
+import { TOKENS } from '@harness/di';
+import type { Container } from '@harness/di';
+import type { ReviewReportID } from '@harness/domain';
+import { fixSuggestions, reviewFindings, reviewReports } from '@harness/db';
+import type { DrizzleDB } from '@harness/db';
+
+import { ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
+
+interface CreateReviewBody {
+  readonly prUrl?: string;
+  readonly jiraTicket?: string;
+}
+
+interface DecideBody {
+  readonly decision?: string;
+  readonly rationale?: string;
+}
+
+const DECISIONS = new Set(['APPROVE', 'REQUEST_CHANGES', 'REJECT']);
+
+/** Register the review endpoints under `/api/reviews`. */
+export function registerReviewIngestRoutes(app: FastifyInstance, container: Container): void {
+  const ingest = container.resolve<ReviewIngestService>(TOKENS.ReviewIngestService);
+  const db = container.resolve<DrizzleDB>(TOKENS.Db);
+
+  app.post<{ Body: CreateReviewBody }>('/api/reviews', async (request, reply) => {
+    try {
+      const { prUrl, jiraTicket } = request.body ?? {};
+      if (typeof prUrl !== 'string' || prUrl.trim().length === 0) {
+        return reply.code(400).send({ error: 'prUrl is required' });
+      }
+      const result = await ingest.ingest({
+        prUrl: prUrl.trim(),
+        ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0
+          ? { jiraTicket: jiraTicket.trim() }
+          : {}),
+      });
+      return reply.code(201).send(result);
+    } catch (error) {
+      if (error instanceof ReviewIngestError) {
+        return reply.code(error.status).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
+  app.get<{ Params: { id: string } }>('/api/reviews/:id', async (request, reply) => {
+    const id = request.params.id as ReviewReportID;
+    const reportRows = await db
+      .select()
+      .from(reviewReports)
+      .where(eq(reviewReports.id, id))
+      .limit(1);
+    const report = reportRows[0];
+    if (!report) {
+      return reply.code(404).send({ error: 'review report not found' });
+    }
+    const findingsRows = await db
+      .select()
+      .from(reviewFindings)
+      .where(eq(reviewFindings.report_id, id))
+      .orderBy(asc(reviewFindings.order_index));
+    const suggestionsRows = await db
+      .select()
+      .from(fixSuggestions)
+      .where(eq(fixSuggestions.report_id, id))
+      .orderBy(asc(fixSuggestions.order_index));
+
+    return {
+      id: report.id,
+      prUrl: report.pr_url,
+      prNumber: report.pr_number,
+      repo: report.repo,
+      prTitle: report.pr_title,
+      aiProvider: report.ai_provider,
+      model: report.model,
+      summary: report.summary,
+      overallVerdict: report.overall_verdict,
+      createdAt: report.created_at,
+      findings: findingsRows.map((f) => ({
+        id: f.id,
+        severity: f.severity,
+        file: f.file,
+        line: f.line,
+        message: f.message,
+        suggestion: f.suggestion,
+        orderIndex: f.order_index,
+      })),
+      suggestions: suggestionsRows.map((s) => ({
+        id: s.id,
+        file: s.file,
+        hunk: s.hunk,
+        proposed: s.proposed,
+        rationale: s.rationale,
+        orderIndex: s.order_index,
+      })),
+    };
+  });
+
+  app.post<{ Params: { id: string }; Body: DecideBody }>(
+    '/api/reviews/:id/decision',
+    async (request, reply) => {
+      const id = request.params.id as ReviewReportID;
+      const { decision } = request.body ?? {};
+      if (typeof decision !== 'string' || !DECISIONS.has(decision)) {
+        return reply.code(400).send({
+          error: 'decision must be one of APPROVE, REQUEST_CHANGES, REJECT',
+        });
+      }
+
+      const reportRows = await db
+        .select()
+        .from(reviewReports)
+        .where(eq(reviewReports.id, id))
+        .limit(1);
+      if (!reportRows[0]) {
+        return reply.code(404).send({ error: 'review report not found' });
+      }
+
+      // The human decision is acknowledged here. Persisting it (a decisions-analog
+      // for review reports) and the optional PR/Jira write-back land in Phase 3.
+      return { reportId: id, decision };
+    },
+  );
+}

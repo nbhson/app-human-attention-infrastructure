@@ -1,68 +1,61 @@
-# Day 15 — Week 3 Checkpoint: Targeted Verification Faster + Still Correct
+# Day 15 — Week 3 Checkpoint: Real PR Tests in Sandbox, Faster + Still Correct
 
 | | |
 |---|---|
-| **Week** | 3 — Dependency graph → targeted verify |
-| **Spec refs** | Spec 7 §5.2–5.3 (targeted/incremental verification), §5.5 (execution environment) |
-| **Estimated effort** | 6h |
-| **Prerequisites** | Day 14 (targeted/incremental verification via the graph) |
+| **Week** | 3 — Verification breadth |
+| **Spec refs** | Phase-3 README §5 (W3 milestone), §7 (verification breadth exit criterion) |
+| **Estimated effort** | 5h |
+| **Prerequisites** | Days 11–14 (clone, sandbox run, FAILED→flag, dependency graph targeted verify) |
 
 ---
 
 ## 1. Objectives
 
-This is a **hard checkpoint**, not a build day. No new features. By end of day you will have:
+By end of day you will have:
 
-1. A **targeted-vs-full comparison** on a seeded change corpus proving that (a) targeted verification is *faster* (wall-clock + test-count reduction) and (b) it is *still correct* (zero regressions slipped through vs the full-suite baseline).
-2. A passing **correctness harness**: for each change, run FULL and TARGETED and assert the pass/fail verdicts match.
-3. A **Week 3 retrospective note** capturing the list of changes where targeted *would have* disagreed with full (and why — every such case is a graph bug, not a coincidence).
-4. Confidence that the W3 milestone — "a change runs only affected tests, faster and still correct" — is met.
+1. A demonstrable Week-3 milestone: **clone a real PR → run its own build/test in the Docker sandbox → targeted (dependency-graph) subset where provable, full suite otherwise → FAILED flags the report with evidence, non-blocking.**
+2. An end-to-end demo over a recorded fixture repo proving both legs: full-suite correctness AND targeted speedup (measured fewer tests, same verdicts).
+3. Integration debt closed: clone errors surfaced, teardown guaranteed, evidence links valid, FAILED non-blocking verified end-to-end.
+4. W3 evidence in `docs/retros/`; wiring map notes `cloneAndCheckout` + `TargetedVerifier` + `code-index`.
 
-**Do not proceed to Day 16 until every acceptance criterion in §5 is green.**
+The checkpoint makes "real PR tests in sandbox, faster + still correct" *measurable and demonstrated*.
 
 ---
 
-## 2. What Week 3 Has Built
+## 2. Design Decisions
 
-| Component | Package | Status |
-|-----------|---------|--------|
-| tree-sitter symbol index + import edges | `@harness/code-index` | ✅ Day 11 |
-| Dependency graph + transitive closure (Postgres) | `@harness/code-index` | ✅ Day 12 |
-| Impact analysis (change → affected tests) | `@harness/verification-engine` | ✅ Day 13 |
-| Targeted/incremental verification + result cache | `@harness/verification-engine` | ✅ Day 14 |
+### 2.1 The demo is a correctness + latency report, not a green light
+
+`scripts/demo-verification.ts` runs both full and targeted paths over the fixture, prints: verdicts (must agree), test counts (targeted ≤ full), wall-clock (targeted faster), and one intentionally-failing fixture (FAILED → report flag, item still reaches AWAITING_REVIEW).
+
+### 2.2 "Still correct" is the hard criterion
+
+The checkpoint accepts the speedup claim **only** on the equivalence fixture: targeted verdict == full verdict on every case. Speed without matching verdicts is a regression, not a win.
+
+### 2.3 The FAILED fixture is part of the demo
+
+Include a PR whose tests genuinely fail; assert it (a) doesn't auto-reject and (b) carries evidence. The non-blocking invariant is demonstrated, not asserted in a unit test alone.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Correctness comparison harness (120 min)
+### 3.1 End-to-end demo (90 min)
 
-- [ ] `apps/api/src/__tests__/week3-targeted-correctness.test.ts`:
-  - Seed N changes (mix: single-file, cross-module, barrel-touching, unresolved-import-adjacent).
-  - For each: run FULL (baseline verdict) and TARGETED (graph verdict).
-  - Assert verdicts match (`PASSED`/`FAILED`) and the targeted set is a strict subset of the full set.
-  - Record wall-clock + `ranTests`/`skippedTests` per change into a comparison table.
+- [ ] `scripts/demo-verification.ts` — clone → full vs targeted → equivalence + latency report + failing fixture.
 
-### 3.2 Latency reduction measurement (90 min)
+### 3.2 Equivalence re-check (45 min)
 
-- [ ] Build a `scripts/bench-targeted.ts` reporting per change: full duration vs targeted duration, test-count reduction %, and cache-hit rate.
-- [ ] Document the p50/p95 speedup numbers into `docs/retros/week-03-phase3.md`.
+- [ ] Run the Day-14 equivalence fixtures through the integrated path (not just unit tests).
 
-### 3.3 Fix any verdict mismatches (up to 120 min)
+### 3.3 Integration debt pass (60 min)
 
-- [ ] For every FULL-vs-TARGETED disagreement: trace the graph edge that caused it (stale index? missing `test` edge? barrel fan-out? unresolved import?). Fix the root cause or, if a genuine graph limitation, widen the confidence gate (Day 13 §2.2).
-- [ ] **None may remain unresolved** and silently marked "known limitation" without a concrete, ticketed follow-up.
+- [ ] Clone error surfacing; teardown-on-panic; evidence refs resolve; FAILED non-blocking end-to-end.
 
-### 3.4 Week 3 retro (45 min)
+### 3.4 Docs + evidence (45 min)
 
-File: `docs/retros/week-03-phase3.md` (`# Week 3 Phase 3 Retro — Dependency graph → targeted verify`), standard sections.
-
-Prompts: How many verdict mismatches were found and why? Is `targeted_max_ratio` correctly placed? Does the incremental cache invalidation handle the fixture set without poison? Where is the remaining full-suite p95 cost?
-
-### 3.5 Update wiring map + README (30 min)
-
-- [ ] `docs/architecture/wiring-map.md` — `SymbolIndex`, `GraphBuilder`, `ImpactAnalyzer`, `TargetedVerification`, `ResultCache`.
-- [ ] `README.md` — "Phase 3 Week 3 Status" note.
+- [ ] `docs/architecture/wiring-map.md` — add `cloneAndCheckout`, `TargetedVerifier`, `code-index`.
+- [ ] `docs/retros/phase3-w3.md` — recorded demo numbers.
 
 ---
 
@@ -70,36 +63,29 @@ Prompts: How many verdict mismatches were found and why? Is `targeted_max_ratio`
 
 | File | Description |
 |------|-------------|
-| `apps/api/src/__tests__/week3-targeted-correctness.test.ts` | FULL vs TARGETED correctness comparison |
-| `scripts/bench-targeted.ts` | Latency-reduction measurement |
-| `docs/retros/week-03-phase3.md` | Retrospective (with speedup numbers) |
-| `README.md` (updated) | Week 3 status section |
+| `scripts/demo-verification.ts` | Clone → sandbox verify → targeted/full demo |
+| `docs/architecture/wiring-map.md` (updated) | Verification-breadth seams |
+| `docs/retros/phase3-w3.md` | Week 3 checkpoint evidence |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] FULL and TARGETED verdicts match on 100% of the seeded change corpus.
-- [ ] Targeted runs a strict subset of the full suite in every non-LOW-confidence case.
-- [ ] Measurable speedup recorded: p95 targeted duration < p95 full duration, with test-count reduction % noted.
-- [ ] Every FULL-vs-TARGETED mismatch has a documented root cause and fix (or a ticketed widening gate).
-- [ ] `pnpm --filter @harness/verification-engine test` and `pnpm --filter @harness/code-index test` — all pass.
-- [ ] `pnpm lint` — zero errors; `pnpm -r typecheck` — zero errors.
-- [ ] `docs/retros/week-03-phase3.md` exists with real numbers.
-
-**Checkpoint rule:** If any criterion is red, stop. A verification strategy that is faster *but wrong* is worse than the full suite it replaced — this is the one checkpoint where "still correct" strictly dominates "faster."
+- [ ] `pnpm demo:verification` clones a fixture PR, runs sandbox build/test.
+- [ ] Targeted verdicts match full verdicts on equivalence fixtures, with fewer tests.
+- [ ] Failing fixture: report flagged with evidence, item reaches AWAITING_REVIEW (not auto-rejected).
+- [ ] Teardown + evidence links verified end-to-end.
+- [ ] `pnpm test && pnpm lint` green; wiring map updated.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Correctness first, speed second.** The milestone is "faster **+ still correct**." If you can only deliver one, deliver correctness and note the speed gap honestly in the retro. Do not ship a faster-but-wrong targeted path.
-- **A mismatch is a graph bug, not a coin flip.** If targeted disagrees with full, something in the index/closure/confidence is wrong. Chase it to the edge. "It's ~fine" is not a valid root cause.
-- **The comparison corpus must include the hard cases.** Single-file changes will trivially agree. Include barrel, cross-module, and unresolved-import-adjacent changes — that's where targeted verification fails silently if it's going to fail.
-- **Cache hits vs correctness.** A cache-reused PASSED result must be excluded from the "verdict agreement" assertion (it's not a fresh verdict). Compare fresh-vs-fresh, and count cache hits separately.
-- **Do not start hybrid context today.** Week 4 is another hard boundary. A clean, provably-correct targeted-verify foundation is worth more than a head start on semantic ranking.
-- **Tomorrow (Day 16):** hybrid retriever as default — BM25 lexical + embedding semantic fused.
+- **Never claim "faster" without the equivalence table.** The checkpoint slides must show verdict parity next to test-count/latency, or the speedup is unearned.
+- **Don't skip the failure path in the demo.** A demo that only shows green builds hides the FAILED→flag→non-blocking guarantee that is the actual deliverable.
+- **Week 4 pivots to review memory** — the clone/verify machinery is now stable; don't refactor it mid-phase.
+- **Next (Day 16):** review-memory model (reviews/findings/decisions tiers).
 
 ---
 
-*Prev: [Day 14 — Targeted/Incremental Verification: Run Only Affected Tests via Graph](day-14.md) | Next: [Day 16 — Hybrid Retriever as Default: BM25 Lexical + Embedding Semantic Fused](day-16.md)*
+*Next: [Day 16 — Review-memory Model: Reviews/Findings/Decisions Tiers](day-16.md)*

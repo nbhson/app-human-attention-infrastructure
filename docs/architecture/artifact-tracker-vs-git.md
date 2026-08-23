@@ -1,9 +1,17 @@
 # ADR — Artifact Tracker vs Git Boundary
 
-**Status:** Accepted
+**Status:** Accepted — *partly superseded by `review-reorient`* (see below)
 **Date:** 2026-08-21 (Day 14)
 **Deciders:** HAI Harness build
 **Spec ref:** 5_Artifact_Change_Tracker_v0.2.md (updated)
+
+> **`review-reorient` note.** The Day-24 merge step (`MergeService` /
+> `ShellGitAdapter.applyAndCommit`) was retired with the code-generation path. The
+> harness no longer writes to Git — it reads an external PR. The *"Tracker owns
+> pre-merge, Git owns post-merge"* split below therefore still describes the
+> provenance model for a change, but the `changes.commit_sha` join point is no
+> longer written by the retired merge step (write-back, if any, is a Phase-3
+> read-only comment/status, not a commit).
 
 ## Context
 

@@ -45,6 +45,9 @@ export default function QueuePage(): JSX.Element {
 
   return (
     <main style={{ maxWidth: 880, margin: '0 auto', padding: 16 }}>
+      <p>
+        <Link to="/reviews/new">+ New AI review</Link>
+      </p>
       <h2>Review Queue ({sorted.length})</h2>
       {conflictMessage && (
         <div

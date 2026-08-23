@@ -13,11 +13,12 @@ as a deliberate exception.**
 | Table | Writer | Guard | Notes |
 |---|---|---|---|
 | `event_log` | `EventLogWriter.write` (`packages/db/src/event-log-writer.ts`) | `onConflictDoNothing()` on PK `event_id` | Append-only; a redelivered event is silently dropped. |
-| `dispatch_log` | `Dispatcher.dispatchPending` (`packages/orchestrator/src/dispatch/dispatcher.ts`) | `onConflictDoNothing()` on unique `idempotency_key` (`task_id:attempt_number`) | The atomic claim: two pollers reserving the same attempt see one win, one no-op. |
+| `dispatch_log` | ~~`Dispatcher.dispatchPending`~~ (retired `review-reorient`) | `onConflictDoNothing()` on unique `idempotency_key` (`task_id:attempt_number`) | The table remains; no live writer — the dispatch loop was retired with code-gen. |
 | `task_state_history` | `TaskService.transitionTask` (`packages/orchestrator/src/task-service.ts`) | Optimistic-lock UPDATE **before** the insert | The `UPDATE … WHERE state = expectedFrom` returns zero rows on a concurrent change → `StateConflictError`, so a duplicate transition row is never written. |
-| `task_step_log` | `WorkflowRunner.run` (`packages/orchestrator/src/workflow/workflow-runner.ts`) | No natural key — **accepted** | Each step run is a fresh UUIDv7 row (`STARTED` → `COMPLETED`/`FAILED`). Re-running a step intentionally writes a new row; there is nothing to dedup against. |
-| `retry_log` | `WorkflowRunner.insertRetryLog` | No natural key — **accepted** | Each retry is a distinct audit event; duplicates are not a correctness hazard. |
+| `task_step_log` | ~~`WorkflowRunner.run`~~ (retired `review-reorient`) | No natural key — **accepted** | The table remains; no live writer (the workflow runner was retired). |
+| `retry_log` | ~~`WorkflowRunner.insertRetryLog`~~ (retired `review-reorient`) | No natural key — **accepted** | The table remains; no live writer (the retry/logic taxonomy was retired). |
 | `tasks` | `TaskService.createTask` (`task-service.ts`) | Fresh UUIDv7 PK (and caller-supplied `input.id`) | No `ON CONFLICT`: a fresh UUID can't collide. Callers wanting idempotent creation pass a stable `id`. |
+| `review_reports` | `ReviewIngestService.ingest` (get-or-create project + fresh report id) | Fresh UUIDv7 PK | The owning `projects` row is get-or-create on `repo_path` (idempotent); the report/findings/suggestions rows use fresh UUIDs. |
 | `projects` | `seed.ts` | `onConflictDoNothing()` | Dev-time fixture only; re-running the seed is a no-op. |
 
 ## Exceptions (no guard, deliberate)

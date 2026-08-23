@@ -1,11 +1,11 @@
-# Day 23 — Role Taxonomy: Coder/Reviewer/Tester/Orchestrator (AI Review Augments, Never Replaces)
+# Day 23 — Judge Signals → Attention-weight Fitting (`was_useful`)
 
 | | |
 |---|---|
-| **Week** | 5 — Multi-agent, bounded |
-| **Spec refs** | Spec 3 §4 (agent types), §14.1 (tool permission tiers), Spec 6 §4.1 (feedback loop), Architecture §4.2 (AI not authority) |
+| **Week** | 5 — Review-quality calibration |
+| **Spec refs** | Spec 6 (attention weights, calibration); Phase-2 calibration seam; Phase-3 README §3 (attention-engine gains judge signals) |
 | **Estimated effort** | 7h |
-| **Prerequisites** | Day 22 (bounded autonomous loops + runaway guards) |
+| **Prerequisites** | Days 21–22 (judge scores + agreement); Phase-2 weight-fitter (`weight-fitter`) exists |
 
 ---
 
@@ -13,107 +13,54 @@
 
 By end of day you will have:
 
-1. A **role taxonomy** in `@harness/multi-agent`: `Coder`, `Reviewer`, `Tester`, `Orchestrator` — each a distinct tool-tier, prompt-profile, and output contract.
-2. **Role→tool permission tiers** enforced by the runtime (Spec 3 §14.1): a Reviewer cannot write; a Tester cannot merge; an Orchestrator cannot decide.
-3. The explicit invariant in code + tests: **AI Review augments Verification/Attention; it never replaces the human APPROVE/REJECT gate.**
-4. Role output-typed as *signals* (critique, test results, plan), not *decisions*.
+1. A **joined calibration dataset**: per review — `was_useful` (the human's usefulness mark) + judge scores (severity/routing agreement) + attention factors → one fit-ready row.
+2. Extend the Phase-2 weight-fitter to include **judge signals as a factor**, refitting attention weights so judge-flagged reports route more accurately.
+3. The refit stays behind the A/B harness — **fitted, then measured against the Phase-2/placeholder weights** before any default change.
+4. An inflation-monitor before/after comparison (Phase-2 pattern) to show the refit helps or holds.
 
-This is the governance surface of the multi-agent week — roles define *what* an AI role is allowed to do, and just as importantly what it never is.
+This is where review-quality measurement starts *improving* attention — gated on measurement, as always.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Role definition
+### 2.1 `was_useful` + judge = the label and the feature
 
-```typescript
-// packages/multi-agent/src/roles.ts
-export type AgentRole = 'CODER' | 'REVIEWER' | 'TESTER' | 'ORCHESTRATOR';
+- Label: `was_useful` (did the human find the review useful / agree with its routing) — the Phase-2 outcome signal.
+- New feature: judge `routingAgreement`/`severityAgreement` scores for that report (from `judge_runs`/agreement), joined by report id.
+- The weight-fitter learns how much to trust judge-flagged disagreement when predicting usefulness.
 
-export interface RoleSpec {
-  role: AgentRole;
-  allowedTools: string[];        // maps to runtime tool tiers (Spec 3 §14.1)
-  forbid: string[];              // explicitly forbidden tools
-  outputContract: RoleOutput;    // 'code' | 'critique' | 'test_result' | 'plan'
-  maxTier: 'public' | 'standard' | 'elevated' | 'admin';
-}
+### 2.2 Refit is a *candidate*, not a default
 
-export const ROLES: Record<AgentRole, RoleSpec> = {
-  CODER:         { allowedTools: ['read_file','write_file','patch_file','search_code'], forbid: ['git_push','run_full_suite'], outputContract: 'code',          maxTier: 'standard' },
-  REVIEWER:      { allowedTools: ['read_file','search_symbol','git_log'],              forbid: ['write_file','patch_file','git_push'],   outputContract: 'critique',      maxTier: 'public' },
-  TESTER:        { allowedTools: ['read_file','write_file','run_test'],                forbid: ['git_push','delete_branch'],           outputContract: 'test_result',   maxTier: 'standard' },
-  ORCHESTRATOR:  { allowedTools: ['read_file','search_code','plan'],                   forbid: ['write_file','patch_file','git_push','run_test'], outputContract: 'plan', maxTier: 'public' },
-};
-```
+The fitted vector is written as a **candidate weight set**, compared via the A/B harness against the incumbent (placeholder or Phase-2 fitted). Promotion is Day 25's checkpoint decision — nothing flips today.
 
-### 2.2 Roles are permissions + contracts, not personalities
+### 2.3 Guard divergence
 
-A "role" is **not a different system prompt with a name**. It is:
-1. A **tool-tier ceiling** (the runtime enforces tier, Spec 3 §14.1).
-2. An **output contract** the result must satisfy (validated on completion).
-3. A **forbid list** that is checked *before* dispatch, not *after* a violation.
-
-The system prompt differs per role, but that's a *surface*; the tier + contract are the *governance*. Do not reduce roles to prompt templates.
-
-### 2.3 Output contract validation
-
-Each role's result is validated against its contract before it is accepted downstream:
-
-```typescript
-function validateOutput(role: AgentRole, out: AgentOutput): void {
-  // CODER → must produce artifacts (file diffs), not verdicts
-  // REVIEWER → must produce a structured critique { findings: [...], severity } — NOT 'APPROVE'/'REJECT'
-  // TESTER → must produce test results, not edits to source
-  // ORCHESTRATOR → must produce a plan, not executed changes
-}
-```
-
-A `REVIEWER` whose output contains an `APPROVE`/`REJECT` verdict is **rejected** — that is the precise line where AI review would replace the human gate.
-
-### 2.4 The augmentation invariant, encoded
-
-The AI `REVIEWER` role is an *input* to the human reviewer, surfaced alongside Verification/Attention signals:
-
-```text
-VerificationEngine (mechanical) ─┐
-AttentionEngine   (scoring)     ─┼─→ Review Queue (human decides APPROVE/REJECT)
-AI Reviewer role  (critique)    ─┘   ← advisory only, never the decision
-```
-
-Tests assert: (a) a Reviewer output carries no decision field; (b) a `review.decision_submitted` event has `triggered_by: 'human'` always (never `'agent'`); (c) `AUTO_APPROVABLE` remains the only auto-path (sampling-audited), untouched.
-
-### 2.5 Orchestrator role = plan-only
-
-The `ORCHESTRATOR` role produces *plans* (decomposition — Day 24), never executes changes. Its output is consumed by the human/orchestrator state machine, which owns execution. This enshrines Spec 2 §10's "the plan must pass checks before it becomes a Workflow."
+If judge signals make the fit dramatically overweight a single factor (overfit on N small), the inflation-monitor/regularization holds it back — same discipline as Phase 2's "fitted but not improved → held".
 
 ---
 
 ## 3. Tasks
 
-### 3.1 `roles.ts` + role specs (60 min)
+### 3.1 Calibration dataset build (90 min)
 
-- [ ] `packages/multi-agent/src/roles.ts` (§2.1) — `ROLES`, `AgentRole`, `RoleSpec`.
-- [ ] Unit tests: each role's `forbid` and `maxTier` are non-empty and consistent (CODER can write, REVIEWER cannot, etc.).
+- [ ] `packages/attention-engine/src/calibration/judge-dataset.ts` — join review + `was_useful` + judge scores + factors.
 
-### 3.2 Dispatch-time role enforcement (90 min)
+### 3.2 Extend weight-fitter (90 min)
 
-- [ ] A `RoleGuard` in the multi-agent package resolves the role spec and passes `allowedTools` + `maxTier` to the runtime execute call (Spec 3 §14.1 tier).
-- [ ] Test: dispatching a REVIEWER with `write_file` is rejected pre-execution.
+- [ ] Add judge-signal feature(s) to the fitter; refit; emit candidate weights + fit diagnostics.
 
-### 3.3 Output contract validation (75 min)
+### 3.3 A/B harness wiring (60 min)
 
-- [ ] `validateOutput(role, out)` (§2.3); a REVIEWER verdict-bearing output is rejected.
-- [ ] Tests per role: valid + invalid outputs.
+- [ ] Register candidate weight set as a `PipelineVariant` for head-to-head comparison.
 
-### 3.4 Augmentation wiring in the review path (90 min)
+### 3.4 Inflation-monitor (60 min)
 
-- [ ] Surface the AI Reviewer critique as an *advisory* source in the review queue (alongside verification/attention), never as a decision.
-- [ ] Assert `review.decision_submitted` carries `triggered_by: 'human'` in integration tests; `AUTO_APPROVABLE` unchanged.
+- [ ] Before/after usefulness/uplift report on the fit set.
 
-### 3.5 Tests + boundary (105 min)
+### 3.5 Tests (60 min)
 
-- [ ] End-to-end: Coder → Tester → (AI) Reviewer critique → human approve. Assert the human gate fired exactly once and no role auto-decided.
-- [ ] Boundary test on `@harness/multi-agent`.
+- [ ] Dataset join correct; fitter consumes judge features; candidate set runnable by the harness; no default flip.
 
 ---
 
@@ -121,35 +68,30 @@ The `ORCHESTRATOR` role produces *plans* (decomposition — Day 24), never execu
 
 | File | Description |
 |------|-------------|
-| `packages/multi-agent/src/roles.ts` | `AgentRole`, `RoleSpec`, `ROLES` |
-| `packages/multi-agent/src/role-guard.ts` | Dispatch-time role/tool-tier enforcement |
-| `packages/multi-agent/src/output-contract.ts` | Output contract validation |
-| `packages/agent-runtime` (no change) / review adapter | AI critique surfaced as advisory source |
-| `packages/multi-agent/src/__tests__/roles.test.ts` | Role/bypass/contract tests |
+| `packages/attention-engine/src/calibration/judge-dataset.ts` | Joined calibration dataset |
+| `packages/attention-engine/src/calibration/weight-fitter.ts` (updated) | Judge-signal feature + refit |
+| `packages/evaluation/src/ab/…` (updated) | Candidate weight variant |
+| `packages/attention-engine/src/__tests__/judge-fit.test.ts` | Fit tests |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/multi-agent test` — all tests pass.
-- [ ] Four roles defined with tool-tier ceilings + forbid lists (REVIEWER cannot write, ORCHESTRATOR cannot execute, etc.).
-- [ ] A REVIEWER output bearing an APPROVE/REJECT verdict is rejected (contract violation).
-- [ ] Dispatch of a role with a forbidden tool is rejected *before* execution (not after).
-- [ ] AI Reviewer critique reaches the review queue as an advisory signal only.
-- [ ] `review.decision_submitted` is always `triggered_by: 'human'`; `AUTO_APPROVABLE` remains the only auto-path.
-- [ ] `pnpm lint` clean; boundary intact.
+- [ ] Calibration dataset joins `was_useful` + judge scores + factors per review.
+- [ ] Weight-fitter refits including judge signals; emits candidate weights + diagnostics.
+- [ ] Candidate set loads as an A/B variant; incumbent unchanged.
+- [ ] Inflation-monitor shows before/after on the fit set (uplift or hold).
+- [ ] No default weight set flipped today.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **A role is not a prompt.** If your only artifact is four system-prompt strings, you've built personas, not governance. The tier + forbid list + output contract are what make roles *safe*; the prompt is secondary.
-- **The Reviewer's forbidden output is `APPROVE`/`REJECT`.** That single distinction is the whole "AI review augments, never replaces" rule in executable form. Enforce it at the contract layer, not in a comment.
-- **Enforce before dispatch, not after.** A role that calls a forbidden tool and is *then* caught has already acted. The `RoleGuard` must run at dispatch time (Spec 3 §14.1: tier is a registry property).
-- **Orchestrator plans, never executes.** The decomposition (Day 24) is a *plan* that passes checks before becoming a workflow. If the ORCHESTRATOR role can also write files, the separation between planning and execution dissolves.
-- **Advisory = no decision field, ever.** The AI critique may say "this looks risky," but it must not produce a verdict field. Model it as structured findings, and let the human (or the Attention/Verification rules) decide.
-- **Tomorrow (Day 24):** Decomposer — 3-level hierarchical planning, Plan-and-Solve/ReWOO, dynamic replanning (Spec 2 §10).
+- **Fitted ≠ promoted.** Phase 2's caution is warp-and-weft: a fit that didn't beat the placeholder was *held*. Judge signals only earn their weight by improving usefulness, measured.
+- **Small-N overfit is the enemy.** Judge scores on a handful of reviews will overfit; regularization/monitor is not optional garnish.
+- **Keep the human label authoritative.** Judge scores are a *feature*; `was_useful` is the *label*. Never invert that — the judge predicts, the human decides.
+- **Day 24:** review-quality corpus — versioned gold labels.
 
 ---
 
-*Prev: [Day 22 — Bounded Autonomous Loops: Max Iterations, Token Budget, Guardrails](day-22.md) | Next: [Day 24 — Decomposer: 3-Level Hierarchical Planning, Plan-and-Solve/ReWOO, Dynamic Replanning](day-24.md)*
+*Next: [Day 24 — Review-quality Corpus: Versioned Gold Labels](day-24.md)*

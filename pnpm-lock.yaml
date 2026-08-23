@@ -80,6 +80,9 @@ importers:
       '@harness/event-bus':
         specifier: workspace:*
         version: link:../../packages/event-bus
+      '@harness/git-provider':
+        specifier: workspace:*
+        version: link:../../packages/git-provider
       '@harness/object-store':
         specifier: workspace:*
         version: link:../../packages/object-store
@@ -95,6 +98,9 @@ importers:
       '@harness/sandbox':
         specifier: workspace:*
         version: link:../../packages/sandbox
+      '@harness/ticket-provider':
+        specifier: workspace:*
+        version: link:../../packages/ticket-provider
       '@harness/verification-engine':
         specifier: workspace:*
         version: link:../../packages/verification-engine
@@ -477,6 +483,22 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)
 
+  packages/git-provider:
+    dependencies:
+      '@harness/domain':
+        specifier: workspace:^
+        version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)
+
   packages/object-store:
     dependencies:
       '@aws-sdk/client-s3':
@@ -593,6 +615,22 @@ importers:
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)
 
   packages/sandbox:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)
+
+  packages/ticket-provider:
+    dependencies:
+      '@harness/domain':
+        specifier: workspace:^
+        version: link:../domain
     devDependencies:
       '@types/node':
         specifier: ^22.10.1

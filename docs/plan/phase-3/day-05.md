@@ -1,116 +1,67 @@
-# Day 05 — Week 1 Checkpoint: Memory Write + Read Demonstrable
+# Day 05 — Week 1 Checkpoint: Fetch PR/MR from All Three Providers + Jira
 
 | | |
 |---|---|
-| **Week** | 1 — Memory store & retrieve |
-| **Spec refs** | Spec 9 §4 (Memory model), §4.4–4.5 (write-back + retrieval) |
-| **Estimated effort** | 6h |
-| **Prerequisites** | Day 04 (versioned write-back, rollback, forget, cross-checks) |
+| **Week** | 1 — Provider breadth |
+| **Spec refs** | git-provider §2, ticket-provider §2; Phase-3 README §5 (W1 milestone) |
+| **Estimated effort** | 5h |
+| **Prerequisites** | Days 01–04 (three `GitProvider` impls, registry, `provider_configs`, hardened `JiraProvider`) |
 
 ---
 
 ## 1. Objectives
 
-This is a **hard checkpoint**, not a build day. No new features. By end of day you will have:
+By end of day you will have:
 
-1. A passing **end-to-end memory demo**: evidence in → memory written (versioned) → memory retrieved by relevance → surfaced in a Context snapshot → counters updated.
-2. A **smoke test** that exercises the full Memory loop against a real Postgres instance and the real `InProcessEventBus`.
-3. A **Week 1 retrospective note** (§5 structure) capturing what is solid and what is fragile before Week 2 (consolidation/decay/archive).
-4. Confidence that "write + read" is demonstrable per the W1 milestone.
+1. A demonstrable end-to-end ingest: paste a **GitHub PR**, **GitLab MR**, or **Bitbucket PR** URL + a **Jira key** → the diff + requirement fetch through the registry, each host backed by a `provider_configs` row.
+2. A scripted demo (`scripts/demo-provider-breadth.ts`) exercising all three hosts + Jira against fixture-gated HTTP stubs (no live credentials required in CI).
+3. Integration debt from Days 01–04 closed: registry errors, token redaction, and seam-shape parity verified together, not in isolation.
+4. Week-1 milestone green: "GitLab + Bitbucket `GitProvider` impls; hardened JiraProvider; fetch PR/MR from all three + Jira issue."
 
-**Do not proceed to Day 06 until every acceptance criterion in §5 is green.**
+The checkpoint is a *slice-wide* proof, not new features — stop feature work, make the breadth demonstrable.
 
 ---
 
-## 2. What Week 1 Has Built
+## 2. Design Decisions
 
-| Component | Package | Status |
-|-----------|---------|--------|
-| Seven memory kinds + domain model | `@harness/domain` / `@harness/memory` | ✅ Day 01 |
-| `memory_entries` + `memory_entry_evidence` schema | `@harness/db` | ✅ Day 01 |
-| Distillation (evidence → candidates) | `@harness/memory` | ✅ Day 02 |
-| Versioned append-only ingestion | `@harness/memory` | ✅ Day 02 |
-| Relevance scoring (0.6/0.2/0.2) + retrieval | `@harness/memory` | ✅ Day 03 |
-| Context seam (`MemorySignalSource`) | `@harness/domain` / `@harness/context-engine` | ✅ Day 03 |
-| Write-back: `supersedes`, rollback, forget, cross-checks | `@harness/memory` | ✅ Day 04 |
+### 2.1 Demo runs stubbed, live-optional
+
+CI can't hold real tokens for three hosts + Jira. The demo script runs against a **stub HTTP layer** returning the exact fixtures Days 01–04 produced; a `--live` flag switches to real endpoints when a developer exports the env tokens. This keeps "demonstrable" true every day, not just on a developer's laptop.
+
+### 2.2 One ingest facade for review input
+
+Expose a thin `resolveReviewInput({ prUrl, jiraKey })` over the registry + ticket provider so the reviews route has a single call site that chooses providers by host. No engine imports the provider packages directly — the facade lives in `apps/api`.
+
+### 2.3 The seam parity contract
+
+All three `GitProvider` outputs must produce a `PullRequest` whose `files[]` are **structurally identical** (same `changeKind` enum). The checkpoint's sanity test diffs the three mapped fixtures against the shared `PullRequest` shape — the unit tests checked shapes individually; today checks them *together*.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Write the Memory E2E smoke test (150 min)
+### 3.1 Demo script (75 min)
 
-File: `apps/api/src/__tests__/week1-memory-smoke.test.ts`
+- [ ] `scripts/demo-provider-breadth.ts` — for each host URL, resolve provider → fetch → print `title`, `fileCount`, first file change kind; then `fetchIssue(jiraKey)`.
+- [ ] Stub HTTP by default; `--live` flag for real endpoints.
 
-Runs against the real `harness_test` schema and the real `InProcessEventBus`. No mocks except a deterministic `Embedder` (or lexical fallback).
+### 3.2 Ingest facade (45 min)
 
-```typescript
-describe('Week 1 Memory Smoke Test', () => {
-  it('evidence → write → retrieve → context, versioned and counted', async () => {
-    const c = buildContainer();
-    const bus       = c.resolve<IEventBus>(TOKENS.EventBus);
-    const memory    = c.resolve<MemorySignalSource>(TOKENS.MemoryStore);
-    const ingestion = c.resolve<MemoryIngestion>(TOKENS.MemoryIngestion);
+- [ ] `resolveReviewInput` in `apps/api` — resolves git + ticket providers, returns unified `{ pullRequest, issue }`.
 
-    // 1. Seed evidence + a FAILED verification event
-    const ev = await seedVerificationFailed('auth/login.ts', 'TEST', 'TypeError');
-    await ingestion.onEvidenceEvents([ev]);
+### 3.3 Seam-parity sanity test (45 min)
 
-    // 2. Memory exists, evidence-backed
-    const failure = await memory.retrieve('auth login test failure', 'FAILURE', 5);
-    expect(failure).toHaveLength(1);
-    expect(failure[0].sourceEvidence.length).toBeGreaterThanOrEqual(1);
+- [ ] Fixture-shape test: the three mapped `PullRequest`s pass one shared `assertPullRequestShape` validator.
 
-    // 3. Versioned: re-ingest → supersedes forms
-    await ingestion.onEvidenceEvents([ev]);
-    const head = await getHead(failure[0].contentKey);
-    expect(head.supersedes).not.toBeNull();
+### 3.4 Integration debt pass (60 min)
 
-    // 4. Retrieval bumps the counter
-    const before = head.retrievedCount;
-    await memory.retrieve('auth login test failure', 'FAILURE', 5);
-    expect((await getHead(failure[0].contentKey)).retrievedCount).toBe(before + 1);
+- [ ] Registry error wrapping reviewed across all hosts; disabled-config path tested.
+- [ ] Token redaction verified on the config list endpoint used by the demo.
 
-    // 5. Surfaces in Context when policy allows
-    const ctx = await c.resolve<IContextEngine>(TOKENS.ContextEngine).resolveContext({
-      /* task targeting auth/login.ts, include_previous_decisions: true */
-    });
-    expect(ctx.sources.some(s => s.type === 'DECISION' || s.type === 'EVIDENCE')).toBe(true);
-  });
-});
-```
+### 3.5 Run the checkpoint (45 min)
 
-- [ ] All smoke assertions pass against `harness_test` schema.
-- [ ] Teardown drops/recreates `harness_test` cleanly.
-
-### 3.2 Wire the demo path in bootstrap + API (60 min)
-
-- [ ] Confirm `TOKENS.MemoryStore`, `TOKENS.MemoryIngestion`, `TOKENS.MemoryWriteBack` all resolve in `buildContainer()`.
-- [ ] Add two debug endpoints (dev only) to `apps/api`: `GET /debug/memory?q=&kind=` (retrieve) and `GET /debug/memory/:id/chain` (version log). Mark them non-production in the route comment.
-
-### 3.3 Fix outstanding lint/type/boundary issues (as needed, 60 min)
-
-- [ ] `pnpm lint` — zero errors/warnings.
-- [ ] `pnpm -r typecheck` — zero errors.
-- [ ] Verify `grep -r "from '@harness" packages/memory/src` still shows only the four allowed packages.
-
-### 3.4 Write Week 1 retro (45 min)
-
-File: `docs/retros/week-01-phase3.md` (`# Week 1 Phase 3 Retro — Memory store & retrieve`), with the standard sections:
-
-```
-## What is solid
-## What is fragile
-## Decisions that need revisiting before Week 4 (hybrid cutover)
-## Watch items for Week 2 (consolidation/decay/archive)
-```
-
-Prompts: Is the `0.6/0.2/0.2` weighting behaving well with the lexical fallback? Is `supersedes`-chain retrieval fast enough? Does the `MemorySignalSource` seam feel clean from the Context side? Any write-back cross-check that felt missing?
-
-### 3.5 Update wiring map + README (30 min)
-
-- [ ] `docs/architecture/wiring-map.md` — all Memory tokens listed.
-- [ ] `README.md` (root) — add "Phase 3 Week 1 Status" note.
+- [ ] `pnpm demo:provider-breadth` (stubbed) completes against all three hosts + Jira.
+- [ ] Record the demo output in `docs/retros/` (one paragraph) as the W1 evidence.
 
 ---
 
@@ -118,38 +69,30 @@ Prompts: Is the `0.6/0.2/0.2` weighting behaving well with the lexical fallback?
 
 | File | Description |
 |------|-------------|
-| `apps/api/src/__tests__/week1-memory-smoke.test.ts` | Memory E2E smoke test |
-| `apps/api/src/bootstrap.ts` (updated) | Full Memory wiring confirmed |
-| `apps/api/src/routes/debug.ts` (dev-only) | Memory debug endpoints |
-| `docs/retros/week-01-phase3.md` | Retrospective |
-| `README.md` (updated) | Week 1 status section |
+| `scripts/demo-provider-breadth.ts` | Demo: all three hosts + Jira |
+| `apps/api/src/review-input-facade.ts` | `resolveReviewInput` facade |
+| `apps/api/src/__tests__/seam-parity.test.ts` | Shared `PullRequest` shape check |
+| `docs/retros/phase3-w1.md` | Week 1 checkpoint evidence |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/memory test` — all tests pass.
-- [ ] Memory smoke test passes: evidence → versioned write → relevance retrieve → context surface → counter bump.
-- [ ] `pnpm lint` — zero errors; `pnpm -r typecheck` — zero errors.
-- [ ] `grep -r "from '@harness" packages/memory/src` shows only `@harness/{domain,event-bus,db,di}`.
-- [ ] No `UPDATE` on `content`/`confidence`/`sourceEvidence` anywhere in `packages/memory` (all writes append).
-- [ ] Retrieval returns only current (head) versions.
-- [ ] `docs/retros/week-01-phase3.md` exists and names real fragility.
-- [ ] The W1 milestone is demonstrable from the debug endpoint: write a memory from evidence, read it back ranked.
-
-**Checkpoint rule:** If any criterion is red, stop. Fix it today. Do not carry a red Memory foundation into Week 2.
+- [ ] `pnpm demo:provider-breadth` runs stubbed end-to-end and prints a fetched PR/MR for each of GitHub, GitLab, Bitbucket + a Jira issue.
+- [ ] `resolveReviewInput` resolves by host without hard-coded provider classes.
+- [ ] The seam-parity validator passes for all three mapped fixtures.
+- [ ] No live token is required for the demo; no key is committed.
+- [ ] `pnpm test && pnpm lint` green across `git-provider`, `ticket-provider`, `db`, `api`.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **The smoke test is the deliverable.** "We built Memory" is meaningless until the write→read loop runs against Postgres + the real bus in one test.
-- **Lexical fallback makes retrieval slightly nondeterministic across entries with equal Jaccard.** If the smoke test flakes on ordering, compare *sets and relative order for clearly-different scores*, not exact index positions for near-ties.
-- **`harness_test` residue.** The supersedes-counter assertions depend on a clean schema each run. Drop + recreate, don't truncate, or `retrieved_count` drifts across runs.
-- **Debug endpoints are dev-only.** Do not let `GET /debug/memory` ship to the review UI or production routes. Mark them clearly; Week 8 hardening removes or gates them behind auth.
-- **Do not start consolidation (Day 06) today.** The temptation to "quickly add dedup threshold" while the smoke test is green is real. A clean checkpoint is worth more than a head start — consolidation changes retrieval semantics and needs its own day.
-- **Tomorrow (Day 06):** consolidation — dedup (0.85), conflict strategy, decay (`0.99^days`).
+- **Checkpoint ≠ new feature.** Resist the urge to add write-back or verification today; write a clean demo and close the integration debt instead. Days 06–10 own write-back.
+- **The stub must be representative, not trivial.** If the stub returns fake shapes that wouldn't survive the real mapper, the demo proves nothing — reuse the Days 01–04 fixtures verbatim.
+- **Parity failures are usually an enum mismatch.** GitLab "removed" vs Bitbucket "deleted_file" vs GitHub "removed" — the shared `changeKind` test is the net that catches a third flavor slipping through.
+- **Next week (Day 06):** `WriteBackService` — commentary/status write-back behind a per-provider toggle.
 
 ---
 
-*Prev: [Day 4 — Versioned Write-back: supersedes, Rollback, Forget/Update Cross-check](day-04.md) | Next: [Day 6 — Consolidation: Dedup (0.85), Conflict Strategy, Decay (0.99^days)](day-06.md)*
+*Next: [Day 06 — `WriteBackService` Interface + GitHub Comment/Status Impl](day-06.md)*

@@ -1,14 +1,15 @@
 # Developer Guide
 
-> **Goal:** a clean machine + this guide → a passing `pnpm e2e` in under 15 minutes,
+> **Goal:** a clean machine + this guide → a green `pnpm test` in under 15 minutes,
 > with no tribal knowledge. If any step below stumbles, that is a *guide bug* — fix
 > the guide, not your memory.
 
-HAI Harness is a TypeScript monorepo (pnpm workspaces + Turborepo) that turns
-AI-generated code into **verified, human-reviewed, evidence-backed changes**. An
-Orchestrator moves tasks through a canonical state machine while dedicated engines
-gather context, run agents, track artifacts, and verify results — every step
-recorded in an append-only event log.
+HAI Harness is a TypeScript monorepo (pnpm workspaces + Turborepo) that turns a
+pasted PR / MR URL (+ an optional Jira ticket) into a **stored AI review** — a
+report with findings and fix suggestions — ready for a human decision. A task
+state machine, attention routing, independent verification, and an append-only
+event log back the loop; the code-generation path (AI writes + commits code) is
+retired.
 
 ---
 
@@ -31,18 +32,17 @@ cd harness-human-attention-infrastructure
 pnpm install             # links the @harness/* workspace packages
 docker compose up -d     # starts postgres:16 (pgvector) + Prometheus + Grafana + MinIO
 
-cp .env.example .env     # DATABASE_URL + placeholder ANTHROPIC_API_KEY
+cp .env.example .env     # DATABASE_URL + placeholder provider keys
 
 pnpm --filter @harness/db migrate   # apply migrations
-pnpm seed:e2e-fixture     # idempotent REVIEWER principal the E2E needs (day-27)
 
 pnpm test                # unit + integration, ~2 min
-pnpm e2e                 # full vertical slice (happy + failure paths), <3 min
+pnpm dev                 # run the API + web UI
 ```
 
 What each command actually does:
 
-- `pnpm install` links the 11 `@harness/*` packages via workspace protocol, so
+- `pnpm install` links the 19 `@harness/*` packages via workspace protocol, so
   importing `@harness/db` from another package resolves to `packages/db`, not npm.
 - `docker compose up -d` runs the four services in `docker-compose.yml`: **Postgres**
   (the `pgvector/pgvector:pg16` image — vector column + plain SQL in one),
@@ -57,9 +57,6 @@ What each command actually does:
   scripts don't.
 - `pnpm --filter @harness/db migrate` runs the Drizzle migrator against
   `packages/db/migrations/`.
-- `pnpm seed:e2e-fixture` seeds the fixed `e2e-reviewer` principal
-  (`onConflictDoNothing`, so re-runs are no-ops). The E2E driver re-seeds it too;
-  this exists so the environment is ready *before* a driver run (day-27 §3.1).
 - `pnpm test` runs Vitest across the workspace. Tests create and drop their own
   per-suite `harness_test_*` schemas, so they never touch your dev database.
 
@@ -76,14 +73,16 @@ What each command actually does:
 | `packages/event-bus` | `@harness/event-bus` | `IEventBus` interface + `InProcessEventBus` (EventEmitter) |
 | `packages/db` | `@harness/db` | Drizzle schema, migrations, `createDb`, `EventLogWriter`, `FaultyDb` test util |
 | `packages/di` | `@harness/di` | `Container`, `TOKENS`, `Logger` (pino), architecture test |
-| `packages/orchestrator` | `@harness/orchestrator` | `TaskStateMachine`, `TaskService`, `Dispatcher`/`DispatchLoop`, `WorkflowRunner`, retry taxonomy |
-| `packages/agent-runtime` | `@harness/agent-runtime` | `ReActLoop`, `AgentRunner`, `RuntimePollLoop`, `LLMProvider`/`MockLLM`, tools, `TrajectoryRecorder` |
+| `packages/orchestrator` | `@harness/orchestrator` | `TaskStateMachine`, `TaskService` (the dispatch/workflow/retry loop was retired) |
+| `packages/agent-runtime` | `@harness/agent-runtime` | `LLMProvider` (Anthropic + OpenAI-compatible), `MockLLM`, `ReviewAgent` (the ReAct write path was retired) |
 | `packages/artifact-tracker` | `@harness/artifact-tracker` | `ArtifactTracker`, `SnapshotStore`, `ChangeStatusSubscriber`, diff engine |
 | `packages/verification-engine` | `@harness/verification-engine` | `CompileCheck`, `TestCheck`, evidence store, env sanitization |
 | `packages/attention-engine` | `@harness/attention-engine` | Scoring (`PRIORITY_WEIGHTS`), `Router`, adaptive thresholds |
 | `packages/context-engine` | `@harness/context-engine` | collect → rank → trim → persist, freshness check |
 | `packages/review` | `@harness/review` | Review queue persistence + decision flow |
-| `apps/api` | — | Fastify API (`bootstrap.ts`, routes, reconcile, e2e/load scripts) |
+| `packages/git-provider` | `@harness/git-provider` | `GitProvider` seam + `GitHubProvider` (fetches PR diff/metadata) |
+| `packages/ticket-provider` | `@harness/ticket-provider` | `TicketProvider` seam + `JiraProvider` (fetches the requirement) |
+| `apps/api` | — | Fastify API (`bootstrap.ts`, routes, the review slice in `services/review-ingest.ts`) |
 | `apps/web` | — | React + Vite review UI (minimal) |
 
 ### "Where do I change X?"
@@ -95,7 +94,7 @@ What each command actually does:
 | Change context ranking | `4_Context_Engine_v0.3.md` §5 + `packages/context-engine/src/rank.ts` |
 | Add a verification check | `7_Verification_Engine_v0.3.md` §4 + `packages/verification-engine/src/checks/` |
 | Change review endpoints | `apps/api/src/routes/review.ts` + `packages/review/` |
-| Change merge / rework flow | `apps/api/src/services/merge.ts`, `rework.ts` |
+| Change the review-slice ingest flow | `apps/api/src/services/review-ingest.ts` + `apps/api/src/routes/reviews.ts` |
 | Add a DB table/column | `packages/db/src/schema/` + a new migration |
 | Add a domain event | `packages/domain/src/events/event-types.ts` |
 | Add/rename a container token | `packages/di/src/tokens.ts` + `apps/api/src/bootstrap.ts` |
@@ -108,8 +107,6 @@ pnpm test                 # full suite (unit + integration)
 pnpm test -- packages/orchestrator   # run one package's tests only
 pnpm lint                 # eslint across the repo (boundaries enforced here)
 pnpm typecheck            # turbo run typecheck (tsc --noEmit everywhere)
-pnpm e2e                  # migrate + happy-path + failure-path scripts
-pnpm load:smoke           # migrate + 50-task concurrency/load smoke
 pnpm audit:orphans        # exit-code orphan alarm (see runbook R1)
 ```
 
@@ -127,7 +124,7 @@ docker compose down -v && docker compose up -d && pnpm --filter @harness/db migr
 `down -v` destroys the `pgdata` volume. This is destructive and has no guard — it
 is for throwaway dev environments only (runbook R7).
 
-## 5. Architecture rules (R1–R12)
+## 5. Architecture rules (R1–R14)
 
 Dependency direction points inward; the domain never imports infrastructure. The
 rules are enforced by `eslint-plugin-boundaries` at lint time and asserted by
@@ -147,6 +144,8 @@ rules are enforced by `eslint-plugin-boundaries` at lint time and asserted by
 | R10 | `@harness/embeddings` → `domain`, `db`, `event-bus` only (never `di`/`observability`/an engine) |
 | R11 | `@harness/object-store` → no `@harness/*` dependency (leaf seam) |
 | R12 | `@harness/sandbox` → no `@harness/*` dependency (leaf seam) |
+| R13 | `@harness/git-provider` → `domain` only (never an engine) |
+| R14 | `@harness/ticket-provider` → `domain` only (never an engine) |
 
 **The rule you'll actually hit:** if you `import { X } from '@harness/db'` inside
 `@harness/attention-engine`, `pnpm lint` fails with a `boundaries` error naming the
@@ -166,22 +165,21 @@ modular monolith (Architecture spec §4.5, §18).
   dropped in `afterAll`). There is no SQLite/in-memory substitute — Drizzle
   semantics (`FOR UPDATE SKIP LOCKED`, `ON CONFLICT DO NOTHING`) only behave
   correctly against Postgres.
-- **`MockLLM` for agent tests.** `@harness/agent-runtime` ships a scripted mock
-  whose responses are keyed by `correlation_id` (== task id). Agent-loop tests
+- **`MockLLM` for review-agent tests.** `@harness/agent-runtime` ships a scripted mock
+  whose responses are keyed by `correlation_id` (== task id). Review-agent tests
   never touch a real model, so they are fast and deterministic.
 - **No mocks across package boundaries.** A package's tests use its real
   collaborators (or the container's real registrations). The only sanctioned
   substitute is `FaultyDb` (`@harness/db/test-utils`), a `Proxy` wrapping a real
   `DrizzleDB` to inject *queued* faults at the head of the next matching query.
-- **Concurrency tests use barriers, not sleeps.** The C1–C7 suite and the load
-  smoke coordinate with explicit promise/event barriers so assertions are
-  race-free and deterministic; `await delay(...)` is a smell that hides a real
-  race.
+- **Concurrency tests use barriers, not sleeps.** Concurrency suites coordinate
+  with explicit promise/event barriers so assertions are race-free and
+  deterministic; `await delay(...)` is a smell that hides a real race.
 
 ### The full gate
 
 ```sh
-pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm e2e
+pnpm lint && pnpm typecheck && pnpm build && pnpm test
 ```
 
 This is what CI and every day's work must pass before a commit is pushed.
@@ -218,7 +216,7 @@ the flag (an image that isn't built degrades back to in-process, not to a false
 
 ```sh
 docker build -t harness-verify:node20 packages/sandbox
-VERIFY_SANDBOX_ENABLED=1 pnpm e2e
+VERIFY_SANDBOX_ENABLED=1 pnpm dev
 ```
 
 The parity holds by construction: `SandboxedCheck` runs `tsc --noEmit` inside the
@@ -228,11 +226,11 @@ in-process verdicts agree.
 **Semantic shadow (day-18).** The keyword→dependency ranker is the served default
 and stays so; the semantic retriever runs *alongside* it, writing a
 `shadow_rank_comparisons` row never read by the hot path. It needs an embedding
-index — populate it, and (for the E2E driver) opt the shadow in:
+index — populate it to opt the shadow in:
 
 ```sh
 pnpm embed:populate          # batch/resumable index population over context_sources
-SEMANTIC_SHADOW_ENABLED=1 pnpm e2e
+SEMANTIC_SHADOW_ENABLED=1 pnpm dev
 ```
 
 A real embedder is optional: unset `EMBEDDINGS_BASE_URL` uses the deterministic

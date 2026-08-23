@@ -1,11 +1,11 @@
-# Day 25 — Week 5 Checkpoint: Sandbox + Object Store + Cache Integrated
+# Day 25 — Week 5 Checkpoint: Sandbox + Object Store + Review-Report Store Integrated
 
 | | |
 |---|---|
 | **Week** | 5 — Sandbox, object store, Spec 8 |
-| **Spec refs** | Spec 7 §5.5 (sandbox), Spec 5 §4.2 (object store), Spec 4 §5.2.3 (cache), Spec 10 (observability governance), Spec 11 §4 (pipeline quality) |
-| **Estimated effort** | 6 hours |
-| **Prerequisites** | Days 21–24 (object store, sandbox ×2, Spec 8) |
+| **Spec refs** | Spec 7 §5.5 (sandbox), Spec 5 §4.2 (object store), Spec 5 §4.2 + Spec 9 §3.2 (review-report store), Spec 4 §5.2.3 (cache), Spec 10 (observability governance), Spec 11 §4 (pipeline quality) |
+| **Estimated effort** | 6h |
+| **Prerequisites** | Days 21–24 (object store, verification sandbox, review-report store, Spec 8) |
 
 ---
 
@@ -13,8 +13,8 @@
 
 This is a **hard checkpoint**, not a build day. By end of day you will have:
 
-1. An **integrated demo** — one task runs end-to-end through object-store retrieval, sandboxed verification, and cache (second run hits), with every stage visible in the shadow metrics report.
-2. **Week-5 subsystems proven together** — object store *feeds* the sandbox a `content_hash`, the cache *skips* refetching an unchanged source, and the whole run is attributable (`content_hash` on the verification result, `code_mode_sessions` for code mode).
+1. An **integrated demo** — one task runs end-to-end through object-store retrieval, sandboxed verification, and review-report storage (with large-diff routing), with every stage visible in the shadow metrics report.
+2. **Week-5 subsystems proven together** — the object store *feeds* the sandbox a `content_hash`, the cache *skips* refetching an unchanged source, and the review report is pinned via its `content_hash` in the store — the whole run attributable by content address.
 3. A **Week-5 retrospective** stating whether the new subsystems changed any Phase-2 metric for the worse (e.g., sandbox latency in dwell) and what hardening (Day 26) must prioritize.
 
 **Do not leave Week 5 shipping the sandbox as the only verification path if parity or latency regressed.** The subsystems integrate; they don't silently replace anything yet — that's Day 26's hardening decision.
@@ -27,7 +27,7 @@ This is a **hard checkpoint**, not a build day. By end of day you will have:
 |-----------|---------|--------|
 | Object store (S3/MinIO `ContentStore`) | `@harness/object-store` | ✅ Day 21 |
 | Sandbox — verification (Spec 7 §5.5) | `@harness/sandbox` | ✅ Day 22 |
-| Sandbox — agent Code Mode (Spec 3 §14.3) | `@harness/sandbox` + `@harness/agent-runtime` | ✅ Day 23 |
+| Review-report store + large-diff routing | `@harness/review` + `@harness/object-store` | ✅ Day 23 |
 | Spec 8 (Human Review Interface) | `docs/core/8_*` | ✅ Day 24 |
 
 ---
@@ -39,12 +39,12 @@ This is a **hard checkpoint**, not a build day. By end of day you will have:
 `scripts/demo/week5-integration.md`:
 1. Create a large artifact → object store `put` (backend `object`); small artifact → Postgres (`db`).
 2. Run a task whose verification check runs in the sandbox; show the `content_hash` on the result and the `--network none` verdict.
-3. Re-run the *unchanged* task → cache hit (zero file reads), sandbox result re-linked to the same hash.
-4. Show the code-mode path writing a `code_mode_sessions` row with `tool_calls`.
+3. Show the reviewer's report written to the `ReviewReportStore` and read back hash-verified, with a large diff routed to the object store (`diff_backend='object'`).
+4. Re-run the *unchanged* task → cache hit (zero file reads), sandbox result re-linked to the same hash.
 
 ### 3.2 Shadow metrics → report (60 min)
 
-- [ ] Extend the Day-7 report generator to render the Week-4/5 shadow signals in one place: `shadow_rank_comparisons` correlation, cache hit/miss ratio, sandbox latency + fallback rate, object-store integrity errors.
+- [ ] Extend the Day-7 report generator to render the Week-4/5 shadow signals in one place: `shadow_rank_comparisons` correlation, cache hit/miss ratio, sandbox latency + fallback rate, object-store integrity errors, review-report store dedup.
 - [ ] Confirm the default `rank_method` is still `keyword` in the report (the invariant is *visible*, not just true).
 
 ### 3.3 Regression scan (60 min)
@@ -67,7 +67,7 @@ This is a **hard checkpoint**, not a build day. By end of day you will have:
 | File | Description |
 |------|-------------|
 | `scripts/demo/week5-integration.md` | End-to-end subsystem demo |
-| `packages/evaluation/src/report/sections.ts` (updated) | Shadow + cache + sandbox metrics sections |
+| `packages/evaluation/src/report/sections.ts` (updated) | Shadow + cache + sandbox + report-store metrics sections |
 | `docs/retros/week-05.md` | Week-5 retro |
 | `docs/architecture/wiring-map.md` (updated) | Week-5 status |
 
@@ -75,8 +75,8 @@ This is a **hard checkpoint**, not a build day. By end of day you will have:
 
 ## 5. Acceptance Criteria
 
-- [ ] The demo completes one task through object store → sandboxed verification → cache (second run), each stage attributable by `content_hash`.
-- [ ] The report renders shadow correlation, cache hit/miss, sandbox latency + fallback rate, and object-store integrity errors.
+- [ ] The demo completes one task through object store → sandboxed verification → review-report store (cache hit on the second run), each stage attributable by `content_hash`.
+- [ ] The report renders shadow correlation, cache hit/miss, sandbox latency + fallback rate, object-store integrity errors, and review-report dedup.
 - [ ] The report states the served `rank_method === 'keyword'` (invariant visible).
 - [ ] The regression scan lists any moved test/metric, each annotated intended/regression.
 - [ ] `pnpm lint && pnpm -r typecheck && pnpm -r test` green.
@@ -88,7 +88,8 @@ This is a **hard checkpoint**, not a build day. By end of day you will have:
 
 ## 6. Notes & Pitfalls
 
-- **"Integrated" ≠ "works once".** The checkpoint's value is the *second* run hitting the cache and re-linking the same hash — proof the new address spaces (object store, sandbox, cache) are consistent, not just demoable.
+- **"Integrated" ≠ "works once".** The checkpoint's value is the *second* run hitting the cache and re-linking the same hash — proof the new address spaces (object store, sandbox, report store, cache) are consistent, not just demoable.
+- **The review report's `content_hash` is the joining key.** The demo should show the same hash flowing from the reviewer's output → `ReviewReportStore.put` → `get` — that closed loop is what makes "what a human reviewed" match "what the reviewer produced".
 - **The shadow metrics must make the invariant *visible*.** If the report shows cute charts but never states `rank_method === 'keyword'`, a shadow leak could hide behind pretty numbers. The invariant is a line item, assert it.
 - **Don't cut over to sandbox-only on demo success.** Week 5 proves the subsystems *work together*; Day 26 proves they *survive failure*. Flip the default only after failure injection, not after a happy-path demo.
 - **Sandbox latency is the first place regression hides.** Container startup cost can quietly inflate dwell and task latency. Measure it per-run (Day 4 counters) now, so Day 26 has a baseline to detect drift against.

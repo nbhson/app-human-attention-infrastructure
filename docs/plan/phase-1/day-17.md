@@ -1,172 +1,72 @@
-# Day 17 — Evidence Storage, Provenance Linking & Diff Engine
+# Day 17 — Evidence storage + provenance linking + diff engine
 
 | | |
 |---|---|
-| **Week** | 3 — Trust Pipeline |
-| **Spec refs** | Spec 5 (provenance, updated); Spec 7 (evidence); Spec 1 §"Evidence before confidence" |
-| **Estimated effort** | 6–7 h |
-| **Prerequisites** | Day 14 (snapshots/changes), Day 15–16 (reports + check results), Day 02 (ProvenanceChain in domain) |
+| **Week** | W3 — Trust pipeline |
+| **Spec refs** | Spec 9 §1 (evidence/memory), Spec 1 §4/§7 (evidence + provenance) |
+| **Estimated effort** | 7h |
+| **Prerequisites** | Days 15–16 (checks produce results) |
 
 ---
 
 ## 1. Objectives
 
-1. Introduce the **Evidence** entity: durable, content-hashed records linking every claim (verification result, agent assertion) to its underlying proof (check output, test results, snapshot).
-2. Backfill `evidence_id` on `verification_check_results` (field reserved on Day 15).
-3. Implement the **Diff Engine**: unified diffs between the pre-task base snapshot and each artifact snapshot — the core input to the review UI (Day 23) and Attention complexity factor (Day 18).
-4. Expose `ProvenanceChain` assembly: task → agent_run → llm_calls → trajectory_steps → artifacts → snapshots → verification reports → evidence. One query function, used by Day-26 provenance UI.
-5. Guarantee: **every PASSED report has ≥1 evidence row** (DB-level-ish invariant enforced in code + test).
-
-> **Why this matters:** this is the day "Claim ≠ Evidence" becomes a queryable fact rather than a slogan. Reviewers (Day 22–24) never see a bare "PASSED" — they see the PASSED *plus* the output that proves it.
-
----
+- Persist verification `CheckResult`s as **append-only evidence** rows linked back to the review/task via `correlation_id`.
+- Build the **diff engine** (`@harness/artifact-tracker`'s change capture) that fingerprints a PR's content and records change versions, so evidence always points at the exact code it verified.
+- Establish provenance linking: `fetch → review → evidence → decision` queried through one chain, with no orphaned evidence.
+- Keep the evidence store append-only (no UPDATE/DELETE), preserving Spec 9's "evidence before confidence".
 
 ## 2. Design Decisions
 
-### 2.1 Evidence table (migration `0017_evidence.sql`)
-
-```sql
-CREATE TABLE evidence (
-  id            TEXT PRIMARY KEY,          -- UUIDv7
-  content_hash  TEXT NOT NULL,             -- sha256 of body (dedup, tamper-evidence)
-  kind          TEXT NOT NULL CHECK (kind IN
-    ('CHECK_OUTPUT','TEST_RESULTS','SNAPSHOT','LLM_TRANSCRIPT','DIFF','HUMAN_NOTE')),
-  body          TEXT NOT NULL,             -- full, untruncated content
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE evidence_links (              -- many-to-many, append-only
-  id            TEXT PRIMARY KEY,
-  evidence_id   TEXT NOT NULL REFERENCES evidence(id),
-  subject_kind  TEXT NOT NULL,             -- 'check_result' | 'artifact' | 'report' | 'agent_run'
-  subject_id    TEXT NOT NULL,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (evidence_id, subject_kind, subject_id)
-);
-
-ALTER TABLE verification_check_results
-  ADD COLUMN IF NOT EXISTS evidence_id TEXT REFERENCES evidence(id);
-```
-
-Same retention rule as snapshots (Day 14): evidence **never deleted**; no DELETE in code, lint test extended to `verification-engine` + new `evidence` module.
-
-### 2.2 EvidenceStore
+- The diff engine is read-only: it captures the change (file set, hunks, content hash), never writes back to the repo.
 
 ```ts
-// packages/verification-engine/src/evidence-store.ts
-export class EvidenceStore {
-  async record(kind: EvidenceKind, body: string, links: EvidenceLink[]): Promise<string> {
-    return this.db.transaction(async (trx) => {
-      const id = uuidv7();
-      await trx.insertInto('evidence')
-        .values({ id, content_hash: sha256(body), kind, body }).execute();
-      await trx.insertInto('evidence_links')
-        .values(links.map(l => ({ id: uuidv7(), evidence_id: id, ...l }))).execute();
-      return id;
-    });
-  }
+export interface ChangeArtifact {
+  readonly id: ChangeID;
+  readonly prUrl: string;
+  readonly fileSet: string[];     // repo-relative paths touched
+  readonly contentHash: string;   // SHA-256 of normalized diff
+  readonly baseRef: string;
+  readonly headRef: string;
 }
 ```
 
-**Integration point:** `VerificationEngine.persist` (Day 15) now stores full check output as evidence first (untruncated; the 64KB cap applies only to the inline `output` field), then sets `check_result.evidence_id`. TestCheck's per-test JSON also becomes one `TEST_RESULTS` evidence blob per run.
-
-### 2.3 Diff Engine
-
-```ts
-// packages/artifact-tracker/src/diff-engine.ts
-import { structuredPatch } from 'diff';    // 'diff' npm package — no git dependency (ADR Day 14)
-
-export interface FileDiff {
-  path: string;
-  hunks: string;                           // unified diff text
-  addedLines: number;
-  removedLines: number;
-  isNewFile: boolean;
-}
-
-export class DiffEngine {
-  constructor(private readonly db: Db) {}
-
-  /** Base = snapshot of the same path from the previous completed attempt,
-   *  or empty (isNewFile) if the path has no prior snapshot. */
-  async diffChange(changeId: string): Promise<FileDiff[]> {
-    const artifacts = await this.db.selectFrom('artifacts')
-      .innerJoin('snapshots', 'snapshots.id', 'artifacts.snapshot_id')
-      .where('change_id', '=', changeId).selectAll().execute();
-    return artifacts.map(a => {
-      const base = this.findBaseSnapshot(a.task_id, a.path, a.attempt_number);
-      const patch = structuredPatch(a.path, base?.content ?? '', a.content, '', '', { context: 3 });
-      return { path: a.path, hunks: patch, ...countLines(patch), isNewFile: !base };
-    });
-  }
-}
-```
-
-Diffs are computed **on demand** and cached as one `DIFF` evidence row per change (keyed via evidence_links) — recompute skipped if content hashes unchanged. Line counts feed Attention `complexity` (Day 18).
-
-### 2.4 ProvenanceChain assembly
-
-```ts
-// packages/artifact-tracker/src/provenance.ts  (read-only query module)
-export async function buildProvenanceChain(db: Db, taskId: string): Promise<ProvenanceChain> {
-  // single function, 7 queries, assembled in memory — matches domain type from Day 02:
-  return {
-    task,                          // tasks row
-    agentRun,                      // agent_runs row for current attempt
-    llmCalls,                      // llm_call_log where agent_run_id
-    trajectory,                    // trajectory_steps ordered
-    artifacts,                     // + snapshots (content_hash)
-    verification: { report, checkResults, evidenceIds },
-    events,                        // event_log where correlation_id = taskId
-  };
-}
-```
-
-Used by: Day-23 review UI (diff + evidence), Day-26 provenance UI, Day-27 audit queries. Kept in `artifact-tracker` because it primarily reads tracker tables (R4 allows it to read others' tables via db — boundary rules govern **code imports**, and provenance is tracker-owned conceptually).
-
----
+- Every evidence row stores the `contentHash` it verified, so a stale review (code since changed) is detectable — a check result is a *claim about a specific content version*, not about "the repo".
 
 ## 3. Tasks
 
-- [ ] **3.1** Migration `0017_evidence.sql` + Drizzle schema. (45 min)
-- [ ] **3.2** `EvidenceStore.record` + transaction + dedup test. (45 min)
-- [ ] **3.3** Wire into `VerificationEngine.persist` + TestCheck (full output as evidence; set `evidence_id`). (1 h)
-- [ ] **3.4** `DiffEngine` with `diff` package, base-snapshot resolution, line counting, evidence caching. (1.5 h)
-- [ ] **3.5** `buildProvenanceChain` query function. (1 h)
-- [ ] **3.6** Tests: invariant "PASSED report ⇒ ≥1 evidence row"; diff of modified file shows hunks; new file diff has `isNewFile`; provenance chain contains all 7 sections for a seeded task; no-DELETE lint extended. (1.5 h)
+### 3.1 Evidence persistence (150 min)
+- [ ] `@harness/db` `evidence` repository + schema (append-only)
+- [ ] `verification-engine` result → evidence binding with `correlation_id` + `contentHash`
 
----
+### 3.2 Diff engine (180 min)
+- [ ] `@harness/artifact-tracker` change capture: file set, hunk structure, SHA-256 normalized hash
+- [ ] Change versioning (same PR, new head → new `contentHash`)
+
+### 3.3 Provenance + tests (120 min)
+- [ ] Query joining review → evidence → decision; unit + integration tests; orphaned-evidence guard
 
 ## 4. Deliverables
 
 | File | Description |
-|---|---|
-| `packages/verification-engine/migrations/0017_evidence.sql` | evidence + evidence_links + evidence_id column |
-| `packages/verification-engine/src/evidence-store.ts` | Transactional evidence writer |
-| `packages/artifact-tracker/src/diff-engine.ts` | On-demand unified diffs + counts |
-| `packages/artifact-tracker/src/provenance.ts` | ProvenanceChain assembly query |
-
----
+|------|-------------|
+| `packages/db/src/schema/evidence.ts` | Append-only evidence schema |
+| `packages/db/src/repositories/evidence.ts` | Evidence access |
+| `packages/artifact-tracker/src/diff-engine.ts` | Change capture + hash |
+| `packages/artifact-tracker/src/change-store.ts` | Change versioning |
 
 ## 5. Acceptance Criteria
 
-- [ ] Every PASSED/FAILED/FLAKY report has evidence rows linked to each check result (invariant test).
-- [ ] `diffChange` returns correct unified diff for a modified file and `isNewFile: true` for a created file; line counts accurate.
-- [ ] `buildProvenanceChain(taskId)` returns all 7 sections populated for an end-to-end seeded task.
-- [ ] Evidence content is untruncated even when inline `output` was capped.
-- [ ] No DELETE in verification-engine/artifact-tracker source (lint test).
-- [ ] `pnpm test && pnpm lint` green.
-
----
+- [ ] `pnpm --filter @harness/verification-engine test` and `--filter @harness/artifact-tracker test` pass
+- [ ] A `CheckResult` persists with its `contentHash` and `correlation_id`
+- [ ] Changing one hunk changes the `contentHash`; unchanged content keeps a stable hash
+- [ ] Provenance query returns `fetch → report → evidence → decision` with no orphans under one correlation
 
 ## 6. Notes & Pitfalls
 
-- **Base snapshot ambiguity:** if a path was written by attempt 1 and attempt 2, base for attempt 2's diff = attempt 1's snapshot *of the same path*. If the agent rewrote an existing repo file on attempt 1, base = the file's content at worktree creation (captured as a snapshot by the runtime — verify Day-12 capture hook does this; if not, add it today and note it).
-- **Don't diff binaries/large files** in Phase 1: cap diffable size (e.g., 1MB); larger → store `DIFF_SKIPPED` metadata instead.
-- **Evidence dedup:** identical check output across retries hashes identically — that's fine; `evidence_links` UNIQUE constraint makes re-links idempotent.
-- **ProvenanceChain is read-heavy:** 7 sequential queries are fine at Phase-1 scale; resist adding a cache until Day-27 observability shows a need.
-- **Next:** [Day 18 — Attention Engine Scoring](day-18.md) starts consuming `flaky`, diff line counts, and verification results as scoring factors.
+- Normalize the diff (strip index lines/timestamps) before hashing or the hash changes spuriously on every fetch.
+- Evidence is a *record*, never mutated; a fresh verification creates a new row pointing at new content.
 
 ---
 
-*Prev: [Day 16 — Test Executor, Timeouts & Flaky Handling](day-16.md) | Next: [Day 18 — Attention Engine Scoring](day-18.md)*
+*Next: [Day 18 — Attention Engine scoring (Risk/Impact/Novelty/Complexity/Confidence)](day-18.md)*

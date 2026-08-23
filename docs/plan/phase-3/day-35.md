@@ -1,67 +1,61 @@
-# Day 35 — Week 7 Checkpoint: Closed Loop Demonstrable Autonomously
+# Day 35 — Week 7 Checkpoint: Closed Loop Demonstrable
 
 | | |
 |---|---|
-| **Week** | 7 — Close the loop, deploy observed |
-| **Spec refs** | Spec 11 §5.3 (closed learning loop), Architecture §24.3 |
-| **Estimated effort** | 6h |
-| **Prerequisites** | Day 34 (durable queue behind `IEventBus`) |
+| **Week** | 7 — Close the loop |
+| **Spec refs** | Architecture §24.3 (Learning closed); Phase-3 README §5 (W7 milestone), §7 (Learning closes automatically) |
+| **Estimated effort** | 5h |
+| **Prerequisites** | Days 31–34 (calibration job, usefulness feedback, cycle wiring, optional durable queue) |
 
 ---
 
 ## 1. Objectives
 
-This is a **hard checkpoint**, not a build day. No new features. By end of day you will have:
+By end of day you will have:
 
-1. A **living demo**: Evaluate → Calibrate → Deploy → Observe running **autonomously** (scheduler-driven) across multiple loop turns, with the loop visibly *learning from* and *responding to* usefulness feedback.
-2. **Proof the loop is safe**: a simulated regression rolls back; a simulated lift becomes default *only* via the A/B/human gate; no update self-authors authority.
-3. A **traceability walkthrough**: pick any applied calibration update and show its full evidence chain backward (verdicts → runs → corpus → gold labels).
-4. A **Week 7 retrospective note**.
+1. A demonstrable Week-7 milestone: **the closed loop runs end-to-end, automatically** — new review decisions + judge signals → calibration/routing update → measured (PROMOTE/HOLD) → observed → re-entered.
+2. A demo that seeds a few decisions, lets the loop run a **full cycle** (Evaluate → Calibrate → Deploy → Observe → Evaluate again), and prints the correlation-id-linked outcome.
+3. The human gate *visibly untouched*: the demo proves APPROVE/REJECT decisions remain human-only, with `AUTO_APPROVABLE` the only (still-sampled) auto-path untouched by the loop.
+4. W7 evidence in `docs/retros/`; wiring map notes the learning-loop tokens + events.
 
-**Do not proceed to Day 36 until every acceptance criterion in §5 is green** — Week 8 hardens *this* loop, so it must be demonstrably correct and safe first.
+The checkpoint proves the *Learning* step from Architecture §24.3 is a real, running, observable subsystem — not a diagram.
 
 ---
 
-## 2. What Week 7 Has Built
+## 2. Design Decisions
 
-| Component | Package | Status |
-|-----------|---------|--------|
-| Learning pipeline (evaluation → calibration update, gated) | `@harness/learning` | ✅ Day 31 |
-| Feedback into context ranking (learn weights from usefulness) | `@harness/learning` | ✅ Day 32 |
-| Closed-loop wiring (Evaluate→Calibrate→Deploy→Observe) | `@harness/learning` | ✅ Day 33 |
-| Durable queue (Redis/SQS) behind `IEventBus` (optional) | `@harness/event-bus` | ✅ Day 34 |
+### 2.1 Demo = one seeded cycle, full provenance
+
+`scripts/demo-closed-loop.ts` seeds a window of decisions → runs the loop → asserts each stage emitted its event with a shared `learningCycleId` → prints calendar outcomes (candidate, A/B, PROMOTE/HOLD, observation). One clean cycle is the demonstrable unit, not four separate features.
+
+### 2.2 The human-gate assertion is part of the demo
+
+Print the decision records the loop consulted and prove it never mutated them — APPROVE/REJECT rows are inputs, `AUTO_APPROVABLE` path untouched. The loop's read-only relationship to human decisions is the phase's moral core.
+
+### 2.3 Durable queue optional — show only what's configured
+
+If `EVENT_TRANSPORT=redis`, show restart survival; if `inproc`, note durability is available-but-not-selected. Don't gate the checkpoint on a queue this deployment didn't choose.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Autonomous multi-turn demo (150 min)
+### 3.1 End-to-end cycle demo (90 min)
 
-- [ ] `scripts/demo-closed-loop.ts` — seed a usefulness drift, then let the scheduler run ≥3 loop turns; narrate each stage transition as it fires.
-- [ ] Include one **regression injection** and one **lift injection** so the demo shows both rollback (regression) and gated defaulting (lift).
+- [ ] `scripts/demo-closed-loop.ts` — seed → run cycle → print provenance → assert re-entry.
 
-### 3.2 Traceability walkthrough (90 min)
+### 3.2 Human-gate untouchability check (45 min)
 
-- [ ] For one applied update, walk: update → `evidence` (verdicts) → `bench_runs` → `BenchTask` → gold-label evidence (human decision). Print the chain.
-- [ ] Confirm every link is persisted and queryable (no "that was in a log line we lost").
+- [ ] Assert loop never writes APPROVE/REJECT decisions; `AUTO_APPROVABLE` sampling untouched.
 
-### 3.3 Safety proofs (90 min)
+### 3.3 Integration debt pass (60 min)
 
-- [ ] Regression → `loop.regression` + `calibration.update_rolled_back` (restore `before`).
-- [ ] Lift → default only through shadow→A/B→human-approve (`rank.cutover_applied` / human sign-off), never instant.
-- [ ] A `notable_change` update cannot self-apply (assert blocked pending human).
-- [ ] `AUTO_APPROVABLE` + APPROVE/REJECT untouched by any loop turn.
+- [ ] Correlation id end-to-end; Observe feeds next Evaluate; HOLD path exercised (force a HOLD fixture).
 
-### 3.4 Week 7 retro (60 min)
+### 3.4 Docs + evidence (45 min)
 
-File: `docs/retros/week-07-phase3.md` (`# Week 7 Phase 3 Retro — Close the loop`), standard sections.
-
-Prompts: Did the loop ever propose a change we'd reverse on reflection? Is the A/B gate too permissive for ranking? Was the regression rollback actually exercised, or only asserted? Any stage where provenance got thin?
-
-### 3.5 Update wiring map + README (30 min)
-
-- [ ] `docs/architecture/wiring-map.md` — learning pipeline, loop stages, transport modes.
-- [ ] `README.md` — "Phase 3 Week 7 Status" note.
+- [ ] `docs/architecture/wiring-map.md` — learning loop tokens/events.
+- [ ] `docs/retros/phase3-w7.md`.
 
 ---
 
@@ -69,37 +63,29 @@ Prompts: Did the loop ever propose a change we'd reverse on reflection? Is the A
 
 | File | Description |
 |------|-------------|
-| `scripts/demo-closed-loop.ts` | Autonomous closed-loop demo |
-| `apps/api/src/__tests__/week7-safety.test.ts` | Regression/lift/gate safety proofs |
-| `docs/retros/week-07-phase3.md` | Retrospective |
-| `README.md` (updated) | Week 7 status |
+| `scripts/demo-closed-loop.ts` | Closed-loop cycle demo |
+| `docs/architecture/wiring-map.md` (updated) | Learning-loop seam |
+| `docs/retros/phase3-w7.md` | Week 7 checkpoint evidence |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] Closed loop runs autonomously across ≥3 turns, every stage transition visible + persisted.
-- [ ] A simulated regression triggers `loop.regression` + rollback (restore `before`).
-- [ ] A simulated lift reaches default only via shadow→A/B→human-approve, never instantly.
-- [ ] `notable_change` updates are blocked pending human sign-off.
-- [ ] `AUTO_APPROVABLE` + APPROVE/REJECT are untouched by any loop turn.
-- [ ] One applied update is traceable end-to-end (update → verdicts → runs → task → gold label).
-- [ ] `docs/retros/week-07-phase3.md` exists.
-- [ ] `pnpm lint` clean across all touched packages.
-
-**Checkpoint rule:** If any of the safety proofs is red — especially "a `notable_change` self-applied" — stop. A loop that can self-author a notable change is the one failure this phase exists to prevent.
+- [ ] `pnpm demo:closed-loop` runs one full Evaluate → Calibrate → Deploy → Observe → Evaluate cycle.
+- [ ] All stages joined by one `learningCycleId`.
+- [ ] A HOLD fixture parks at Deploy and still re-enters Evaluate.
+- [ ] The loop never mutates an APPROVE/REJECT decision (asserted).
+- [ ] `pnpm test && pnpm lint` green.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **"Autonomous" is a compression of what's safer with autonomy — not an excuse for no gates.** The demo must show the loop *asking for approval* on notable changes, not racing ahead. Autonomy in parameter calibration is fine; autonomy in authorizing notable change is not.
-- **Traceability is the checkpoint's yield.** The whole point of Phase 3 evidence discipline is that "the loop improved X" is *provable*, not asserted. If the demo can't print the evidence chain, the loop's outputs are unbacked.
-- **Exercise rollback, don't just implement it.** A rollback path that is never run is a rollback path that rots. The regression injection is the proof.
-- **Don't drift into tuning the task gate.** If any loop turn touches decision-making (APPROVE/REJECT/AUTO_APPROVABLE), that's a boundary break, not a "nice autonomous feature." The loop calibrates parameters only.
-- **Do not harden yet.** Week 8's hardening (Day 36) builds on a *correct* loop. Fix safety/race issues now, then harden under load.
-- **Tomorrow (Day 36):** hardening — multi-agent runaway guards, memory growth, hybrid latency.
+- **Demonstrate the HOLD path, not just the happy PROMOTE.** A closed loop that only ever promotes is unproven — the guardrail is the feature.
+- **Prove the human gate untouched.** If the demo can't show APPROVE/REJECT rows unchanged, the loop has leaked past calibration into decisioning — a red line.
+- **Week 8 hardens + exits** — idempotency, redaction, concurrency, then E2E + exit review.
+- **Next (Day 36):** hardening — write-back idempotency, token redaction, multi-provider concurrency.
 
 ---
 
-*Prev: [Day 34 — Durable Queue (Redis/SQS) Behind `IEventBus` — Contract Unchanged, Optional](day-34.md) | Next: [Day 36 — Hardening: Multi-Agent Runaway Guards, Memory Growth, Hybrid Latency](day-36.md)*
+*Next: [Day 36 — Hardening: Write-back Idempotency, Token Redaction, Multi-provider Concurrency](day-36.md)*

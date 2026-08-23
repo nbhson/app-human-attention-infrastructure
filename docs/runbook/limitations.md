@@ -5,6 +5,12 @@
 > scheduled day, or deliberately out of scope until a later phase. If you hit a
 > wall described here, the wall is the design — don't fight it in the code.
 
+> **`review-reorient` (v0.6) — obsolete items.** §3 (the startup reconciler) and
+> the agent-file-tools half of §4 are **retired**: the dispatcher/runtime loops
+> went with code-gen, so there is no `EXECUTING`/`VERIFYING` stranding to repair
+> and no `read_file`/`write_file`/`list_directory` agent tools. Verification is
+> now container-isolated (`@harness/sandbox` → `DockerSandbox`), as §4 previewed.
+
 ## 1. Single node, single process, single database
 
 The entire harness runs as **one** API process against **one** Postgres. There is

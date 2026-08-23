@@ -1,0 +1,94 @@
+/**
+ * `OpenAICompatibleProvider` (review-reorient Phase 3) — the generic OpenAI-style
+ * {@link LLMProvider}, speaking `/chat/completions` over `fetch`.
+ *
+ * This is the "any provider" escape hatch the review slice needs: the human
+ * configures `key` + `baseUrl` + `model`, and the provider talks to OpenAI,
+ * Gemini (OpenAI-compat endpoint), opencode, or any self-hosted/proxied server.
+ * It slots in behind the existing {@link LLMProvider} seam, so nothing outside
+ * this package knows which vendor backed the call.
+ */
+
+import type { LLMProvider, LLMRequest, LLMResponse, LLMToolDefinition } from './llm-provider.js';
+import { mapOpenAIResponse } from './map-openai-response.js';
+import type { OpenAIChatCompletion } from './map-openai-response.js';
+
+export interface OpenAICompatibleConfig {
+  readonly apiKey: string;
+  /** The endpoint root, e.g. `https://api.openai.com/v1` — `/chat/completions` is appended. */
+  readonly baseUrl: string;
+  /** Fallback model id when a request doesn't supply its own. */
+  readonly model: string;
+  readonly temperature?: number;
+}
+
+interface OpenAIChatRequest {
+  readonly model: string;
+  messages: ReadonlyArray<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  readonly max_tokens: number;
+  readonly temperature: number;
+  tools?: ReadonlyArray<{
+    type: 'function';
+    function: { name: string; description: string; parameters: Record<string, unknown> };
+  }>;
+}
+
+type OpenAITool = NonNullable<OpenAIChatRequest['tools']>[number];
+
+function toOpenAITool(tool: LLMToolDefinition): OpenAITool {
+  return {
+    type: 'function',
+    function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
+  };
+}
+
+export class OpenAICompatibleProvider implements LLMProvider {
+  constructor(private readonly config: OpenAICompatibleConfig) {}
+
+  async complete(req: LLMRequest): Promise<LLMResponse> {
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+    if (req.systemPrompt !== undefined) {
+      messages.push({ role: 'system', content: req.systemPrompt });
+    }
+    for (const m of req.messages) {
+      messages.push({ role: m.role, content: m.content });
+    }
+
+    const body: OpenAIChatRequest = {
+      model: req.model,
+      messages,
+      max_tokens: req.maxTokens,
+      temperature: this.config.temperature ?? 0,
+    };
+    if (req.tools !== undefined && req.tools.length > 0) {
+      body.tools = req.tools.map(toOpenAITool);
+    }
+
+    const url = this.config.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.config.apiKey.length > 0 ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const detail = await safeText(response);
+      throw new Error(
+        `openai-compatible ${url} failed: ${response.status} ${response.statusText}${detail ? ` — ${detail}` : ''}`,
+      );
+    }
+
+    return mapOpenAIResponse((await response.json()) as OpenAIChatCompletion);
+  }
+}
+
+async function safeText(response: Response): Promise<string> {
+  try {
+    return (await response.text()).slice(0, 500);
+  } catch {
+    return '';
+  }
+}

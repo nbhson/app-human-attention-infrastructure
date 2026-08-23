@@ -1,7 +1,9 @@
 # HAI Harness — Tổng quan Flow Hoạt động
 
+> **`review-reorient` (v0.6):** đường code-gen đã nghỉ hưu — flow dưới đây phản ánh hướng **review PR/MR bên ngoài**: AI là *reviewer* (đọc, không ghi), không còn "AI tự sinh fix".
+
 > **Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa *"sự chú ý của con người"* trong phát triển phần mềm:
-> AI tạo ra công việc → Harness quan sát, xác minh, đánh giá, xếp ưu tiên và định tuyến tới đúng sự chú ý của con người.
+> một code change (PR/MR) đi vào → Harness quan sát, xác minh, đánh giá, dùng AI review, xếp ưu tiên và định tuyến tới đúng sự chú ý của con người.
 
 Nguồn: `docs/summary/HAI_overview.md`, `docs/core/1_HAI_Harness_Architecture_v0.2.md`, `docs/core/2_Task_Work_Orchestrator_v0.3.md`, `docs/core/6_Attention_Engine_v0.2.md`.
 
@@ -12,31 +14,30 @@ Nguồn: `docs/summary/HAI_overview.md`, `docs/core/1_HAI_Harness_Architecture_v
 ```mermaid
 flowchart TB
     H(["👤 Developer / Human Reviewer"]) <-->|"quyết định · review"| HAI["⚙️ HAI HARNESS<br/>(control plane cho Human Attention)"]
-    HAI <-->|"execution · proposal"| AI["🤖 AI Models / Agents"]
-    HAI <-->|"code changes"| GIT["Git / Repository / CI-CD"]
-    HAI <-->|"ticket & context"| IT["Issue Tracker"]
-    AI --> TOOLS["Tools / MCP"]
+    HAI <-->|"review (read-only)"| AI["🤖 AI Reviewer"]
+    HAI <-->|"fetch PR / MR"| GIT["Git Provider"]
+    HAI <-->|"fetch ticket & context"| IT["Issue Tracker"]
 ```
 
 Harness là **mặt phẳng điều khiển** nằm giữa: `Con người ↕ Harness ↕ AI + Môi trường phát triển`.
 
 ---
 
-## 2. Core Loop — "AI tạo, Harness kiểm soát"
+## 2. Core Loop — "Code change vào, Harness review & kiểm soát"
 
-Vấn đề cốt lõi: **AI sinh code change nhanh hơn con người có thể kiểm tra → Human Attention trở thành nút cổ chai.**
+Vấn đề cốt lõi: **code change (PR/MR) sinh ra nhanh hơn con người có thể kiểm tra → Human Attention trở thành nút cổ chai.**
 
 ```mermaid
 flowchart TB
-    AIOUT["AI Output<br/>(proposal / code change)"]
-    OBS["🔍 Observation<br/>(track change + trajectory)"]
+    AIOUT["Code Change<br/>(PR / MR — human- or AI-authored)"]
+    OBS["🔍 Observation<br/>(fetch diff + metadata)"]
     UND["📖 Understanding<br/>(Context Engine)"]
     VER["✅ Verification<br/>(compile → test → lint)"]
     RISK["⚠️ Risk / Impact Analysis<br/>(Attention Engine)"]
     P ("Prioritization<br/>(xếp thứ tự review)")
     DEC["👤 Human Decision<br/>(APPROVE / REJECT / REWORK)"]
     EVID["🗂️ Evidence / Memory<br/>(append-only, truy vết)"]
-    NEXT["🔁 Next AI Action / Learning"]
+    NEXT["🔁 Next Review"]
 
     AIOUT --> OBS --> UND --> VER --> RISK --> P --> DEC --> EVID --> NEXT --> AIOUT
 ```
@@ -106,7 +107,9 @@ flowchart TB
 
 ---
 
-## 4. Task State Machine — 12 trạng thái canonical (Spec 2)
+## 4. Task State Machine — 13 trạng thái canonical (Spec 2)
+
+> **`review-reorient` note.** State machine giữ nguyên, nhưng driver dispatch/workflow/retry đã nghỉ hưu; luồng live tạo Task rồi chuyển ngay `CANCELLED`.
 
 ```mermaid
 stateDiagram-v2
@@ -189,7 +192,7 @@ sequenceDiagram
 
     Auth->>Orc: nạp change (PR / diff) + ticket
     Orc->>Orc: tạo Task → task.created
-    Orc->>Orc: PENDING → QUEUED (task.state_changed)
+    Orc->>Orc: chuyển CANCELLED (task.state_changed — review-only)
     Orc->>Ctx: dựng context (context snapshot)
     Orc->>Ver: trigger verification → verification.completed
     Ver-->>Orc: PASSED / FAILED (evidence)
@@ -197,8 +200,7 @@ sequenceDiagram
     Att-->>Orc: attention.assessment_created + item_routed
     Orc->>Hum: AWAITING_REVIEW → review queue
     Hum-->>Orc: review.decision_submitted (APPROVE / REJECT)
-    Orc->>Evi: lưu evidence + decision log
-    Orc->>Orc: artifact.merged → task.completed
+    Orc->>Evi: lưu evidence + decision log + review report
 ```
 
 Mọi event persist **append-only** vào `event_log` (idempotent), join theo `correlation_id`.

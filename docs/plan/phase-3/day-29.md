@@ -1,11 +1,11 @@
-# Day 29 — Judge Calibration + Inter-Judge Agreement + Audit Trail
+# Day 29 — Hybrid Default Cutover; A/B vs Shadow Baseline
 
 | | |
 |---|---|
-| **Week** | 6 — Benchmark + judge |
-| **Spec refs** | Spec 11 §5.1 (LLM-as-judge calibration, inter-judge agreement) |
+| **Week** | 6 — Hybrid context default |
+| **Spec refs** | Architecture §7 (shadow-then-default invariant); Phase-3 README §8.4 ("each new default is won") |
 | **Estimated effort** | 7h |
-| **Prerequisites** | Day 28 (LLM-as-judge rubric-scored, audited) |
+| **Prerequisites** | Days 26–28 (hybrid + re-rank + RAG Fusion); Phase-2 A/B shadow harness (`eval:ab-report`) |
 
 ---
 
@@ -13,80 +13,56 @@
 
 By end of day you will have:
 
-1. **Judge calibration**: the judge's rubric scores are compared against human gold labels/annotations, producing agreement metrics (not trust-by-assertion).
-2. **Inter-judge agreement** (per-vendor/model + duplicate-run reproducibility): same run scored twice → same verdict; two judges on the same run → measurable agreement (Cohen's kappa / correlation).
-3. A **complete audit trail** tying every verdict to its model, rubric version, prompt hash, and agreement measurements — so "the judge says X" is evidence-backed.
-4. **Calibration thresholds**: a judge whose agreement falls below the bar is flagged non-credible; its scores are not admitted into calibration (Day 31).
+1. A **measured A/B** — hybrid (BM25+embeddings+RRF+re-rank) vs the phase-2 keyword/shadow baseline — over a shared corpus (recorded reviews), producing a head-to-head verdict.
+2. The **gated cutover**: hybrid becomes the default `rank_method` **only if it wins** the measured comparison; on HOLD it stays `keyword`.
+3. A recorded cutover decision with the A/B numbers and a guardrail check.
+4. The old shadow baseline retired only where the hybrid has cleanly displaced it.
 
-This answers the judge's own trust question before the closed loop (Week 7) is allowed to consume its output.
+This is the "defaults are won, not inherited" day — the measured comparison *is* the gate.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Agreement metrics
+### 2.1 Reuse the Phase-2 A/B harness
 
-```typescript
-// packages/judge/src/calibration.ts
-export interface JudgeAgreement {
-  judgeModel: string;
-  rubricVersion: string;
-  n: number;                    // paired runs scored
-  cohensKappa: number;          // categorical agreement (ordinal buckets) vs human
-  spearman: number;             // rank-order correlation vs human
-  selfAgreement: number;        // identical run scored twice, same judge → must be ~1.0
-  crossJudge: number;           // judge A vs judge B on same run
-  calibratedAt: Date;
-}
-```
+`AbHarness` replays recorded reviews through both variants and `compare` produces a tau-style rank-correlation verdict with a guardrail. Hybrid is `PipelineVariant('hybrid')`; baseline is `PipelineVariant('keyword')` (the incumbent default). No new machinery — the discipline already exists.
 
-- **Self-agreement** (deterministic reproducibility): the same judge, same run, twice → near-1.0. Low self-agreement means non-determinism/leakage, and disqualifies the judge regardless of human agreement.
-- **Cross-judge + vs-human** measure *validity*: does the judge agree with the thing that is actually correct (human gold), not just with a second LLM that learned the same bias.
+### 2.2 The verdict is binary and explicit
 
-### 2.2 Calibration set
+`WIN → rank_method default = hybrid`; `HOLD → default stays keyword`, hybrid remains selectable, investigation is logged. Partial wins (better on one metric) are documented but do **not** flip the default — the default flips on the agreed primary metric winning.
 
-Calibration uses a **held-out slice** of the corpus whose tasks have been human-annotated (beyond the mechanical gold tests). A judge is calibrated on this slice; agreement numbers are recorded; the same slice is re-used each calibration run so numbers are comparable.
+### 2.3 Cutover is a config change, not a code rewrite
 
-### 2.3 Credibility gate
+Flipping the default is one resolved value (`rank_method` default). Reversible in seconds; the A/B report + decision are the audit trail for why.
 
-A judge is "credible" when: `selfAgreement ≥ 0.95` **and** `cohensKappa ≥ MIN_KAPPA` (default 0.6) **and** `spearman ≥ MIN_SPEARMAN` (default 0.7). Below the bar → verdicts flagged `credible: false` and excluded from downstream calibration. The gate is a *number*, not a human hunch, so it can be CI-checked.
+### 2.4 Shadow→default cleanup is Day 30
 
-### 2.4 Audit trail extension
-
-`judge_agreement` records (append-only) + `judge_audit` rows for any calibration event. The audit trail now answers, per verdict: what model, what rubric version, what prompt hash, what agreement numbers backed the judge's credibility at scoring time.
-
-### 2.5 Multi-judge support (seam, not sprawl)
-
-The judge interface is model-agnostic (`LLMProvider`). "Two judges" == two `LLMProvider` configuration entries (e.g. vendor A model X, vendor B model Y). No bespoke per-vendor code — cross-judge is a config difference, not a new subsystem.
+If hybrid wins, today flips the default; Day 30 removes the shadow comparison scaffolding cleanly and re-checks the guardrail. Don't rip out shadowing while the ink is wet.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Calibration set + human annotations (120 min)
+### 3.1 A/B setup (90 min)
 
-- [ ] Select + annotate a held-out corpus slice (≥15 tasks); store `bench_annotations` (human rubric scores).
-- [ ] Freeze the calibration slice version so repeated runs compare like-for-like.
+- [ ] Define hybrid + keyword variants; assemble the shared replay corpus (recorded reviews).
 
-### 3.2 Agreement metrics (`calibration.ts`) (120 min)
+### 3.2 Run the comparison (90 min)
 
-- [ ] Compute `cohensKappa`, `spearman`, `selfAgreement`, `crossJudge` (§2.1).
-- [ ] Tests: known distribution → expected values; edge cases (constant scores, n<2).
+- [ ] `eval:ab-report` over the corpus; capture the verdict + guardrail.
 
-### 3.3 Calibration runner (90 min)
+### 3.3 Gated flip (60 min)
 
-- [ ] `runCalibration(judgeConfig)` — score the slice, compute agreement, persist `judge_agreement` + audit rows.
-- [ ] Deterministic self-agreement run (scored twice, assert near-1.0).
+- [ ] On WIN: set `rank_method` default → `hybrid` (config seam); on HOLD: no flip + log investigation.
 
-### 3.4 Credibility gate (90 min)
+### 3.4 Decision record (45 min)
 
-- [ ] `isCredible(agreement, thresholds)`; flag `credible: false` below bar (§2.3).
-- [ ] Tests: below-bar agreement → non-credible; `selfAgreement < 0.95` disqualifies even with high human agreement.
+- [ ] Persist the cutover decision + numbers (`docs/retros/` or a decision log).
 
-### 3.5 Audit + report (90 min)
+### 3.5 Tests/checks (45 min)
 
-- [ ] `scripts/calibrate-judge.ts` emits a Markdown report (agreement table, credibility, thresholds).
-- [ ] Wire `judge_agreement` into the audit trail (append-only, immutable).
+- [ ] Both variants runnable; default reflects the measured decision; guardrail honored.
 
 ---
 
@@ -94,36 +70,29 @@ The judge interface is model-agnostic (`LLMProvider`). "Two judges" == two `LLMP
 
 | File | Description |
 |------|-------------|
-| `packages/judge/src/calibration.ts` | Agreement metrics + credibility gate |
-| `packages/db/src/schema/judge.ts` (updated) | `bench_annotations`, `judge_agreement` |
-| `packages/judge/src/run-calibration.ts` | Calibration runner |
-| `scripts/calibrate-judge.ts` | CLI report |
-| `packages/judge/src/__tests__/calibration.test.ts` | Metric + gate tests |
+| `packages/evaluation/src/ab/…` (updated) | Hybrid vs keyword variants |
+| `packages/context-engine/src/retrieval/retriever-factory.ts` (updated) | Default flip (gated) |
+| `docs/retros/phase3-w6-cutover.md` | A/B numbers + decision |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/judge test` — all tests pass.
-- [ ] `selfAgreement` ≈ 1.0 on a deterministic re-scored run; below 0.95 disqualifies.
-- [ ] `cohensKappa` + `spearman` computed against human annotations on the calibration slice.
-- [ ] `isCredible` gates below the configured thresholds; below-bar verdicts are flagged `credible: false`.
-- [ ] Cross-judge agreement measured for ≥2 `LLMProvider` configs on the same runs.
-- [ ] Agreement + audit records are append-only; calibration slice is frozen.
-- [ ] `scripts/calibrate-judge.ts` produces a human-readable report.
-- [ ] `pnpm lint` clean; boundary intact.
+- [ ] A/B harness runs hybrid vs keyword over the corpus and emits a verdict + guardrail result.
+- [ ] Default flips to `hybrid` **only** on a measured WIN; HOLD leaves `keyword` default.
+- [ ] The cutover decision + numbers are recorded and reproducible.
+- [ ] No default flip without the measured comparison.
+- [ ] `pnpm test && pnpm lint` green.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Self-agreement first, validity second.** A judge that doesn't agree with *itself* on the same run can't possibly be valid; agreement with a human is meaningless noise if the judge is non-deterministic. Check reproducibility before asserting accuracy.
-- **Cross-judge ≠ validity.** Two LLM judges agreeing only proves they share a bias. Agreement *against human gold* is the validity signal; cross-judge is a diagnostic, not a substitute.
-- **A credibility gate is a number, not a vibe.** If you can't state `cohensKappa ≥ X`, you can't gate on it. Pick thresholds, put them in config, CI-check them.
-- **Freeze the calibration slice.** Re-annotating or re-slicing between runs silently changes what "agreement" means. Version it like the corpus.
-- **Below-bar judges must not flow downstream.** A non-credible judge's scores entering Week 7's calibration would poison the closed loop with a biased signal — the exact failure the harness exists to prevent. Flag and exclude.
-- **Tomorrow (Day 30):** Week 6 checkpoint — benchmark + judge run end-to-end on the corpus.
+- **The gate is the measurement.** If the harness can't produce a clean verdict (insufficient corpus, ambiguous correlation), the correct answer is HOLD + fix the measurement — not "flip and see".
+- **Primary metric pre-agreed.** Decide *before* running what counts as WIN (e.g. routing-precision uplift with guardrail); changing the metric after seeing numbers is p-hacking.
+- **Cutover is reversible.** Keep `keyword` selectable in production for a kill-switch rollout window.
+- **Day 30** checkpoint: hybrid default, shadow→default clean.
 
 ---
 
-*Prev: [Day 28 — LLM-as-Judge: Rubric-Scored Behind `LLMProvider`, Audited](day-28.md) | Next: [Day 30 — Week 6 Checkpoint: Benchmark + Judge Run End-to-End on Corpus](day-30.md)*
+*Next: [Day 30 — Week 6 Checkpoint: Hybrid Default; Shadow→Default Clean](day-30.md)*

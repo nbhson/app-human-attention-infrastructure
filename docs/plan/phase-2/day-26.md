@@ -4,8 +4,8 @@
 |---|---|
 | **Week** | 6 — Harden + exit review |
 | **Spec refs** | Spec 10 (observability/SLOs/degradation), Spec 7 §5.7 (timeouts), Spec 5 §7 (retention), Spec 4 §5.2.3 (cache freshness), Spec 1 §24.4 (production readiness) |
-| **Estimated effort** | 8 hours |
-| **Prerequisites** | Days 21–25 (object store, sandbox ×2, Spec 8, Week-5 checkpoint) |
+| **Estimated effort** | 8h |
+| **Prerequisites** | Days 21–25 (object store, verification sandbox, review-report store, Spec 8, Week-5 checkpoint) |
 
 ---
 
@@ -13,7 +13,7 @@
 
 By end of day you will have:
 
-1. **Failure injection** for the three new failure surfaces — the vector index (Day 16/17), the object store (Day 21), and the sandbox (Days 22–23) — with each failure having a *defined degraded behavior*, not a crash.
+1. **Failure injection** for the three new failure surfaces — the vector index (Day 16/17), the object store (Day 21), and the verification sandbox (Day 22) — with each failure having a *defined degraded behavior*, not a crash.
 2. **Concurrency hardening** — parallel tasks hitting the same object-store hash, cache key, and sandbox concurrently produce correct results (idempotent `put`, no cache stampede, no leaked containers).
 3. **Graceful degradation contracts** written as tests: when each subsystem fails, the system still produces a *correct or clearly-degraded* result (semantic → keyword fallback; object store → DB path; sandbox → in-process), and every degradation is observable (Spec 10).
 4. A **production-readiness gate list** (Spec 1 §24.4) that Phase 3 turns into rollout criteria — but the *tests* for each gate exist and run today.
@@ -30,7 +30,7 @@ Day 26 is the difference between "Phase 2 built subsystems" and "Phase 2 built s
 |-----------|------------------|-------------------|------------------------------|
 | Vector index | `pgvector` error / no embedding | Semantic rank → `keyword` (no semantic record) | `context_semantic_fallback_total` counter |
 | Object store | S3/MinIO down / integrity fail | Route to DB path (`db` backend) for small; block > threshold with explicit error | `object_store_fallback_total` + `object_store_error_total` |
-| Sandbox | Daemon down / image missing | Verify → in-process (Day 22 fallback); code mode → `SandboxInfraError` surfaced | `sandbox_fallback_total` (already Day 22) |
+| Sandbox (verification) | Daemon down / image missing | Verify → in-process (Day 22 fallback) | `sandbox_fallback_total` (already Day 22) |
 
 Each is *loud* (counter + log + alert when rate > threshold) and *bounded* (a fallback that itself fails must fail closed, not loop).
 

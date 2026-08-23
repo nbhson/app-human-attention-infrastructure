@@ -1,11 +1,11 @@
-# Day 18 — RAG Fusion: Multi-query + Reciprocal Ranking behind Retriever
+# Day 18 — Memory Retrieval: Relevance Scoring, Served to Context
 
 | | |
 |---|---|
-| **Week** | 4 — Hybrid context default |
-| **Spec refs** | Spec 4 §5.2.5 (RAG Fusion: multi-query + RRF; optional, behind the seam) |
-| **Estimated effort** | 8h |
-| **Prerequisites** | Day 17 (re-rank over fused top-N) |
+| **Week** | 4 — Review memory |
+| **Spec refs** | Spec 9 §4.5 (retrieval relevance); Context §5.1–5.2 (served to Context); Phase-3 README §7 (relevance-scored retrieval) |
+| **Estimated effort** | 7h |
+| **Prerequisites** | Day 17 (ingestion + versioned entries live) |
 
 ---
 
@@ -13,108 +13,57 @@
 
 By end of day you will have:
 
-1. **RAG Fusion** implemented: expand the task into *k* query variants (paraphrase / symbol-focussed / history-focussed), run each against the index, fuse with RRF (Spec 4 §5.2.5).
-2. The multi-query expansion **behind the `Retriever` seam** — an optional upgrade to the semantic retriever, **not** a new caller-facing interface and **not** the default.
-3. A **query cost guard** so multi-query expansion cannot silently multiply embedding calls unboundedly.
-4. A comparison note proving RAG Fusion raises recall for indirectly-related files (the reason Spec 4 calls it out).
+1. `MemoryRetriever` scoring entries against a query/context — lexical + (shadow) semantic, plus kind/confidence weighting.
+2. A **relevance score** per candidate, honed by `confidence`, recency, and retrieval history (`retrievedCount`/`lastRetrievedAt`).
+3. Serving to Context: a DI-registered resolver/callback exposes "top-K memory" to context assembly for the *next* review — without `@harness/memory` importing `@harness/context-engine`.
+4. Retrieval records access (`retrievedCount++`, `lastRetrievedAt`) and resolves the head of each `supersedes` chain.
 
-This is the *optional* recall-enhancing branch of the retrieval path — the last of the three W4 retrieval capabilities.
+This is the *read* half of review memory; the past informs the present review's attention/context.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 RAG Fusion retriever wraps the semantic retriever
+### 2.1 Retrieval = candidate recall + relevance rank
 
-```typescript
-// packages/context-engine/src/retrieval/rag-fusion-retriever.ts
-export class RagFusionRetriever implements Retriever {
-  constructor(
-    private readonly queryExpander: QueryExpander,
-    private readonly semantic: Retriever,        // single-query semantic retriever (Day 16)
-    private readonly fusion: Fusion,             // same RRF as Day 16 (k=60)
-  ) {}
+- Recall: lexical match (FTS/trigram) over `content` plus optional semantic match over embeddings (reuse Phase-2 `pgvector`/`Embedder`, shadow).
+- Rank: `relevance = α·match + β·confidence + γ·recency`, with retrieval-history nudges so stale-but-popular vs fresh-but-cold entries rank sensibly.
 
-  async retrieve(query: string, opts?: RetrieveOptions): Promise<RetrievedDoc[]> {
-    const variants = await this.queryExpander.expand(query, opts?.maxQueries ?? 3);
-    const rankings = await Promise.all(variants.map(v => this.semantic.retrieve(v, opts)));
-    return this.fusion.fuse(rankings);           // reciprocal rank over variant result sets
-  }
-}
-```
+### 2.2 Follow the version chain to the head
 
-It composes the *semantic* retriever (per Spec 4 §5.2.5: "upgrade the semantic retriever"), then fuses the variant results with the same RRF from §5.1. No new fusion algorithm.
+Retrieval returns the **head** entry of each `supersedes` chain (resolve the newest non-archived version); older versions stay queryable by id but don't surface as separate results.
 
-### 2.2 Query expansion (k=3, bounded)
+### 2.3 Served via resolver, not import
 
-```typescript
-export interface QueryExpander {
-  expand(query: string, variants: number): Promise<string[]>;
-}
+`@harness/memory` exposes `MemoryProvider.retrieve(context)`; `context-engine` registers a resolver in DI that pulls top-K memory and injects it into the reviewer's context snapshot (a `memory` section). The dependency direction stays engine→seam, never memory→context.
 
-export class RuleQueryExpander implements QueryExpander {
-  // 1. paraphrase variant   — LLM paraphrase (cached, prompt-hashed) or lexical synonym swap
-  // 2. symbol variant       — extract symbols/identifiers from the query, focus on them
-  // 3. history variant      — "past decisions / prior context referencing <query>"
-}
-```
+### 2.4 Access counters update asynchronously
 
-- Default `k=3`. `maxQueries` is configurable; the cost guard (§2.3) caps it.
-- The paraphrase variant may use `LLMProvider` (MockLLM in tests) — **cached + `prompt_hash` recorded**, same discipline as Day 02 distillation.
-- The symbol and history variants are rule-based (no LLM) — cheap, deterministic.
-
-### 2.3 Query-diversity cost guard (the trap)
-
-Each variant is an extra embedding + index scan. RAG Fusion's risk is cost, not correctness. Enforce:
-
-```typescript
-const MAX_RAG_FUSION_QUERIES = 3;      // hard cap
-const RAG_FUSION_BUDGET_RATIO = 0.25;  // variants ≤ 25% of the max_tokens budget worth of retrieval
-```
-
-- `maxQueries` can never exceed `MAX_RAG_FUSION_QUERIES`.
-- If the query is already long/expensive (token-estimated), reduce or skip expansion (fall back to single-query hybrid). Log `rag_fusion.degraded` when this happens.
-
-### 2.4 Optionality + selection
-
-- `rank_method` gains a value `rag_fusion` in the resolver (Day 16's factory): `keyword` (default) → `hybrid` → `rag_fusion`.
-- RAG Fusion is **opt-in per project/policy** (`ContextPolicy.retrieval_variant: 'hybrid' | 'rag_fusion'`), never forced.
-- The invariant holds: hybrid is the default; RAG Fusion is a *stronger recall* option behind the seam.
-
-### 2.5 Recall evidence
-
-Because RAG Fusion's value is recall, record `expandedQueryVariants` and `sourcesUniqueAfterFusion vs singleQuery` counts in snapshot metadata so Week 6/39 can measure whether it actually surfaces indirectly-related files.
+`retrievedCount++` runs after the result is served (fire-and-forget or outbox), so the hot retrieval path isn't blocked by a write.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 `QueryExpander` (90 min)
+### 3.1 Scoring (90 min)
 
-- [ ] `RuleQueryExpander` (§2.2) with paraphrase (LLM, cached)/symbol (rule)/history (rule) variants.
-- [ ] `maxQueries` + dedup of near-identical variants.
+- [ ] `packages/memory/src/memory-retriever.ts` — candidate recall + `relevance` rank (lexical + confidence + recency).
 
-### 3.2 `RagFusionRetriever` (120 min)
+### 3.2 Version-chain resolution (45 min)
 
-- [ ] Compose semantic + expander + RRF (§2.1); parallel retrieval over variants.
-- [ ] Wire `rank_method='rag_fusion'` in the resolver factory.
+- [ ] Resolve head-of-chain; suppress superseded versions from result sets.
 
-### 3.3 Cost guard (60 min)
+### 3.3 Context resolver (60 min)
 
-- [ ] Enforce `MAX_RAG_FUSION_QUERIES` + budget ratio (§2.3); emit `rag_fusion.degraded` on reduction/skip.
-- [ ] Test: a 4-variant request is clamped to 3; an over-budget query falls back to single-query hybrid.
+- [ ] DI resolver exposing top-K memory; context snapshot gains a `memory` section in `context-engine`.
 
-### 3.4 Recall metadata (45 min)
+### 3.4 Access tracking (30 min)
 
-- [ ] Record `expandedQueryVariants` + source-count deltas in snapshot metadata.
+- [ ] Async `retrievedCount`/`lastRetrievedAt` update on serve.
 
-### 3.5 Tests (150 min)
+### 3.5 Tests (75 min)
 
-- [ ] A query with an indirect synonym surfaces a file the single semantic query missed (recall demo).
-- [ ] Variant results fuse via RRF (deterministic order).
-- [ ] `rank_method='rag_fusion'` opt-in selects RAG Fusion; default remains `hybrid` (after Day 19) / `keyword` (until then).
-- [ ] Cost guard: clamp + degraded fallback.
-- [ ] Query-variant cache reuse (`prompt_hash`) avoids duplicate LLM paraphrase calls.
+- [ ] Relevance ordering (popular + fresh outranks cold); head-of-chain only; access counters bump; context snapshot includes memory without engine import.
 
 ---
 
@@ -122,36 +71,30 @@ Because RAG Fusion's value is recall, record `expandedQueryVariants` and `source
 
 | File | Description |
 |------|-------------|
-| `packages/context-engine/src/retrieval/rag-fusion-retriever.ts` | `RagFusionRetriever` |
-| `packages/context-engine/src/retrieval/query-expander.ts` | `RuleQueryExpander` |
-| `packages/context-engine/src/retrieval/cost-guard.ts` | Multi-query cost guard |
-| `packages/context-engine/src/__tests__/rag-fusion.test.ts` | Recall + cost/pinning tests |
-| `packages/context-engine/src/retrieval/retriever-factory.ts` (updated) | `rag_fusion` rank_method |
+| `packages/memory/src/memory-retriever.ts` | Recall + relevance scoring |
+| `packages/memory/src/chain-resolve.ts` | Head-of-chain resolution |
+| `packages/context-engine/src/memory-resolver.ts` | Top-K memory → context snapshot |
+| `packages/memory/src/__tests__/retrieval.test.ts` | Retrieval tests |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/context-engine test` — all tests pass.
-- [ ] RAG Fusion expands to ≤ 3 queries, retrieves each, fuses via RRF (k=60).
-- [ ] An indirectly-related file (synonym query) is recalled with RAG Fusion and missed by single-query (fixture-proven).
-- [ ] `rank_method='rag_fusion'` is opt-in; default ranker unchanged.
-- [ ] Query variant count is hard-capped at 3; over-budget requests degrade to single-query and emit `rag_fusion.degraded`.
-- [ ] Paraphrase variants are cached by `prompt_hash` (no duplicate LLM calls).
-- [ ] Expansion/variant metadata recorded for later recall evaluation.
-- [ ] `pnpm lint` clean; still on the `Retriever` seam (no new interface leaked to callers).
+- [ ] `MemoryRetriever` returns relevance-ordered head-of-chain entries.
+- [ ] Confidence + recency demonstrably affect ranking.
+- [ ] Context snapshot for a review includes a `memory` section (top-K).
+- [ ] `retrievedCount`/`lastRetrievedAt` updated after serve (async, no hot-path block).
+- [ ] No `@harness/context-engine` import in `@harness/memory` (boundary intact).
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **RAG Fusion is optional — keep it that way.** Spec 4 §5.2.5: "optional and behind the seam." Do not make it default, and do not let the resolver default to it for any project without an explicit policy flag.
-- **The cost guard is the deliverable's spine.** k variants = k embedding calls + k scans. Without the cap + budget ratio, RAG Fusion makes context resolution 3× more expensive for a marginal recall gain — the opposite of the phase's latency goal.
-- **Paraphrase determinism.** LLM paraphrase is stochastic; cache by `prompt_hash` + record the hash so a variant is reproducible (Day 28 judge audit + Day 39 regression rely on this).
-- **Variant dedup.** Naive expansion can produce near-identical variants that waste budget and double-fuse the same docs. Dedup variants before retrieval.
-- **Recall ≠ always better.** Higher recall also raises noise; the budget trim still runs after. Do not bypass compression because "RAG Fusion found it."
-- **Tomorrow (Day 19):** integrate hybrid default — `rank_method` cutover + A/B vs the shadow baseline.
+- **Serve, then count.** Updating `retrievedCount` on the hot path adds a write per read; do it async so retrieval latency stays flat.
+- **Head-of-chain, not all-of-chain.** Surfacing four versions of one idea is noise; the head is the memory, history is the audit.
+- **Shadow, not default.** If semantic match is used, keep it shadow first — retrieval relevance must be *measured* (it feeds attention weights later), not assumed.
+- **Day 19:** lifecycle — consolidation/decay/archive.
 
 ---
 
-*Prev: [Day 17 — Re-rank: Dependency/Recency/Usage Heuristics over Fused Top-N](day-17.md) | Next: [Day 19 — Integrate Hybrid Default: rank_method Cutover + A/B vs Shadow Baseline](day-19.md)*
+*Next: [Day 19 — Memory Lifecycle: Consolidation/Decay/Archive](day-19.md)*

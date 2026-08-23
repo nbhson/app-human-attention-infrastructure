@@ -1,11 +1,11 @@
-# Day 08 — Trajectory Fork: Head-to-head Model/Prompt/Context Comparison
+# Day 08 — `writeback_log` Audit + Idempotency (No Duplicate Comments)
 
 | | |
 |---|---|
-| **Week** | 2 — Memory lifecycle + trajectory |
-| **Spec refs** | Spec 3 §6.1 (Trajectory Operations — Fork), §6 (trajectory structure, deterministic-by-default) |
-| **Estimated effort** | 8h |
-| **Prerequisites** | Day 07 (archive/expire, hot/cold tier) |
+| **Week** | 2 — Write-back |
+| **Spec refs** | Architecture §7 (append-only event_log recomputed projections); Phase-3 README §3, §7 (writeback_log exit criterion) |
+| **Estimated effort** | 6h |
+| **Prerequisites** | Days 06–07 (`WriteBackService` + 4 adapters) |
 
 ---
 
@@ -13,135 +13,77 @@
 
 By end of day you will have:
 
-1. A **Fork operation** on `AgentRunTrajectory`: branch an existing run at step *k*, re-execute with a different model / prompt / context, and compare outcomes (Spec 3 §6.1).
-2. The `forked_from: { runId, stepIndex }` first-class field on the trajectory (not a log note), so fork provenance is queryable.
-3. A **comparison report** (model/prompt/context × outcome) that feeds head-to-head agent tuning — the runtime half of the A/B engine Phase 2 built.
-4. **Parent-immutability**: forking never mutates the parent run (Spec 3 §6.1 "forking never mutates the parent run").
+1. A `writeback_log` table recording **every external write attempt** — provider, intent, dedup key, outcome (`SUCCEEDED`/`FAILED`), external ref, and timestamp.
+2. Idempotency: a deterministic dedup key per intent so a retried `write()` never double-posts a comment to the same external target.
+3. The service writes the log *before* the external call (intent) and updates the outcome *after* (result) — so a crash leaves an auditable `FAILED`/`IN_PROGRESS` row, never a silent gap.
+4. Tests proving: same intent twice → one external call, one successful row + one skipped-for-duplicate.
 
-This upgrades the trajectory from a *recording* to a *replayable input* — the first of the four trajectory operations.
+The audit + idempotency layer makes write-back safe to retry — the prerequisite for the Day 09 toggle.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Reuse the append-only step stream
-
-Fork replays the parent's `steps[0..k]` deterministically (Spec 3 §6.1: store `tool_input` + `tool_output` + `model_used`/`prompt_hash` so replay needs no external calls). Then it *diverges*: from step `k+1` the child runs with a different config and records its own steps.
+### 2.1 Schema (`@harness/db`)
 
 ```typescript
-interface AgentRunTrajectory {
-  runId: string;
-  taskId: string;
-  agentType: string;
-  modelUsed: string;
-  promptHash: string;
-  forkedFrom?: { runId: string; stepIndex: number };  // FIRST-CLASS (Spec 3 §6.1)
-  steps: Step[];          // Step: { index, type, toolInput, toolOutput, modelUsed, promptHash }
-  finalOutput: string;
-  artifactsChanged: string[];
-}
+export const writebackLog = pgTable('writeback_log', {
+  id:           text('id').primaryKey(),          // uuidv7
+  provider:     text('provider').notNull(),
+  external_id:  text('external_id').notNull(),
+  action:       text('action').notNull(),         // COMMENT | STATUS | LABEL | TRANSITION
+  dedup_key:    text('dedup_key').notNull(),
+  outcome:      text('outcome').notNull(),        // SUCCEEDED | FAILED | DUPLICATE
+  external_ref: text('external_ref'),             // host id/url of the write (nullable on FAILED)
+  error:        text('error'),                    // redacted error, never token bytes
+  created_at:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dedupIdx: index('writeback_dedup_idx').on(t.dedup_key),
+  providerIdx: index('writeback_provider_idx').on(t.provider, t.external_id),
+}));
 ```
 
-### 2.2 Fork API
+`dedup_key = sha256(provider | externalId | action | normalized body/label/toState)`. Normalization (`trim`, collapse whitespace) makes a slightly-reformatted retry dedup as the same intent.
 
-```typescript
-// packages/agent-runtime/src/trajectory/fork.ts
-export interface ForkRequest {
-  parentRunId: string;
-  forkStepIndex: number;        // 0..parent.steps.length (divergence point)
-  overrides: {
-    model?: string;
-    prompt?: string;            // or prompt template + variables
-    context?: string;           // alternative ContextSnapshot content
-    temperature?: number;
-  };
-  taskId: string;
-}
+### 2.2 Claim-then-write, not check-then-write
 
-export interface ForkResult {
-  childRunId: string;
-  forkedFrom: { runId: string; stepIndex: number };
-  // comparison computed and stored:
-  outcomesDiffer: boolean;
-  divergence: ForkDivergence;   // first differing step index + tool call + output diff
-}
+Idempotency is enforced by a **unique partial index** on `dedup_key` where `outcome = 'SUCCEEDED'` — a concurrent duplicate that races the insert fails the uniqueness constraint and is marked `DUPLICATE`. No read-then-assert window.
 
-export class TrajectoryForkService {
-  constructor(private readonly runtime: IAgentRuntime, private readonly store: TrajectoryStore) {}
+### 2.3 Audit writes are append-only and redacted
 
-  async fork(req: ForkRequest): Promise<ForkResult> {
-    // 1. Load parent trajectory; validate forkStepIndex ≤ parent.steps.length
-    // 2. Create child run with forkedFrom field persisted immediately (crash leaves a stump, not a ghost)
-    // 3. Replay steps[0..forkStepIndex] (append-only, idempotent — reuse parent step records)
-    // 4. Execute remaining steps under overrides via IAgentRuntime (same tools, same allowedTools)
-    // 5. Persist child trajectory with the shared prefix + divergent suffix
-    // 6. Compute divergence + comparison report; publish trajectory.forked event
-  }
-}
-```
+`writeback_log` is an append-only record; error strings go through `redactProviderConfig()` so no token/secret leaks into the log. The log is the Phase-3 answer to "OFF = nothing external, and we can prove it."
 
-### 2.3 Parent immutability enforcement
+### 2.4 Service change
 
-- Child replay copies parent step records into the child's own storage; it does **not** write back to the parent stream.
-- Add a DB constraint/column `is_fork_root boolean` (or `forkedFrom IS NULL` = root) and a read-only path for root runs once forked. Test: fork then assert parent `steps[]` length/bytes unchanged.
-
-### 2.4 Comparison report (what "compare outcomes" means)
-
-The comparison is mechanical — not an LLM opinion:
-
-| Axis | Metric |
-|------|--------|
-| Outcome | final status (`SUCCESS`/`FAILED`/`PARTIAL`) equal? |
-| Divergence point | first step index with a differing tool call/output |
-| Cost | tokens used (child vs parent) |
-| Artifacts | `artifactsChanged` symmetric difference |
-
-```typescript
-interface ForkDivergence {
-  firstDivergentStep: number | null;   // null = identical after shared prefix
-  differingToolCalls: { stepIndex: number; parent: string; child: string }[];
-  tokenDelta: number;                  // child.totalTokens - parent.totalTokens
-}
-```
-
-### 2.5 Replay determinism
-
-Because every step stores `tool_input` + `tool_output` + `prompt_hash` + `model_used` (Phase 1 committed to this), replay of `steps[0..k]` is a copy, not a re-execution. Forks only *execute* the divergent suffix. No external calls occur for the shared prefix.
+`write()` becomes: normalize → compute key → insert `IN_PROGRESS` (or fail duplicate → `DUPLICATE`) → call adapter → update `SUCCEEDED`/`FAILED`. If the toggle is OFF, `write()` short-circuits before the log (nothing external = nothing to audit); a `SKIPPED` marker is optional.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Trajectory schema for forks (60 min)
+### 3.1 Schema + migration (60 min)
 
-- [ ] Add `forked_from_run_id`, `forked_from_step_index` to the trajectory persistence (check the actual Phase 1 table/serialization and extend — likely `agent_runs` + `trajectory_steps`).
-- [ ] Ensure `trajectory_steps` has a per-run monotonic `step_index` (idempotent append) — Spec 3 §6.1.
-- [ ] Migration recorded in `@harness/db`.
+- [ ] `packages/db/src/schema/writeback-log.ts` (§2.1) + migration.
 
-### 3.2 `TrajectoryStore` read (60 min)
+### 3.2 Dedup key + record store (75 min)
 
-- [ ] `getRun(runId)` returns full trajectory (steps ordered by `step_index`).
-- [ ] Unit tests: step ordering, `forkedFrom` round-trip.
+- [ ] `packages/writeback/src/dedup.ts` — `dedupKey(intent)` with normalization.
+- [ ] `writebackLogStore` — insert/update-outcome/query-by-key.
 
-### 3.3 `TrajectoryForkService` (150 min)
+### 3.3 Service rewrite for claim-then-write (90 min)
 
-- [ ] Implement `fork()` per §2.2 (reuse MockLLM for divergent suffix in tests).
-- [ ] Persist `forkedFrom` before executing divergence (crash-safety).
-- [ ] Compute `ForkDivergence` + `ForkResult`.
+- [ ] `write()` → log in-progress → adapter → update outcome; unique-index duplicate → `DUPLICATE`.
 
-### 3.4 Parent-immutability test (45 min)
+### 3.4 Toggle short-circuit audit (30 min)
 
-- [ ] Fork; snapshot parent steps; assert parent bytes unchanged.
-- [ ] Assert child has `forkedFrom = { runId, stepIndex }`, parent has `forkedFrom = null`.
+- [ ] OFF → no log, no external call; document the "prove OFF" query.
 
-### 3.5 Comparison report + event (60 min)
+### 3.5 Tests (90 min)
 
-- [ ] Publish `trajectory.forked { childRunId, parentRunId, forkStepIndex, outcomesDiffer, firstDivergentStep }`.
-- [ ] `getComparison(parentRunId, childRunId)` returns the §2.4 report.
-
-### 3.6 Integration test (90 min)
-
-- [ ] Seed a parent 5-step run; fork at step 2 with a different model; assert child steps 0–2 equal parent steps 0–2, steps 3+ differ (MockLLM returns a marker for the new model); assert token delta computed.
+- [ ] Same intent twice → one external call, one SUCCEEDED + one DUPLICATE.
+- [ ] Concurrent duplicate (Promise.all) → uniqueness catches the loser.
+- [ ] Crash between insert and adapter → row left auditable (simulate adapter throw).
+- [ ] Redaction: `error` never contains token bytes.
 
 ---
 
@@ -149,36 +91,32 @@ Because every step stores `tool_input` + `tool_output` + `prompt_hash` + `model_
 
 | File | Description |
 |------|-------------|
-| `packages/agent-runtime/src/trajectory/fork.ts` | `TrajectoryForkService`, `ForkRequest`, `ForkResult`, `ForkDivergence` |
-| `packages/agent-runtime/src/trajectory/store.ts` (updated) | `getRun`, fork fields |
-| `packages/db/src/schema/*.ts` + migration | `forked_from_run_id`, `forked_from_step_index` |
-| `packages/agent-runtime/src/__tests__/fork.test.ts` | Fork + immutability + comparison tests |
-| `docs/architecture/wiring-map.md` (updated) | `TrajectoryForkService` registration |
+| `packages/db/src/schema/writeback-log.ts` | `writeback_log` schema |
+| `packages/db/migrations/0xxx_writeback_log.sql` | Migration |
+| `packages/writeback/src/dedup.ts` | `dedupKey` + normalization |
+| `packages/writeback/src/writeback-log-store.ts` | Append/update log store |
+| `packages/writeback/src/writeback-service.ts` (updated) | Claim-then-write idempotent flow |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/agent-runtime test` — all tests pass.
-- [ ] `fork()` produces a child with `forkedFrom = { runId, stepIndex }` persisted.
-- [ ] Shared prefix (`steps[0..k]`) is byte-identical to the parent; only the suffix is executed.
-- [ ] Parent run is **never** mutated by a fork (immutability test).
-- [ ] Forking with `forkStepIndex > parent.steps.length` throws (validation).
-- [ ] Comparison report computes `outcomesDiffer` and `firstDivergentStep` correctly on a seeded divergence.
-- [ ] `trajectory.forked` event carries provenance fields.
-- [ ] `pnpm lint` clean; `grep -r "from '@harness" packages/agent-runtime/src` shows only allowed packages.
+- [ ] `writeback_log` table exists with a unique partial index on `dedup_key` (SUCCEEDED).
+- [ ] Retried intent yields exactly one external call; the second row is `DUPLICATE`.
+- [ ] Concurrent identical intents produce one SUCCEEDED, one DUPLICATE.
+- [ ] Adapter throw → row records `FAILED` with a redacted `error`.
+- [ ] OFF (toggle) → zero `writeback_log` rows and zero external calls.
+- [ ] `pnpm --filter @harness/writeback test` green.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Fork replays, it does not re-run.** If the shared prefix is re-executed (instead of copied from stored `tool_output`), the child is not a *fork* — it's a different run that happens to share inputs, and non-deterministic tools will silently diverge before step `k`. Spec 3 §6.1 made steps deterministic-by-default precisely for this.
-- **Persist `forkedFrom` before execution.** A crash mid-fork must leave a child with a `forkedFrom` root, or the audit trail shows a run with no origin. Write the stump first.
-- **Whole-chain fork grouping.** Retrieval/"which runs fork from X" queries depend on `forked_from_run_id` being indexed. Add the index now or the comparison later does a table scan.
-- **MockLLM for divergence.** The divergent suffix in tests uses MockLLM so the comparison is deterministic. Do not spend the day on real model calls — the point is the fork/compare mechanics, not tuning.
-- **Comparison is mechanical, not a judge.** "Outcome differs" is data; "which is better" is the judge/benchmark's job (Week 6). Do not put scoring logic here.
-- **Tomorrow (Day 09):** Trajectory Resume — crash recovery + mid-run replay (Spec 3 §6.1).
+- **The unique partial index does the real work.** A plain pre-check is race-prone; only the DB constraint can close the concurrent window. Bundle the insert into the same transaction region you can retry against.
+- **Normalize the body in the key, not the stored body.** If Formatting changes the comment, the external world sees the original; only the *dedup* fingerprint is normalized.
+- **Error redaction is tested, not assumed.** The redaction test greps the stored error for token bytes — a caught `GitProviderError` that embeds an `Authorization` header would otherwise leak.
+- **Day 09** promotes the env toggle to a per-review decision-time flag: OFF = nothing external.
 
 ---
 
-*Prev: [Day 7 — Archive (90d) + Expiration; Hot/Cold Tier](day-07.md) | Next: [Day 9 — Trajectory Resume: Crash Recovery + Mid-run Replay](day-09.md)*
+*Next: [Day 09 — Write-back Toggle at Review-Decision Time; OFF = Nothing External](day-09.md)*

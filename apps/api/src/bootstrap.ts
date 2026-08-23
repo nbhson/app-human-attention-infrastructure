@@ -12,26 +12,14 @@
 
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 
-import { and, desc, eq } from 'drizzle-orm';
-
 import {
-  AgentRunner,
   AnthropicProvider,
-  CODE_MODE_POLICY_V1,
-  DbCodeModeSessionWriter,
   LoggingLLMProvider,
-  makeListDirectoryTool,
-  makeReadFileTool,
-  makeWriteFileTool,
   MockLLM,
-  PerToolRateLimiter,
-  RuntimePollLoop,
-  SandboxedToolExecutor,
-  ToolAllowlist,
-  ToolRegistry,
-  TrajectoryRecorder,
+  OpenAICompatibleProvider,
+  ReviewAgent,
 } from '@harness/agent-runtime';
-import type { LLMProvider, MockScript, RateLimiter } from '@harness/agent-runtime';
+import type { LLMProvider, MockScript } from '@harness/agent-runtime';
 import {
   ArtifactCaptureSubscriber,
   ArtifactTracker,
@@ -62,7 +50,6 @@ import {
 import {
   CacheInvalidationListener,
   ContextEngine,
-  extractFileReferences,
   FileCollector,
   KeywordDependencyRanker,
   PostgresContextCache,
@@ -73,10 +60,9 @@ import {
 import type { ContextCache } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
 import type { Logger } from '@harness/di';
-import { EventLogWriter, agentRuns, changes, createDb } from '@harness/db';
+import { EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import { brand, ChangeStatus, TaskStatus } from '@harness/domain';
-import type { ChangeID, TaskID } from '@harness/domain';
+import { AiProviderType } from '@harness/domain';
 import {
   EmbeddingIndexer,
   OpenAICompatibleEmbedder,
@@ -87,17 +73,7 @@ import type { Embedder } from '@harness/embeddings';
 import { MetricsComputer } from '@harness/evaluation';
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import {
-  Dispatcher,
-  DispatchLoop,
-  FailureClass,
-  LINEAR_WORKFLOW_V1,
-  StepKind,
-  TaskService,
-  TaskStateMachine,
-  WorkflowRunner,
-} from '@harness/orchestrator';
-import type { StepHandler } from '@harness/orchestrator';
+import { TaskService, TaskStateMachine } from '@harness/orchestrator';
 import type { ContentStore } from '@harness/object-store';
 import {
   AwsS3ClientPort,
@@ -115,10 +91,12 @@ import {
   VerificationEngine,
 } from '@harness/verification-engine';
 
-import { ShellGitAdapter } from './services/git-adapter.js';
-import type { GitAdapter } from './services/git-adapter.js';
-import { MergeService } from './services/merge.js';
-import { ReworkService } from './services/rework.js';
+import { GitHubProvider } from '@harness/git-provider';
+import type { GitProvider } from '@harness/git-provider';
+import { JiraProvider } from '@harness/ticket-provider';
+import type { TicketProvider } from '@harness/ticket-provider';
+
+import { ReviewIngestService } from './services/review-ingest.js';
 
 /** Default session lifetime (7 days), overridable via `SESSION_TTL_MS` (day-01 §2.2). */
 const SECRET_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -167,120 +145,42 @@ function loadMockScript(envVar: string | undefined): MockScript {
 }
 
 /**
- * Resolve the task's latest `PENDING` change through `agent_runs` (day-15 §2.5).
- * A change is produced by an agent run, so the join is `changes → agent_runs →
- * task`. Returns `null` when the task has not produced a change yet.
+ * Resolve the AI vendor + model from env (review-reorient Phase 3), used to
+ * stamp provenance onto a review report. Every non-Anthropic vendor resolves
+ * through `AI_BASE_URL`'s OpenAI-compatible endpoint; `custom` is the catch-all.
  */
-async function findLatestPendingChangeId(db: DrizzleDB, taskId: TaskID): Promise<ChangeID | null> {
-  const rows = await db
-    .select({ id: changes.id })
-    .from(changes)
-    .innerJoin(agentRuns, eq(agentRuns.id, changes.agent_run_id))
-    .where(and(eq(agentRuns.task_id, taskId), eq(changes.status, ChangeStatus.Pending)))
-    .orderBy(desc(changes.created_at))
-    .limit(1);
-  const id = rows[0]?.id;
-  return id ? brand(id, 'ChangeID') : null;
+function resolveAiIdentity(): { providerType: AiProviderType; model: string } {
+  if (process.env.ANTHROPIC_API_KEY) {
+    return {
+      providerType: AiProviderType.Anthropic,
+      model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6',
+    };
+  }
+  if (process.env.AI_BASE_URL) {
+    const configured = (process.env.AI_PROVIDER ?? '').toLowerCase();
+    const providerType =
+      configured === 'openai' || configured === 'gemini' || configured === 'opencode'
+        ? (configured as AiProviderType)
+        : AiProviderType.Custom;
+    return { providerType, model: process.env.AI_MODEL ?? 'gpt-4.1' };
+  }
+  return { providerType: AiProviderType.Custom, model: 'mock' };
 }
 
-/**
- * The VERIFY step handler (day-15 §2.2, §2.5).
- *
- * Owns the `VERIFYING` lifecycle — the line before it is EXECUTING, so it enters
- * `VERIFYING` first, then drives the engine and lands the task in `AWAITING_REVIEW`
- * (PASSED) or `REWORK` (FAILED). It always returns `{ ok: true }` on a verdict, so
- * the {@link WorkflowRunner} never escalates a *failed verification* to
- * `AWAITING_HUMAN_INTERVENTION` — a failing change is a REWORK, not an infra error.
- */
-function makeVerifyHandler(container: Container): StepHandler {
-  return async (stepCtx) => {
-    const db = container.resolve<DrizzleDB>(TOKENS.Db);
-    const taskService = container.resolve<TaskService>(TOKENS.TaskService);
-    const engine = container.resolve<VerificationEngine>(TOKENS.VerificationEngine);
-
-    const task = await taskService.getTask(stepCtx.taskId);
-    if (!task) {
-      return {
-        ok: false,
-        error: 'task not found',
-        failureClass: FailureClass.PERMANENT,
-        retriable: false,
-      };
-    }
-
-    // Enter the VERIFYING state (EXECUTING → VERIFYING). REWORK re-dispatch keeps
-    // the task in REWORK/EXECUTING, so guard on the current state.
-    if (task.state === TaskStatus.Executing) {
-      await taskService.transitionTask(stepCtx.taskId, TaskStatus.Verifying, 'verification_engine');
-    }
-
-    const changeId = await findLatestPendingChangeId(db, stepCtx.taskId);
-    if (!changeId) {
-      // No change to verify: request infra gap, not a REWORK-able failure.
-      await taskService.transitionTask(stepCtx.taskId, TaskStatus.Failed, 'verification_engine');
-      return { ok: true, output: { error: 'no pending change to verify' } };
-    }
-
-    const report = await engine.verify(changeId);
-
-    if (report.overall === 'PASSED') {
-      await taskService.transitionTask(
-        stepCtx.taskId,
-        TaskStatus.AwaitingReview,
-        'verification_engine',
-      );
-      return { ok: true, output: { reportId: report.id } };
-    }
-
-    await taskService.transitionTask(stepCtx.taskId, TaskStatus.Rework, 'verification_engine', {
-      rationale:
-        report.failedChecks.length > 0
-          ? `verification failed: ${report.failedChecks.join(', ')}`
-          : 'verification failed',
+/** Build the raw (unwrapped) AI provider: Anthropic > OpenAI-compatible > Mock. */
+function buildRawLLMProvider(): LLMProvider {
+  if (process.env.ANTHROPIC_API_KEY) {
+    return new AnthropicProvider(process.env.ANTHROPIC_API_KEY);
+  }
+  const baseUrl = process.env.AI_BASE_URL;
+  if (baseUrl) {
+    return new OpenAICompatibleProvider({
+      apiKey: process.env.AI_API_KEY ?? '',
+      baseUrl,
+      model: process.env.AI_MODEL ?? 'gpt-4.1',
     });
-    return { ok: true, output: { reportId: report.id, failedChecks: report.failedChecks } };
-  };
-}
-
-/**
- * The COLLECT_CONTEXT step handler (day-20 §2.5).
- *
- * Owns the first step of the linear workflow: it resolves a ranked, budgeted
- * context snapshot for the task and puts its id in the step output so a later
- * step can consume it. The engine persists the snapshot into `contexts` for
- * provenance (day-20 §1). Target files are parsed out of the task description —
- * `TaskRecord` has no separate `target_files` column yet.
- */
-function makeCollectContextHandler(container: Container): StepHandler {
-  return async (stepCtx) => {
-    const taskService = container.resolve<TaskService>(TOKENS.TaskService);
-    const engine = container.resolve<ContextEngine>(TOKENS.ContextEngine);
-
-    const task = await taskService.getTask(stepCtx.taskId);
-    if (!task) {
-      return {
-        ok: false,
-        error: 'task not found',
-        failureClass: FailureClass.PERMANENT,
-        retriable: false,
-      };
-    }
-
-    const description = task.description ?? task.title;
-    const snapshot = await engine.resolveWithShadow({
-      taskId: stepCtx.taskId,
-      taskDescription: description,
-      requirements: '',
-      targetFiles: extractFileReferences(description),
-      maxTokens: Number(process.env.CONTEXT_MAX_TOKENS ?? '8000'),
-      // Day-27 §2.2: opt the live resolve into the semantic shadow when the flag
-      // is on, so an E2E run records a `shadow_rank_comparisons` row (keyword is
-      // still served — §2.3 invariant). Off (default) is exactly the Phase-1 path.
-      semanticShadowEnabled: process.env.SEMANTIC_SHADOW_ENABLED === '1',
-    });
-
-    return { ok: true, output: { contextSnapshotId: snapshot.id } };
-  };
+  }
+  return new MockLLM(loadMockScript(process.env.MOCK_LLM_SCRIPT));
 }
 
 /** Build the full container, wiring every token in dependency order. */
@@ -625,40 +525,6 @@ export function buildContainer(): Container {
   // exits 125 and the fallback fires with a logged warning.
   c.register(TOKENS.Sandbox, () => new DockerSandbox());
 
-  // Day 23: the Code-Mode executor over the *same* sandbox. `RateLimiter` bounds
-  // per-tool/per-task calls so a runaway generated loop can't spin unbounded
-  // containers (§2.3); `SandboxedToolExecutor` applies tiers (read-only vs
-  // writable workspace vs auth-gated) and writes the `code_mode_sessions` trail.
-  // Tier-2 approval is an env flag for now — the real OPERATOR approval surface
-  // lands on Day 24 (Spec 8).
-  c.register(TOKENS.RateLimiter, () => {
-    const maxConcurrent = Number(process.env.CODE_MODE_MAX_CONCURRENT ?? '2');
-    const configs = Object.fromEntries(
-      Object.entries(CODE_MODE_POLICY_V1.maxCallsPerTask).map(([tool, maxCallsPerTask]) => [
-        tool,
-        { maxCallsPerTask, maxConcurrent },
-      ]),
-    );
-    return new PerToolRateLimiter(configs);
-  });
-
-  c.register(TOKENS.SandboxedToolExecutor, (container) => {
-    return new SandboxedToolExecutor({
-      sandbox: container.resolve<Sandbox>(TOKENS.Sandbox),
-      rateLimiter: container.resolve<RateLimiter>(TOKENS.RateLimiter),
-      sessions: new DbCodeModeSessionWriter(container.resolve<DrizzleDB>(TOKENS.Db)),
-      image: process.env.CODE_MODE_IMAGE ?? 'harness-verify:node20',
-      workdirPath: sandboxRoot,
-      limits: {
-        cpu: process.env.CODE_MODE_CPU ?? '1.0',
-        memory: process.env.CODE_MODE_MEMORY ?? '2g',
-        timeoutSeconds: Number(process.env.CODE_MODE_TIMEOUT_SECONDS ?? '30'),
-      },
-      policy: CODE_MODE_POLICY_V1,
-      approved: process.env.CODE_MODE_TIER2_APPROVED === '1',
-    });
-  });
-
   c.register(TOKENS.VerificationEngine, (container) => {
     const compileCheck = new CompileCheck();
     const checks = [
@@ -686,15 +552,13 @@ export function buildContainer(): Container {
     );
   });
 
-  // Day 11: the LLM provider abstraction. A real Anthropic adapter when a key is
-  // set; otherwise an empty MockLLM so the graph builds but any live call fails
-  // loudly (day-11 §6). Wrapped in LoggingLLMProvider for provenance.
+  // Day 11: the LLM provider abstraction. Real Anthropic when a key is set; an
+  // OpenAI-compatible endpoint when `AI_BASE_URL` is set (the "any provider"
+  // escape hatch for openai/gemini/opencode/custom); otherwise an empty MockLLM
+  // so the graph builds but any live call fails loudly (day-11 §6). Wrapped in
+  // LoggingLLMProvider for provenance.
   c.register(TOKENS.LLMProvider, (container) => {
-    const key = process.env.ANTHROPIC_API_KEY;
-    const raw = key
-      ? new AnthropicProvider(key)
-      : new MockLLM(loadMockScript(process.env.MOCK_LLM_SCRIPT));
-    return new LoggingLLMProvider(raw, container.resolve<DrizzleDB>(TOKENS.Db));
+    return new LoggingLLMProvider(buildRawLLMProvider(), container.resolve<DrizzleDB>(TOKENS.Db));
   });
 
   // Day 06: the canonical state machine + its public service.
@@ -706,6 +570,45 @@ export function buildContainer(): Container {
       container.resolve<IEventBus>(TOKENS.EventBus),
       container.resolve<TaskStateMachine>(TOKENS.TaskStateMachine),
     );
+  });
+
+  // Review-reorient: the external-PR review slice. Providers resolve
+  // to `null` (and `ingest` fails with a clear status) when their env creds are
+  // absent, so the app still boots when review providers are not configured.
+  c.register(TOKENS.GitProvider, () => {
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) {
+      return null;
+    }
+    return new GitHubProvider(token, process.env.GITHUB_BASE_URL ?? 'https://api.github.com');
+  });
+
+  c.register(TOKENS.TicketProvider, () => {
+    const baseUrl = process.env.JIRA_BASE_URL;
+    const token = process.env.JIRA_TOKEN;
+    if (!baseUrl || !token) {
+      return null;
+    }
+    return new JiraProvider(token, baseUrl);
+  });
+
+  c.register(TOKENS.ReviewAgent, (container) => {
+    return new ReviewAgent(container.resolve<LLMProvider>(TOKENS.LLMProvider));
+  });
+
+  c.register(TOKENS.ReviewIngestService, (container) => {
+    const identity = resolveAiIdentity();
+    return new ReviewIngestService({
+      db: container.resolve<DrizzleDB>(TOKENS.Db),
+      bus: container.resolve<IEventBus>(TOKENS.EventBus),
+      taskService: container.resolve<TaskService>(TOKENS.TaskService),
+      gitProvider: container.resolve<GitProvider | null>(TOKENS.GitProvider),
+      ticketProvider: container.resolve<TicketProvider | null>(TOKENS.TicketProvider),
+      reviewAgent: container.resolve<ReviewAgent>(TOKENS.ReviewAgent),
+      aiProvider: identity.providerType,
+      model: identity.model,
+      logger: container.resolve<Logger>(TOKENS.Logger),
+    });
   });
 
   // Day 22: the review backend. It drives the task state machine, the Day-19
@@ -731,122 +634,6 @@ export function buildContainer(): Container {
           attentionRouter.reportAssessmentFeedback(assessmentId, wasUseful, comment),
       },
       { diffChange: (changeId) => diffEngine.diffChange(changeId) },
-      container.resolve<Logger>(TOKENS.Logger),
-    );
-  });
-
-  // Day 24: decision follow-through. `GitAdapter` owns the only git invocation
-  // (in apps/api — never in packages/*); `MergeService` closes the approve path
-  // and `ReworkService` the reject path. Both subscribe to `task.state_changed`.
-  c.register(
-    TOKENS.GitAdapter,
-    () => new ShellGitAdapter(process.env.WORKING_REPO_ROOT ?? './working-repo'),
-  );
-
-  c.register(TOKENS.MergeService, (container) => {
-    const service = new MergeService(
-      container.resolve<DrizzleDB>(TOKENS.Db),
-      container.resolve<IEventBus>(TOKENS.EventBus),
-      container.resolve<GitAdapter>(TOKENS.GitAdapter),
-      container.resolve<TaskService>(TOKENS.TaskService),
-      container.resolve<Logger>(TOKENS.Logger),
-      container.resolve<ContentStore>(TOKENS.ContentStore),
-    );
-    service.subscribe();
-    return service;
-  });
-
-  c.register(TOKENS.ReworkService, (container) => {
-    const service = new ReworkService(
-      container.resolve<DrizzleDB>(TOKENS.Db),
-      container.resolve<IEventBus>(TOKENS.EventBus),
-      container.resolve<TaskService>(TOKENS.TaskService),
-      container.resolve<Logger>(TOKENS.Logger),
-    );
-    service.subscribe();
-    return service;
-  });
-
-  // Day 08: the pull-based dispatch core. `Dispatcher` drives PENDING/REWORK →
-  // QUEUED (or FAILED) via `TaskService`; `DispatchLoop` polls it on an interval.
-  // The full multi-step Orchestrator (linear workflow, Day 09) is still a stub.
-  c.register(TOKENS.Dispatcher, (container) => {
-    return new Dispatcher(
-      container.resolve<DrizzleDB>(TOKENS.Db),
-      container.resolve<TaskService>(TOKENS.TaskService),
-      container.resolve<IEventBus>(TOKENS.EventBus),
-    );
-  });
-
-  c.register(TOKENS.DispatchLoop, (container) => {
-    return new DispatchLoop(
-      container.resolve<Dispatcher>(TOKENS.Dispatcher),
-      container.resolve<Logger>(TOKENS.Logger),
-    );
-  });
-
-  // Day 09: the linear workflow runner. COLLECT_CONTEXT is the real Context
-  // Engine (Day 20); EXECUTE is a Phase-1 stub (driven by RuntimePollLoop's
-  // AgentRunner handoff, not this handler); VERIFY is the real Verification
-  // Engine (Day 15).
-  c.register(TOKENS.WorkflowRunner, (container) => {
-    const handlers = new Map<StepKind, StepHandler>([
-      [StepKind.COLLECT_CONTEXT, makeCollectContextHandler(container)],
-      [StepKind.EXECUTE, async () => ({ ok: true, output: { stub: true } })],
-      [StepKind.VERIFY, makeVerifyHandler(container)],
-    ]);
-    return new WorkflowRunner(
-      container.resolve<DrizzleDB>(TOKENS.Db),
-      container.resolve<TaskService>(TOKENS.TaskService),
-      handlers,
-    );
-  });
-
-  // Day 13: the tool catalogue — three real sandbox tools behind an allowlist.
-  // `ToolRegistry` carries the bus so `write_file` can publish `artifact.created`.
-  c.register(TOKENS.ToolRegistry, (container) => {
-    const allowed = new Set(
-      (process.env.AGENT_ALLOWED_TOOLS ?? 'read_file,write_file,list_directory').split(','),
-    );
-    const registry = new ToolRegistry(
-      new ToolAllowlist(allowed),
-      container.resolve<IEventBus>(TOKENS.EventBus),
-    );
-    registry.register(makeReadFileTool(sandboxRoot));
-    registry.register(makeWriteFileTool(sandboxRoot));
-    registry.register(makeListDirectoryTool(sandboxRoot));
-    return registry;
-  });
-
-  // Day 13: the per-step audit trail, injected into the AgentRunner's ReAct loop.
-  c.register(TOKENS.TrajectoryRecorder, (container) => {
-    return new TrajectoryRecorder(container.resolve<DrizzleDB>(TOKENS.Db));
-  });
-
-  // Day 12: the AgentRunner owns one task's execution. `TaskService` is injected
-  // through the runner's structural seam and the completion handoff is a closure
-  // that starts the linear workflow, so agent-runtime never imports orchestrator.
-  c.register(TOKENS.AgentRunner, (container) => {
-    const workflowRunner = container.resolve<WorkflowRunner>(TOKENS.WorkflowRunner);
-    const maxSteps = Number(process.env.AGENT_MAX_STEPS ?? '10');
-    const tokenLimit = Number(process.env.AGENT_TOKEN_BUDGET ?? '50000');
-    return new AgentRunner(
-      container.resolve<DrizzleDB>(TOKENS.Db),
-      container.resolve<IEventBus>(TOKENS.EventBus),
-      container.resolve<LLMProvider>(TOKENS.LLMProvider),
-      container.resolve<ToolRegistry>(TOKENS.ToolRegistry),
-      container.resolve<TaskService>(TOKENS.TaskService),
-      { runLinearWorkflow: (taskId) => workflowRunner.run(taskId, LINEAR_WORKFLOW_V1) },
-      maxSteps,
-      tokenLimit,
-      container.resolve<TrajectoryRecorder>(TOKENS.TrajectoryRecorder),
-    );
-  });
-
-  c.register(TOKENS.RuntimePollLoop, (container) => {
-    return new RuntimePollLoop(
-      container.resolve<DrizzleDB>(TOKENS.Db),
-      container.resolve<AgentRunner>(TOKENS.AgentRunner),
       container.resolve<Logger>(TOKENS.Logger),
     );
   });
@@ -885,6 +672,4 @@ export function bootContainer(container: Container): void {
   container.resolve(TOKENS.ContextEngine);
   container.resolve(TOKENS.ReembedListener);
   container.resolve(TOKENS.ReviewService);
-  container.resolve(TOKENS.MergeService);
-  container.resolve(TOKENS.ReworkService);
 }

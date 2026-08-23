@@ -1,72 +1,62 @@
-# Day 10 — Week 2 Checkpoint: Consolidation/Decay Validated Against the Decision Log
+# Day 10 — Week 2 Checkpoint: Approve → Comment Lands (ON); OFF → No-op
 
 | | |
 |---|---|
-| **Week** | 2 — Memory lifecycle + trajectory |
-| **Spec refs** | Spec 9 §4.5 (consolidation/decay/archive), Spec 3 §6.1 (Fork/Resume) |
-| **Estimated effort** | 6h |
-| **Prerequisites** | Day 09 (Trajectory Resume + crash recovery) |
+| **Week** | 2 — Write-back |
+| **Spec refs** | Phase-3 README §5 (W2 milestone), §7 (write-back exit criterion) |
+| **Estimated effort** | 5h |
+| **Prerequisites** | Days 06–09 (seam, 4 adapters, audit + idempotency, toggle) |
 
 ---
 
 ## 1. Objectives
 
-This is a **hard checkpoint**, not a build day. No new features. By end of day you will have:
+By end of day you will have:
 
-1. A passing **lifecycle validation** that runs consolidation + decay against a *real decision-log-derived* corpus (not synthetic fixtures) and asserts the expected merge/decay outcomes.
-2. A **Trajectory Fork + Resume demo** proving both operations end-to-end (head-to-head compare + crash recovery).
-3. A **Week 2 retrospective note** capturing what is solid and what is fragile before Week 3 (dependency-graph targeted verification).
-4. Confidence that the W2 milestone — "Consolidation/decay/archive validated; trajectory Fork and Resume demonstrable" — is met.
+1. A demonstrable Week-2 milestone: **approve a review with write-back ON → a PR comment + status lands on the external host; OFF → provably nothing external.**
+2. An end-to-end demo that replays one real (stubbed-HTTP) decision through the full write-back path across all four providers + Jira.
+3. Integration debt from Days 06–09 closed: idempotent retry verified end-to-end, redaction verified on real adapter error paths, toggle false-safety confirmed.
+4. Week-2 evidence captured in `docs/retros/`.
 
-**Do not proceed to Day 11 until every acceptance criterion in §5 is green.**
+The checkpoint makes write-back *observable and provable*, not just unit-tested.
 
 ---
 
-## 2. What Week 2 Has Built
+## 2. Design Decisions
 
-| Component | Package | Status |
-|-----------|---------|--------|
-| Consolidation: dedup (0.85) + conflict + decay (0.99^days) | `@harness/memory` | ✅ Day 06 |
-| Archive (90d) + expiration + hot/cold tier | `@harness/memory` | ✅ Day 07 |
-| Trajectory Fork (head-to-head compare) | `@harness/agent-runtime` | ✅ Day 08 |
-| Trajectory Resume + Replay + reconciler | `@harness/agent-runtime` | ✅ Day 09 |
+### 2.1 Demo = one decision, two runs, asserted outcomes
+
+`scripts/demo-writeback.ts` takes a provider + decision, runs ON then OFF, and asserts by querying `writeback_log` (ON: SUCCEEDED rows; OFF: only SKIPPED/zero rows). Reuse the Day 09 demo and extend it to also assert idempotency (re-running the ON case yields DUPLICATE).
+
+### 2.2 Correctness is "one external write per decision", not "writes happened"
+
+The checkpoint's hard criterion is that a retried/duplicated decision never produces a second comment — idempotency is the safety property, the visible comment is the demo.
+
+### 2.3 Write-back is now a first-class subsystem in the wiring map
+
+Record the `WriteBackService` token, its `@harness/writeback` package, and the `writeback_log` table in `docs/architecture/wiring-map.md` so the seam is documented at the same altitude as the other Phase-2 seams.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Decision-log validation corpus (90 min)
+### 3.1 End-to-end demo (90 min)
 
-- [ ] Extract a validation set from the real `review.decision_submitted` / `memory_entries` already populated in earlier fixtures: 5–10 near-duplicate decision pairs, 2 known contradiction pairs, and 3 entries with known `last_retrieved_at` ages spanning the 90-day archive and decay thresholds.
-- [ ] Write `apps/api/src/__tests__/week2-memory-smoke.test.ts` that runs `ConsolidationJob` + `RetentionJob` over this corpus and asserts:
-  - Near-duplicates merged (count drops by the expected delta).
-  - Contradiction keeps the higher-confidence entry; loser superseded.
-  - Decayed entries (`0.99^days < floor`) excluded from retrieval.
-  - Archived (90d unused) entries moved to `tier='cold'`.
+- [ ] `scripts/demo-writeback.ts` — full path for GitHub + one GitLab/Bitbucket + Jira, ON then OFF, with log assertions.
+- [ ] Idempotency assertion: rerun ON → DUPLICATE, still one external write.
 
-### 3.2 Fork + Resume demo script (120 min)
+### 3.2 Integration debt pass (60 min)
 
-- [ ] A `scripts/demo-week2.ts` (or a documented debug endpoint sequence) that:
-  1. Seeds a 4-step run, forks at step 2 with a different model (MockLLM), prints the comparison report.
-  2. Starts a run, "kills" after 2 steps, runs `RunReconciler`, shows recompleted run with contiguous steps.
-- [ ] Assert the demo is deterministic and rerun under a clean `harness_test` schema.
+- [ ] Verify redaction on a forced adapter 401 (error path) — no token bytes in log.
+- [ ] Verify toggle false-safety end-to-end (env OFF defeats ON flag).
 
-### 3.3 Fix outstanding lint/type/boundary issues (as needed, 60 min)
+### 3.3 Wiring map + docs (45 min)
 
-- [ ] `pnpm lint` — zero errors/warnings.
-- [ ] `pnpm -r typecheck` — zero errors.
-- [ ] Verify `packages/memory` and `packages/agent-runtime` still respect the engine boundary.
+- [ ] Add `@harness/writeback` + `writeback_log` + `TOKENS.WriteBackService` to `docs/architecture/wiring-map.md`.
 
-### 3.4 Week 2 retro (45 min)
+### 3.4 Retro evidence (30 min)
 
-File: `docs/retros/week-02-phase3.md` (`# Week 2 Phase 3 Retro — Memory lifecycle + trajectory`), standard sections.
-
-Prompts: Did decay # dedup fire in the wrong order anywhere? Did fork replay stay deterministic with real tools? Is the reconciler's heartbeat window sane? Does the decision-log-derived corpus behave like the synthetic fixtures did?
-
-### 3.5 Update wiring map + README (30 min)
-
-- [ ] `docs/architecture/wiring-map.md` — list `ConsolidationJob`, `RetentionJob`, `TrajectoryForkService`, `TrajectoryResumeService`, `RunReconciler`.
-- [ ] `README.md` (root) — "Phase 3 Week 2 Status" note.
+- [ ] Capture W2 demo output + the "OFF = nothing external" proof in `docs/retros/phase3-w2.md`.
 
 ---
 
@@ -74,35 +64,29 @@ Prompts: Did decay # dedup fire in the wrong order anywhere? Did fork replay sta
 
 | File | Description |
 |------|-------------|
-| `apps/api/src/__tests__/week2-memory-smoke.test.ts` | Lifecycle validation against decision-log corpus |
-| `scripts/demo-week2.ts` | Fork + Resume demo |
-| `docs/retros/week-02-phase3.md` | Retrospective |
-| `README.md` (updated) | Week 2 status section |
+| `scripts/demo-writeback.ts` | Full write-back demo with assertions |
+| `docs/architecture/wiring-map.md` (updated) | Write-back seam + token + table |
+| `docs/retros/phase3-w2.md` | Week 2 checkpoint evidence |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/memory test` and `pnpm --filter @harness/agent-runtime test` — all pass.
-- [ ] Consolidation/decay/archive validated against *decision-log-derived* entries (not only synthetic fixtures).
-- [ ] Fork demo shows a head-to-head comparison with a non-null `forkedFrom`.
-- [ ] Resume demo recovers an interrupted run without re-executing committed steps.
-- [ ] `pnpm lint` — zero errors; `pnpm -r typecheck` — zero errors.
-- [ ] No `UPDATE`/`DELETE` on immutable Memory columns (search `packages/memory`).
-- [ ] `docs/retros/week-02-phase3.md` exists and names real fragility.
-
-**Checkpoint rule:** If any criterion is red, stop. Fix it today. Week 3 (code index + dependency graph) rests on a clean trajectory + memory foundation.
+- [ ] `pnpm demo:writeback` runs the ON decision → comment/status lands (stubbed), OFF → zero external writes, rerun → DUPLICATE.
+- [ ] `writeback_log` records SUCCEEDED rows for ON, zero non-SKIPPED rows for OFF.
+- [ ] Retried decision produces exactly one external comment.
+- [ ] Forced 401 logs a redacted error (no token bytes).
+- [ ] `pnpm test && pnpm lint` green; wiring map updated.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Real decision logs behave differently from fixtures.** Synthetic fixtures have clean similarities; real decisions carry near-paraphrase noise. If dedup under-merges on the real corpus, note it in the retro — do **not** silently lower the 0.85 threshold today (that's a benchmark/calibration decision).
-- **Fork/replay determinism is the risk to watch.** If a real tool (not MockLLM) leaks time/rand into a step output, replay drifts. If you see drift, fix the step serialization (capture `tool_output` verbatim), not the comparison.
-- **The reconciler must not fork.** A recovered run continues as itself, not as a fork. Confirm the demo shows one `runId` with contiguous steps, not a parent+child pair.
-- **Do not start the tree-sitter index today.** Week 3 is a hard dependency boundary: the code index is a new package with its own schema. A clean checkpoint now saves archaeology later.
-- **Tomorrow (Day 11):** tree-sitter symbol index — functions/classes/imports for the target repo.
+- **Provable OFF is the deliverable that matters most.** A reviewer deciding "no automatic comment this time" must be able to trust it was truly silent — the log query *is* that trust.
+- **Do not demo against a fake provider that can't fail.** Exercise the 401 path so the redaction guarantee is real, not a fixture assertion on a happy shape.
+- **Checkpoint stops write-back work here.** Week 3 pivots to verification breadth (clone → sandbox tests) — do not start it early.
+- **Next (Day 11):** clone a PR into a sandbox worktree (`GitProvider.cloneAndCheckout`).
 
 ---
 
-*Prev: [Day 9 — Trajectory Resume: Crash Recovery + Mid-run Replay](day-09.md) | Next: [Day 11 — tree-sitter Symbol Index: Functions/Classes/Imports](day-11.md)*
+*Next: [Day 11 — Clone PR into Sandbox Worktree (`GitProvider.cloneAndCheckout`)](day-11.md)*

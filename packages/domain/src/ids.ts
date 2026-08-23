@@ -88,6 +88,16 @@ export type AssessmentFeedbackID = Brand<string, 'AssessmentFeedbackID'>;
 export type UserID = Brand<string, 'UserID'>;
 /** Identifies a session row (identity model, Phase 2 day-01 §2.2). */
 export type SessionID = Brand<string, 'SessionID'>;
+/** Identifies an AI review report (review-reorient Phase 3). */
+export type ReviewReportID = Brand<string, 'ReviewReportID'>;
+/** Identifies a single finding inside a review report (review-reorient Phase 3). */
+export type ReviewFindingID = Brand<string, 'ReviewFindingID'>;
+/** Identifies a proposed fix inside a review report (review-reorient Phase 3). */
+export type FixSuggestionID = Brand<string, 'FixSuggestionID'>;
+/** Identifies a provider configuration row (git/jira/ai, review-reorient Phase 3). */
+export type ProviderConfigID = Brand<string, 'ProviderConfigID'>;
+/** Identifies a write-back attempt to a PR/Jira (review-reorient Phase 3). */
+export type WritebackID = Brand<string, 'WritebackID'>;
 
 // --- UUIDv7 generation ----------------------------------------------------
 
@@ -175,3 +185,13 @@ export const newAssessmentFeedbackID = (): AssessmentFeedbackID =>
 export const newUserID = (): UserID => newBrandedId('UserID');
 /** Generate a new {@link SessionID}. */
 export const newSessionID = (): SessionID => newBrandedId('SessionID');
+/** Generate a new {@link ReviewReportID}. */
+export const newReviewReportID = (): ReviewReportID => newBrandedId('ReviewReportID');
+/** Generate a new {@link ReviewFindingID}. */
+export const newReviewFindingID = (): ReviewFindingID => newBrandedId('ReviewFindingID');
+/** Generate a new {@link FixSuggestionID}. */
+export const newFixSuggestionID = (): FixSuggestionID => newBrandedId('FixSuggestionID');
+/** Generate a new {@link ProviderConfigID}. */
+export const newProviderConfigID = (): ProviderConfigID => newBrandedId('ProviderConfigID');
+/** Generate a new {@link WritebackID}. */
+export const newWritebackID = (): WritebackID => newBrandedId('WritebackID');

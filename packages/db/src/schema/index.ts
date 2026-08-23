@@ -38,3 +38,7 @@ export * from './verification-reports.js';
 export * from './shadow-rank-comparisons.js';
 export * from './verification-check-results.js';
 export * from './verification-test-results.js';
+export * from './review-reports.js';
+export * from './fix-suggestions.js';
+export * from './provider-configs.js';
+export * from './writeback-log.js';

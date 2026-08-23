@@ -50,7 +50,7 @@ Spec 4 §5.2.3 is explicit: **the hash is the truth; no TTL clock is required.**
 
 ### 2.3 The snapshot itself is never cached
 
-`ContextSnapshot` is point-in-time and must reflect what a task actually consumed (for trajectory/provenance). Only the *source content* is cached. This is a hard line from §5.2.3 — caching the snapshot would break provenance by serving a previous task's resolution as the current one.
+`ContextSnapshot` is point-in-time and must reflect what a task actually consumed (for provenance). Only the *source content* is cached. This is a hard line from §5.2.3 — caching the snapshot would break provenance by serving a previous task's resolution as the current one.
 
 ### 2.4 Cache is wrong at the wrong layer — no
 

@@ -1,6 +1,6 @@
 # @harness/db — Database Layer
 
-PostgreSQL access for the whole system: the schema (36 tables), migrations,
+PostgreSQL access for the whole system: the schema (41 tables), migrations,
 seeding, and the data-access surface every package reads/writes through.
 
 **Status:** Phase 1 + Phase 2 complete (as-built) ·
@@ -11,7 +11,7 @@ seeding, and the data-access surface every package reads/writes through.
 ## Purpose
 
 1. **Abstract PostgreSQL** behind Drizzle ORM (driver `postgres.js`).
-2. **Hold the schema** — 36 tables, each owned by exactly one package's logic.
+2. **Hold the schema** — 41 tables, each owned by exactly one package's logic.
 3. **Keep `event_log` append-only** — the source of truth for *what happened*.
 4. **Expose data access** — `createDb`, `asReadonlyDb`, `AbStore`, `EventLogWriter`, audit helpers.
 
@@ -38,21 +38,28 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 
 ---
 
-## Schema — 36 tables, grouped by owning domain
+## Schema — 41 tables, grouped by owning domain
 
 | Domain | Tables |
 | --- | --- |
-| **Orchestrator** | `projects`, `tasks`, `task-state-history`, `task-step-log`, `dispatch-log`, `retry-log` |
-| **Agent runtime** | `agent-runs`, `trajectory-steps`, `llm-call-log`, `code-mode-sessions` |
+| **Orchestrator** | `projects`, `tasks`, `task-state-history`, ~~`task-step-log`~~, ~~`dispatch-log`~~, ~~`retry-log`~~ |
+| **Agent runtime** | `llm-call-log`, ~~`agent-runs`~~, ~~`trajectory-steps`~~, ~~`code-mode-sessions`~~ |
 | **Artifact tracker** | `artifacts`, `changes`, `snapshots` |
 | **Context engine** | `contexts`, `context-source-cache`, `context-source-embeddings`, `shadow-rank-comparisons` |
 | **Verification** | `verification-requests`, `verification-results`, `verification-check-results`, `verification-test-results`, `verification-reports` |
 | **Attention** | `assessments`, `assessment-feedback`, `attention-thresholds`, `calibration`, `auto-approve-kill-switch` |
-| **Review** | `review-queue`, `decisions` |
+| **Review** | `review-queue`, `decisions`, `review-reports`, `review-findings`, `fix-suggestions` |
+| **Integration (review slice)** | `provider-configs`, `writeback-log` |
 | **Evidence / memory** | `evidence`, `event-log` |
 | **Identity** | `users`, `sessions` |
 | **Observability** | `trace-correlation` |
 | **Evaluation** | `evaluation-reports`, `ab-harness` |
+
+> **Struck-through tables are orphaned by `review-reorient`.** Their writers
+> (`AgentRunner`, `TrajectoryRecorder`, the code-mode session writer, `Dispatcher`,
+> `WorkflowRunner`) were retired with the code-generation path. The tables remain
+> in the schema (no destructive drop migration) but are no longer written by any
+> live code path; `llm-call-log` stays live via `LoggingLLMProvider`.
 
 ---
 
@@ -120,14 +127,14 @@ src/
 └── schema/
     ├── enums.ts        # CHECK constraints + value lists
     ├── index.ts        # relational schema registry
-    └── *.ts            # 36 table definitions
+    └── *.ts            # 41 table definitions
 ```
 
 ## Public API surface
 
 ```typescript
 // createDb, DrizzleDB, asReadonlyDb / ReadonlyDb, EventLogWriter, AbStore,
-// schema tables (36), enums (CHECK constraints), migration/seed helpers
+// schema tables (41), enums (CHECK constraints), migration/seed helpers
 ```
 
 ## Dependency rule

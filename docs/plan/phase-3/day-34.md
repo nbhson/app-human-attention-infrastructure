@@ -1,11 +1,11 @@
-# Day 34 — Durable Queue (Redis/SQS) Behind `IEventBus` — Contract Unchanged, Optional
+# Day 34 — Durable Queue (Redis/SQS) behind `IEventBus` (Optional)
 
 | | |
 |---|---|
-| **Week** | 7 — Close the loop, deploy observed |
-| **Spec refs** | Spec 2 §6 (sandbox API + optional external queue/scheduler), Architecture §24 (modular monolith; transport swap) |
-| **Estimated effort** | 8h |
-| **Prerequisites** | Day 33 (closed-loop wiring) |
+| **Week** | 7 — Close the loop |
+| **Spec refs** | Spec 2 §6 (durable queue behind `IEventBus`); Phase-3 README §3 (Queue anchor, invariant preserved) |
+| **Estimated effort** | 6h |
+| **Prerequisites** | Days 31–33 (closed loop); in-process `EventEmitter` `IEventBus` live |
 
 ---
 
@@ -13,81 +13,56 @@
 
 By end of day you will have:
 
-1. A **durable transport** (Redis Streams or AWS SQS) that can back the existing `IEventBus`, so events survive process restarts — an **optional deployment mode**, not a rewrite.
-2. **Event contract unchanged**: producers/consumers (orchestrator, verification, multi-agent, learning) do not change a single handler; they still program against `IEventBus`.
-3. **At-least-once delivery with dedup**: the durable adapter preserves ordering where required and de-duplicates by `event_id` (idempotent consumers, Day 33's stage handlers already are).
-4. **A clean fallback**: the in-process bus remains the default; Redis/SQS is enabled by config only (Spec 2 §6: external queue is optional).
+1. A **durable `IEventBus` implementation** (Redis Streams or SQS) as an *optional transport swap* behind the existing `IEventBus` interface — no event-contract change.
+2. The in-process bus stays the default; durable transport is a config/flag choice per deployment.
+3. The closed-loop job survives a worker restart mid-cycle (queued events are not lost).
+4. An invariant test: swapping the transport does not change the event payload/contract.
 
-This proves the architectural claim from Day 0: the durable queue is a **transport swap behind `IEventBus`**, not a feature that leaks into domain code.
+This is the *optional infrastructure* item — the loop works in-process today; durability makes it crash-safe where operators want it.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Transport behind `IEventBus` (the non-negotiable)
+### 2.1 Transport swap, contract frozen
 
-```typescript
-export interface IEventBus {
-  publish<T extends DomainEvent>(event: T): Promise<void>;         // unchanged
-  subscribe<T extends DomainEvent>(
-    type: T['type'],
-    handler: EventHandler<T>,
-    opts?: { concurrency?: number; from?: 'live' | 'beginning' }
-  ): Subscription;                                                  // unchanged
-}
-```
+`IEventBus.publish/subscribe` signature is unchanged; only the concrete behind it changes. A new `RedisEventsBus` (or `SqsEventsBus`) implements the same interface. Engines that consume events don't know or care which transport they're on.
 
-No method signature changes. The durable adapter implements the *same* interface. This is the invariant: if a handler needs to know whether it's on Redis or in-process, the design is wrong.
+### 2.2 At-least-once with idempotent consumers
 
-### 2.2 Durable adapter + config flag
+Durable delivery is **at-least-once** — consumers (memory ingestor, learning job, verification) must already be idempotent (Days 08/19 gave us exactly that). Document the requirement: a durable bus is only safe because consumers dedupe.
 
-- `EVENT_BUS_TRANSPORT=in-process|redis|sqs` (default `in-process`).
-- `RedisEventBus` streams each `publish` to a Redis Stream keyed by event type; consumers read via consumer groups (at-least-once).
-- `SqsEventBus` maps domains to SQS queues.
-- DI selects the adapter at bootstrap (TOKENS); zero domain-code changes.
+### 2.3 Optional, behind a flag
 
-### 2.3 At-least-once + idempotent delivery
+`EVENT_TRANSPORT=inproc|redis|sqs`; default `inproc`. Nothing in the hot path changes when `inproc` is selected. The optionality keeps the monolith's deploy simplicity while offering durability where a queue already exists.
 
-Durable transports deliver at-least-once. The adapter:
-- dedups by `event_id` (UUIDv7) within the consumer's idle window;
-- preserves per-type ordering (Redis Stream sequence / SQS FIFO where required);
-- surfaces redelivery count so a poison event can be dead-lettered rather than looping forever.
+### 2.4 Failure mode: reconnect + retry, never silent drop
 
-Handlers remain idempotent (the contract they already satisfy for Day 33's loop).
-
-### 2.4 Poison queue + dead-letter
-
-Repeated handler failure → move to a dead-letter stream/queue + emit `event.delivery_failed { event_id, event_type, attempts, reason }`. A poison message must not stall the whole stream or silently vanish.
-
-### 2.5 Optional + reversible
-
-`in-process` stays the default for the modular monolith dev/test experience. The durable adapter is an *ops knob*: enable it in production for crash-resilience, disable it for local determinism. Nothing in the domain depends on which is active.
+A dropped Redis connection retries with backoff and (configurable) DLQ, and the health endpoint reflects it. The demo shows restart-survival, not just happy-path publish.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 `RedisEventBus` adapter (150 min)
+### 3.1 `RedisEventsBus` (90 min)
 
-- [ ] Implement `IEventBus` over Redis Streams + consumer groups; preserve ordering; `event_id` dedup.
-- [ ] Config flag `EVENT_BUS_TRANSPORT=redis`; DI selection.
+- [ ] Implement `IEventBus` over Redis Streams — publish/consume groups + ack.
 
-### 3.2 `SqsEventBus` adapter (120 min)
+### 3.2 Transport selection (45 min)
 
-- [ ] Implement `IEventBus` over SQS (FIFO for ordered domains); config flag `sqs`.
+- [ ] `EVENT_TRANSPORT` resolver; default `inproc`; DI wires the chosen bus.
 
-### 3.3 Delivery semantics + dead-letter (120 min)
+### 3.3 Restart-survival demo (60 min)
 
-- [ ] At-least-once + redelivery count; dead-letter on repeated failure; `event.delivery_failed` event.
+- [ ] `scripts/demo-durable-queue.ts` — publish backlog, restart consumer, prove no loss.
 
-### 3.4 Contract-unchanged proof (90 min)
+### 3.4 Retry/DLQ + health (45 min)
 
-- [ ] Run the existing event-driven test suites (orchestrator/verification/learning) against both adapters; zero handler changes.
-- [ ] A "no-transport-knowledge" architecture test: domain handlers never reference redis/sqs types (lexical check).
+- [ ] Backoff reconnect; DLQ; health endpoint reflects transport state.
 
-### 3.5 Docs (30 min)
+### 3.5 Tests (60 min)
 
-- [ ] `docs/architecture/wiring-map.md` — transport selection; `README` — optional durable queue note.
+- [ ] Contract-invariance: same events over both transports; at-least-once + idempotent consumer dedupe; default stays `inproc`.
 
 ---
 
@@ -95,35 +70,30 @@ Repeated handler failure → move to a dead-letter stream/queue + emit `event.de
 
 | File | Description |
 |------|-------------|
-| `packages/event-bus/src/redis/redis-event-bus.ts` | Redis Streams adapter |
-| `packages/event-bus/src/sqs/sqs-event-bus.ts` | SQS adapter |
-| `packages/event-bus/src/transport.ts` | Transport selection + config |
-| `packages/event-bus/src/dead-letter.ts` | Poison/dead-letter handling |
-| `packages/event-bus/src/__tests__/contract.test.ts` | Contract-unchanged proof across transports |
+| `packages/orchestrator/src/bus/redis-events-bus.ts` (or `@harness/event-bus`) | Durable `IEventBus` |
+| `packages/event-bus/src/transport-resolver.ts` | `EVENT_TRANSPORT` resolver |
+| `scripts/demo-durable-queue.ts` | Restart-survival demo |
+| `packages/event-bus/src/__tests__/durable.test.ts` | Transport + contract tests |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `IEventBus` interface is byte-for-byte unchanged.
-- [ ] Redis and SQS adapters both implement `IEventBus`, selected by config (`in-process` default).
-- [ ] Existing orchestrator/verification/multi-agent/learning event tests pass against both adapters with **zero handler changes**.
-- [ ] At-least-once delivery with `event_id` dedup; repeated-failure events are dead-lettered + `event.delivery_failed` emitted.
-- [ ] No domain handler references redis/sqs types (architecture/lexical test).
-- [ ] Disabling the durable adapter restores `in-process` with no behavior change.
-- [ ] `pnpm lint` clean.
+- [ ] A durable `IEventBus` implementation works with the existing event contract (payloads unchanged).
+- [ ] `EVENT_TRANSPORT` selects inproc/redis(/sqs); default `inproc`.
+- [ ] Restart mid-cycle loses no queued events (demo proves).
+- [ ] Idempotent consumers dedupe under at-least-once delivery.
+- [ ] Reconnect/backoff + DLQ on transport failure.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **The swap must be invisible.** If flipping `EVENT_BUS_TRANSPORT` breaks a handler, the "transport is just an implementation detail" claim is false, and domain code has sprouted transport assumptions. The architecture test is the proof, not a comment.
-- **At-least-once ⇒ idempotent consumers.** A durable transport *will* redeliver. If a consumer isn't idempotent, the queue becomes a source of duplicate side effects (double memory writes, double deploys). Dedup by `event_id` + idempotent handlers.
-- **Poison messages must not stall the stream.** Without dead-lettering, one permanently-failing event blocks everything behind it (or loops forever). Move it aside and emit a visibility event.
-- **In-process stays default.** The modular monolith's dev/test determinism depends on the in-process bus. Redis/SQS is an ops mode, not a "better default" you adopt casually.
-- **This is optional (Spec 2 §6) — don't make it mandatory.** The week's real deliverable is the closed loop (Day 33). The durable queue is resilience plumbing, valuable but not the point.
-- **Tomorrow (Day 35):** Week 7 checkpoint — closed loop demonstrable autonomously.
+- **At-least-once means consumers MUST dedupe.** The durable bus only inherits correctness from Days 08/19 idempotency; if a consumer double-processes, the transport upgrade is a downgrade.
+- **The event contract does not change.** If swapping transports forces an engine edit, you've broken the seam — stop and reassess.
+- **Optional stays optional.** If no queue runs in this deployment, `inproc` must remain the zero-config path.
+- **Day 35** checkpoint: closed loop demonstrable.
 
 ---
 
-*Prev: [Day 33 — Closed-Loop Wiring: Evaluate → Calibrate → Deploy → Observe Runs Continuously](day-33.md) | Next: [Day 35 — Week 7 Checkpoint: Closed Loop Demonstrable Autonomously](day-35.md)*
+*Next: [Day 35 — Week 7 Checkpoint: Closed Loop Demonstrable](day-35.md)*

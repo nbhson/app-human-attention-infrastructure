@@ -1,8 +1,10 @@
 # Tổng quan Kiến trúc HAI Harness
 
+> **`review-reorient` (v0.6):** đường code-generation đã *nghỉ hưu*. Sản phẩm giờ là control plane **review PR/MR bên ngoài** (Bitbucket/GitLab/GitHub + Jira): AI đóng vai *reviewer chứ không phải author* — đọc diff + requirement, trả report + findings + *fix suggestions*. Các mô tả "AI sinh code / tự sửa fix" ở các mục dưới chỉ còn là lịch sử thiết kế; phần machinery được giữ (state machine, attention routing, verification, evidence) vẫn dùng lại nguyên trạng.
+
 ## Tổng quan
 
-**Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa "sự chú ý của con người" trong quy trình phát triển phần mềm: AI tạo ra công việc, Harness quan sát, xác minh, đánh giá, xếp ưu tiên và định tuyến tới đúng sự chú ý của con người.
+**Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa "sự chú ý của con người" trong quy trình phát triển phần mềm: một code change (PR/MR — do con người hoặc AI khác tạo) đi vào, Harness quan sát, xác minh, đánh giá, dùng AI làm reviewer, xếp ưu tiên và định tuyến tới đúng sự chú ý của con người.
 
 ---
 
@@ -18,7 +20,7 @@ Kiến trúc biến "sự chú ý" thành tài nguyên có thể đo lường, �
 
 ### 1. Input — cái gì đi vào hệ thống
 
-Đầu vào là một **code change cần review** cùng ngữ cảnh của nó — không phải "yêu cầu phải làm gì". Change có thể đến từ bên ngoài (PR/MR của người khác hoặc agent AI khác) hoặc từ chính Agent Runtime của HAI (Spec 3) khi HAI tự sinh fix; ở ranh giới input, HAI luôn nhận **một change để review**.
+Đầu vào là một **code change cần review** cùng ngữ cảnh của nó — không phải "yêu cầu phải làm gì". Change đến từ bên ngoài qua PR/MR (GitHub hôm nay; GitLab/Bitbucket là Phase 3); ở ranh giới input, HAI luôn nhận **một change để review**.
 
 | Trường | Kiểu | Mô tả | Ví dụ |
 |--------|------|-------|-------|
@@ -85,8 +87,8 @@ Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (qua
 | # | Phân hệ | Package | Vai trò |
 |---|---------|---------|---------|
 | 1 | **HAI Harness Architecture** | `docs/core/1_...` | Kiến trúc tổng thể, nguyên tắc, ranh giới module, lộ trình 3 phase |
-| 2 | **Task/Work Orchestrator** | `@harness/orchestrator` | State machine 13 trạng thái, dispatch, workflow, retry |
-| 3 | **AI Agent Runtime** | `@harness/agent-runtime` | Thực thi agent (ReAct loop), ghi trajectory từng bước, tool sandbox |
+| 2 | **Task/Work Orchestrator** | `@harness/orchestrator` | State machine 13 trạng thái + `TaskService` (dispatch/workflow/retry đã nghỉ hưu) |
+| 3 | **AI Reviewer** | `@harness/agent-runtime` | Lớp `LLMProvider` + `ReviewAgent` — AI review read-only (report + findings + fix suggestions) |
 | 4 | **Context Engine** | `@harness/context-engine` | Chọn lọc context relevant theo budget token, freshness, cache |
 | 5 | **Artifact/Change Tracker** | `@harness/artifact-tracker` | Provenance: ai thay đổi gì, tại sao, evidence nào; snapshot content-addressed |
 | 6 | **Attention Engine** 🔑 | `@harness/attention-engine` | Tính Risk/Impact/Novelty/Complexity/Confidence → priority → routing + auto-approve |
@@ -115,7 +117,9 @@ Tài liệu as-built cho từng phân hệ hiện nằm trong **`README.md` củ
 
 ## Domain Objects chính
 
-### Task — 12 trạng thái canonical (Spec 2, nguồn sự thật duy nhất)
+### Task — 13 trạng thái canonical (Spec 2, nguồn sự thật duy nhất)
+
+> **`review-reorient` note.** State machine được giữ nguyên (states + transitions + optimistic locking), nhưng các *driver* di chuyển task qua `EXECUTING → VERIFYING` (dispatch/workflow/retry) đã nghỉ hưu cùng code-gen. Luồng live hôm nay: review slice tạo Task rồi chuyển ngay `CANCELLED` (`transitionTask(..., Cancelled, 'human', { rationale: 'review-only task handled by the review slice' })`).
 
 ```
 PENDING → QUEUED → EXECUTING → VERIFYING → AWAITING_REVIEW

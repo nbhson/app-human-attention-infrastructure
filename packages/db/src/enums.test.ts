@@ -2,32 +2,46 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AgentRunStatus,
+  AiProviderType,
   ArtifactStatus,
   ChangeStatus,
   ContextSourceType,
   FileChangeType,
   HumanDecisionType,
   PriorityLabel,
+  ProviderKind,
   ReviewQueueStatus,
+  ReviewSeverity,
+  ReviewVerdict,
   RoutingAction,
   TaskStatus,
   ThresholdBand,
   VerificationStatus,
+  WritebackAction,
+  WritebackStatus,
+  WritebackTarget,
 } from '@harness/domain';
 
 import {
   agentRunStatuses,
+  aiProviderTypes,
   artifactStatuses,
   changeStatuses,
   contextSourceTypes,
   fileChangeTypes,
   humanDecisionTypes,
   priorityLabels,
+  providerKinds,
   reviewQueueStatuses,
+  reviewSeverities,
+  reviewVerdicts,
   routingActions,
   taskStates,
   thresholdBands,
   verificationStatuses,
+  writebackActions,
+  writebackStatuses,
+  writebackTargets,
 } from './schema/enums.js';
 
 /**
@@ -82,5 +96,33 @@ describe('schema enum drift guards', () => {
 
   it('contextSourceTypes match ContextSourceType', () => {
     expect(contextSourceTypes).toEqual(Object.values(ContextSourceType));
+  });
+
+  it('aiProviderTypes match AiProviderType', () => {
+    expect(aiProviderTypes).toEqual(Object.values(AiProviderType));
+  });
+
+  it('reviewVerdicts match ReviewVerdict', () => {
+    expect(reviewVerdicts).toEqual(Object.values(ReviewVerdict));
+  });
+
+  it('reviewSeverities match ReviewSeverity', () => {
+    expect(reviewSeverities).toEqual(Object.values(ReviewSeverity));
+  });
+
+  it('providerKinds match ProviderKind', () => {
+    expect(providerKinds).toEqual(Object.values(ProviderKind));
+  });
+
+  it('writebackTargets match WritebackTarget', () => {
+    expect(writebackTargets).toEqual(Object.values(WritebackTarget));
+  });
+
+  it('writebackActions match WritebackAction', () => {
+    expect(writebackActions).toEqual(Object.values(WritebackAction));
+  });
+
+  it('writebackStatuses match WritebackStatus', () => {
+    expect(writebackStatuses).toEqual(Object.values(WritebackStatus));
   });
 });

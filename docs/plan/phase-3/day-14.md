@@ -1,11 +1,11 @@
-# Day 14 — Targeted/Incremental Verification: Run Only Affected Tests via Graph
+# Day 14 — Targeted/Incremental Verification via Dependency Graph
 
 | | |
 |---|---|
-| **Week** | 3 — Dependency graph → targeted verify |
-| **Spec refs** | Spec 7 §5.2 (targeted verification), §5.3 (incremental + result cache), §5.5 (execution environment) |
+| **Week** | 3 — Verification breadth |
+| **Spec refs** | Spec 7 §5.2–5.3 (symbol index + dependency graph); Phase-3 README §4 (code-index package) |
 | **Estimated effort** | 8h |
-| **Prerequisites** | Day 13 (impact analysis: change → affected tests) |
+| **Prerequisites** | Days 11–13 (clone → sandbox run → evidence); `tree-sitter` available for the symbol index |
 
 ---
 
@@ -13,130 +13,63 @@
 
 By end of day you will have:
 
-1. A **targeted verification strategy** in the Verification Engine that runs only the affected tests selected by Day 13's impact analyzer — replacing "always full suite" for routine changes.
-2. An **incremental result cache** so unchanged files' test results are reused (Spec 7 §5.3), with content-hash invalidation.
-3. A **verification strategy resolver** that picks Full vs Targeted vs Incremental per change, with a policy-based guard.
-4. Correctness instrumentation: every targeted run records *what it did not run*, so Day 15 can prove "still correct" against the full-suite baseline.
+1. A new `@harness/code-index` package: **tree-sitter symbol index** + a **dependency graph** in Postgres, feeding *targeted* verification.
+2. Given a PR's changed files, compute the **transitive set of affected packages/tests** — run only those tests instead of the full suite (which Phase 2 ran).
+3. A `TargetedVerifier` that shortens verification without changing its verdict semantics (same PASSED/FAILED, smaller test set).
+4. Prove correctness-equivalence: targeted-run results agree with full-run results on recorded fixtures.
 
-This is the p95-latency driver of the whole phase (Phase-1 backlog: "Full-suite verification is the p95 driver").
+This day makes W3's "faster + still correct" achievable; Day 15 checks out the checkpoint.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Strategy selection (explicit, not inferred)
+### 2.1 Symbols + edges, not just filenames
 
-```typescript
-// packages/verification-engine/src/strategy.ts
-export type VerifyStrategy = 'FULL' | 'TARGETED' | 'INCREMENTAL';
+The dependency graph needs *referential* edges (imports/calls), so tree-sitter parses each source file into **symbols** (defs/refs) and edges (`file A imports file B`, `test T imports module M`). A changed symbol maps to its tests; a changed test maps to itself. Postgres rows: `symbols(file, kind, name, range)` and `deps(from_file, to_file, kind)`.
 
-export function selectStrategy(impact: ImpactAnalysis, policy: VerificationPolicy): VerifyStrategy {
-  if (policy.force_full || impact.confidence === 'LOW') return 'FULL';
-  if (impact.affectedTests.length / totalTests > policy.targeted_max_ratio) return 'FULL'; // too broad to be worth it
-  if (hasCachedResultsFor(impact.affectedTests)) return 'INCREMENTAL';
-  return 'TARGETED';
-}
-```
+### 2.2 Affected-set computation
 
-- `VerificationPolicy` gains `force_full: boolean` and `targeted_max_ratio: float` (default 0.6: if targeting would run >60% of the suite, run full — targeting loses its benefit).
-- A change that is `LOW` confidence already widens to full (Day 13); the resolver keeps that invariant.
+`affectedTests(changedFiles)`: seed with changed files → follow `deps` reverse edges to files that import them → collect tests transitively. Cache the graph; rebuild incrementally on diff change.
 
-### 2.2 Test run = selected tests + cache miss set
+### 2.3 Targeted is a *candidate set*, correctness stays measurable
 
-```typescript
-// packages/verification-engine/src/targeted.ts
-export class TargetedVerification {
-  constructor(
-    private readonly executor: TestExecutor,   // Phase 1/2 executor
-    private readonly cache: ResultCache,       // incremental cache (below)
-    private readonly analyzer: ImpactAnalyzer,
-  ) {}
+Targeted verification runs the affected tests; it is **correct** only if (a) the full suite would also pass, and (b) failures are never missed. The safety net: when the graph is incomplete (unparsed file, dynamic require), **fall back to the full suite** rather than guess. A targeted run that skips a test the graph can't prove irrelevant is a miss.
 
-  async verify(changeId: string, filesChanged: FileChange[]): Promise<VerificationResult> {
-    const impact = await this.analyzer.analyze(filesChanged);
-    const strategy = selectStrategy(impact, this.policy);
+### 2.4 `@harness/code-index` never imports another engine
 
-    if (strategy === 'FULL') return this.executor.runAll();
-    const toRun = strategy === 'INCREMENTAL'
-      ? impact.affectedTests.filter(t => !this.cache.hit(t))
-      : impact.affectedTests;
-    const result = await this.executor.runTestSubset(toRun);
-    // attach provenance: which tests ran, which were skipped, which were cache-reused
-    result.metadata.selectedBy = 'targeted';
-    result.metadata.skippedTests = irunTests - ranTests;  // full-suite-known tests NOT run
-    return result;
-  }
-}
-```
-
-### 2.3 Incremental result cache (content-hash keyed)
-
-Spec 7 §5.3 caches prior results and re-runs only changed files. Key the cache by `test_file + content_hash + source_hashes_of_dependencies + verification_tool_version`:
-
-```typescript
-interface CacheKey {
-  testFile: string;
-  testHash: string;             // test file content hash
-  depHashes: string[];          // hashes of the source files this test (transitively) exercises
-  toolVersion: string;          // vitest/jest version + config hash
-}
-```
-
-- **Hit:** reuse the stored result (with a `cached: true` marker in the result — never presented as a fresh run).
-- **Invalidation:** any dep hash change busts the key (same `content_hash` truth as Spec 4 §8; a stale cache is a miss, never a poison).
-
-### 2.4 Provenance: record what was NOT run
-
-The correctness contract for Day 15 is "targeted still correct." So every targeted result carries, in `metadata`:
-
-```json
-{
-  "selectedBy": "targeted",
-  "ranTests": ["..."],
-  "cacheReusedTests": ["..."],
-  "skippedTests": ["..."],       // tests known to the suite but NOT run this time
-  "impactConfidence": "HIGH",
-  "graphBuiltAt": "ISO8601"
-}
-```
-
-`skippedTests` is the critical audit field. Without it, "PASSED" from a targeted run is indistinguishable from a full run's "PASSED" — exactly the confidence-without-evidence failure the system exists to prevent.
-
-### 2.5 Execution environment (unchanged, but made explicit)
-
-Targeted runs execute through the **same sandbox** as full runs (Spec 7 §5.5 container/worktree, Phase 2 built it). The subset selection happens *before* the sandbox run; it never changes how a test is *executed* — only how many.
+Depends only on `@harness/domain`, `@harness/db`, `@harness/di` — verification-engine *consumes* it via a seam (resolver/event), never a direct import into internals.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 `VerificationPolicy` extension (45 min)
+### 3.1 Scaffold `@harness/code-index` (45 min)
 
-- [ ] Add `force_full`, `targeted_max_ratio` to the policy type + schema (nullable/backfill defaults).
-- [ ] Migrate; default `targeted_max_ratio = 0.6`.
+- [ ] `package.json` (`@harness/code-index`), `tsconfig`, boundary entry; deps domain/db/di + tree-sitter.
 
-### 3.2 `TargetedVerification` + strategy resolver (150 min)
+### 3.2 Symbol index (90 min)
 
-- [ ] `selectStrategy()` (§2.1) and `TargetedVerification.verify()` (§2.2).
-- [ ] Hook into the existing `IVerificationEngine.verify(changeId)` path: analyze before scheduling checks.
+- [ ] `packages/code-index/src/indexer.ts` — parse files via tree-sitter → symbols; store in `symbols`.
 
-### 3.3 `ResultCache` (120 min)
+### 3.3 Dependency graph schema + build (90 min)
 
-- [ ] `packages/verification-engine/src/cache/result-cache.ts` — key construction + get/set (§2.3).
-- [ ] Store cached results in Postgres (or reuse Phase 2's verification cache table if one exists) keyed by the cache key hash.
+- [ ] `packages/db/src/schema/code-index.ts` — `symbols` + `deps` tables + migration.
+- [ ] `packages/code-index/src/graph.ts` — build `deps` edges from defs/refs.
 
-### 3.4 Provenance metadata + event (60 min)
+### 3.4 `affectedTests` (90 min)
 
-- [ ] Attach `ranTests`/`cacheReusedTests`/`skippedTests`/`graphBuiltAt` to results (§2.4).
-- [ ] Emit `verification.targeted_completed { changeId, strategy, ranCount, skippedCount, cacheHitCount }`.
+- [ ] `packages/code-index/src/affected.ts` — transitive affected-test computation + fallback trigger.
 
-### 3.5 Tests (120 min)
+### 3.5 `TargetedVerifier` (90 min)
 
-- [ ] `selectStrategy`: LOW confidence → FULL; ratio > 0.6 → FULL; else TARGETED / INCREMENTAL when cache hits.
-- [ ] Targeted run executes only `affectedTests`; `skippedTests` populated correctly.
-- [ ] Cache hit reuses result with `cached: true`; a changed dep hash busts the key (miss).
-- [ ] Full run emits `selectedBy = 'full'` (no skipped set).
-- [ ] `verify()` on an invalid/empty change still falls back safely.
+- [ ] `packages/verification-engine/src/targeted-verifier.ts` — run affected tests via Day-12 sandbox runner; fallback to full suite on graph gap.
+
+### 3.6 Tests (90 min)
+
+- [ ] Graph built from a fixture monorepo; `affectedTests` correct for a changed leaf.
+- [ ] Equivalence fixture: targeted PASSED/FAILED agrees with full run.
+- [ ] Fallback triggered on unparsed/dynamic import.
 
 ---
 
@@ -144,36 +77,33 @@ Targeted runs execute through the **same sandbox** as full runs (Spec 7 §5.5 co
 
 | File | Description |
 |------|-------------|
-| `packages/verification-engine/src/strategy.ts` | Strategy resolver |
-| `packages/verification-engine/src/targeted.ts` | `TargetedVerification` |
-| `packages/verification-engine/src/cache/result-cache.ts` | Incremental result cache |
-| `packages/db/src/schema/*.ts` + migration | `force_full`, `targeted_max_ratio`; cache table |
-| `packages/verification-engine/src/__tests__/targeted.test.ts` | Targeted/incremental/cache tests |
+| `packages/code-index/package.json` + `src/index.ts` | New `@harness/code-index` package |
+| `packages/code-index/src/indexer.ts` | tree-sitter symbol index |
+| `packages/code-index/src/graph.ts` | Dependency graph build |
+| `packages/code-index/src/affected.ts` | `affectedTests` + fallback |
+| `packages/db/src/schema/code-index.ts` | `symbols` + `deps` schema |
+| `packages/verification-engine/src/targeted-verifier.ts` | Targeted + fallback verification |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/verification-engine test` — all tests pass.
-- [ ] A HIGH-confidence change runs only `affectedTests`; the result records `skippedTests`.
-- [ ] LOW-confidence change runs the full suite (never a narrowed set).
-- [ ] Targeted ratio > `targeted_max_ratio` falls back to FULL.
-- [ ] Cache reuses unchanged results flagged `cached: true`; a dep-hash change busts the key.
-- [ ] `verification.targeted_completed` event carries run/skip/cache counts.
-- [ ] Strategy provenance (`selectedBy`, `graphBuiltAt`) is attached to every result.
-- [ ] `pnpm lint` clean; boundary intact.
+- [ ] `symbols` + `deps` tables exist; graph builds from a fixture repo.
+- [ ] `affectedTests(changedFiles)` returns the correct transitive test set.
+- [ ] Targeted verification runs fewer tests than the full suite on a fixture with a leaf change.
+- [ ] Targeted PASSED/FAILED agrees with full-run on equivalence fixtures.
+- [ ] Graph gap (dynamic import/unparsed) → full-suite fallback.
+- [ ] Boundary: `code-index` imports only domain/db/di.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **`skippedTests` is not optional.** A targeted "PASSED" without the list of what it skipped is a false-confidence bug. This field is the difference between "verified" and "verified *the parts we happened to run*."
-- **Cache key must include tool version.** A vitest upgrade that changes test semantics gives different results for the same source; keying on source hash alone would reuse stale (uploaded) results. Include version + config hash.
-- **Targeted ≠ lower rigor, it's lower scope.** The sandbox, timeouts, flaky retry, and evidence-linking all stay identical (Spec 7 §5.5–5.6). Do not skip the evidence row or the flaky retry just because the set is smaller.
-- **Ratio guard exists for a reason.** Targeting 95% of tests is not an optimization; it's full-suite with extra overhead. The `targeted_max_ratio` is the honest line.
-- **Cache reuse is an optimization, not evidence of *this* run.** Present `cached: true` results separately in the report; do not let a cached PASSED look like a fresh independent run (the reviewer deserves to know).
-- **Tomorrow (Day 15):** Week 3 checkpoint — targeted verification faster AND still correct vs the full-suite baseline.
+- **Correctness, not just speed.** Missing a failing test is a verification lie. The fallback-to-full-suite path is the guarantee — ship it first, then optimize.
+- **Tree-sitter grammars are per-language.** Scope the index to the languages the repo actually uses (TS/JS first); unsupported files are a fallback trigger, not an error.
+- **Rebuild the graph on change.** A stale graph silently mis-routes; tie the rebuild to the clone/diff lifecycle.
+- **Day 15** checkpoint: real PR tests in sandbox, faster + still correct.
 
 ---
 
-*Prev: [Day 13 — Impact Analysis: Map a Change to Affected Tests (Transitive)](day-13.md) | Next: [Day 15 — Week 3 Checkpoint: Targeted Verification Faster + Still Correct](day-15.md)*
+*Next: [Day 15 — Week 3 Checkpoint: Real PR Tests in Sandbox, Faster + Still Correct](day-15.md)*

@@ -1,125 +1,68 @@
-# Day 22 — Review Backend: Queue API & Decisions
+# Day 22 — Review UI: queue + diff view + AI report & fix-suggestions panels
 
 | | |
 |---|---|
-| **Week** | 4 — Human Loop & E2E |
-| **Spec refs** | Spec 6 §4 (Routing), Spec 2 §7 (AWAITING_REVIEW transitions), Spec 5 §4 (Change REVIEWED) |
-| **Estimated effort** | 6 h |
-| **Prerequisites** | Day 19 (review_queue, reportAssessmentFeedback), Day 14 (ChangeStatusSubscriber), Day 06 (state machine) |
+| **Week** | W4 — Human loop + E2E |
+| **Spec refs** | Spec 8 §1–2 (Human Review Interface), Spec 1 §4 (attention layer) |
+| **Estimated effort** | 8h |
+| **Prerequisites** | Days 13/21 (routes + trust pipeline + decision API) |
 
 ---
 
 ## 1. Objectives
 
-1. Build the **Review backend package** (`@harness/review`, rule R6) exposing the queue to `apps/api`.
-2. Implement **claim / decide / drop** operations with optimistic concurrency (no double-claim).
-3. On decision: publish `review.decision_submitted` (consumed by Day-14 ChangeStatusSubscriber → Change REVIEWED) and drive the task transition (APPROVED or REJECTED — Day 24 wires the follow-through).
-4. Call `reportAssessmentFeedback` (Day 19) so every decision feeds the alert-fatigue loop.
-
-> **Why this matters:** this is the moment a human enters the loop. Everything before Day 22 exists to make this screen short, prioritized, and evidence-backed. The API must be boring and correct — all the intelligence is upstream.
-
----
+- Build the React review interface in `apps/web`: a review **queue**, a **diff view**, and the **AI report + fix-suggestions panels**.
+- Render the full `ReviewReport` (summary, verdict badge, findings with severity, suggestions with proposed hunks) next to the source diff.
+- Surface the trust signals — evidence status, attention label, `STALE` flag — so the human sees more than the AI's opinion.
+- Wire the decision controls (Approve / Request changes / Reject) to the Day 13 decision route.
 
 ## 2. Design Decisions
 
-### 2.1 API surface (Fastify routes in `apps/api`, logic in `@harness/review`)
+- The UI is a **viewer + decision collector**, not an editor: it displays the AI's proposals as copyable text; it has no code-writing surface.
 
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/review/queue?status=QUEUED` | List queue items ordered by `position` (priority desc, FIFO) |
-| GET | `/api/review/queue/:id` | Item detail: assessment factors, diffs (Day 17), verification report + evidence links |
-| POST | `/api/review/queue/:id/claim` | Reviewer claims item (QUEUED → CLAIMED) |
-| POST | `/api/review/queue/:id/decide` | Submit decision `{ decision: 'APPROVE' \| 'REJECT', rationale, wasUseful }` |
-| POST | `/api/review/queue/:id/drop` | Drop item (requires rationale; recorded, never silent — Day-19 rule) |
-
-### 2.2 Claim with optimistic concurrency
-
-Same pattern as Day-06 task transitions — guarded UPDATE:
-
-```ts
-const claimed = await db.updateTable('review_queue')
-  .set({ status: 'CLAIMED', claimed_by: reviewerId, claimed_at: new Date() })
-  .where('id', '=', id)
-  .where('status', '=', 'QUEUED')          // guard: someone else may have claimed
-  .executeTakeFirst();
-if (claimed.numUpdatedRows === 0n) throw new QueueConflictError(id); // 409
+```text
+queue (left)  →  diff view (center)  →  report + findings + suggestions (right)
+                                      →  evidence / attention / freshness strip
 ```
 
-### 2.3 Decision flow
-
-```ts
-async decide(queueId: string, input: DecisionInput): Promise<void> {
-  const item = await this.mustGet(queueId);
-  assertStatus(item, 'CLAIMED');                       // only claimant may decide
-  await this.db.transaction().execute(async (trx) => {
-    await setQueueStatus(trx, queueId, 'DECIDED');
-    await insertDecision(trx, { queueId, ...input });  // review_decisions table (0022)
-    await transitionTask(trx, item.taskId,
-      input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-      { expected: 'AWAITING_REVIEW' });                // Day-06 guarded transition
-  });
-  this.bus.publish(makeEvent('review.decision_submitted', {
-    taskId: item.taskId, decision: input.decision, rationale: input.rationale,
-  }));
-  // Day-19 feedback loop — outside transaction, best-effort
-  await this.attention.reportAssessmentFeedback(item.assessmentId, input.wasUseful, input.comment);
-}
-```
-
-- `review.decision_submitted` → Day-14 ChangeStatusSubscriber flips Change PENDING/VERIFIED → REVIEWED. One event, two consumers (task state via API, change status via subscriber) — consistent with the event-driven status rule.
-- Migration `0022_review.sql`: `review_decisions` (id, queue_id FK, decision, rationale, reviewer_id, created_at) + `claimed_by`/`claimed_at` columns on `review_queue`.
-
-### 2.4 Queue detail payload
-
-`GET /:id` composes (read-only joins, no new writes):
-- assessment (factors, label, combined_priority, rule_id, policy_version)
-- verification report + check results + evidence ids (Day 15–17)
-- file diffs from DiffEngine cache (Day 17)
-- task summary + attempt_number
-
-This is exactly what the Day-23 UI renders — keep the payload shape stable.
-
----
+- Findings render "what I found" (`message` + line) separately from suggestions "what I'd change" (`proposed` + `rationale`), matching the domain split.
+- State is minimal (React + `fetch`); no write-back, no live code editing, no auth until Phase 2 (identity is stubbed for the demo).
 
 ## 3. Tasks
 
-- [ ] **3.1** Scaffold `packages/review` + migration `0022_review.sql`. (1 h)
-- [ ] **3.2** Queue list/detail queries (position ordering, composed detail payload). (1 h)
-- [ ] **3.3** Claim with guarded UPDATE + 409 conflict. (45 min)
-- [ ] **3.4** Decide: transaction + task transition + event + feedback call. (1.5 h)
-- [ ] **3.5** Drop with mandatory rationale. (30 min)
-- [ ] **3.6** Fastify routes + DI wiring in `bootstrap.ts` + wiring-map.md update. (45 min)
-- [ ] **3.7** Tests: double-claim → 409; decide publishes event and transitions task; feedback recorded; drop requires rationale. (1 h)
+### 3.1 Queue + report panels (180 min)
+- [ ] `apps/web/src/pages/queue.tsx` — recent reviews feed (from `GET /api/reviews`)
+- [ ] `report/*` — verdict badge, summary, findings list (severity-tagged)
 
----
+### 3.2 Diff view + suggestions (180 min)
+- [ ] `diff/*` — unified diff renderer (read-only)
+- [ ] `suggestions/*` — proposed hunk/rationale cards
+
+### 3.3 Decision wiring + polish (120 min)
+- [ ] Decide controls hitting `POST /api/reviews/:id/decision`; trust strip (evidence label, `STALE`)
 
 ## 4. Deliverables
 
 | File | Description |
-|---|---|
-| `packages/review/src/{service,queries,decide}.ts` | Review backend |
-| `packages/review/migrations/0022_review.sql` | review_decisions + claim columns |
-| `apps/api/src/routes/review.ts` | Fastify routes |
-
----
+|------|-------------|
+| `apps/web/src/pages/queue.tsx` | Review queue |
+| `apps/web/src/components/report.tsx` | Report/findings panels |
+| `apps/web/src/components/diff-view.tsx` | Read-only diff viewer |
+| `apps/web/src/components/suggestions.tsx` | Fix-suggestion cards |
+| `apps/web/src/api/client.ts` | API client |
 
 ## 5. Acceptance Criteria
 
-- [ ] Two concurrent claims → exactly one succeeds; loser gets 409.
-- [ ] APPROVE → task AWAITING_REVIEW→APPROVED; REJECT → →REJECTED; both publish `review.decision_submitted` and record feedback.
-- [ ] Change status flips to REVIEWED via the Day-14 subscriber (no direct writes from review package to `changes`).
-- [ ] Queue list is ordered by position; detail payload contains assessment + report + diffs.
-- [ ] `pnpm test && pnpm lint` green; boundary tests green (review imports only domain/event-bus/db/di).
-
----
+- [ ] `pnpm --filter @harness/web build` passes and dev-server renders the queue
+- [ ] A report loads and shows summary, verdict, ordered findings, and suggestions
+- [ ] Decision controls POST to the decision route and show the recorded result
+- [ ] Evidence/attention/`STALE` status is visible on the review
 
 ## 6. Notes & Pitfalls
 
-- **Never write `changes.status` from the review package** — ChangeStatusSubscriber (Day 14) is the sole writer; the review backend only emits events. This keeps status derivation auditable in one place.
-- **Decide-before-claim is an error**, not a convenience — enforce CLAIMED precondition; anonymous drive-by decisions destroy accountability.
-- **Feedback is best-effort** — a failure in `reportAssessmentFeedback` must not roll back the decision; log and continue (Day 27 observability will surface it).
-- **Next:** [Day 23 — Review UI: Queue & Diff View](day-23.md) puts this API in front of a human.
+- Keep suggestions rendered as *proposals* — no "apply" button, no write path. The reviewer copies them out; the harness never touches the repo.
+- Wire against the frozen Day 13 DTOs; don't invent new field names.
 
 ---
 
-*Prev: [Day 21 — Context Delivery, Freshness & Week 3 Checkpoint](day-21.md) | Next: [Day 23 — Review UI: Queue & Diff View](day-23.md)*
+*Next: [Day 23 — E2E vertical slice — happy path (PR → report → decision)](day-23.md)*

@@ -31,6 +31,8 @@ const elements = [
   { type: 'embeddings', pattern: 'packages/embeddings/**' },
   { type: 'object-store', pattern: 'packages/object-store/**' },
   { type: 'sandbox', pattern: 'packages/sandbox/**' },
+  { type: 'git-provider', pattern: 'packages/git-provider/**' },
+  { type: 'ticket-provider', pattern: 'packages/ticket-provider/**' },
   { type: 'review', pattern: 'packages/review/**' },
   { type: 'auth', pattern: 'packages/auth/**' },
   { type: 'observability', pattern: 'packages/observability/**' },
@@ -60,6 +62,18 @@ const elementTypesRules = [
     // runtime dependency (only node built-ins). Everything may import the
     // `Sandbox` interface and its Docker runtime.
     allow: ['sandbox'],
+  },
+  {
+    from: 'git-provider',
+    // The Git-host read seam reads only domain types (the `PullRequest` value
+    // object + provider slug). No db, no event-bus, no sibling engine.
+    allow: ['domain', 'git-provider'],
+  },
+  {
+    from: 'ticket-provider',
+    // The ticket-system read seam reads only domain types (the `Issue` value
+    // object + provider slug). No db, no event-bus, no sibling engine.
+    allow: ['domain', 'ticket-provider'],
   },
   { from: 'di', allow: [...SHARED, 'di'] },
   {
@@ -100,6 +114,8 @@ const elementTypesRules = [
       'embeddings',
       'object-store',
       'sandbox',
+      'git-provider',
+      'ticket-provider',
       ...ENGINE_TYPES,
       'app',
     ],

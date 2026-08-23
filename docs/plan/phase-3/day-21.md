@@ -1,11 +1,11 @@
-# Day 21 — Multi-agent Primitives: MapReduce / Critique-Revision / Ensemble
+# Day 21 — LLM-as-judge on Review Reports: Severity/Routing Rubric
 
 | | |
 |---|---|
-| **Week** | 5 — Multi-agent, bounded |
-| **Spec refs** | Spec 3 §4 (agent types), §14 (bounded execution), Spec 2 §10 (Planner as internal agent) |
-| **Estimated effort** | 8h |
-| **Prerequisites** | Day 20 (Week 4 checkpoint — hybrid default clean + correct) |
+| **Week** | 5 — Review-quality calibration |
+| **Spec refs** | Spec 11 §5.1 (LLM-as-judge, rubric-scored, audited); Phase-3 README §3 (Judge anchor) |
+| **Estimated effort** | 7h |
+| **Prerequisites** | Day 20 (W4 checkpoint); Phase-2 review reports + decision/`was_useful` log exist |
 
 ---
 
@@ -13,110 +13,66 @@
 
 By end of day you will have:
 
-1. A new package `packages/multi-agent` (`@harness/multi-agent`) with **three orchestration primitives**: `MapReduce`, `CritiqueRevision`, and `Ensemble`.
-2. Each primitive expressed as a **composition over `IAgentRuntime`** — the multi-agent package orchestrates *runs*, it does not re-implement the ReAct loop.
-3. A **bounded harness** around every primitive (max steps, token budget, time budget) — the guardrail fabric that Day 22 hardens into standalone loops.
-4. Wheel-proven invariants: multi-agent output is still **AI execution, not authority** — a human gate never gets bypassed by these primitives.
+1. A new `packages/judge` (`@harness/judge`): an **LLM-as-judge** that scores a *review report* against a **rubric** — severity agreement and routing agreement — behind `LLMProvider`.
+2. A rubric with severity/routing dimensions (e.g. severity under/over-call, routing target agreement, evidence sufficiency), each scored deterministically into the same schema.
+3. Rubric scores stored **audited** (judge run, prompt version, model, raw reasoning), never trusted unlogged.
+4. A fixture report scored end-to-end with the judge in "shadow" (log only, feeds nothing yet).
 
-This is the "coordination patterns" day; Day 22 makes them autonomously loopable *safely*.
+This day installs the *measure* of review quality; Day 22 adds inter-judge agreement, Day 23 feeds it to weight fitting.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 Primitives compose runs, don't own the loop
+### 2.1 The judge scores reports, not code
+
+The judged artifact is the **review report** (findings + severity + recommended routing + evidence). The judge answers "was this report's severity/routing right?" — it never scores AI-written code, never proposes fixes. This is review-quality measurement.
+
+### 2.2 Rubric → structured scores
 
 ```typescript
-// packages/multi-agent/src/primitives.ts
-export interface MultiAgentPrimitive {
-  run(input: PrimitiveInput): Promise<PrimitiveResult>;
-}
-
-export interface PrimitiveInput {
-  taskId: string;
-  context: string;               // ContextSnapshot content (from Context Engine)
-  subTasks?: string[];           // for MapReduce
-  allowedTools: string[];
-  budget: Budget;                // enforced by the runtime (Day 22 hardens)
-}
-
-export interface PrimitiveResult {
-  outputs: AgentOutput[];        // each produced by a distinct agent run
-  status: 'SUCCESS' | 'FAILED' | 'PARTIAL';
-  trajectoryRefs: string[];      // run ids — the audit trail
+// packages/judge/src/rubric.ts
+export interface JudgeScores {
+  severityAgreement: number;   // [0,1] did the report rate finding severity correctly?
+  routingAgreement:  number;   // [0,1] did the report route to the right human attention?
+  evidenceSufficiency: number; // [0,1] are claims evidence-backed?
+  overall:           number;   // weighted rubric total
 }
 ```
 
-- `MapReduce`: fan out one run per sub-task (map), then one run to reduce/merge (reduce).
-- `CritiqueRevision`: a Critic role reviews a Producer role's output; the Producer revises. Bounded to N revision rounds.
-- `Ensemble`: K independent runs on the same task; a selector (rule-based vote / diff-minimization) picks the final candidate.
+The judge returns scores + `reasoning` (short) + a `promptVersion` stamp. Scores are numeric so they can feed calibration (Day 23) and agreement stats (Day 22) — not prose-only.
 
-Each primitive is a *state machine over `IAgentRuntime.executeTask` calls*, not new agent code.
+### 2.3 Behind `LLMProvider`, audited
 
-### 2.2 Budget object (seed of Day 22's guardrails)
+`Judge` calls the configured `LLMProvider` with a versioned rubric prompt; every run writes a `judge_runs` row (report id, prompt version, model, scores, reasoning). Judge output is *never* used to mutate a review — it's a measurement, logged first, consumed later.
 
-```typescript
-export interface Budget {
-  maxIterations: number;        // per primitive
-  maxTokens: number;            // across all constituent runs
-  maxWallMs: number;            // hard timeout
-}
-```
+### 2.4 Boundary
 
-Every primitive calls `executeTask` with `maxSteps` derived from its budget; no primitive may spawn an unbounded loop (Day 22 formalizes `BoundedLoop`).
-
-### 2.3 Critique-Revision is evidence-fed, not vibe-fed
-
-The Critic's *input* is the Producer's trajectory + verification evidence, never a bare "looks good?" prompt. Critique output is stored as a distinct review artifact (trajectory-visible). The Critic **never** flips the human APPROVE/REJECT gate — it only revises AI output before verification.
-
-```text
-Producer.run → output O
-   → Critic.run(input = O + trajectory(O) + verification(O)) → critique C
-   → Producer.run(input = O + C) → revised O'
-   → (repeat ≤ N rounds)
-```
-
-### 2.4 Ensemble selection is mechanical
-
-The ensemble selector is deterministic: prefer the output that produces the fewest/clearest diff, or a rule-based vote on structured outputs. **No LLM decides the ensemble winner** — an LLM selector would reintroduce authority-by-AI at the exact seam where impartiality matters most.
-
-### 2.5 Package boundary + wiring
-
-`@harness/multi-agent` imports `@harness/domain`, `@harness/event-bus`, `@harness/db`, `@harness/di`, and **`@harness/agent-runtime`'s `IAgentRuntime` interface only** (not the concrete runtime, and not via a hard import of another engine's internals — `IAgentRuntime` lives in `@harness/domain` or a shared contract). Wire via DI. Emits `multi_agent.primitive_completed { primitive, taskId, runIds, status }`.
+`@harness/judge` imports only `@harness/domain`, `@harness/di`, and the `LLMProvider` seam — never `review`, `attention-engine`, or another engine.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Scaffold `packages/multi-agent` (30 min)
+### 3.1 Scaffold `@harness/judge` (30 min)
 
-- [ ] `package.json` (deps: `@harness/domain`, `@harness/event-bus`, `@harness/db`, `@harness/di`), `tsconfig.json`, barrel.
-- [ ] Add to boundary config + architecture test.
+- [ ] `package.json` (`@harness/judge`), `tsconfig`, boundary entry.
 
-### 3.2 `MapReduce` (90 min)
+### 3.2 Rubric + schema (60 min)
 
-- [ ] Fan-out sub-task runs in parallel (bounded concurrency), then a reduce run; collect `PrimitiveResult`.
-- [ ] Tests: split-merge on a mock multi-file task; parallel map runs; reduce consumes all map outputs.
+- [ ] `JudgeScores` + rubric prompt (versioned); `packages/db/src/schema/judge.ts` — `judge_runs` + migration.
 
-### 3.3 `CritiqueRevision` (120 min)
+### 3.3 `Judge` service (90 min)
 
-- [ ] Producer → Critic → Producer loop (≤ N rounds); critique stored as an artifact; evidence-fed input (§2.3).
-- [ ] Tests: a MockLLM critic returns a fixable critique; loop stops at improvement or N rounds; critique is trajectory-visible.
+- [ ] `judgeReport(report)` → `LLMProvider` call → parse to `JudgeScores` → persist `judge_runs`.
 
-### 3.4 `Ensemble` (90 min)
+### 3.4 Shadow wiring (60 min)
 
-- [ ] K independent runs + mechanical selector (§2.4).
-- [ ] Tests: 3 runs, selector picks the minimal-diff output deterministically; no LLM in selection.
+- [ ] After `review.completed`, trigger a judge run in shadow (log-only); no consumer of the score yet.
 
-### 3.5 Budget plumbing + event (60 min)
+### 3.5 Tests (75 min)
 
-- [ ] Thread `Budget` through all primitives; enforce `maxIterations`/`maxTokens`/`maxWallMs`.
-- [ ] Emit `multi_agent.primitive_completed` with run ids.
-
-### 3.6 Boundary + integration tests (75 min)
-
-- [ ] Boundary: `@harness/multi-agent` imports only allowed packages + `IAgentRuntime` contract.
-- [ ] Integration: a Crit-Revision then Verification pipeline uses the human gate exactly once (no auto-approve).
+- [ ] Fixture report → deterministic scores (stubbed LLM); prompt-version stamped; `judge_runs` row written; boundary grep.
 
 ---
 
@@ -124,36 +80,31 @@ The ensemble selector is deterministic: prefer the output that produces the fewe
 
 | File | Description |
 |------|-------------|
-| `packages/multi-agent/package.json` + `tsconfig.json` + barrel | New package |
-| `packages/multi-agent/src/primitives.ts` | `MapReduce`, `CritiqueRevision`, `Ensemble` |
-| `packages/multi-agent/src/budget.ts` | `Budget` type + enforcement |
-| `packages/multi-agent/src/__tests__/*.test.ts` | Primitive + boundary tests |
-| `apps/api/src/bootstrap.ts` (updated) | Multi-agent primitives registration |
+| `packages/judge/package.json` + `src/index.ts` | New `@harness/judge` package |
+| `packages/judge/src/rubric.ts` | `JudgeScores` + versioned rubric prompt |
+| `packages/judge/src/judge.ts` | `Judge.judgeReport` |
+| `packages/db/src/schema/judge.ts` | `judge_runs` schema |
+| `packages/judge/src/__tests__/judge.test.ts` | Judge tests |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/multi-agent test` — all tests pass.
-- [ ] `MapReduce` fans out parallel sub-task runs and reduces; `PrimitiveResult` carries all run ids.
-- [ ] `CritiqueRevision` runs Producer→Critic→Producer with the critique stored as an artifact; bounded to N rounds.
-- [ ] `Ensemble` selects the winner mechanically (no LLM selector).
-- [ ] Every primitive respects `Budget` (iterations, tokens, wall-clock) and cannot loop unbounded.
-- [ ] Multi-agent output never bypasses the human APPROVE/REJECT gate (integration test proves the gate still fires after a primitive run).
-- [ ] `multi_agent.primitive_completed` event emitted with run ids + status.
-- [ ] `pnpm lint` clean; boundary intact.
+- [ ] `Judge.judgeReport` returns numeric `JudgeScores` (severity/routing/evidence/overall) from a stubbed LLM.
+- [ ] Every run writes `judge_runs` with prompt version + model + scores + reasoning.
+- [ ] A fixture report scores correctly against the rubric (known-good fixture).
+- [ ] Judge runs in shadow — no report/decision mutated by its output.
+- [ ] Boundary: `@harness/judge` imports only domain/di + `LLMProvider` seam.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Primitives orchestrate runs; they are not agents.** If you find yourself editing the ReAct loop to "support" a primitive, that's the wrong boundary — the loop belongs to the runtime (Spec 3), the composition belongs here.
-- **Critique is evidence, not authority.** The Critic revises AI *output*; it does not approve AI *work*. Never route a CritiqueRevision "success" around the Attention Engine + human gate.
-- **Ensemble must not use an LLM to pick the winner.** An LLM selector is the AI arbitrating its own correctness — the same failure mode as "AI verifies AI." Mechanical selection only.
-- **Budgets are the load-bearing feature.** Today's `Budget` object is a seed; Day 22 turns it into enforced loop ceilings. Do not leave any primitive with a path that ignores `maxIterations`/`maxTokens`.
-- **Run-id audit is the multi-agent provenance.** Multi-agent breaks one task into many runs; without `trajectoryRefs` on every result, the provenance chain splinters. Trace every constituent run.
-- **Tomorrow (Day 22):** bounded autonomous loops — max iterations, token budget, guardrails.
+- **The judged artifact is the report, not the PR's code.** Keep the prompt scoped to "how good is this review" — never grade the PR or the author, which would leak non-review judgment.
+- **Numeric scores are the contract.** Prose-only "this is a good review" can't feed agreement stats or weight fitting; the rubric must land on numbers.
+- **Version the rubric prompt.** Retroactive score changes are only interpretable if you can map scores → prompt version.
+- **Day 22:** inter-judge agreement + audit trail.
 
 ---
 
-*Prev: [Day 20 — Week 4 Checkpoint: Lost-in-middle + Freshness Under Hybrid; Clean Cutover](day-20.md) | Next: [Day 22 — Bounded Autonomous Loops: Max Iterations, Token Budget, Guardrails](day-22.md)*
+*Next: [Day 22 — Inter-judge Agreement + Audit Trail](day-22.md)*

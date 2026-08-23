@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Week** | 1 — Identity & observability |
+| **Week** | W1 — Identity & observability |
 | **Spec refs** | Spec 11 §4.1 (routing quality), §4.2 (attention efficiency), Architecture §4.4 |
-| **Estimated effort** | 7 hours |
+| **Estimated effort** | 7h |
 | **Prerequisites** | Day 03 (OTel spans + `trace_correlation`); Phase-1 `/api/ops/metrics` + `assessment_feedback.was_useful` + `review_decisions` |
 
 ---
@@ -15,10 +15,10 @@ By end of day you will have:
 
 1. A **Prometheus metrics registry** in `packages/observability` (counters, gauges, histograms) named after the four Spec 11 dimensions: routing quality, attention efficiency, pipeline quality, context sufficiency.
 2. **Review dwell** and **usefulness** counters wired to the actual decision path — measured, not inferred.
-3. A `/metrics` scrape endpoint (Prometheus text format) replacing the Phase-1 hand-rolled `/api/ops/metrics`, plus **dashboard provisioning** (Grafana JSON) that renders the numbers operators asked for in Phase-1's audit cookbook.
-4. A **naming convention** that makes every metric traceable to a Spec 11 definition — `harness_<dimension>_<measure>_<unit>`.
+3. A `/metrics` scrape endpoint (Prometheus text format) replacing the hand-rolled `/api/ops/metrics`, plus **dashboard provisioning** (Grafana JSON).
+4. A **naming convention** making every metric traceable to a Spec 11 definition — `harness_<dimension>_<measure>_<unit>`.
 
-Phase 1 could answer "are we crying wolf?" with a SQL query. Phase 2 needs those answers as *continuous, alertable* metrics so calibration (Week 3) can be judged before/after — a metric that only exists in a SQL cookbook can't be plotted over time.
+Phase 1 could answer "are we crying wolf?" with a SQL query. Phase 2 needs those answers as *continuous, alertable* metrics so calibration (Week 3) can be judged before/after.
 
 ---
 
@@ -35,75 +35,50 @@ Phase 1 could answer "are we crying wolf?" with a SQL query. Phase 2 needs those
 | `harness_attention_human_minutes_per_accept` | Gauge | §4.2 human minutes / accepted change |
 | `harness_attention_inflation_ratio{label}` | Gauge | §4.2 CRITICAL+HIGH share of assessments |
 | `harness_review_dwell_seconds` | Histogram | queue→decide per item |
-| `harness_assessment_usefulness_total{was_useful}` | Counter | review feedback: true/false splits |
+| `harness_assessment_usefulness_total{was_useful}` | Counter | review feedback true/false splits |
 | `harness_verification_false_pass_rate` | Gauge | §4.3 passed-but-later-defect |
 | `harness_context_resupply_total` | Counter | §4.3 `requestAdditionalContext` triggers |
 
-**Gauges vs counters rule:** a value computed offline (precision/recall, leakage) is a *gauge* — set to the latest window result, never incremented. A value emitted on a discrete event (a decision, an assessment) is a *counter* — incremented once. Mixing them corrupts the semantics and makes `rate()` meaningless on the Prometheus side.
+**Gauges vs counters rule:** a value computed offline (precision/recall, leakage) is a *gauge* — set to the latest window result, never incremented. A value emitted on a discrete event is a *counter* — incremented once.
 
 ### 2.2 Where counters are emitted — on the event path, not by polling
 
-```typescript
-// packages/observability/src/metrics.ts
-export const metrics = {
-  reviewDwell: createHistogram('harness_review_dwell_seconds', /* buckets */ [30,60,120,300,600,1800,3600]),
-  usefulness:  createCounter('harness_assessment_usefulness_total', { labelNames: ['was_useful'] }),
-  routed:      createCounter('harness_routing_items_total',  { labelNames: ['route'] }),
-  resupply:    createCounter('harness_context_resupply_total'),
-};
-```
-
-Emission sites (each publishes on the event, `correlation_id` bound, so every counter can be joined to a trace):
-
 - `review.decision_submitted` → increment `usefulness{was_useful}` + observe `reviewDwell` (from `claimed_at → decided_at`).
-- `attention.item_routed` (Phase-1 event) → increment `routed{route}` where route ∈ `{human, auto_approvable}`.
-- `context.additional_requested` (new event, Phase-1 `requestAdditionalContext` path) → increment `resupply`.
+- `attention.item_routed` → increment `routed{route}` where route ∈ `{human, auto_approvable}`.
+- `context.additional_requested` → increment `resupply`.
 
-Offline gauges (precision/recall/leakage/inflation/false-pass) are computed by `@harness/evaluation` on Day 06 and **set** on this same registry via `setGauge` — so the dashboard has one source, not two.
+Offline gauges (precision/recall/leakage/inflation/false-pass) are computed by `@harness/evaluation` on Day 06 and **set** on this same registry via `setGauge` — one source, not two.
 
 ### 2.3 `/metrics` endpoint + registry lifetime
 
-```typescript
-// apps/api/src/routes/metrics.ts
-fastify.get('/metrics', async (_req, reply) => {
-  reply.header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
-  return register.metrics();
-});
-```
-
-Default registry is process-global; the counter labels are bounded (route, was_useful), never user/email/task-id — a metric keyed on unbounded values is a cardinality bomb. We key only on categorical labels; drill-down joins happen in Grafana via `trace_correlation`/`review_decisions`, not via metric labels.
+Default registry is process-global; counter labels are bounded (route, was_useful), never user/email/task-id — a metric keyed on unbounded values is a cardinality bomb. Drill-down joins happen in Grafana via `trace_correlation`/`review_decisions`, not metric labels.
 
 ### 2.4 Dashboards as code
 
-`infra/grafana/provisioning/dashboards/attention.json` — two panels to start: (1) routing funnel (items routed human vs auto per day), (2) usefulness ratio per label (the SQL from Phase-1 Q5, now as a time series). Provisioned from the repo so a clean `docker compose up` renders them.
+`infra/grafana/provisioning/dashboards/attention.json` — two panels: (1) routing funnel (items routed human vs auto per day), (2) usefulness ratio per label. Provisioned from the repo so `docker compose up` renders them.
 
 ---
 
 ## 3. Tasks
 
 ### 3.1 Metric definitions + registry (60 min)
-
-- [ ] `packages/observability/src/metrics.ts` — implement §2.1's inventory with `prom-client`; export `register`, `metrics` object, and `setGauge(name, value, labels?)` helper.
+- [ ] `packages/observability/src/metrics.ts` — §2.1 inventory with `prom-client`; export `register`, `metrics`, `setGauge`.
 
 ### 3.2 Emit counters from the event path (90 min)
-
 - [ ] `@harness/review` — dwell + usefulness on `review.decision_submitted`.
-- [ ] `@harness/attention-engine` — `routed{route}` on `attention.item_routed` (route comes from the assessment's `review_required`/`AUTO_APPROVABLE` outcome).
-- [ ] `@harness/context-engine` — emit `context.additional_requested` + increment `resupply` on the `requestAdditionalContext` path (Phase-1 seam).
+- [ ] `@harness/attention-engine` — `routed{route}` on `attention.item_routed`.
+- [ ] `@harness/context-engine` — emit `context.additional_requested` + increment `resupply`.
 
 ### 3.3 `/metrics` endpoint (30 min)
-
-- [ ] `apps/api/src/routes/metrics.ts` (§2.3); wire in `bootstrap.ts`; remove the old `/api/ops/metrics` JSON endpoint (or keep `/api/ops/health` only).
+- [ ] `apps/api/src/routes/metrics.ts` — Prometheus scrape; wire in `bootstrap.ts`; keep only `/api/ops/health` of the old endpoints.
 
 ### 3.4 Dashboards (60 min)
-
-- [ ] `infra/grafana/provisioning/*` — datasource (Prometheus self-scrape) + the two panels; add Grafana to `docker-compose.yml`.
+- [ ] `infra/grafana/provisioning/*` — datasource + two panels; add Grafana to `docker-compose.yml`.
 
 ### 3.5 Tests + verification (120 min)
-
-- [ ] `packages/observability/src/__tests__/metrics.test.ts` — counter increments on emitted events (spy the bus), gauge set, histogram buckets populated.
-- [ ] `apps/api` test — `/metrics` returns 200 text/plain and contains `harness_review_dwell_seconds`.
-- [ ] Run a scripted review (one approve with `was_useful=true`, one reject `false`) and assert `harness_assessment_usefulness_total{was_useful="true"} == 1`.
+- [ ] Counter increments on emitted events (spy the bus), gauge set, histogram buckets populated.
+- [ ] `/metrics` returns 200 text/plain containing `harness_review_dwell_seconds`.
+- [ ] One approve (`was_useful=true`) + one reject (`false`) → `…usefulness_total{was_useful="true"} == 1`.
 
 ---
 
@@ -121,24 +96,24 @@ Default registry is process-global; the counter labels are bounded (route, was_u
 
 ## 5. Acceptance Criteria
 
-- [ ] `curl localhost:3000/metrics` returns `text/plain` containing all 10 metric families from §2.1 with `# HELP`/`# TYPE` lines.
-- [ ] After one approve + one reject: `harness_assessment_usefulness_total{was_useful="true"} == 1` and `{was_useful="false"} == 1`.
-- [ ] `harness_review_dwell_seconds` histogram has ≥1 observation, and its value is within `[claimed_at, decided_at]` window of the test item.
-- [ ] `harness_routing_items_total{route="human"}` increments when a HIGH assessment routes to human.
-- [ ] No metric label is keyed on `user_id`, `email`, `task_id`, or `correlation_id` (grep the `labels` columns for denial of the rule).
-- [ ] `pnpm --filter @harness/observability test` — green; `pnpm lint` — no boundary violations.
-- [ ] Grafana datasource + dashboard load against `docker compose up` with zero provisioning errors.
+- [ ] `curl localhost:3000/metrics` returns `text/plain` containing all 10 metric families with `# HELP`/`# TYPE`.
+- [ ] After one approve + one reject: `usefulness_total{was_useful="true"} == 1` and `{was_useful="false"} == 1`.
+- [ ] `harness_review_dwell_seconds` has ≥1 observation within the test item's `[claimed_at, decided_at]` window.
+- [ ] `harness_routing_items_total{route="human"}` increments on a HIGH-assessment route.
+- [ ] No metric label keys on `user_id`, `email`, `task_id`, or `correlation_id`.
+- [ ] `pnpm --filter @harness/observability test` green; `pnpm lint` no boundary violations.
+- [ ] Grafana loads against `docker compose up` with zero provisioning errors.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **Cardinality is the enemy.** Every label value becomes a Prometheus time series. Never label a metric with `correlation_id`, `task_id`, or `user_id` — add those as *span attributes* (Day 03) and join in dashboards. This is a hard rule, enforced by review + grep.
-- **Don't compute precision on the hot path.** §4.1 precision/recall need the outcome (rejection/defect) which appears *later*. Guessing it per-event is wrong; express it as a gauge set by the offline evaluator (Day 06). Today's counters are the *raw* observed events, not the derived rates.
-- **`was_useful` can be null.** Phase-1 decisions may carry `wasUseful` unset. Record `was_useful="unknown"` rather than silently folding nulls into `false` — `false` means "actively not useful", a different signal.
-- **Counter increments must be idempotent-under-replay.** If the event bus re-delivers, the counter fires twice. Where possible key off the event `event_id` (already-deduplicated in `event_log`) — Day 08 (replay) will resurface this, so note it now.
-- **Next (Day 05):** Week-1 checkpoint — identity + observability demonstrable on a live run before the evaluation work begins.
+- **Cardinality is the enemy.** Every label value is a time series. Never label with `correlation_id`/`task_id`/`user_id` — put those on span attributes (Day 03) and join in dashboards.
+- **Don't compute precision on the hot path.** Precision/recall need the *outcome* (rejection/defect) which appears later; express them as gauges set by the offline evaluator (Day 06).
+- **`was_useful` can be null.** Record `was_useful="unknown"` rather than folding nulls into `false`.
+- **Counter increments must be idempotent-under-replay.** Key off the event `event_id` (deduplicated in `event_log`); Day 08 replay will resurface this.
+- **Next (Day 05):** Week-1 checkpoint — identity + observability demonstrable on a live run.
 
 ---
 
-*Prev: [Day 3 — OpenTelemetry: Spans, trace_id ↔ correlation_id](day-03.md) | Next: [Day 5 — Week 1 Checkpoint: Identity & Observability](day-05.md)*
+*Prev: [Day 03 — OpenTelemetry: Spans, trace_id ↔ correlation_id](day-03.md) | Next: [Day 05 — Week 1 Checkpoint: Identity & Observability](day-05.md)*

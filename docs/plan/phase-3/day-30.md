@@ -1,65 +1,61 @@
-# Day 30 — Week 6 Checkpoint: Benchmark + Judge Run End-to-End on Corpus
+# Day 30 — Week 6 Checkpoint: Hybrid Default; Shadow→Default Clean
 
 | | |
 |---|---|
-| **Week** | 6 — Benchmark + judge |
-| **Spec refs** | Spec 11 §5 (benchmark corpus, MBH, LLM-as-judge), Architecture §4.2 |
-| **Estimated effort** | 6h |
-| **Prerequisites** | Day 29 (judge calibration + inter-judge agreement) |
+| **Week** | 6 — Hybrid context default |
+| **Spec refs** | Phase-3 README §5 (W6 milestone), §7 (hybrid default exit criterion) |
+| **Estimated effort** | 5h |
+| **Prerequisites** | Days 26–29 (hybrid, re-rank, RAG Fusion, measured cutover) |
 
 ---
 
 ## 1. Objectives
 
-This is a **hard checkpoint**, not a build day. No new features. By end of day you will have:
+By end of day you will have:
 
-1. A **single end-to-end run**: frozen corpus → MBH → real pipeline → `BenchRun` → gold-test adjudication → judge verdict → calibration/agreement — all venting from one command, with a report.
-2. **A baseline score** for the Phase-3 system on the frozen corpus (this is the number every later "improvement" must beat).
-3. **A credibility check** on the judge before its output is admitted downstream.
-4. A **Week 6 retrospective note**.
+1. A demonstrable Week-6 milestone: **hybrid (BM25 + embeddings + RRF + re-rank) is the default `rank_method`, and the shadow baseline is cleanly retired** — no dead shadow paths left in the hot path.
+2. An end-to-end demo showing the default resolving to `hybrid`, snapshots recording `hybrid`, and the A/B report + cutover decision as evidence.
+3. Integration debt closed: shadow scaffolding removed (or gated behind `eval:*` scripts only), guardrail re-checked post-cutover, kill-switch (`keyword`) verified reachable if needed.
+4. W6 evidence in `docs/retros/`.
 
-**Do not proceed to Day 31 until every acceptance criterion in §5 is green** — Week 7 feeds evaluation results into calibration, and an un-credible judge would poison that loop.
+The checkpoint validates the *won* default is real: hybrid is live, measurable, and reversible.
 
 ---
 
-## 2. What Week 6 Has Built
+## 2. Design Decisions
 
-| Component | Package | Status |
-|-----------|---------|--------|
-| Benchmark corpus — frozen gold labels (SWE-bench-style) | `@harness/benchmark` | ✅ Day 26 |
-| Benchmark runtime — MBH container (bash + editor) | `@harness/benchmark` | ✅ Day 27 |
-| LLM-as-judge — rubric-scored, `LLMProvider`-mediated, audited | `@harness/judge` | ✅ Day 28 |
-| Judge calibration + inter-judge agreement + audit | `@harness/judge` | ✅ Day 29 |
+### 2.1 "Clean" = no hot-path shadow residue
+
+After cutover, the prompt/resolution path must not still compute both rankings "just in case". Shadowing moves behind the offline `eval:*` harness; the live path resolves one retriever from `rank_method`.
+
+### 2.2 Kill-switch remains
+
+`rank_method = keyword` stays a one-config revert. The demo proves it: flip to `keyword`, one request records `keyword`, flip back.
+
+### 2.3 The checkpoint is a verification of Day 29's decision
+
+If Day 29 was HOLD (hybrid did **not** win), then today's checkpoint is "hybrid stayed selectable, default remained keyword, investigation logged" — a *legitimate* W6 outcome, not a failure. The milestone text reads "hybrid default" assuming a WIN; the discipline allows HOLD.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 End-to-end runner (120 min)
+### 3.1 Post-cutover guardrail check (45 min)
 
-- [ ] `scripts/bench-e2e.ts`: corpus `v1` → for each task: MBH run → gold-test adjudication → judge verdict → aggregate.
-- [ ] Deterministic ordering + a fixed seed; run twice to confirm reproducibility.
+- [ ] Re-run the A/B report once post-cutover; confirm the verdict still holds.
 
-### 3.2 Baseline report (90 min)
+### 3.2 Shadow cleanup (90 min)
 
-- [ ] Aggregate `passed` rate by `label` stratum and judge `total` distribution; write `docs/reports/phase3-baseline.md`.
-- [ ] Record the **baseline** — this is the reference number for all of Week 7/8.
+- [ ] Remove hot-path shadow computation; confine shadowing to `eval:*` scripts.
 
-### 3.3 Credibility check before admission (60 min)
+### 3.3 Default + kill-switch demo (60 min)
 
-- [ ] Assert the judge is credible (self-agreement + vs-human agreement reach the Day 29 thresholds) **before** any score is recorded as authoritative.
-- [ ] A non-credible judge halts the checkpoint (scores recorded but flagged, closed loop not fed).
+- [ ] `scripts/demo-hybrid-default.ts` — default resolves to hybrid, one `keyword` revert round-trip.
 
-### 3.4 Week 6 retro (60 min)
+### 3.4 Docs + evidence (45 min)
 
-File: `docs/retros/week-06-phase3.md` (`# Week 6 Phase 3 Retro — Benchmark + judge`), standard sections.
-
-Prompts: Is the corpus representative or quietly skewed? Does the judge pass the sniff test on a few known-good/known-bad runs? Did any run leak `goldPatch` or auto-advance a `HUMAN_ROUTED` task? Is the MBH minimal enough?
-
-### 3.5 Update wiring map + README (30 min)
-
-- [ ] `docs/architecture/wiring-map.md` — benchmark + judge + calibration.
-- [ ] `README.md` — "Phase 3 Week 6 Status" note + baseline number.
+- [ ] `docs/architecture/wiring-map.md` (rank_method default = hybrid).
+- [ ] `docs/retros/phase3-w6.md`.
 
 ---
 
@@ -67,36 +63,30 @@ Prompts: Is the corpus representative or quietly skewed? Does the judge pass the
 
 | File | Description |
 |------|-------------|
-| `scripts/bench-e2e.ts` | One-command E2E benchmark run |
-| `docs/reports/phase3-baseline.md` | Baseline score + breakdown |
-| `docs/retros/week-06-phase3.md` | Retrospective |
-| `README.md` (updated) | Week 6 status + baseline |
+| `scripts/demo-hybrid-default.ts` | Default + kill-switch demo |
+| `packages/context-engine/…` (updated) | Hot-path shadow cleanup |
+| `docs/architecture/wiring-map.md` (updated) | `rank_method` default = hybrid |
+| `docs/retros/phase3-w6.md` | Week 6 checkpoint evidence |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] One command runs frozen corpus → MBH → pipeline → adjudication → judge → report, end-to-end.
-- [ ] `passed` adjudication is mechanical (gold tests); judge never overrides it.
-- [ ] Judge credibility confirmed (self + vs-human agreement ≥ thresholds) before scores are treated as authoritative.
-- [ ] Baseline recorded, broken down by `label` stratum.
-- [ ] Re-run is reproducible (same tasks, comparable results); no `goldPatch` leak; no `HUMAN_ROUTED` auto-advance.
-- [ ] `docs/reports/phase3-baseline.md` + `docs/retros/week-06-phase3.md` exist.
-- [ ] `pnpm lint` clean across all touched packages.
-
-**Checkpoint rule:** If the judge is not credible, or the baseline is non-reproducible, stop. Week 7's closed loop consumes exactly these numbers; garbage here is guaranteed garbage in the learning pipeline.
+- [ ] Default `rank_method` resolves to `hybrid`; snapshots record `hybrid`.
+- [ ] No hot-path shadow computation remains (only `eval:*` offline).
+- [ ] Kill-switch round-trip (`hybrid` → `keyword` → `hybrid`) works.
+- [ ] Post-cutover guardrail re-check holds.
+- [ ] `pnpm test && pnpm lint` green.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **This checkpoint produces the reference number.** "Better" in Weeks 7–8 means "above this baseline on the *same frozen corpus*, credible judge." Anything that moves the number without a credible scorer or a frozen corpus is a measurement artifact, not progress.
-- **The judge runs last, and never upstream of correctness.** gold-test `passed` is adjudicated before and independently of the judge. A judge that could flip `passed` would be the loop self-grading.
-- **No "trivial" corpus wins.** If the baseline is suspiciously high, suspect the corpus composition (Day 26) — an all-easy corpus inflates the baseline and hides every later regression. Re-check the stratum mix before trusting a rosy number.
-- **Reproducibility is the checkpoint's own credibility.** If `bench-e2e.ts` gives different numbers across two clean runs, the downstream A/B and calibration are measuring noise. Diagnose determinism today.
-- **Do not start Week 7's calibration today.** The closed loop must not open until the judge + baseline are proven credible and frozen.
-- **Tomorrow (Day 31):** learning pipeline — evaluation results → calibration update (automated).
+- **If Day 29 was HOLD, the checkpoint is HOLD-verified.** Don't manufacture a WIN; record the held-state and why.
+- **Cleanup is part of the checkpoint.** A default with both paths still running hot is a shadow, not a cutover — the "no hot-path shadow" criterion is load-bearing.
+- **Week 7 closes the loop** — review decisions + judge signals feed calibration/routing automatically.
+- **Next (Day 31):** learning pipeline — review decisions → calibration update (automated).
 
 ---
 
-*Prev: [Day 29 — Judge Calibration + Inter-Judge Agreement + Audit Trail](day-29.md) | Next: [Day 31 — Learning Pipeline: Evaluation Results → Calibration Update (Automated)](day-31.md)*
+*Next: [Day 31 — Learning Pipeline: Review Decisions → Calibration Update (Automated)](day-31.md)*

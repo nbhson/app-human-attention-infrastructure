@@ -24,11 +24,13 @@
     "@harness/embeddings": "workspace:*",
     "@harness/evaluation": "workspace:*",
     "@harness/event-bus": "workspace:*",
+    "@harness/git-provider": "workspace:*",
     "@harness/orchestrator": "workspace:*",
     "@harness/observability": "workspace:*",
     "@harness/object-store": "workspace:*",
     "@harness/review": "workspace:*",
     "@harness/sandbox": "workspace:*",
+    "@harness/ticket-provider": "workspace:*",
     "@harness/verification-engine": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.1.0"

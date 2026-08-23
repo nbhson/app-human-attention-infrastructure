@@ -1,69 +1,61 @@
-# Day 20 — Week 4 Checkpoint: Lost-in-middle + Freshness Under Hybrid; Clean Cutover
+# Day 20 — Week 4 Checkpoint: Review Memory Write + Read Demonstrable
 
 | | |
 |---|---|
-| **Week** | 4 — Hybrid context default |
-| **Spec refs** | Spec 4 §5.2.2 (lost-in-the-middle), §5.2.4 (validation gate), §8 (freshness), §5.1 (hybrid default, re-rank) |
-| **Estimated effort** | 7h |
-| **Prerequisites** | Day 19 (hybrid default cutover via A/B gate) |
+| **Week** | 4 — Review memory |
+| **Spec refs** | Phase-3 README §5 (W4 milestone), §7 (review memory exit criterion) |
+| **Estimated effort** | 5h |
+| **Prerequisites** | Days 16–19 (tiers, ingestion, retrieval, lifecycle) |
 
 ---
 
 ## 1. Objectives
 
-This is a **hard checkpoint**, not a build day. No new features. By end of day you will have:
+By end of day you will have:
 
-1. A **lost-in-the-middle test** proving the highest-value sources sit at the *head* of delivered context under hybrid + re-rank (Spec 4 §5.2.2), not mid-prompt.
-2. A **freshness test** proving STALE target files are still re-resolved/handled correctly under the hybrid path (Spec 4 §8, §5.2.4).
-3. A **clean cutover confirmation**: the shadow keyword baseline is retired against default hybrid with no correctness regression, and the cutover is auditable.
-4. A **Week 4 retrospective note**.
+1. A demonstrable Week-4 milestone: **write a review outcome into memory and read it back, relevance-scored, into the next review's context.**
+2. An end-to-end demo: ingest one completed review → retrieve top-K for a new review → show the memory section in the assembled context + its relevance scores.
+3. Lifecycle demonstrated live: consolidate a chain, decay an unused entry, archive a superseded one.
+4. W4 evidence in `docs/retros/`; wiring map notes the memory seam + token.
 
-**Do not proceed to Day 21 until every acceptance criterion in §5 is green.**
+The checkpoint proves review memory is *closed* — write, read, and lifecycle all working together.
 
 ---
 
-## 2. What Week 4 Has Built
+## 2. Design Decisions
 
-| Component | Package | Status |
-|-----------|---------|--------|
-| Hybrid retriever (BM25 + semantic) + RRF | `@harness/context-engine` | ✅ Day 16 |
-| Re-rank (value/dependency/recency/usage) + target pin | `@harness/context-engine` | ✅ Day 17 |
-| RAG Fusion (multi-query + RRF), opt-in | `@harness/context-engine` | ✅ Day 18 |
-| `rank_method` cutover + A/B rollout gate | `@harness/context-engine` | ✅ Day 19 |
+### 2.1 The demo is a write→read round-trip, not a simulated store
+
+`scripts/demo-memory.ts` uses the real pipeline: emit a completed-review event → wait for ingestion → retrieve for a candidate review → assert the retrieved `REVIEW`/`DECISION` entries surface with evidence links and nonzero relevance. No fixtures that sidestep the event bus.
+
+### 2.2 "Demonstrable" = the memory changed the context
+
+The checkpoint's bar is that the top-K memory section is **present and non-empty** in the assembled reviewer context for a new review touching the same subject. A memory store that writes but never surfaces is a write-only box, not memory.
+
+### 2.3 Keep it honest: relevance, not vibes
+
+Print the relevance scores + the signals behind them (confidence, recency, match), so the demo is auditable — the reviewer can see *why* a memory surfaced, not just that one did.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Lost-in-the-middle test (90 min)
+### 3.1 End-to-end demo (90 min)
 
-- [ ] `lost-in-middle.test.ts`: deliver a hybrid context and assert the highest-value sources (by a fixed ground-truth ranking: target files first, then dependency-closest, then recency) appear in the **first third** of the delivered order, not the middle.
-- [ ] Assert the re-rank `before → after` moved ground-truth top items toward the head (measured, recorded in snapshot metadata).
+- [ ] `scripts/demo-memory.ts` — write (event → ingest) → read (retrieve → context) → print scores.
 
-### 3.2 Freshness under hybrid (75 min)
+### 3.2 Lifecycle demo (45 min)
 
-- [ ] Change a target file after a snapshot's `content_hash` was captured; assert the hybrid path still detects STALE and re-resolves (Spec 4 §8) — the retriever must not serve a poisoned/stale source.
-- [ ] Assert the §5.2.4 validation gate still hard-fails on budget breach and missing target files under hybrid.
+- [ ] Show consolidate + decay + archive on the ingested data; assert archived excluded from retrieval.
 
-### 3.3 Cutover confirmation + shadow retirement (90 min)
+### 3.3 Integration debt pass (60 min)
 
-- [ ] Re-run the acceptance criteria from Day 19: `metric_gates` row exists, `rank_method` default is `hybrid`, snapshot metadata carries shadow keyword order from the window.
-- [ ] Retire the shadow keyword computation (close the temporary double-rank) now that freshness/lost-in-middle pass; record the retirement timestamp.
+- [ ] Evidence-link invariant verified through ingestion; head-of-chain retrieval verified; async counters flushed before read-back assertions.
 
-### 3.4 Regression sweep (60 min)
+### 3.4 Docs + evidence (45 min)
 
-- [ ] Re-run Phase 1/2 context tests under `hybrid` default; any test asserting the old `keyword` default must be updated to assert the *mechanism* (retriever seam) not the specific ranker.
-
-### 3.5 Week 4 retro (45 min)
-
-File: `docs/retros/week-04-phase3.md` (`# Week 4 Phase 3 Retro — Hybrid context default`), standard sections.
-
-Prompts: Did hybrid actually win the A/B, or was the metric too forgiving? Is RAG Fusion worth its cost on real queries? Is the target-file pin holding under adversarial fixtures? Any freshness path where hybrid returned stale content?
-
-### 3.6 Update wiring map + README (30 min)
-
-- [ ] `docs/architecture/wiring-map.md` — `HybridRetriever`, `HeuristicReRanker`, `RagFusionRetriever`, rank gate.
-- [ ] `README.md` — "Phase 3 Week 4 Status" note.
+- [ ] `docs/architecture/wiring-map.md` — `TOKENS.MemoryStore`/`MemoryRetriever`, `@harness/memory`.
+- [ ] `docs/retros/phase3-w4.md` — recorded demo output.
 
 ---
 
@@ -71,35 +63,29 @@ Prompts: Did hybrid actually win the A/B, or was the metric too forgiving? Is RA
 
 | File | Description |
 |------|-------------|
-| `apps/api/src/__tests__/week4-hybrid-checkpoint.test.ts` | Lost-in-middle + freshness + cutover |
-| `docs/retros/week-04-phase3.md` | Retrospective |
-| `README.md` (updated) | Week 4 status section |
+| `scripts/demo-memory.ts` | Write→read memory demo |
+| `docs/architecture/wiring-map.md` (updated) | Memory seam + tokens |
+| `docs/retros/phase3-w4.md` | Week 4 checkpoint evidence |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] Hybrid default delivers highest-value sources at the head (not mid-prompt) — lost-in-middle test passes.
-- [ ] STALE target files are detected and re-resolved under hybrid (freshness test passes).
-- [ ] §5.2.4 validation gate still hard-fails on budget breach and missing target files under hybrid.
-- [ ] `rank_method` default is `hybrid`; `metric_gates` row records the winning A/B; shadow keyword computation retired.
-- [ ] No Phase 1/2 context test regressed (or its *intent* is preserved when updated for the new default).
-- [ ] `pnpm --filter @harness/context-engine test` — all pass; `pnpm lint` — zero errors.
-- [ ] `docs/retros/week-04-phase3.md` exists.
-
-**Checkpoint rule:** If hybrid is default but the lost-in-middle or freshness test is red, revert to `keyword` (Day 19 drill) and fix today. Do not carry a hybrid default that serves stale or misordered context into Week 5.
+- [ ] `pnpm demo:memory` ingests a review → retrieves top-K into a new review's context with non-empty memory section.
+- [ ] Relevance scores printed with their signals (match/confidence/recency).
+- [ ] Lifecycle: consolidation, decay, and archive all demonstrated; archived excluded from retrieval.
+- [ ] Ingested entries all cite ≥1 evidence.
+- [ ] `pnpm test && pnpm lint` green.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **"Clean cutover" means no double-rank left behind.** The shadow keyword rank was a *window*, not a permanent feature. Leaving both rankers live doubles the hot-path cost and erodes the whole latency story.
-- **Lost-in-the-middle is a placement property, not just "top item first."** Verify the *distribution*: ground-truth top-K should concentrate at the head, not simply appear above the fold. A dozen medium sources dumped before the one critical one is still lost.
-- **Freshness is a correctness gate, not a nicety.** If hybrid returns a STALE source without re-resolving, the whole retrieval upgrade inherits the exact stale-context bug Phase 1 already guards against. It must pass before the cutover is "clean."
-- **Updating old tests must not weaken them.** When a Phase-1 test asserted `keyword` specific behavior, re-assert on the *retriever seam* result, not by hardcoding `hybrid` into the future. Tests that pin the wrong ranker become brittle.
-- **Do not start multi-agent today.** Week 5 (bounded multi-agent) has the thorniest guardrail work of the phase. A clean, provably-correct hybrid-default foundation is the prerequisite.
-- **Tomorrow (Day 21):** multi-agent primitives — MapReduce / Critique-Revision / Ensemble.
+- **Wait for async ingestion before reading back.** Event→ingest→store is asynchronous; a demo that reads before the entry lands shows a false miss. Flush/poll before asserting.
+- **The memory must change the context, not just exist.** If top-K doesn't actually influence the reviewer's attention/context, that's Week 7's feedback loop — flag it, don't paper over it today.
+- **Week 5 pivots to review-quality calibration** (LLM-as-judge). Memory is now stable; don't refactor it mid-phase.
+- **Next (Day 21):** LLM-as-judge on review reports — severity/routing rubric.
 
 ---
 
-*Prev: [Day 19 — Integrate Hybrid Default: rank_method Cutover + A/B vs Shadow Baseline](day-19.md) | Next: [Day 21 — Multi-agent Primitives: MapReduce / Critique-Revision / Ensemble](day-21.md)*
+*Next: [Day 21 — LLM-as-judge on Review Reports: Severity/Routing Rubric](day-21.md)*

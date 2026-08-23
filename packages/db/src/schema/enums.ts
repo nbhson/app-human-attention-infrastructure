@@ -245,3 +245,74 @@ export const contextSourceTypeCheck = inList(
   'source_type',
   contextSourceTypes,
 );
+
+// --- Review-reorient (Phase 3) ---------------------------------------------
+// Plain-text copies of the `@harness/domain` integration enums. Unlike the
+// status machines above, most of these hold *lowercase* domain values (provider
+// slugs), kept verbatim so raw SQL reads the same token the API accepts.
+
+/** `review_reports.ai_provider` — the AI vendor slug. */
+export const aiProviderTypes = ['openai', 'anthropic', 'gemini', 'opencode', 'custom'] as const;
+
+/** `review_reports.overall_verdict` — the recommended verdict. */
+export const reviewVerdicts = ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'] as const;
+
+/** `review_findings.severity` — a finding severity band. */
+export const reviewSeverities = ['CRITICAL', 'MAJOR', 'MINOR', 'NIT', 'INFO'] as const;
+
+/** `provider_configs.kind` — what a provider config configures. */
+export const providerKinds = ['git', 'ticket', 'ai'] as const;
+
+/** `writeback_log.target` — the external target of a write-back. */
+export const writebackTargets = ['pr', 'ticket'] as const;
+
+/** `writeback_log.action` — the external action performed. */
+export const writebackActions = ['comment', 'status', 'label', 'transition'] as const;
+
+/** `writeback_log.status` — a write-back attempt lifecycle. */
+export const writebackStatuses = ['PENDING', 'SUCCEEDED', 'FAILED'] as const;
+
+/** `review_reports.ai_provider`. */
+export const aiProviderCheck = inList(
+  'review_reports_ai_provider_check',
+  'ai_provider',
+  aiProviderTypes,
+);
+
+/** `review_reports.overall_verdict`. */
+export const reviewVerdictCheck = inList(
+  'review_reports_overall_verdict_check',
+  'overall_verdict',
+  reviewVerdicts,
+);
+
+/** `review_findings.severity`. */
+export const reviewSeverityCheck = inList(
+  'review_findings_severity_check',
+  'severity',
+  reviewSeverities,
+);
+
+/** `provider_configs.kind`. */
+export const providerKindCheck = inList('provider_configs_kind_check', 'kind', providerKinds);
+
+/** `writeback_log.target`. */
+export const writebackTargetCheck = inList(
+  'writeback_log_target_check',
+  'target',
+  writebackTargets,
+);
+
+/** `writeback_log.action`. */
+export const writebackActionCheck = inList(
+  'writeback_log_action_check',
+  'action',
+  writebackActions,
+);
+
+/** `writeback_log.status`. */
+export const writebackStatusCheck = inList(
+  'writeback_log_status_check',
+  'status',
+  writebackStatuses,
+);

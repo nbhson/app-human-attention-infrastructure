@@ -4,7 +4,7 @@
 |---|---|
 | **Week** | 5 — Sandbox, object store, Spec 8 |
 | **Spec refs** | Spec 7 §5.5 (isolated execution environment), §5.6 (flaky handling), §5.7 (timeouts); Spec 9 §3.2 (tamper-evident evidence) |
-| **Estimated effort** | 8 hours |
+| **Estimated effort** | 8h |
 | **Prerequisites** | Day 21 (object store); Phase-1 in-process verification (worktree + `sanitizedEnv`, output cap 64 KB) |
 
 ---
@@ -18,13 +18,13 @@ By end of day you will have:
 3. **Attributability** — a verification result is only meaningful when the exact content verified is identified by `content_hash` and recorded in the `VerificationResult` (Spec 7 §5.5's rule), so a sandbox result links to the bytes it verified.
 4. **Parity guarantee** — the sandboxed `COMPILE`/`TEST` results agree with the Phase-1 in-process results on the same fixture (the swap must not silently change verdicts).
 
-The independence that matters (verification ≠ generation) becomes *structural* today: verification no longer shares a process with the agent that generated the change.
+The reviewer is read-only; verification is the only step that *executes* anything, and it becomes structurally independent today: the check runs in a disposable container against the change's pinned bytes, never in the host process that served the review.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 `Sandbox` interface — one abstraction, two consumers (this + Day 23)
+### 2.1 `Sandbox` interface — one abstraction, one consumer (verification)
 
 ```typescript
 // packages/sandbox/src/sandbox.ts
@@ -45,7 +45,7 @@ export interface SandboxResult {
 }
 ```
 
-Spec 7 §5.5 and Spec 3 §14.3 explicitly share one sandbox abstraction so verification is *genuinely independent of generation* — not just a different call site. The interface is defined once, here.
+Spec 7 §5.5 declares one sandbox abstraction so verification runs independently of the review pipeline that produced the findings — the check executes in a disposable container, never in the process that wrote the report. The interface is defined once, here.
 
 ### 2.2 Hard isolation, no egress, read-only root
 
@@ -134,8 +134,8 @@ Until sandbox parity is proven, the verification engine runs **both** in-process
 - **Attributability ≠ "it ran in a sandbox".** A result matters only when the exact bytes it verified are identified by `content_hash` (Spec 7 §5.5). Without it, a sandboxed PASS proves nothing about the change under review.
 - **Network-none breaks legitimate-but-unneeded steps.** Some test setups "phone home" (npm audit, telemetry). Those must be disabled in the image, not by allowing egress. Allow `--network none` and fix the image; never the reverse.
 - **Fallback is deliberate degradation, and it must be loud.** If the sandbox dies and verification silently falls back forever, you've quietly reverted to Phase-1 isolation. Log + alert (Spec 10) on fallback rate.
-- **Next (Day 23):** the same sandbox abstraction for agent Code Mode (Spec 3 §14.3) — batched tool calls in the container, not the host process.
+- **Next (Day 23):** review-report storage + large-diff handling behind `ContentStore` — the reviewer's output becomes a content-addressed, immutable record the object store can back.
 
 ---
 
-*Prev: [Day 21 — Object Store: S3/MinIO `ContentStore` for Large Artifacts](day-21.md) | Next: [Day 23 — Container Sandbox for Agent Code Mode (Spec 3 §14.3)](day-23.md)*
+*Prev: [Day 21 — Object Store: S3/MinIO `ContentStore`](day-21.md) | Next: [Day 23 — Review-Report Storage + Large-Diff Handling via `ContentStore`](day-23.md)*

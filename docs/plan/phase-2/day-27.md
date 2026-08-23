@@ -4,8 +4,8 @@
 |---|---|
 | **Week** | 6 — Harden + exit review |
 | **Spec refs** | Spec 1 §24.4 (production readiness / E2E), Spec 10 (observability), Spec 2 §7 (saga/circuit-breaker), Spec 11 §4 (pipeline quality) |
-| **Estimated effort** | 8 hours |
-| **Prerequisites** | Days 21–26 (subsystems + hardening); Phase-1 E2E fixture (task → agent → context → artifact → verify → review) |
+| **Estimated effort** | 8h |
+| **Prerequisites** | Days 21–26 (subsystems + hardening); Phase-1 E2E fixture (task → review → context → verification → decision) |
 
 ---
 
@@ -13,12 +13,12 @@
 
 By end of day you will have:
 
-1. A **full end-to-end run** of one representative task through the *entire Phase-2 pipeline* — auth (actor identity on every write), sandboxed verification, object-store backing, cache, metrics — proving the hardened subsystems compose into *one system*, not five subsystems wired side-by-side.
+1. A **full end-to-end run** of one representative task through the *entire Phase-2 pipeline* — auth (actor identity on every write), sandboxed verification, object-store backing (including the pinned review report), cache, metrics — proving the hardened subsystems compose into *one system*, not five subsystems wired side-by-side.
 2. **Telemetry integrity across the run** — the E2E trace maps `trace_id ↔ correlation_id` (Day 3), every decision carries `actor_id` (Days 1–2), and every verification result carries `content_hash` (Day 22), so the run is a *reconstructible* record from start to finish.
 3. **Six seams exercised in one run** (`IEventBus`, `Retriever`, `Ranker`, `Embedder`, `ContentStore`, `LLMProvider`) to confirm the modular-monolith seams all route through DI and none bypass to a monolith direct call.
 4. A **E2E runbook + fixture** committed so Phase 3 can run it as a nightly canary against any change.
 
-Day 27 is the system-level "it actually works" proof — the unit tests have been green for weeks; this is the first time the whole loop is observed end to end under the new infra.
+Day 27 is the system-level "it actually works" proof — the unit tests have been green for weeks; this is the first time the whole review loop is observed end to end under the new infra.
 
 ---
 
@@ -32,7 +32,7 @@ Day 27 is the system-level "it actually works" proof — the unit tests have bee
 
 Passing means *two* things, both asserted:
 
-1. **Functional**: task → context (`rank_method = 'keyword'`, shadow comparison recorded) → agent (code mode in sandbox) → artifact (object store) → verification (sandbox, `content_hash`) → review (`actor_id`, decision) → `task.completed`.
+1. **Functional**: task → context (`rank_method = 'keyword'`, shadow comparison recorded) → review (report + findings, read-only) → review report pinned via `ContentStore` (large diff routed to object store) → verification (sandbox, `content_hash`) → decision (`actor_id`, `review.decision_submitted`) → `task.completed`.
 2. **Observable**: the run's `trace_correlation` row links the OTel `trace_id` to the `correlation_id`; the `event_log` replays the run's full decision history; the metrics registry shows the pipeline counters incremented.
 
 If the task completes but the trace can't be reconstructed, the E2E is **red** — a pipeline you can't observe is not a Phase-2 pipeline (Spec 10).
@@ -40,9 +40,10 @@ If the task completes but the trace can't be reconstructed, the E2E is **red** �
 ### 2.3 Every write is attributed and every decision is a record
 
 ```text
-event_log:   [task.created] → [task.state_changed] → [artifact.created] → ... → [review.decision_submitted(actor_id)] → [task.completed]
+event_log:   [task.created] → [context.snapshot_created] → [review.report_generated] → [artifact.created] → ... → [verification.check_completed(content_hash)] → [review.decision_submitted(actor_id)] → [task.completed]
 verification: verification_reports (content_hash, exitCode, sandbox=true)
-auth:        actor_id on review_decisions + event_log rows (Days 1–2)
+review:       review_reports (content_hash, backend)   -- the pinned, hash-verified report
+auth:         actor_id on review_decisions + event_log rows (Days 1–2)
 ```
 
 The E2E script asserts these fields are non-null at each step — not just that rows exist. An `actor_id IS NULL` on a decision is a red run.
@@ -54,6 +55,7 @@ The runbook includes the Phase-1 style guards, now extended to the Phase-2 seams
 ```bash
 grep -rn "from '@harness/verification-engine'" packages/context-engine/src   # must be empty
 grep -rn "new ObjectStoreContentStore" packages/artifact-tracker/src          # must be empty (DI only)
+grep -rn "new ObjectStoreContentStore" packages/review/src                    # must be empty (DI only)
 ```
 
 So "end-to-end" also means "end-to-end through the seams, not around them."
@@ -99,10 +101,10 @@ So "end-to-end" also means "end-to-end through the seams, not around them."
 
 ## 5. Acceptance Criteria
 
-- [ ] The canonical task completes functionally through auth → context → agent (sandboxed code mode) → object store → sandboxed verification → review → `task.completed`.
+- [ ] The canonical task completes functionally through auth → context → review (read-only report) → object store (report + large diff) → sandboxed verification → decision → `task.completed`.
 - [ ] `rank_method === 'keyword'` in the served snapshot, with a `shadow_rank_comparisons` row recorded.
 - [ ] `trace_correlation` maps the run's `trace_id ↔ correlation_id`; `reconstruct(correlation_id)` replays the full decision history.
-- [ ] Every `review.decision_submitted` has non-null `actor_id`; every `verification_reports` row has `content_hash` + `sandbox=true`.
+- [ ] Every `review.decision_submitted` has non-null `actor_id`; every `verification_reports` row has `content_hash` + `sandbox=true`; every `review_reports` row has `content_hash`.
 - [ ] Metrics registry shows pipeline counters incremented for the run (task, verify, review, cache-hit, sandbox).
 - [ ] Seam guard passes: no engine imports another; `ContentStore`/`Sandbox`/`Embedder` resolved via DI only.
 - [ ] Runbook committed and reproducible in a throwaway environment (`docker compose up` → run → green).

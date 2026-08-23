@@ -1,27 +1,27 @@
 # Human Attention Infrastructure (HAI) Harness
 ## Architecture Overview
 
-**Status:** Living, v0.5 — reconciled through Phase 2 (`v0.2.0-harness`)
+**Status:** Living, v0.6 — `review-reorient`: the code-generation path is retired; the product is now a PR/MR **review** control plane.
 **Purpose:** The high-level architectural map of the Harness. Per-subsystem detail — data models, lifecycles, workflows, invariants, API surface — lives in each package's own `README.md`. This document is the **index**, not the spec.
 
 ---
 
 # 1. What the Harness Is
 
-> **AI produces work; the Harness observes, verifies, evaluates, prioritizes, and routes that work to Human Attention.**
+> **AI produces work; the Harness — with AI as reviewer, not author — observes, verifies, evaluates, prioritizes, and routes that work to Human Attention.**
 
 The Harness is the **control plane for Human Attention in AI-native software development**. It exists because:
 
 > **AI can generate software changes faster than humans can inspect and validate them. Human attention is the bottleneck.**
 
-Its single job is to reduce the amount of human attention required to *safely* accept an AI-generated change.
+Its single job is to reduce the amount of human attention required to *safely* accept a (human- or AI-authored) change. As of `review-reorient` the harness does this by **reviewing external pull/merge requests**: fetch the PR diff + the linked requirement, ask the configured AI provider to act as *reviewer* (report + findings + fix suggestions), and present the result to a human. The AI no longer writes or commits code.
 
 ---
 
 # 2. The Core Loop
 
 ```text
-AI Output
+Code Change (PR / MR — human- or AI-authored)
     ↓
 Observation
     ↓
@@ -37,7 +37,7 @@ Human Decision
     ↓
 Evidence / Memory
     ↓
-Next AI Action
+Next Review
 ```
 
 The architecture exists to make this loop explicit, measurable, and auditable.
@@ -70,10 +70,10 @@ The architecture exists to make this loop explicit, measurable, and auditable.
                 ┌───────────────────┐
                 │       AI          │
                 │                   │
-                │ Plan              │
-                │ Code              │
+                │ Review            │
                 │ Analyze           │
-                │ Use Tools         │
+                │ Explain           │
+                │ (read-only)       │
                 └───────────────────┘
 ```
 
@@ -113,7 +113,7 @@ Modular by design — but **not** microservices. It ships as a single monorepo (
 # 5. Architectural Principles
 
 1. **Human attention is a first-class, measurable resource** — optimized alongside latency and throughput: review time, cognitive load, decision quality, attention allocation.
-2. **AI is an execution component, not the authority** — AI proposes (code, tests, plans); the Harness determines whether the output is trusted, verified, risky, blocked, or escalated.
+2. **AI is an execution component, not the authority** — AI proposes (reviews, analyses, explanations); the Harness determines whether the output is trusted, verified, risky, blocked, or escalated.
 3. **Evidence before confidence** — `Claim ≠ Evidence`. Prefer "here is the evidence" (test results, diffs, symbols) over "the AI says it's correct".
 4. **Everything important is observable** — every meaningful operation produces a trace (task, agent, model, tools, files, commands, verification, risk, decision, outcome), which becomes the foundation for audit, evaluation, and learning.
 5. **Modular core, replaceable integrations** — no hard dependency on a specific LLM provider, Git host, CI, issue tracker, or vector DB; adapters implement internal interfaces.
@@ -144,10 +144,12 @@ The eleven conceptual subsystems are now all built and documented in their packa
 |---|---|
 | [`@harness/domain`](../../packages/domain/README.md) | Branded IDs, aggregates, event vocabulary, `TaskStatus`, `HumanDecisionType` |
 | [`@harness/event-bus`](../../packages/event-bus/README.md) | `IEventBus` + in-process `EventEmitter` implementation |
-| [`@harness/db`](../../packages/db/README.md) | Drizzle schema (36 tables), append-only `event_log`, data access |
+| [`@harness/db`](../../packages/db/README.md) | Drizzle schema (41 tables), append-only `event_log`, data access |
 | [`@harness/di`](../../packages/di/README.md) | Hand-rolled container + string `TOKENS` |
 
 **Phase-2 seams** (promoted to packages, each with its own README): [`@harness/auth`](../../packages/auth/README.md) (OIDC identity + roles), [`@harness/embeddings`](../../packages/embeddings/README.md) (pgvector embedder, shadow mode), [`@harness/evaluation`](../../packages/evaluation/README.md), [`@harness/object-store`](../../packages/object-store/README.md) (S3/MinIO), [`@harness/observability`](../../packages/observability/README.md), [`@harness/sandbox`](../../packages/sandbox/README.md) (Docker-isolated execution).
+
+**Review-slice seams** (`review-reorient`): [`@harness/git-provider`](../../packages/git-provider/README.md) (`GitProvider` — GitHub now, GitLab/Bitbucket Phase 3), [`@harness/ticket-provider`](../../packages/ticket-provider/README.md) (`TicketProvider` — Jira). Both depend only on `@harness/domain` and drive the review ingest path.
 
 ---
 
@@ -156,7 +158,7 @@ The eleven conceptual subsystems are now all built and documented in their packa
 These rules hold regardless of subsystem; each is documented where it is enforced.
 
 - **Canonical Task state machine (13 states).** The single source of truth for Task transitions is `@harness/orchestrator`'s `TaskStateMachine`; the value list lives in `@harness/domain`'s `TaskStatus`. See [`packages/orchestrator/README.md`](../../packages/orchestrator/README.md). *(No other document redefines it.)*
-- **Append-only `event_log` is the source of truth.** Every state change, LLM call, and decision lands there, joined by `correlation_id`; all other 35 tables are current-state projections rebuildable by replay. See [`packages/db/README.md`](../../packages/db/README.md).
+- **Append-only `event_log` is the source of truth.** Every state change, LLM call, and decision lands there, joined by `correlation_id`; all other tables are current-state projections rebuildable by replay. See [`packages/db/README.md`](../../packages/db/README.md).
 - **Engine boundary rule.** An engine imports only shared packages (`domain`, `event-bus`, `db`, `di`) — never another engine. Enforced by `eslint.config.mjs` + `architecture.test.ts`; the full object graph is in [`docs/architecture/wiring-map.md`](../architecture/wiring-map.md).
 - **Human decisions are a closed set.** `HumanDecisionType` (7 values, the seventh `AUTO_APPROVED` — the one decision the system may make itself, under the gated auto-approve path with sampling audit). See [`packages/domain/README.md`](../../packages/domain/README.md).
 - **Shadow-then-default.** A new signal (semantic retrieval, fitted attention weights) stays behind a measured A/B comparison and only becomes the default by winning — never by being newer. See [`packages/attention-engine/README.md`](../../packages/attention-engine/README.md) and [`packages/evaluation/README.md`](../../packages/evaluation/README.md).
@@ -170,9 +172,9 @@ The modular monolith is realized (not a target):
 ```text
 hai-harness/
 ├── apps/
-│   ├── api/                 # Fastify API + single DI bootstrap (bootstrap.ts) + reconcile
+│   ├── api/                 # Fastify API + single DI bootstrap (bootstrap.ts)
 │   └── web/                 # React + Vite review UI
-├── packages/                # 17 packages under @harness/* (see §6 table)
+├── packages/                # 19 packages under @harness/* (see §6 table)
 ├── docs/
 │   ├── core/                # this architecture overview
 │   ├── plan/                # day-by-day build plans (Phases 1–3)
@@ -200,6 +202,11 @@ Build order and backlog: [`docs/plan/README.md`](../plan/README.md) → [`docs/p
 ---
 
 ## Changelog
+
+### v0.6 (`review-reorient`)
+- §1–§3 — reframed the Harness from "AI code author" to "PR/MR **review** control plane": the core-loop trigger is an external code change, and the AI box is `Review / Analyze / Explain (read-only)`.
+- §6 — corrected the table count (41), added the review-slice seams (`git-provider`, `ticket-provider`), and dropped the stale `reconcile` note from the layout (§8).
+- §7 — de-numbered the "35 tables" invariant so it can't drift again.
 
 ### v0.5 (Overview restructure)
 - Collapsed the per-subsystem detail sections (former §7–§22: domain objects, agent execution, context, artifact, attention, verification, decision, evidence, memory, event model, physical architecture, dependency direction, end-to-end flow, "what not to build", success criteria) into §6–§7, since that material now lives in each package's `README.md` and the wiring map.

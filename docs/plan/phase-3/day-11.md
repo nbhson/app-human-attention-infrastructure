@@ -1,11 +1,11 @@
-# Day 11 — tree-sitter Symbol Index: Functions/Classes/Imports
+# Day 11 — Clone PR into Sandbox Worktree (`GitProvider.cloneAndCheckout`)
 
 | | |
 |---|---|
-| **Week** | 3 — Dependency graph → targeted verify |
-| **Spec refs** | Spec 7 §5.2–5.3 (targeted/incremental verification needs a code index), Spec 4 §4.1–4.2 (file scanner / symbol resolver) |
-| **Estimated effort** | 7h |
-| **Prerequisites** | Day 10 (Week 2 checkpoint — memory + trajectory foundation clean) |
+| **Week** | 3 — Verification breadth |
+| **Spec refs** | Spec 7 §5.5 (sandbox isolation); git-provider §2; verification-engine execution model |
+| **Estimated effort** | 6h |
+| **Prerequisites** | Day 10 (W2 checkpoint); Phase-2 `@harness/sandbox` exists; three `GitProvider` impls fetch PRs |
 
 ---
 
@@ -13,127 +13,64 @@
 
 By end of day you will have:
 
-1. A new package `packages/code-index` (`@harness/code-index`) that parses the target repo into symbols via **tree-sitter**.
-2. Symbol extraction for **functions, classes/methods, and imports** (TS/JS first; the grammar set is language-swappable).
-3. A persisted **symbol index** in Postgres (`symbols`, `file_symbols`/`imports` tables) consumable by the graph builder (Day 12) and the Context Engine's Symbol Resolver (Spec 4 §4.2).
-4. A re-index trigger hooked to `artifact.changed`/checkout events, with a staleness marker for un-indexed checkouts.
+1. `GitProvider.cloneAndCheckout(input, workdir)` — clone the PR/MR's repo into a sandbox worktree and check out the **head commit** the PR proposes (source branch/tip), on a dedicated throwaway branch — never `main`.
+2. The clone paths stored in the provider-neutral shape verification will consume (`CloneResult { workdir, headSha, sourceBranch, targetBranch }`).
+3. Shallow clone + sparse options to keep the sandbox cheap; bounded depth/timeout.
+4. Stubbed-git tests proving the right clone/checkout command sequence per provider (they differ mainly in ref resolution, not the checkout).
 
-This is the read/parse layer the dependency graph (Day 12) and targeted verification (Day 14) stand on.
+This is the *ingest half* of verification breadth; Days 12–13 run tests and publish evidence.
 
 ---
 
 ## 2. Design Decisions
 
-### 2.1 tree-sitter as the parser (not regex)
+### 2.1 Verification clones the PR's OWN code — the harness authors nothing
 
-The Phase 1 Context Engine used regex-based symbol resolution (Spec 4 §10 "Phase 2: Symbol Resolution … simple regex-based parsing"). Day 11 replaces it with **tree-sitter** grammars (a `tree-sitter` + `tree-sitter-typescript`/`tree-sitter-javascript` install) for structured, unambiguous symbol extraction. Regex stays only as a last-resort fallback.
+The substrate is the external repository state at the PR's head. The harness clones + checks out to *read and run* the PR's own build/test — it never patches, never "fixes", never writes a commit. This is the concrete realization of "read-only reviewer".
 
-```typescript
-// packages/code-index/src/parser.ts
-export interface SymbolIndexer {
-  indexFile(path: string, source: string): Promise<FileSymbols>;
-}
-
-export interface FileSymbols {
-  path: string;
-  functions: SymbolDef[];     // { name, range: [start,end], signature }
-  classes:   SymbolDef[];     // + methods
-  imports:   ImportEdge[];    // { from: path (resolved), symbols: string[] }
-}
-```
-
-### 2.2 Symbol schema (Postgres)
+### 2.2 Provider-neutral clone seam
 
 ```typescript
-// packages/db/src/schema/code-index.ts
-export const symbols = pgTable('symbols', {
-  id:            text('id').primaryKey(),           // SHA256(path + name + range)
-  project_id:    text('project_id').notNull(),
-  path:          text('path').notNull(),
-  name:          text('name').notNull(),
-  kind:          text('kind').notNull(),            // 'function' | 'class' | 'method' | 'import'
-  signature:     text('signature'),
-  range_start:   integer('range_start').notNull(),
-  range_end:     integer('range_end').notNull(),
-  content_hash:  text('content_hash').notNull(),    // source file hash at index time
-  indexed_at:    timestamp('indexed_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  pathIdx:   index('symbols_path_idx').on(t.path),
-  nameIdx:   index('symbols_name_idx').on(t.name),
-  kindIdx:   index('symbols_kind_idx').on(t.kind),
-}));
-
-export const fileImports = pgTable('file_imports', {
-  id:        text('id').primaryKey(),
-  project_id: text('project_id').notNull(),
-  importer:  text('importer').notNull(),            // file path
-  imported:  text('imported').notNull(),            // resolved module/file path
-  symbols:   text('symbols').notNull(),             // JSON array of imported symbols
-}, (t) => ({
-  importerIdx: index('file_imports_importer_idx').on(t.importer),
-  importedIdx: index('file_imports_imported_idx').on(t.imported),
-}));
-```
-
-### 2.3 Staleness model (checkout changes must invalidate)
-
-The index is a snapshot of a checkout. A `content_hash` per file is computed at index time; a re-checkout that changes a file makes its symbols stale until re-indexed.
-
-```typescript
-interface IndexStatus {
-  path: string;
-  contentHash: string;
-  stale: boolean;     // true when current on-disk hash != indexed content_hash
+interface GitProvider {
+  // ...existing...
+  cloneAndCheckout(input: CloneInput, workdir: string): Promise<CloneResult>;
 }
+interface CloneResult { workdir: string; headSha: string; sourceBranch: string; targetBranch: string; }
 ```
 
-- Index rows are never edited in place on staleness — a re-index writes new rows keyed by the new `content_hash`/`range` (content-addressed id), and old rows are superseded.
-- A "stale" symbol is simply not returned by `lookupSymbol` until re-indexed (mirrors Spec 4 §8 freshness rule: stale → cache miss, never poisoned).
+Git (the tool) is the same across hosts; what differs is **resolving the head SHA** (GitHub `head.sha`, GitLab `sha` from MR, Bitbucket `source.commit.hash`). Each provider resolves its SHA then shells a shallow `git clone` + `git checkout <sha>`.
 
-### 2.4 Package boundary
+### 2.3 Shallow + depth-bounded; never the whole history
 
-`@harness/code-index` imports only `@harness/domain`, `@harness/event-bus`, `@harness/db`, `@harness/di`. It is consumed by `verification-engine` (Day 14 targeted selection) and `context-engine` (symbol resolution) **via DI-resolved interfaces**, never direct imports. Add to the boundary rules + architecture test.
+`git clone --depth 1 --no-tags` then fetch the specific `headSha` if not on the tip. This bounds time and disk; full history is irrelevant to "did the PR's change break its own tests".
 
-### 2.5 Incremental (re-)indexing scope
+### 2.4 Read-only + timeout
 
-Today indexes the whole target repo once + a single-file re-index path. Day 13–14 will consume per-file changes. Keep `indexFile(path)` as the primitive so incremental indexing is already shaped correctly.
+Clone and checkout run under a wall-clock timeout and land in the `@harness/sandbox` worktree; failures surface as `GitProviderError` (or a dedicated `CloneError`), never partial-silence.
 
 ---
 
 ## 3. Tasks
 
-### 3.1 Scaffold `packages/code-index` (30 min)
+### 3.1 Seam extension (30 min)
 
-- [ ] `package.json` (`tree-sitter`, `tree-sitter-typescript`, `tree-sitter-javascript` deps), `tsconfig.json`, barrel.
-- [ ] Add to boundary configuration + architecture test list.
+- [ ] Add `cloneAndCheckout` + `CloneInput`/`CloneResult` to `GitProvider`.
 
-### 3.2 Parser + symbol extraction (150 min)
+### 3.2 SHA resolution per provider (90 min)
 
-- [ ] `packages/code-index/src/parser.ts` — `TreeSitterIndexer.indexFile()` returning `FileSymbols` (§2.1).
-- [ ] Extract functions, classes (with methods), and imports; record `range_start/end`.
-- [ ] Resolve relative import paths to repo-relative file paths (for `file_imports.imported`).
+- [ ] GitHub/GitLab/Bitbucket resolve head SHA from the already-fetched `PullRequest`; add a helper `resolveHeadSha(pullRequest)`.
 
-### 3.3 Schema + migration (45 min)
+### 3.3 Clone executor (90 min)
 
-- [ ] `packages/db/src/schema/code-index.ts` (§2.2); generate + migrate.
+- [ ] `packages/git-provider/src/clone.ts` — shallow clone → checkout SHA → return `CloneResult`; timeout + error wrapping.
 
-### 3.4 `SymbolIndex` store + staleness (90 min)
+### 3.4 Sandbox worktree wiring (45 min)
 
-- [ ] `packages/code-index/src/symbol-index.ts` — `indexProject(repoPath)`, `indexFile(path)`, `lookupSymbol(name)`, `isStale(path, currentHash)`.
-- [ ] Compute `content_hash` (SHA256 of file bytes) at index time; content-addressed symbol ids.
+- [ ] Emit clone into a fresh workdir under `@harness/sandbox`'s ephemeral root; clean-up hook.
 
-### 3.5 Re-index trigger (45 min)
+### 3.5 Tests (75 min)
 
-- [ ] Subscribe to `artifact.changed` (Phase 1 event) to re-index the changed file.
-- [ ] Publish `code_index.file_indexed { path, symbolCount, contentHash }`.
-
-### 3.6 Tests (120 min)
-
-- [ ] A fixture `.ts` file produces expected functions/classes/imports (golden symbol set).
-- [ ] `lookupSymbol('PaymentService')` returns the class definition + path.
-- [ ] `isStale` returns true after the file hash changes, false after re-index.
-- [ ] Import edge resolution maps `./payment` → `src/payment.ts`.
-- [ ] Boundary test: `@harness/code-index` imports only the four allowed packages.
+- [ ] Stubbed git: correct shallow clone + checkout sequence; SHA resolution per provider fixture; timeout → error; no `main` checkout ever.
 
 ---
 
@@ -141,37 +78,30 @@ Today indexes the whole target repo once + a single-file re-index path. Day 13�
 
 | File | Description |
 |------|-------------|
-| `packages/code-index/package.json` + `tsconfig.json` + barrel | New package |
-| `packages/code-index/src/parser.ts` | `TreeSitterIndexer` |
-| `packages/code-index/src/symbol-index.ts` | `SymbolIndex` store + staleness |
-| `packages/db/src/schema/code-index.ts` | `symbols` + `file_imports` |
-| `packages/code-index/src/__tests__/*.test.ts` | Golden symbol tests + boundary |
-| `apps/api/src/bootstrap.ts` (updated) | `SymbolIndex` DI registration |
+| `packages/git-provider/src/git-provider.ts` (updated) | `cloneAndCheckout` seam |
+| `packages/git-provider/src/clone.ts` | Shallow clone + checkout executor |
+| `packages/git-provider/src/head-sha.ts` | `resolveHeadSha` per provider |
+| `packages/git-provider/src/__tests__/clone.test.ts` | Clone + SHA resolution tests |
 
 ---
 
 ## 5. Acceptance Criteria
 
-- [ ] `pnpm --filter @harness/code-index test` — all tests pass.
-- [ ] A golden fixture `.ts`/.js file indexes with the exact expected function/class/import set.
-- [ ] `symbols` and `file_imports` tables exist and are populated by `indexProject`.
-- [ ] Symbol ids are content-addressed (`SHA256(path+name+range)`), so re-indexing a changed file writes new rows, never edits old ones.
-- [ ] `lookupSymbol(name)` returns stale-free results only.
-- [ ] `artifact.changed` re-indexes the touched file (spy/integration test).
-- [ ] `grep -r "from '@harness" packages/code-index/src` shows only `@harness/{domain,event-bus,db,di}`.
-- [ ] `pnpm lint` clean.
+- [ ] `cloneAndCheckout` produces a worktree at the PR head SHA on a throwaway ref (never `main`).
+- [ ] Shallow clone (`--depth 1`) with timeout; no full history fetched.
+- [ ] Head-SHA resolution correct for all three providers from fixtures.
+- [ ] Failure returns `CloneError`/`GitProviderError` with the reason.
+- [ ] `grep -r "from '@harness" packages/git-provider/src` shows only `@harness/domain`.
 
 ---
 
 ## 6. Notes & Pitfalls
 
-- **tree-sitter grammar version pinning.** `tree-sitter-typescript` and `tree-sitter` have version-locked ABIs; pin exact versions and test the parse on a real `.ts` file early — a mismatched grammar produces empty parses that look like "no symbols," not an error.
-- **Import resolution is the hard 20%.** `./`, `../`, barrel files, path aliases (`@/`), and node_modules all resolve differently. Start with relative-path resolution and record unresolved imports as rows with `imported = null` — do **not** silently drop them (the graph builder needs to know what it couldn't resolve).
-- **Staleness on checkout is the trap.** If the repo is re-checked out and the index isn't invalidated, Day 14 targeted verification will select tests against a graph of *yesterday's* symbols — the false-negative risk called out for the whole week. Make `content_hash` comparison the source of truth.
-- **Regex is now a fallback, not the front line.** The Phase 1 `SymbolCollector` regex path stays for parse failures, but the happy path is tree-sitter. Do not keep two "sources of truth" for symbols.
-- **Content-addressed ids mean growth.** Repeated re-indexes accumulate superseded symbol rows. Reuse the Day 06/07 consolidation mindset — but for the index, superseded rows can be *pruned* (they are derived data, not evidence). Defer actual GC to Week 8; just note it now.
-- **Tomorrow (Day 12):** dependency graph build (file/module edges) in Postgres, consuming today's symbols + imports.
+- **Merge commits are the trap.** A PR may be behind its target; checkout the *head SHA* (the merge candidate) explicitly rather than trusting `source_branch` ref, or you can test the wrong commit.
+- **Don't checkout `main`.** The whole point is testing the candidate change, not the base. `main` checkout is a correctness bug, not a style nit — test for it.
+- **Shallow clone then SHA-fetch.** `--depth 1` may not contain the SHA if the PR head isn't the default branch tip; be ready to `git fetch origin <sha>` once.
+- **Day 12** runs build/test in the Docker sandbox against this clone.
 
 ---
 
-*Prev: [Day 10 — Week 2 Checkpoint: Consolidation/Decay Validated Against the Decision Log](day-10.md) | Next: [Day 12 — Dependency Graph Build (File/Module Edges) in Postgres](day-12.md)*
+*Next: [Day 12 — Run Build/Test in Docker Sandbox Against the Clone](day-12.md)*
