@@ -18,6 +18,7 @@
  * - `retrieval/rrf`            — `reciprocalRankFusion` (k=60, day-26).
  * - `retrieval/hybrid-retriever` — lexical + semantic fused (day-26).
  * - `retrieval/retriever-factory` — `rank_method` → retriever resolver (day-26).
+ * - `ranking` — re-rank stage + dependency/recency/usage signals (day-27).
  * - `memory-resolver` — inject top-K review memory into a snapshot (day-18).
  */
 
@@ -42,4 +43,6 @@ export * from './retrieval/lexical-retriever.js';
 export * from './retrieval/semantic-doc-retriever.js';
 export * from './retrieval/hybrid-retriever.js';
 export * from './retrieval/retriever-factory.js';
+export * from './ranking/signals.js';
+export * from './ranking/re-ranker.js';
 export * from './memory-resolver.js';

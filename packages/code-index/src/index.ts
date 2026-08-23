@@ -15,3 +15,4 @@
 export * from './indexer.js';
 export * from './graph.js';
 export * from './affected.js';
+export * from './proximity.js';
