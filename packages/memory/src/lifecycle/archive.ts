@@ -9,7 +9,7 @@
  * no active below-threshold rows and is a no-op.
  */
 
-import { and, lt, eq } from 'drizzle-orm';
+import { and, lt, eq, inArray } from 'drizzle-orm';
 
 import { memoryEntries } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -50,9 +50,18 @@ export async function archiveBelowThreshold(
     .from(memoryEntries)
     .where(and(eq(memoryEntries.status, 'ACTIVE'), lt(memoryEntries.confidence, threshold)));
 
-  for (const row of rows) {
-    await db.update(memoryEntries).set({ status: 'ARCHIVED' }).where(eq(memoryEntries.id, row.id));
+  // One batched UPDATE for every stale row (an `inArray` touch of the whole
+  // page), then per-row audit events. The write is a single round-trip instead
+  // of one per row; the events stay per-row so provenance never merges.
+  const ids = rows.map((row) => row.id);
+  if (ids.length > 0) {
+    await db
+      .update(memoryEntries)
+      .set({ status: 'ARCHIVED' })
+      .where(inArray(memoryEntries.id, ids));
+  }
 
+  for (const row of rows) {
     bus.publish(
       createEvent(EventType.MemoryArchived, brand(row.id, 'CorrelationID'), {
         memory_id: brand(row.id, 'MemoryID'),

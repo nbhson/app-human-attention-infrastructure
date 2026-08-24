@@ -76,6 +76,10 @@ empty query — degrades to recency + confidence.
 | `decay` | fade `confidence` toward its per-entry `confidence_floor` with age. |
 | `archive` | mark an entry `ARCHIVED` (soft-delete, retained for audit) below the utility threshold. |
 
+`archiveBelowThreshold` writes all stale rows in **one batched** `UPDATE … WHERE id IN
+(…)` (a single round-trip instead of one per row) and still publishes one
+`memory.archived` event per row — the write collapses, the provenance never does.
+
 `MemoryLifecycle.tick()` runs the three in dependency order; `MemoryLifecycleScheduler`
 wraps it on a timer (`DEFAULT_LIFECYCLE_INTERVAL_MS` = hourly).
 
