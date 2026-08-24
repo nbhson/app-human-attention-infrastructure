@@ -2,14 +2,17 @@
  * Review-decision route integration test (Phase 3 day-09).
  *
  * Exercises the real `POST /api/reviews/:id/decision` handler against a real
- * Postgres schema, with a fake `WriteBackService` recording every emitted intent.
- * This proves the day-09 acceptance criteria at the HTTP surface:
+ * Postgres schema, with a fake `WriteBackService` recording every emitted intent,
+ * driven through a real authenticated session (day-02 §3.5 — the review slice is
+ * now guarded). This proves the day-09 acceptance criteria at the HTTP surface,
+ * plus the authorization boundary the guard enforces:
  *
  *  - APPROVE + ON  → a COMMENT and a STATUS intent are emitted.
  *  - REJECT  + ON  → a COMMENT and a STATUS (failure) intent are emitted.
  *  - any OFF (missing flag or unarmed ceiling) → zero intents, `writeback: false`.
  *  - `WRITEBACK_ENABLED=false` at rest defeats a request-level ON.
  *  - the decision row persists its effective toggle for audit.
+ *  - no credential → 401; an OPERATOR-only principal → 403 + `authz.decision_denied`.
  */
 
 import Fastify from 'fastify';
@@ -17,17 +20,24 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { eq } from 'drizzle-orm';
 
+import { AuthService, MockOidcProvider, SessionService } from '@harness/auth';
 import { Container, TOKENS } from '@harness/di';
-import { WritebackAction, newReviewReportID } from '@harness/domain';
+import { EventType, newReviewReportID, newUserID, Role, WritebackAction } from '@harness/domain';
 import type { WriteBackIntent } from '@harness/domain';
-import { reviewDecisions, reviewReports, writebackLog } from '@harness/db';
+import { reviewDecisions, reviewReports, sessions, users, writebackLog } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
+import { InProcessEventBus } from '@harness/event-bus';
 import type { WriteBackService } from '@harness/writeback';
 import type { ReviewIngestService } from '../services/review-ingest.js';
 
+import { registerAuthHook } from '../auth.js';
+import { registerAuthRoutes } from '../routes/auth.js';
 import { registerReviewIngestRoutes } from '../routes/reviews.js';
 
 const SCHEMA = 'harness_test_review_decision';
+const SECRET = 'test-secret-that-is-long-enough-for-hs256';
+const REVIEWER_SUB = 'mock|reviewer';
+const REVIEWER_USER_ID = newUserID();
 
 let testDb: TestDb;
 const reportId = newReviewReportID();
@@ -41,10 +51,12 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  // FK order: writeback_log → review_decisions → review_reports.
+  // FK order: writeback_log → review_decisions → review_reports; sessions → users.
   await testDb.db.delete(writebackLog);
   await testDb.db.delete(reviewDecisions);
   await testDb.db.delete(reviewReports);
+  await testDb.db.delete(sessions);
+  await testDb.db.delete(users);
 
   await testDb.db.insert(reviewReports).values({
     id: reportId,
@@ -69,10 +81,41 @@ afterEach(() => {
 interface Harness {
   app: ReturnType<typeof Fastify>;
   intents: WriteBackIntent[];
+  cookie: string;
+  bus: InProcessEventBus;
 }
 
-/** Wire the routes over the test DB with a fake write-back service recording intents. */
-function build(): Harness {
+/** Pre-seed the principal's `users` row so login preserves the desired roles. */
+async function seedUser(roles: readonly Role[]): Promise<void> {
+  await testDb.db.insert(users).values({
+    id: REVIEWER_USER_ID,
+    oidc_sub: REVIEWER_SUB,
+    email: 'reviewer@example.com',
+    display_name: 'Rev',
+    roles: [...roles],
+  });
+}
+
+/** Complete a mock login and return the resulting `sid` cookie. */
+async function loginCookie(app: ReturnType<typeof Fastify>): Promise<string> {
+  const login = await app.inject({ method: 'GET', url: '/api/auth/login' });
+  const location = new URL(login.headers.location!);
+  const callback = await app.inject({
+    method: 'GET',
+    url: `/api/auth/callback?code=${location.searchParams.get('code')}&state=${location.searchParams.get('state')}`,
+  });
+  expect(callback.statusCode).toBe(200);
+  return callback.headers['set-cookie']!.toString().split(';')[0]!; // "sid=..."
+}
+
+/**
+ * Wire auth + the guarded decision route over the test DB with a fake
+ * write-back service recording intents. The caller's roles come from the seeded
+ * `users` row at login, not from here.
+ */
+async function build(roles: readonly Role[] = [Role.Operate, Role.Reviewer]): Promise<Harness> {
+  await seedUser(roles);
+
   const intents: WriteBackIntent[] = [];
   const fakeWriteback: WriteBackService = {
     write: async (intent) => {
@@ -81,14 +124,32 @@ function build(): Harness {
     },
   };
 
+  const bus = new InProcessEventBus();
   const container = new Container();
+  container.register(TOKENS.EventBus, () => bus);
   container.register(TOKENS.Db, () => testDb.db);
   container.register(TOKENS.WriteBackService, () => fakeWriteback);
   container.register(TOKENS.ReviewIngestService, () => ({}) as ReviewIngestService);
+  container.register(
+    TOKENS.OidcProvider,
+    () => new MockOidcProvider({ sub: REVIEWER_SUB, email: 'reviewer@example.com', name: 'Rev' }),
+  );
+  container.register(TOKENS.SessionService, () => new SessionService(testDb.db));
+  container.register(
+    TOKENS.AuthService,
+    (c) =>
+      new AuthService(testDb.db, c.resolve<SessionService>(TOKENS.SessionService), {
+        jwtSecret: SECRET,
+      }),
+  );
 
   const app = Fastify({ logger: false });
+  registerAuthHook(app, container);
+  registerAuthRoutes(app, container);
   registerReviewIngestRoutes(app, container);
-  return { app, intents };
+
+  const cookie = await loginCookie(app);
+  return { app, intents, cookie, bus };
 }
 
 async function decisionRows() {
@@ -96,12 +157,52 @@ async function decisionRows() {
 }
 
 describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
-  it('OFF (missing flag, at rest) records writeback:false and emits nothing', async () => {
-    const { app, intents } = build();
+  it('401 with no credential and writes nothing', async () => {
+    const { app, intents } = await build();
 
     const res = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
+      payload: { decision: 'APPROVE', rationale: 'LGTM' },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(intents).toHaveLength(0);
+    expect(await decisionRows()).toHaveLength(0);
+
+    await app.close();
+  });
+
+  it('403 for an OPERATOR-only principal (emits authz.decision_denied)', async () => {
+    const { app, intents, bus, cookie } = await build([Role.Operate]);
+    const denied: unknown[] = [];
+    bus.subscribe(EventType.AuthzDecisionDenied, (event) => {
+      denied.push(event);
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie },
+      payload: { decision: 'APPROVE', rationale: 'LGTM' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(intents).toHaveLength(0);
+    expect(await decisionRows()).toHaveLength(0);
+    const payload = (denied[0] as { payload: { roles_required: string[] } } | undefined)?.payload;
+    expect(payload?.roles_required).toContain(Role.Reviewer);
+
+    await app.close();
+  });
+
+  it('OFF (missing flag, at rest) records writeback:false and emits nothing', async () => {
+    const { app, intents, cookie } = await build();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie },
       payload: { decision: 'APPROVE', rationale: 'LGTM' },
     });
 
@@ -119,11 +220,12 @@ describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
 
   it('ON + APPROVE emits COMMENT + STATUS(success) and records writeback:true', async () => {
     process.env.WRITEBACK_ENABLED = '1';
-    const { app, intents } = build();
+    const { app, intents, cookie } = await build();
 
     const res = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie },
       payload: { decision: 'APPROVE', rationale: 'LGTM', writeback: true },
     });
 
@@ -150,11 +252,12 @@ describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
 
   it('WRITEBACK_ENABLED=false at rest defeats a request-level ON', async () => {
     // No WRITEBACK_ENABLED → ceiling OFF, even though the request asks for ON.
-    const { app, intents } = build();
+    const { app, intents, cookie } = await build();
 
     const res = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie },
       payload: { decision: 'APPROVE', writeback: true },
     });
 
@@ -170,11 +273,12 @@ describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
 
   it('ON + REJECT emits COMMENT + STATUS(failure)', async () => {
     process.env.WRITEBACK_ENABLED = '1';
-    const { app, intents } = build();
+    const { app, intents, cookie } = await build();
 
     const res = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie },
       payload: { decision: 'REJECT', rationale: 'breaks CI', writeback: true },
     });
 
@@ -188,11 +292,12 @@ describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
 
   it('ON + REQUEST_CHANGES emits nothing external', async () => {
     process.env.WRITEBACK_ENABLED = '1';
-    const { app, intents } = build();
+    const { app, intents, cookie } = await build();
 
     const res = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie },
       payload: { decision: 'REQUEST_CHANGES', writeback: true },
     });
 
@@ -208,11 +313,12 @@ describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
   });
 
   it('rejects an unknown decision with 400 and writes no row', async () => {
-    const { app, intents } = build();
+    const { app, intents, cookie } = await build();
 
     const res = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie },
       payload: { decision: 'WHATEVER' },
     });
 
