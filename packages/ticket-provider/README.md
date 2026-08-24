@@ -4,7 +4,7 @@ The provider seam that reads a requirement from a ticket system (Jira), so the A
 reviewer has a spec/requirement to weigh the MR/PR against — and, for the
 write-back path, maps comment/transition to the same system's MCP tools.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** depends only on `@harness/domain`; never an engine, host SDK, or event-bus.
 
 ---
@@ -13,7 +13,7 @@ write-back path, maps comment/transition to the same system's MCP tools.
 
 1. **Define the `TicketProvider` seam** — fetch issue metadata + description.
 2. **Provide a Jira REST implementation** — `JiraProvider` over Cloud REST `fetch`,
-   no SDK (the Phase-1 path).
+   no SDK (the direct REST path).
 3. **Front Jira through MCP** — `MCPTicketProvider` drives the `jira` MCP server via
    `TicketToolMap`, so Jira read/write is served from `mcp.config.json`, not a
    REST adapter.

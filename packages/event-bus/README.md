@@ -4,7 +4,7 @@ The nervous system of the Harness. Every subsystem publishes and consumes domain
 events through a single `IEventBus` interface — no package imports another engine
 directly.
 
-**Status:** Phase 1 complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** depends only on `@harness/domain`; never imports another engine.
 
 ---

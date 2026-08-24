@@ -4,7 +4,7 @@ Builds the context the reviewer actually sees: exact tokenization, relevance
 ranking (keyword default; hybrid + RAG Fusion built and selectable), freshness
 gating, review-memory injection, and an invalidate-on-change cache.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** engine (R4) — imports only shared packages; consumes the embedder and
 memory seams, never another engine.
 

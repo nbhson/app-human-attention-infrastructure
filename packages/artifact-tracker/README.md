@@ -3,7 +3,7 @@
 Tracks what the agent changed: snapshots on seen artifacts, diffs between
 versions, and the provenance chain that proves which task produced which change.
 
-**Status:** Phase 1 complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** engine — imports only shared packages; **sole writer** of `changes.status`.
 
 ---

@@ -1,9 +1,9 @@
-# Operations — Phase 3 procedures
+# Operations procedures
 
-> **Status:** v1.0-candidate (Phase 3 as-built) — Day 40 exit review complete (`v0.3.0-harness`, EXIT-WITH-CARRYFORWARD).
+> **Status:** v1.0-candidate (as-built) — Day 40 exit review complete (`v0.3.0-harness`, EXIT-WITH-CARRYFORWARD).
 > Companion to [README.md](README.md) (incident-oriented) and
 > [audit-queries.md](audit-queries.md) (copy-paste SQL). These are the *planned*
-> procedures for the Phase-3 stack: provider-token rotation, write-back audit,
+> procedures for the current stack: provider-token rotation, write-back audit,
 > learning-loop HOLD, the `rank_method` kill-switch, and the durable-queue flag.
 > If a command here doesn't work as written, that is a doc bug — fix it, don't
 > improvise in an incident.

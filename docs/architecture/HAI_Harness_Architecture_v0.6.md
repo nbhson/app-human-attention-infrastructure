@@ -122,11 +122,11 @@ Modular by design — but **not** microservices. It ships as a single monorepo (
 
 # 6. Subsystem → Package Map
 
-The eleven conceptual subsystems are now all built and documented in their packages (the former one-spec-per-subsystem files under `docs/core/` are retired).
+The eleven conceptual subsystems are now all built and documented in their packages (the former one-spec-per-subsystem files are retired).
 
 | # | Subsystem | Built as | Docs |
 |---|-----------|----------|------|
-| 1 | Architecture | *this document* | `docs/core/1_…_v0.2.md` |
+| 1 | Architecture | *this document* | *this document* |
 | 2 | Task / Work Orchestrator | `@harness/orchestrator` | [`packages/orchestrator/README.md`](../../packages/orchestrator/README.md) |
 | 3 | AI Agent Runtime | `@harness/agent-runtime` | [`packages/agent-runtime/README.md`](../../packages/agent-runtime/README.md) |
 | 4 | Context Engine | `@harness/context-engine` | [`packages/context-engine/README.md`](../../packages/context-engine/README.md) |
@@ -138,20 +138,15 @@ The eleven conceptual subsystems are now all built and documented in their packa
 | 10 | Observability / Governance | `@harness/observability` | [`packages/observability/README.md`](../../packages/observability/README.md) |
 | 11 | Evaluation Engine (Learning Loop) | `@harness/evaluation` | [`packages/evaluation/README.md`](../../packages/evaluation/README.md) |
 
-**Shared foundation** (not runtime subsystems — wired once in `apps/api/src/bootstrap.ts`):
+The eleven subsystems above are all implemented as `@harness/*` engines. The
+remaining packages complete the 25-package inventory, grouped by the same four
+**dependency layers** used across the repo — the authoritative table is the
+[Packages table](../../README.md#packages), mirrored in [`packages/README.md`](../../packages/README.md):
 
-| Package | Role |
-|---|---|
-| [`@harness/domain`](../../packages/domain/README.md) | Branded IDs, aggregates, event vocabulary, `TaskStatus`, `HumanDecisionType` |
-| [`@harness/event-bus`](../../packages/event-bus/README.md) | `IEventBus` + in-process `EventEmitter` implementation |
-| [`@harness/db`](../../packages/db/README.md) | Drizzle schema (49 tables), append-only `event_log`, data access |
-| [`@harness/di`](../../packages/di/README.md) | Hand-rolled container + string `TOKENS` |
-
-**Phase-2 seams** (promoted to packages, each with its own README): [`@harness/auth`](../../packages/auth/README.md) (OIDC identity + roles), [`@harness/embeddings`](../../packages/embeddings/README.md) (pgvector embedder, shadow mode), [`@harness/evaluation`](../../packages/evaluation/README.md), [`@harness/object-store`](../../packages/object-store/README.md) (S3/MinIO), [`@harness/observability`](../../packages/observability/README.md), [`@harness/sandbox`](../../packages/sandbox/README.md) (Docker-isolated execution).
-
-**Phase-3 seams** (promoted to packages): [`@harness/mcp`](../../packages/mcp/README.md) (generic MCP client + `mcp.config.json` — the *one* fronting file for Git/ticket tools), [`@harness/memory`](../../packages/memory/README.md) (review-memory tiers + lifecycle), [`@harness/code-index`](../../packages/code-index/README.md) (dependency graph → targeted verification), [`@harness/judge`](../../packages/judge/README.md) (rubric-scored LLM-as-judge), [`@harness/benchmark`](../../packages/benchmark/README.md) (versioned review-quality corpus), [`@harness/writeback`](../../packages/writeback/README.md) (toggle-gated comment/status write-back).
-
-**Review-slice seams** (`review-reorient`): [`@harness/git-provider`](../../packages/git-provider/README.md) (`GitProvider` — GitHub/GitLab/Bitbucket via [@harness/mcp](../../packages/mcp/README.md) MCP tools), [`@harness/ticket-provider`](../../packages/ticket-provider/README.md) (`TicketProvider` — Jira via MCP). Both depend only on `@harness/domain` and drive the review ingest path.
+- **Foundation** — `domain`, `event-bus`, `di`, `db`, `observability` — shared, inward-only core.
+- **Engines** — `orchestrator`, `agent-runtime`, `artifact-tracker`, `verification-engine`, `attention-engine`, `context-engine`, `review`, `auth`, `embeddings`, `evaluation` — read/write the foundation, never import a sibling engine.
+- **Review slice** — `git-provider`, `ticket-provider`, `writeback`, `memory`, `judge`, `benchmark` — the review product path.
+- **Tooling** — `object-store`, `sandbox`, `mcp`, `code-index` — leaf seams / CLI, import no `@harness` package.
 
 ---
 
@@ -178,9 +173,8 @@ hai-harness/
 │   └── web/                 # React + Vite review UI
 ├── packages/                # 25 packages under @harness/* (see §6 table)
 ├── docs/
-│   ├── core/                # this architecture overview
+│   ├── architecture/        # architecture spec + wiring map + living notes
 │   ├── plan/                # day-by-day build plans (Phases 1–3)
-│   ├── architecture/        # wiring map + living architecture notes
 │   ├── runbook/             # operators runbook (R1–R8), audit cookbook, limitations
 │   ├── retros/              # honest weekly + phase retrospectives
 │   └── dev-guide.md         # clone-to-green walkthrough
@@ -195,9 +189,9 @@ Full per-package source trees are in each package's `README.md`; the clone-to-gr
 
 # 9. Delivery Status
 
-- **Phase 1 — Prove the Core Loop:** complete (`v0.1.0-harness`). Vertical slice: Task → Context → Agent → Artifact → Verification → Attention → Review → Decision → Evidence.
-- **Phase 2 — Calibrate & Close the Measurement Loop:** complete (`v0.2.0-harness`). Evaluation engine, weight calibration, semantic-search infrastructure (shadow), auto-approve behind flag. Exit review: **8 of 9** criteria met; the one caveat (fitted weights 0.316 did not beat the placeholder 0.262) carries into Phase 3.
-- **Phase 3 — MCP Connectivity, Write-back & Close the Loop:** complete (`v0.3.0-harness`). MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `@harness/mcp` client + `mcp.config.json`), toggle-gated write-back, review memory, LLM-as-judge with inter-judge agreement, and the closed learning loop. Exit review: **8 of 9** criteria met → `EXIT-WITH-CARRYFORWARD`; the one caveat (hybrid ranking not the default — Day-29 A/B HOLD) carries into Phase 4 as [`backlog`](../plan/phase-3/backlog.md) items CF-1/CF-2. See [`phase3-exit-review`](../retros/phase3-exit-review.md).
+- **Core loop** (`v0.1.0-harness`): Task → Context → Agent → Artifact → Verification → Attention → Review → Decision → Evidence.
+- **Measurement loop** (`v0.2.0-harness`): Evaluation engine, weight calibration, semantic-search infrastructure (shadow), auto-approve behind flag. Exit review: **8 of 9** criteria met; the one caveat (fitted weights 0.316 did not beat the placeholder 0.262) carried forward.
+- **Review control plane** (`v0.3.0-harness`): MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `@harness/mcp` client + `mcp.config.json`), toggle-gated write-back, review memory, LLM-as-judge with inter-judge agreement, and the closed learning loop. Exit review: **8 of 9** criteria met → `EXIT-WITH-CARRYFORWARD`; the one caveat (hybrid ranking not the default — Day-29 A/B HOLD) is carried forward as [`backlog`](../plan/phase-3/backlog.md) items CF-1/CF-2. See [`phase3-exit-review`](../retros/phase3-exit-review.md).
 
 Build order and backlog: [`docs/plan/README.md`](../plan/README.md) → [`docs/plan/phase-3/README.md`](../plan/phase-3/README.md).
 

@@ -16,7 +16,7 @@ docker compose exec -T postgres psql -U harness -d harness
 #   psql "$DATABASE_URL"
 ```
 
-> **Correlation ID is the join key.** In Phase 1, one `correlation_id` == one task's
+> **Correlation ID is the join key.** One `correlation_id` == one task's
 > `tasks.id`. Every row a single task produces — `event_log`, `agent_runs`,
 > `llm_call_log`, `verification_reports`, `decisions` — carries that id (day-27 §2.2).
 > Join any two tables for one task on `correlation_id`.

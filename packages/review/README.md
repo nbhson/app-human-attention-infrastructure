@@ -3,7 +3,7 @@
 The review-queue state machine and service behind the reviewer UI — where humans
 claim, decide, release, escalate, or drop changes awaiting review.
 
-**Status:** Phase 1 + Spec 8 lifecycle (Phase 2) complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** engine (R6) — imports only shared packages + itself; cross-engine dependencies are injected as narrow structural seams.
 
 ---
@@ -52,7 +52,7 @@ state-machine table. A bad move throws `IllegalTransitionError`, never logs-and-
 
 ## Decisions
 
-The Phase-1 API accepts `APPROVE` / `REJECT` (`DecisionChoice`). A submitted
+The API accepts `APPROVE` / `REJECT` (`DecisionChoice`). A submitted
 decision carries `rationale` (required) + `wasUseful` (feeds the Day-19
 alert-fatigue loop). `HumanDecisionType` also has `REQUEST_CHANGES`,
 `OVERRIDDEN`, `DEFERRED`, `ESCALATED`, and the machine `AUTO_APPROVED` (recorded

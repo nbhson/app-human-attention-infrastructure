@@ -2,7 +2,7 @@
 
 > **`review-reorient` (v0.6):** đường code-generation đã *nghỉ hưu*. Sản phẩm giờ là control plane **review PR/MR bên ngoài** (Bitbucket/GitLab/GitHub + Jira): AI đóng vai *reviewer chứ không phải author* — đọc diff + requirement, trả report + findings + *fix suggestions*. Các mô tả "AI sinh code / tự sửa fix" ở các mục dưới chỉ còn là lịch sử thiết kế; phần machinery được giữ (state machine, attention routing, verification, evidence) vẫn dùng lại nguyên trạng.
 
-> **Phase 3 hoàn tất (`v0.3.0-harness`):** MCP connectivity (GitHub/GitLab/Bitbucket/Jira qua một `mcp.config.json`, token qua env — không inline), write-back có toggle + `writeback_log`, review memory, LLM-as-judge + inter-judge agreement, và learning loop đóng. Exit review **8/9 tiêu chí** — còn 1 mục *hybrid search làm default* được carry-forward (Day-29 A/B trả HOLD, `keyword` vẫn là default). Xem `docs/retros/phase3-exit-review.md`.
+> **Hoàn tất (`v0.3.0-harness`):** MCP connectivity (GitHub/GitLab/Bitbucket/Jira qua một `mcp.config.json`, token qua env — không inline), write-back có toggle + `writeback_log`, review memory, LLM-as-judge + inter-judge agreement, và learning loop đóng. Exit review **8/9 tiêu chí** — còn 1 mục *hybrid search làm default* được carry-forward (Day-29 A/B trả HOLD, `keyword` vẫn là default). Xem `docs/retros/phase3-exit-review.md`.
 
 ## Tổng quan
 
@@ -22,7 +22,7 @@ Kiến trúc biến "sự chú ý" thành tài nguyên có thể đo lường, �
 
 ### 1. Input — cái gì đi vào hệ thống
 
-Đầu vào là một **code change cần review** cùng ngữ cảnh của nó — không phải "yêu cầu phải làm gì". Change đến từ bên ngoài qua PR/MR (GitHub hôm nay qua REST; GitLab/Bitbucket/Jira là Phase 3, nối qua **MCP** — một client + một file config, không build REST SDK từng host); ở ranh giới input, HAI luôn nhận **một change để review**.
+Đầu vào là một **code change cần review** cùng ngữ cảnh của nó — không phải "yêu cầu phải làm gì". Change đến từ bên ngoài qua PR/MR (GitHub hôm nay qua REST; GitLab/Bitbucket/Jira nối qua **MCP** — một client + một file config, không build REST SDK từng host); ở ranh giới input, HAI luôn nhận **một change để review**.
 
 | Trường | Kiểu | Mô tả | Ví dụ |
 |--------|------|-------|-------|
@@ -64,7 +64,7 @@ Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (qua
 
 - **APPROVE:** quyết định review + **Evidence chain** (compile/test/lint + provenance) truy vết được.
 - **REJECT / REQUEST_CHANGES:** quyết định + rationale gửi lại tác giả.
-- **Luôn ghi:** event log + decision log — nền cho Phase 2 *đo* và Phase 3 *học* (tinh chỉnh calibration/routing từ tín hiệu `was_useful`).
+- **Luôn ghi:** event log + decision log — nền cho việc *đo* và *học* (tinh chỉnh calibration/routing từ tín hiệu `was_useful`).
 
 ---
 
@@ -88,7 +88,7 @@ Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (qua
 
 | # | Phân hệ | Package | Vai trò |
 |---|---------|---------|---------|
-| 1 | **HAI Harness Architecture** | `docs/core/1_...` | Kiến trúc tổng thể, nguyên tắc, ranh giới module, lộ trình 3 phase |
+| 1 | **HAI Harness Architecture** | `docs/architecture/HAI_Harness_Architecture_v0.6.md` | Kiến trúc tổng thể, nguyên tắc, ranh giới module, lộ trình (đã hoàn tất) |
 | 2 | **Task/Work Orchestrator** | `@harness/orchestrator` | State machine 13 trạng thái + `TaskService` (dispatch/workflow/retry đã nghỉ hưu) |
 | 3 | **AI Reviewer** | `@harness/agent-runtime` | Lớp `LLMProvider` + `ReviewAgent` — AI review read-only (report + findings + fix suggestions) |
 | 4 | **Context Engine** | `@harness/context-engine` | Chọn lọc context relevant theo budget token, freshness, cache |
@@ -100,7 +100,7 @@ Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (qua
 | 10 | **Observability/Governance** | `@harness/observability` | Audit trail, metrics, policy enforcement |
 | 11 | **Evaluation Engine** 🔁 | `@harness/evaluation` | Đo pipeline (precision/recall, attention efficiency), A/B harness, calibration |
 
-Tài liệu as-built cho từng phân hệ hiện nằm trong **`README.md` của mỗi package** (`packages/*/README.md`) — các file `docs/core/2_...` → `11_...` đã được gỡ bỏ, chỉ giữ lại duy nhất spec kiến trúc `docs/core/1_...`. Xem bảng ánh xạ subsystem→package trong Architecture §5.
+Tài liệu as-built cho từng phân hệ hiện nằm trong **`README.md` của mỗi package** (`packages/*/README.md`) — các file `docs/core/2_...` → `11_...` đã được gỡ bỏ, chỉ giữ lại duy nhất spec kiến trúc `docs/architecture/HAI_Harness_Architecture_v0.6.md`. Xem bảng ánh xạ subsystem→package trong Architecture §6.
 
 > **Đối chiếu kỹ thuật nguồn:** xem `docs/summary/harness-fit-analysis.md` — bản đồ từ `AI-coding-skills-framework/harness` (11 chuyên đề + 4 mẫu DeepSeek Harness) sang 11 subsystem HAI: phần nào *đã hấp thụ*, phần nào *bổ sung* (kèm spec + phase), phần nào *tham khảo / loại*.
 
@@ -164,15 +164,15 @@ combined_priority = w_risk·risk + w_impact·impact + w_novelty·novelty
 
 - CheckKind: `COMPILE | TEST | LINT` · CheckStatus: `PASSED | FAILED | FLAKY | TIMED_OUT | SKIPPED`
 - Timeout 2 tầng (per-check vs request-level); flaky retry-once (fail→pass = FLAKY, report PASSED + `flaky: true`)
-- Phase 1: chạy in-process trong worktree riêng, `sanitizedEnv()` loại secrets, output cap 64KB
+- Hiện tại: chạy in-process trong worktree riêng, `sanitizedEnv()` loại secrets, output cap 64KB
 - Overall PASSED ⟺ mọi check ∈ {PASSED, FLAKY}; FAILED → task REWORK
 
 ### Context (Spec 4)
 
-- Phase 1: `relevance_score = 0.7·keyword_overlap + 0.3·dependency_proximity` (semantic/recency/history = 0 tới Phase 3; Ranker interface là seam)
-- Phase 2: dựng infra semantic (pgvector + Embedder) ở chế độ shadow/experimental (đo qua A/B harness) — chưa là default
-- Phase 3: hybrid search (keyword + embeddings) + RRF + re-ranking (heuristic ngôn ngữ: dependency/recency/usage) thành default + RAG Fusion
-- Tokenizer Phase 1: chars/4; budget trimmer không bao giờ drop target files
+- Baseline: `relevance_score = 0.7·keyword_overlap + 0.3·dependency_proximity` (semantic/recency/history = 0 hiện tại; Ranker interface là seam)
+- Shadow: dựng infra semantic (pgvector + Embedder) ở chế độ shadow/experimental (đo qua A/B harness) — chưa là default
+- Hybrid (đã xây, chưa flip default): hybrid search (keyword + embeddings) + RRF + re-ranking (heuristic ngôn ngữ: dependency/recency/usage) + RAG Fusion
+- Tokenizer: chars/4; budget trimmer không bao giờ drop target files
 - Freshness: re-hash sources vs `content_hash` → FRESH/STALE; STALE → re-resolve, agent đang chạy chỉ nhận warning
 
 ---
@@ -197,7 +197,7 @@ Mọi event persist append-only vào `event_log` (idempotent), join theo `correl
 
 ---
 
-## Tech Stack đã chốt (Phase 1)
+## Tech Stack đã chốt
 
 | Tầng | Lựa chọn |
 |------|----------|
@@ -216,9 +216,9 @@ Repo: `apps/api`, `apps/web`, `packages/{domain, event-bus, db, di, orchestrator
 
 ---
 
-## Tech Stack — Phase 2 (Calibrate & Close the Measurement Loop)
+## Tech Stack — Calibrate & Close the Measurement Loop
 
-Bổ sung / thay thế trên nền Phase 1 (vẫn **modular monolith**, **Postgres-centric**; chỉ thêm infra thay thế được đằng sau các seam đã khai báo):
+Bổ sung / thay thế trên nền ban đầu (vẫn **modular monolith**, **Postgres-centric**; chỉ thêm infra thay thế được đằng sau các seam đã khai báo):
 
 | Tầng | Lựa chọn | Ghi chú |
 |------|----------|---------|
@@ -226,7 +226,7 @@ Bổ sung / thay thế trên nền Phase 1 (vẫn **modular monolith**, **Postgr
 | Tokenizer | Tokenizer chính xác (tiktoken / provider-specific) | Thay counter `chars/4` (Context §8) |
 | Embeddings | `Embedder` interface (provider adapter) | Nạp sau seam `Retriever`/`Ranker` |
 | Context cache | Cache theo `source_id + content_hash` | Context §5.2.3 |
-| Object store | S3/MinIO cho artifact lớn (content-addressed) | Spec 5 §4.2 ContentStore (Phase 2+) |
+| Object store | S3/MinIO cho artifact lớn (content-addressed) | Spec 5 §4.2 ContentStore |
 | Evaluation | Offline metrics + **shadow A/B harness** (replay trajectory) | Spec 3 §6.1 · Spec 11 §5 |
 | Observability/Governance | Metrics + audit trail + policy → promote **Spec 10** | OpenTelemetry-ready |
 | Auth | SSO thật (OIDC provider) | Thay header `X-Reviewer-Id` (day-30 P0) |
@@ -234,9 +234,9 @@ Bổ sung / thay thế trên nền Phase 1 (vẫn **modular monolith**, **Postgr
 
 ---
 
-## Tech Stack — Phase 3 (Learn & Automate Under Guardrails)
+## Tech Stack — Learn & Automate Under Guardrails
 
-Bổ sung trên nền Phase 2:
+Bổ sung trên nền trước:
 
 | Tầng | Lựa chọn | Ghi chú |
 |------|----------|---------|
@@ -245,52 +245,32 @@ Bổ sung trên nền Phase 2:
 | Code index | Symbol index + **dependency graph** (tree-sitter / code parser) | Targeted / incremental verification (Spec 7 §5.2–5.3) |
 | Retrieval | Hybrid (BM25 + embeddings) + RRF + re-rank, optional **RAG Fusion** | Context §5.1–5.2 |
 | Memory | Write-back + consolidation / decay / archive (Postgres) | Memory §4.5 |
-| Multi-agent | Bounded autonomous loops + critique/revision (**không** thay Human) | Non-goal hoá ở Phase 1 |
+| Multi-agent | Bounded autonomous loops + critique/revision (**không** thay Human) | Từng là non-goal |
 | Benchmark | Container runtime minimal-tools (bash + editor) + corpus gold labels | Spec 11 §5.1–5.2 |
 | Judge | LLM-as-judge sau `LLMProvider` (rubric-scored, audit) | Spec 11 §5.1 |
 | Queue (tuỳ chọn) | Durable queue (Redis/SQS) thay in-process hand-off | Orchestrator §6 — **không** đổi event contract |
 
-> **Bất biến qua mọi phase:** kiến trúc vẫn **modular monolith** (không microservices/K8s); Events vẫn qua `IEventBus` interface; dependency rules của domain/engines giữ nguyên như Phase 1. Phase 2–3 chỉ **mở rộng infrastructure đằng sau seam**, không thay đổi hợp đồng.
+> **Bất biến xuyên suốt:** kiến trúc vẫn **modular monolith** (không microservices/K8s); Events vẫn qua `IEventBus` interface; dependency rules của domain/engines giữ nguyên. Các bổ sung sau chỉ **mở rộng infrastructure đằng sau seam**, không thay đổi hợp đồng.
 
 ---
 
-## Lộ trình (3 Phase)
+## Lộ trình (đã hoàn tất)
 
-```text
-PHASE 1 — Prove the Core Loop (30 ngày, hiện tại)
-    Task → Context → Agent → Artifact → Verification
-         → Attention → Human Review → Decision → Evidence
+Toàn bộ lộ trình 3 giai đoạn xây dựng đã hoàn tất, tagged `v0.3.0-harness` (`EXIT-WITH-CARRYFORWARD`, 8/9 exit criteria):
 
-PHASE 2 — Calibrate & Close the Measurement Loop
-    Evaluation Engine v0 (metrics + A/B harness — shadow, replay trajectory từ Spec 3)
-    Calibrate Attention weights từ data `was_useful` thật
-    Semantic search infra (pgvector + Embedder) — shadow/experimental, sau Ranker seam
-    Auto-approve (sau flag + sampling audit khi calibration đạt ngưỡng)
-    Promote Human Review (8) & Observability (10) → spec riêng
+- **Core loop** (`v0.1.0-harness`): Task → Context → Agent → Artifact → Verification → Attention → Human Review → Decision → Evidence.
+- **Calibrate & Close the Measurement Loop** (`v0.2.0-harness`): Evaluation Engine v0 (metrics + A/B harness), calibrate attention weights từ data `was_useful`, semantic search infra (shadow, sau Ranker seam), auto-approve sau flag + audit.
+- **Learn & Automate Under Guardrails** (`v0.3.0-harness`): Memory/Evidence, targeted/incremental verification (dependency graph), context ranking hybrid (đã xây — default vẫn keyword vì A/B HOLD), multi-agent bounded, benchmark + LLM-as-judge, đóng vòng Evaluate → Calibrate → Deploy → Observe.
 
-PHASE 3 — Learn & Automate Under Guardrails
-    Memory/Evidence system đầy đủ (retrieval, decision memory, expiration + versioned write-back)
-    Targeted / incremental verification (dependency graph)
-    Context ranking hybrid thành default (BM25 + embeddings + RRF + re-rank) + RAG Fusion
-    Multi-agent orchestration + bounded autonomous loops
-    Trajectory fork (so sánh model/prompt/context head-to-head) + resume (crash recovery)
-    Benchmark corpus (gold labels versioned) + LLM-as-judge (rubric-scored, có audit trail)
-    Đóng vòng: Evaluate → Calibrate → Deploy → Observe
-```
-
-- **Kế hoạch Phase 1** (`docs/plan/phase-1/`) — 30 ngày, 4 tuần: Foundation → Execution core → Trust pipeline → Human loop + E2E, hard checkpoint ngày 7/14/21.
-- **Kế hoạch Phase 2** (`docs/plan/phase-2/`) — 30 ngày, 6 tuần: Identity/Observability → Evaluation v0 + A/B harness → calibration + auto-approve → semantic infra (shadow) → sandbox/object-store/Spec 8 → exit review.
-- **Kế hoạch Phase 3** (`docs/plan/phase-3/`) — 40 ngày, 8 tuần: Memory + trajectory → dependency-graph targeted verify → hybrid context default → multi-agent bounded → benchmark + judge → đóng loop Learning.
-- **Milestone then chốt** (Spec 1 §24): `AI Change → Evidence → Risk → Human Attention → Decision → Learning`. Phase 1 chứng minh loop trừ bước *Learning* (vẫn thủ công); Phase 2 đo được pipeline; Phase 3 tự động đóng Learning.
-- **Exit criteria**: Phase 1→2 khi loop demo được end-to-end + evidence queryable; Phase 2→3 khi có metrics precision/recall + calibration từ data thật; Phase 3 khi bước Learning tự đóng.
+Lịch sử phân kỳ theo ngày nằm ở `docs/plan/` (phase-1/2/3); tổng kết exit ở `docs/retros/phase3-exit-review.md`.
 
 ---
 
-## Những KHÔNG build trong Phase 1
+## Những thứ cố tình không build
 
 - Multi-agent orchestration phức tạp · RAG/vector DB · UI sophisticated · autonomous loops · microservices/K8s
-- Auto-approve thật (r5 chỉ set flag) · SSO/auth thật (Phase 2 P0: hiện chỉ `X-Reviewer-Id` header)
-- Semantic ranking, targeted/incremental verification (Phase 2–3, đã có seam trong interface)
+- Auto-approve thật (r5 chỉ set flag) · SSO/auth thật (P0: hiện chỉ `X-Reviewer-Id` header)
+- Semantic ranking, targeted/incremental verification (đã có seam trong interface)
 
 ---
 
@@ -301,7 +281,7 @@ Các điểm "cần lưu ý" trước đây nay đã được giải quyết tro
 - ✅ **Schema domain objects** — đã định nghĩa đầy đủ (12 task states, artifact/change lifecycle, evidence model, event envelope)
 - ✅ **Data storage strategy** — PostgreSQL 16 cho tất cả; conventions rõ ràng; evidence append-only
 - ✅ **Error handling & fallback** — FailureClass (TRANSIENT/PERMANENT/RESOURCE), retry policy, escalation → AWAITING_HUMAN_INTERVENTION
-- ✅ **Spec 9 (Memory/Evidence) & Spec 11 (Evaluation Engine)** — đã formalize từ các ghi chú "Phase sau" thành spec riêng: Evidence store append-only (Phase 1) và Evaluation seam (Phase 2+)
-- ⚠️ **Auth** — vẫn là Phase 2 (P0 trong backlog, xem `docs/plan/phase-3/backlog.md`)
+- ✅ **Spec 9 (Memory/Evidence) & Spec 11 (Evaluation Engine)** — đã formalize từ các ghi chú "Phase sau" thành spec riêng: Evidence store append-only và Evaluation seam
+- ⚠️ **Auth** — vẫn là một mục P0 trong backlog (xem `docs/plan/phase-3/backlog.md`)
 
-**Kết luận:** Kiến trúc giữ nguyên hướng đi đúng (tập trung human attention bottleneck, evidence > confidence), nay đã đủ chi tiết để implement — với 11 phân hệ (state machine chặt chẽ, event model có audit trail), lộ trình 3 phase rõ ràng, và kế hoạch 30 ngày (Phase 1) từng bước trong `docs/plan/`.
+**Kết luận:** Kiến trúc giữ nguyên hướng đi đúng (tập trung human attention bottleneck, evidence > confidence), nay đã đủ chi tiết để implement — với 11 phân hệ (state machine chặt chẽ, event model có audit trail), lộ trình rõ ràng, và kế hoạch từng bước trong `docs/plan/`.

@@ -22,13 +22,13 @@
 
 The most useful sources of truth live next door:
 
-- **[operations.md](operations.md)** — the Phase-3 *as-built* procedures
+- **[operations.md](operations.md)** — the *as-built* procedures
   (v1.0-candidate): provider-token rotation (OP-1), write-back audit (OP-2),
   learning-loop HOLD (OP-3), the `rank_method` kill-switch (OP-4), and the
   durable-queue `EVENT_TRANSPORT` flag (OP-5).
 - **[audit-queries.md](audit-queries.md)** — copy-paste SQL (Q1–Q9) for everything
   below that needs a database answer.
-- **[limitations.md](limitations.md)** — deliberate Phase-1 boundaries. Read the
+- **[limitations.md](limitations.md)** — deliberate boundaries. Read the
   first section of any incident against this; many "bugs" are the design.
 
 **Scoping facts:** one API process, one Postgres, one shared `SANDBOX_ROOT`. The
@@ -124,7 +124,7 @@ docker compose exec -T postgres psql -U harness -d harness \
   *defers* (stays `QUEUED`), it never drops — so `DROPPED` is a routing/signal
   problem to investigate, not a mechanical fix.
 - `QUEUED` rows exist but nobody can claim → the reviewer identity is missing.
-  Phase-1 identity is the `reviewerId` field on every `claim`/`decide` body (the
+  The identity is the `reviewerId` field on every `claim`/`decide` body (the
   web UI defaults it from `VITE_REVIEWER_ID`, else `reviewer-1`). Confirm the
   caller sends it.
 
@@ -157,7 +157,7 @@ df -h "$(pwd)"
 - Disk full → clean the worktree; this is an environment fix, not a code fix.
 
 **Escalate when:** timeouts persist after an environment fix and a justified
-timeout bump — file it as a Phase-2 **targeted/incremental verification** item
+timeout bump — file it as a **targeted/incremental verification** item
 (the p95 latency driver), not as a bigger timeout.
 
 ---
@@ -197,7 +197,7 @@ docker compose exec -T postgres psql -U harness -d harness \
   task decomposition.
 
 **Escalate when:** calls are flat but cost grows (token per call rising) — that's
-a prompt/context-bloat problem for the Phase-2 **exact tokenizer + context cache**
+a prompt/context-bloat problem for the **exact tokenizer + context cache**
 work, not an ops knob.
 
 ---
@@ -233,11 +233,11 @@ docker compose exec -T postgres psql -U harness -d harness \
   nudge is self-correcting but the band is noisy; let it run.
 - **Usefulness < 50% on `HIGH` for ~2 weeks** → the weights are untuned (they're
   explicit placeholders — `6_Attention_Engine_v0.2.md` §3). This is a **policy
-  decision for Phase 2 weight calibration, not a code fix in production**. Escalate
+  decision for weight calibration, not a code fix in production**. Escalate
   to the owner, don't hand-tune `PRIORITY_WEIGHTS`.
 
 **Escalate when:** any of the above *except* the "running as designed" case, and
-only after the calibration path (Phase 2) exists.
+only after the calibration path exists.
 
 ---
 
@@ -325,7 +325,7 @@ before expecting a message broker, or before "fixing" the nonexistent worker poo
 
 ## R9 — Degradation fallback alerts (Day 26)
 
-Phase-2 subsystems degrade **loudly**: every fallback bumps a Prometheus counter
+The opt-in subsystems degrade **loudly**: every fallback bumps a Prometheus counter
 and (on a sustained rate) pages via `infra/prometheus/alerts.yml`. A silent
 fallback is a subsystem that's "down" but quietly misbehaving — the exact failure
 Spec 10 exists to prevent. The counters are served by the API's `GET /metrics`:

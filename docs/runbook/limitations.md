@@ -1,7 +1,7 @@
-# Known Phase-1 Limitations
+# Known Limitations
 
 > **Read this before you scale, shard, or "fix" something that looks like a bug.**
-> These are deliberate Phase-1 boundaries. Each one is either fixed on a
+> These are deliberate boundaries. Each one is either fixed on a
 > scheduled day, or deliberately out of scope until a later phase. If you hit a
 > wall described here, the wall is the design — don't fight it in the code.
 
@@ -37,7 +37,7 @@ tasks as the ceiling — that is the *tested* envelope, not a benchmark or an SL
   process dies mid-publish, the event is gone (its side-effect may or may not have
   committed, which is exactly what the reconciler in §3 exists to catch).
 - A durable queue behind the same `IEventBus` contract (no subscriber changes) is
-  available as `RedisEventsBus`, selected by `EVENT_TRANSPORT` (Phase-3 Day 34,
+  available as `RedisEventsBus`, selected by `EVENT_TRANSPORT` (Day 34,
   **opt-in**; the in-process bus remains the default).
 
 ## 3. The reconciler is the *only* sanctioned auto-repair
@@ -70,7 +70,7 @@ and `vitest` as child processes on the **host**, inheriting its filesystem.
 - A bare worktree still "passes" Vitest via `--passWithNoTests`; a suite that
   must *actually* run needs its own `vitest.config.ts` so it doesn't report
   "no tests" and pass vacuously (see the Day-26 S3 fixture).
-- Container sandboxing lands in **Phase 2, Day 22** (verification) and **Day 23**
+- Container sandboxing lands in **Day 22** (verification) and **Day 23**
   (agent code mode).
 
 ## 5. Deterministic fault injection only (no chaos)
@@ -83,6 +83,6 @@ reproducibility beats coverage when the point is to pin a single invariant.
 ## 6. Performance numbers are not SLAs
 
 The load smoke reports p50/p95 durations and wall-clock, but these are **observations,
-not guarantees**. Tuning against them before a real workload exists is how Phase-1
+not guarantees**. Tuning against them before a real workload exists is how
 projects die. A "performance baseline" item belongs on the Day-30 backlog — not a
 tuning sprint now.

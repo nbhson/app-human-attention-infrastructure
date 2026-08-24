@@ -6,7 +6,7 @@ and ticket systems (Jira). It speaks only the protocol — `initialize`,
 or issues. The internet ships the MCP servers; we ship the client + a config
 file (Day 02), not per-provider REST adapters.
 
-**Status:** Phase 3 · Week 1 (as-built) ·
+**Status:** as-built ·
 **Boundary rule:** a leaf protocol package — depends on nothing but `@harness/domain`.
 
 ---

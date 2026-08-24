@@ -5,7 +5,7 @@
 > **Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa *"sự chú ý của con người"* trong phát triển phần mềm:
 > một code change (PR/MR) đi vào → Harness quan sát, xác minh, đánh giá, dùng AI review, xếp ưu tiên và định tuyến tới đúng sự chú ý của con người.
 
-Nguồn: `docs/summary/HAI_overview.md`, `docs/core/1_HAI_Harness_Architecture_v0.2.md`, `docs/core/2_Task_Work_Orchestrator_v0.3.md`, `docs/core/6_Attention_Engine_v0.2.md`.
+Nguồn: `docs/summary/HAI_overview.md`, `docs/architecture/HAI_Harness_Architecture_v0.6.md`, `packages/orchestrator/README.md`, `packages/attention-engine/README.md`.
 
 ---
 
@@ -170,7 +170,7 @@ flowchart TB
     POL -- "NEVER_REVIEW / auto-approve" --> AUTO["🟢 AUTO-APPROVE<br/>(skip human)"]
 
     REQ --> QUEUE["Vào review queue<br/>(budget + adaptive thresholds)"]
-    QUEUE --> FEED["Feedback was_useful<br/>→ recalibrate weights (Phase 3)"]
+    QUEUE --> FEED["Feedback was_useful<br/>→ recalibrate weights"]
 ```
 
 Labels: **CRITICAL ≥ 0.80 · HIGH ≥ 0.60 · MEDIUM ≥ 0.30 · LOW < 0.30**. Factor thiếu → redistribute trọng số + ghi `factors_unavailable`; thiếu hết → mặc định HIGH (*fail toward attention*).
@@ -231,13 +231,6 @@ flowchart TB
 
 ---
 
-## 8. Lộ trình 3 Phase
+## 8. Lộ trình (đã hoàn tất)
 
-```mermaid
-flowchart LR
-    P1["PHASE 1<br/>Prove the Core Loop<br/>(30 ngày)"] --> P2["PHASE 2<br/>Calibrate & Measure<br/>(30 ngày)"] --> P3["PHASE 3<br/>Learn & Automate<br/>(40 ngày)"]
-
-    P1 -->|"exit: loop E2E + evidence queryable"| P2
-    P2 -->|"exit: precision/recall + calibration từ data thật"| P3
-    P3 -->|"exit: Learning tự đóng vòng"| CLOSE["🔁 Evaluate → Calibrate → Deploy → Observe"]
-```
+Toàn bộ lộ trình xây dựng (Core Loop → Calibrate & Measure → Learn & Automate) đã hoàn tất, tagged `v0.3.0-harness` (`EXIT-WITH-CARRYFORWARD`, 8/9 exit criteria). Lịch sử phân kỳ theo ngày nằm ở `docs/plan/`; tổng kết exit ở `docs/retros/phase3-exit-review.md`.

@@ -2,7 +2,7 @@
 
 > **Living document.** Every time an engine is registered in `apps/api/src/bootstrap.ts`, add a row here. It takes ~2 minutes and saves hours of archaeology later.
 >
-> **Status:** v1.0-candidate (Phase 3 as-built) — Day 40 exit review complete (`v0.3.0-harness`, EXIT-WITH-CARRYFORWARD).
+> **Status:** v1.0-candidate (as-built) — Day 40 exit review complete (`v0.3.0-harness`, EXIT-WITH-CARRYFORWARD).
 
 This table records the object graph built by `buildContainer()` (`apps/api/src/bootstrap.ts`) — the **only** place `new InProcessEventBus()` may appear (day-05 §6). Everything else asks the container for a token via `resolve(TOKENS.*)`.
 
@@ -35,7 +35,7 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `ArtifactTracker` | `ArtifactTracker(db, SnapshotStore)` | Day 14 | `ArtifactCaptureSubscriber` |
 | `ArtifactCaptureSubscriber` | `ArtifactCaptureSubscriber(ArtifactTracker, logger)` + `subscribe(EventBus)` | Day 14 | eager-resolved at boot (side effect: `artifact.created` → tracker capture) |
 | `ChangeStatusSubscriber` | `ChangeStatusSubscriber(db, logger)` + `subscribe(EventBus)` | Day 14 | eager-resolved at boot (side effect: **sole writer** of `changes.status` — `PENDING→VERIFIED→REVIEWED`, any→`ROLLED_BACK`) |
-| `WeightsProvider` | `StaticWeightsAdapter()` (returns the Phase-1 placeholder) | Day 12 | `AttentionSubscriber` (threads the active vector into `computePriority`; **not flipped** — the Day-12/15 fit did not beat the placeholder) |
+| `WeightsProvider` | `StaticWeightsAdapter()` (returns the static placeholder) | Day 12 | `AttentionSubscriber` (threads the active vector into `computePriority`; **not flipped** — the Day-12/15 fit did not beat the placeholder) |
 | `AttentionSubscriber` | `AttentionSubscriber(db, logger, WeightsProvider, ContentStore)` + `subscribe(EventBus)` | Day 18 (WeightsProvider seam: Day 12) | eager-resolved at boot (side effect: `task.state_changed`→`AWAITING_REVIEW` scores the five factors → `assessments` row → `attention.assessment_created`) |
 | `AttentionRouter` | `AttentionRouter(db, EventBus, ATTENTION_POLICY_V1, logger)` + `subscribe()` | Day 19 | eager-resolved at boot (side effect: `attention.assessment_created` → policy match + fatigue controls → `review_queue` → `attention.item_routed`); `ReviewService` (feedback seam) |
 | `AutoApproveGate` | `AutoApproveGate({ maxRisk, inflationCeiling })` (pure evaluator, no deps) | Day 14 | `AutoApproveExecutor` (the three-part gate — calibration green ∧ flag on ∧ under the bar) |
@@ -49,10 +49,10 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `SemanticRanker` | `SemanticRanker(db, Embedder, SemanticRetriever)` | Day 18 | wraps the retriever with the freshness guard + target-file rule; **not** on the default resolve path |
 | `ContextCache` | `PostgresContextCache(db)` | Day 20 | read-optimization leaf for the collector; `get(sourceId, contentHash)` is the truth, `getByStat(sourceId, mtime, size)` is the zero-read fast-path |
 | `CacheInvalidationListener` | `CacheInvalidationListener(db, ContextCache, Logger)` + `subscribe(EventBus)` | Day 20 | registered (subscribes on resolution): `artifact.created`/`artifact.changed` → `invalidate`. Note — not in `bootContainer`'s eager list today, so its subscription binds only if something else resolves it |
-| `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot, ContextCache), KeywordDependencyRanker(), TiktokenTokenizer(), Embedder, SemanticRanker)` | Day 20 | eager-resolved at boot. Retained for Phase-3 review-context assembly (the retired `COLLECT_CONTEXT` step handler no longer resolves it) |
+| `ContextEngine` | `ContextEngine(db, FileCollector(sandboxRoot, ContextCache), KeywordDependencyRanker(), TiktokenTokenizer(), Embedder, SemanticRanker)` | Day 20 | eager-resolved at boot. Retained for review-context assembly (the retired `COLLECT_CONTEXT` step handler no longer resolves it) |
 | `EvidenceStore` | `EvidenceStore()` | Day 17 | `VerificationEngine` |
 | `Sandbox` | `DockerSandbox()` | Day 22 | `VerificationEngine` (only when `VERIFY_SANDBOX_ENABLED=1`) |
-| `VerificationEngine` | `VerificationEngine(db, EventBus, {CompileCheck, TestCheck}, EvidenceStore)` (+ `SandboxedCheck` when enabled) | Day 15/16/17/22 | retained for Phase-3 clone-and-test; the retired `VERIFY` step handler no longer resolves it |
+| `VerificationEngine` | `VerificationEngine(db, EventBus, {CompileCheck, TestCheck}, EvidenceStore)` (+ `SandboxedCheck` when enabled) | Day 15/16/17/22 | retained for clone-and-test; the retired `VERIFY` step handler no longer resolves it |
 | `LLMProvider` | `LoggingLLMProvider(AnthropicProvider(key) \| OpenAICompatibleProvider \| MockLLM(script), db)` | Day 11 | `ReviewAgent` |
 | `TaskStateMachine` | `TaskStateMachine` (pure transition table, no deps) | Day 06 | `TaskService` |
 | `TaskService` | `TaskService(db, EventBus, TaskStateMachine)` | Day 06 | `ReviewService` (transition seam), `AutoApproveExecutor` (transition seam), `ReviewIngestService` (createTask + immediate CANCELLED anchor) |
@@ -102,7 +102,7 @@ were **retired** in `review-reorient`, so those two stubs now simply mark the ab
 names. `AttentionEngine`'s live integration points remain `AttentionSubscriber` +
 `AttentionRouter`. `bootContainer()` (below) deliberately resolves only the subscriber/service tokens.
 
-### Verification breadth (Phase 3) — seams, not DI tokens
+### Verification breadth — seams, not DI tokens
 
 The clone → sandbox → targeted-verify path (days 11–15) is assembled at the **app
 host**, not in `buildContainer()`. Several seams carry it, and none registers a DI
@@ -125,7 +125,7 @@ failure, and the day-13 `flagReport`/`renderFlag` output annotates (never gates)
 the review. The actual sandbox execution legs are unit-covered by `clone-verifier`
 + `sandboxed-check` parity, so the demo runs credential-free (no Docker, no network).
 
-### Retrieval seam (Phase 3) — the held `rank_method` default
+### Retrieval seam — the held `rank_method` default
 
 The Day-26/27/28 retrieval surface (`Retriever` / `RetrievedDoc` / `RetrieverFactory`)
 is also a **seam, not a DI token**, and it is **build-only**: `RetrieverFactory.resolve
@@ -147,7 +147,7 @@ round-trip — default → `'hybrid'` → kill-switch `'keyword'` → default �
 real `LexicalRetriever` + `HybridRetriever` (RRF) hermetically: only the embedder's
 cosine ranking is stubbed.
 
-### Learning loop (Phase 3, day-31) — Evaluate → Calibrate → (measured) Deploy
+### Learning loop — Evaluate → Calibrate → (measured) Deploy
 
 `CalibrationJob` (in `@harness/attention-engine/src/learning/`) is a **structural
 seam, not a DI token**, and it is **not** eagerly started: like `MemoryLifecycle`,
@@ -163,7 +163,7 @@ weight vector itself (day-31 §2.2). The `WeightsProvider` on the routing hot pa
 is unchanged: `StaticWeightsAdapter` still returns the placeholder until a
 promotion is explicitly adopted. See `scripts/demo-learning-loop.ts`.
 
-### Usage feedback (Phase 3, day-32) — usefulness → learned ranking signal
+### Usage feedback — usefulness → learned ranking signal
 
 Day 32 replaces the re-ranker's raw-popularity `usage` term (day-27 §2.4, "how
 *often* surfaced") with a **learned** signal ("did surfacing it *help*?").
@@ -179,7 +179,7 @@ the same missing-signal fallback as day-27. There is no eager job here: the call
 (an app entrypoint) runs `learn()` over recent marks and passes the resulting map
 into the re-rank. See `scripts/demo-usage-feedback.ts`.
 
-### Closed learning loop (Phase 3, day-33) — one tracked, observable cycle
+### Closed learning loop — one tracked, observable cycle
 
 Day-33 wraps day-31's `CalibrationJob` in a four-stage
 `LearningLoop` state machine (`@harness/attention-engine/src/learning/`);
@@ -198,7 +198,7 @@ entrypoint (or `demo:closed-loop`) drives `runCycle()`, and `GET /api/learning/c
 (`apps/api/src/routes/learning.ts`) renders the last N `learning.loop_completed`
 events from `event_log` for the ops view. See `scripts/demo-closed-loop.ts`.
 
-### Durable queue (Phase 3, day-34) — an optional transport swap, contract frozen
+### Durable queue — an optional transport swap, contract frozen
 
 Day-34 adds a **durable `IEventBus`** as an *optional* swap behind the exact same
 `publish`/`subscribe` contract — no event-contract change, so engines that
@@ -295,7 +295,7 @@ The review slice (`ReviewIngestService` / `ReviewAgent` / `GitProvider` /
 9. `ArtifactTracker` — needs `Db`, `SnapshotStore`.
 10. `ArtifactCaptureSubscriber` — needs `ArtifactTracker`, `Logger`, `EventBus`.
 11. `ChangeStatusSubscriber` — needs `Db`, `Logger`, `EventBus`.
-12. `WeightsProvider` — no deps (returns the Phase-1 placeholder via `StaticWeightsAdapter`).
+12. `WeightsProvider` — no deps (returns the static placeholder via `StaticWeightsAdapter`).
 13. `AttentionSubscriber` — needs `Db`, `Logger`, `WeightsProvider`, `ContentStore`, `EventBus`.
 14. `AttentionRouter` — needs `Db`, `EventBus`, `ATTENTION_POLICY_V1`, `Logger`.
 15. `AutoApproveGate` — needs `ATTENTION_POLICY_V1` (static tuning; pure evaluator, no container deps).

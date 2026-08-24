@@ -4,7 +4,7 @@ The container-sandbox seam used by verification — isolates untrusted or
 tooling-heavy execution so it never runs on the harness's own process or
 filesystem.
 
-**Status:** Phase 2 (Day 22–23) complete (as-built); the agent Code-Mode consumer was retired in `review-reorient` — the sole live consumer is `verification-engine`. ·
+**Status:** complete (as-built); the agent Code-Mode consumer was retired in `review-reorient` — the sole live consumer is `verification-engine`. ·
 **Boundary rule:** shared package — imports only shared infrastructure; consumers resolve the `Sandbox` token, never the concrete backend.
 
 ---
