@@ -31,6 +31,7 @@ Day-by-day plans, one file per day, across three phases — see
 ## Architecture notes (`architecture/`)
 
 - [wiring-map](architecture/wiring-map.md) — the DI object graph (living document)
+- [runtime-startup](architecture/runtime-startup.md) — which packages load at start and how they depend on each other
 - [artifact-tracker-vs-git](architecture/artifact-tracker-vs-git.md) — ADR: pre-commit truth vs post-merge Git
 - [idempotency-audit](architecture/idempotency-audit.md) — per-table idempotency guard inventory
 

@@ -1,6 +1,6 @@
 # @harness/db — Database Layer
 
-PostgreSQL access for the whole system: the schema (54 tables), migrations,
+PostgreSQL access for the whole system: the schema (49 tables), migrations,
 seeding, and the data-access surface every package reads/writes through.
 
 **Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
@@ -11,7 +11,7 @@ seeding, and the data-access surface every package reads/writes through.
 ## Purpose
 
 1. **Abstract PostgreSQL** behind Drizzle ORM (driver `postgres.js`).
-2. **Hold the schema** — 54 tables, each owned by exactly one package's logic.
+2. **Hold the schema** — 49 tables, each owned by exactly one package's logic.
 3. **Keep `event_log` append-only** — the source of truth for *what happened*.
 4. **Expose data access** — `createDb`, `asReadonlyDb`, `AbStore`, `EventLogWriter`,
    audit helpers, and the Phase-3 log/run stores (`WritebackLogStore`,
@@ -40,12 +40,12 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 
 ---
 
-## Schema — 54 tables, grouped by owning domain
+## Schema — 49 tables, grouped by owning domain
 
 | Domain | Tables |
 | --- | --- |
-| **Orchestrator** | `projects`, `tasks`, `task_state_history`, `task_step_log` ◌, `dispatch_log` ◌, `retry_log` ◌ |
-| **Agent runtime** | `llm_call_log`, `agent_runs` ◌, `trajectory_steps` ◌, `code_mode_sessions` ◌ |
+| **Orchestrator** | `projects`, `tasks`, `task_state_history`, `retry_log` ◌ |
+| **Agent runtime** | `llm_call_log`, `agent_runs` ◌, `trajectory_steps` ◌ |
 | **Artifact tracker** | `artifacts`, `changes`, `snapshots` |
 | **Context engine** | `contexts`, `source_usefulness`, `context_source_cache`, `context_source_embeddings`, `shadow_rank_comparisons` |
 | **Verification** | `verification_requests`, `verification_results`, `verification_check_results`, `verification_test_results`, `verification_reports` |
@@ -55,7 +55,6 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 | **Evidence** | `evidence`, `evidence_links` |
 | **Event log** | `event_log` |
 | **Memory** | `memory_entries`, `memory_entry_evidence` |
-| **Code index** | `code_index_symbols`, `code_index_deps` |
 | **Judge** | `judge_runs`, `judge_agreements` |
 | **Benchmark** | `review_examples` |
 | **Identity** | `users`, `sessions` |
@@ -63,14 +62,15 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 | **Evaluation (A/B)** | `evaluation_reports`, `ab_experiments`, `ab_runs` |
 
 > **◌ Orphaned by `review-reorient`.** Their writers (`AgentRunner`,
-> `TrajectoryRecorder`, the code-mode session writer, `Dispatcher`,
-> `WorkflowRunner`) were retired with the code-generation path. The tables remain
-> in the schema (no destructive drop migration) but are no longer written by any
-> live code path; `llm_call_log` stays live via `LoggingLLMProvider`.
+> `TrajectoryRecorder`, the retry loop) were retired with the code-generation
+> path. Three tables still remain in the schema but are no longer written by any
+> live code path: `retry_log`, `agent_runs`, `trajectory_steps`. Five more
+> (`task_step_log`, `dispatch_log`, `code_mode_sessions`, `code_index_symbols`,
+> `code_index_deps`) were dropped in migration 0042 (`6e8d294`). `llm_call_log`
+> stays live via `LoggingLLMProvider`.
 >
 > **Phase-3 additions.** `memory_entries` / `memory_entry_evidence` (review-memory
-> tiers), `code_index_symbols` / `code_index_deps` (dependency graph),
-> `judge_runs` / `judge_agreements` (rubric shadow judging), `review_examples`
+> tiers), `judge_runs` / `judge_agreements` (rubric shadow judging), `review_examples`
 > (gold-labelled benchmark corpus), `source_usefulness` (learned-usage ranking
 > signal), and `review_decisions` (human verdict on the AI report, carrying the
 > effective `writeback_enabled` flag at decision time).
@@ -146,7 +146,7 @@ src/
 └── schema/
     ├── enums.ts        # CHECK constraints + value lists
     ├── index.ts        # relational schema registry
-    └── *.ts            # 54 table definitions across 46 files
+    └── *.ts            # 49 table definitions across 41 files
 ```
 
 ## Public API surface
@@ -154,7 +154,7 @@ src/
 ```typescript
 // createDb, DrizzleDB, asReadonlyDb / ReadonlyDb, EventLogWriter, AbStore,
 // WritebackLogStore, JudgeRunStore, JudgeAgreementStore,
-// schema tables (54), enums (CHECK constraints), migration/seed helpers
+// schema tables (49), enums (CHECK constraints), migration/seed helpers
 ```
 
 ## Dependency rule
