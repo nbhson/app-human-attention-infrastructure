@@ -15,7 +15,7 @@ retired).
 | [core/1_HAI_Harness_Architecture_v0.2](core/1_HAI_Harness_Architecture_v0.2.md) | Overall architecture, phases, exit criteria, subsystem→package map |
 | `packages/orchestrator` … `packages/evaluation` | One `README.md` per built subsystem — see the mapping table in the architecture spec §5 |
 
-The full package list (17 `@harness/*` packages + 2 apps) and their documentation
+The full package list (25 `@harness/*` packages + 2 apps) and their documentation
 live under [`../packages/`](../packages/) — each `README.md` covers modules,
 key invariants, and its boundary rules.
 
@@ -37,6 +37,7 @@ Day-by-day plans, one file per day, across three phases — see
 ## Operations (`runbook/`)
 
 - [README](runbook/README.md) — startup, oversight, incidents, escalation
+- [operations](runbook/operations.md) — Phase-3 DevOps + audit procedures (v1.0-candidate)
 - [audit-queries](runbook/audit-queries.md) — SQL cookbook for "what actually happened"
 - [limitations](runbook/limitations.md) — known Phase-1 scope cuts
 
