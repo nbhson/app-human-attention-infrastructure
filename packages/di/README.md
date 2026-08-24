@@ -3,7 +3,7 @@
 The hand-rolled dependency-injection container that joins the packages together
 at startup — packages depend on *interfaces*, this package wires the concretes.
 
-**Status:** Phase 1 complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** does not import the engine packages — it wires them, never depends on them.
 
 ---

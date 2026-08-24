@@ -4,7 +4,7 @@ The provider seam that reads an external pull request / merge request from a Git
 host, so the AI reviewer has a diff to review — and, for the write-back path,
 maps write capabilities to the same host's MCP tools.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** depends only on `@harness/domain`; never an engine, host SDK, or event-bus.
 
 ---
@@ -13,7 +13,7 @@ maps write capabilities to the same host's MCP tools.
 
 1. **Define the `GitProvider` seam** — fetch PR metadata + a per-file diff.
 2. **Provide a GitHub REST implementation** — `GitHubProvider` over the built-in
-   `fetch`, no `octokit` (the Phase-1 path).
+   `fetch`, no `octokit` (the direct REST path).
 3. **Front every host through MCP** — `MCPGitProvider` routes the pasted repo slug to
    the right host's MCP tools via `GitToolMap`, so GitHub/GitLab/Bitbucket are
    served from **one `mcp.config.json`** — there is no per-host REST adapter.
@@ -108,5 +108,5 @@ src/
 packages/git-provider → imports only @harness/domain
 ```
 
-The REST `GitHubProvider` remains only as the Phase-1 read path; the Phase-3 product
-surface for GitLab/Bitbucket routes through the MCP layer, not additional REST adapters.
+The REST `GitHubProvider` remains only as the direct read path; GitLab/Bitbucket
+route through the MCP layer, not additional REST adapters.

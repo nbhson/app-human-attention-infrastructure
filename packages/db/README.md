@@ -3,7 +3,7 @@
 PostgreSQL access for the whole system: the schema (49 tables), migrations,
 seeding, and the data-access surface every package reads/writes through.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** imports only `@harness/domain` + `@harness/event-bus`; never an engine.
 
 ---
@@ -14,7 +14,7 @@ seeding, and the data-access surface every package reads/writes through.
 2. **Hold the schema** — 49 tables, each owned by exactly one package's logic.
 3. **Keep `event_log` append-only** — the source of truth for *what happened*.
 4. **Expose data access** — `createDb`, `asReadonlyDb`, `AbStore`, `EventLogWriter`,
-   audit helpers, and the Phase-3 log/run stores (`WritebackLogStore`,
+   audit helpers, and the write-back / judge log/run stores (`WritebackLogStore`,
    `JudgeRunStore`, `JudgeAgreementStore`).
 
 ---
@@ -69,7 +69,7 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 > `code_index_deps`) were dropped in migration 0042 (`6e8d294`). `llm_call_log`
 > stays live via `LoggingLLMProvider`.
 >
-> **Phase-3 additions.** `memory_entries` / `memory_entry_evidence` (review-memory
+> **Review-era additions.** `memory_entries` / `memory_entry_evidence` (review-memory
 > tiers), `judge_runs` / `judge_agreements` (rubric shadow judging), `review_examples`
 > (gold-labelled benchmark corpus), `source_usefulness` (learned-usage ranking
 > signal), and `review_decisions` (human verdict on the AI report, carrying the

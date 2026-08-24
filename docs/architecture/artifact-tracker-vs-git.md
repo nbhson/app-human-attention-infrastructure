@@ -10,7 +10,7 @@
 > harness no longer writes to Git — it reads an external PR. The *"Tracker owns
 > pre-merge, Git owns post-merge"* split below therefore still describes the
 > provenance model for a change, but the `changes.commit_sha` join point is no
-> longer written by the retired merge step (write-back, if any, is a Phase-3
+> longer written by the retired merge step (write-back, if any, is a
 > read-only comment/status, not a commit).
 
 ## Context

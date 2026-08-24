@@ -1,9 +1,9 @@
 # @harness/auth — Identity & Authorization
 
 Real reviewer identity (OIDC SSO) and role enforcement for the review and audit
-surfaces, replacing the Phase-1 `X-Reviewer-Id` header placeholder.
+surfaces, replacing the earlier `X-Reviewer-Id` header placeholder.
 
-**Status:** Phase 2 (Day 01–02) complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** shared package — imports only `@harness/domain`, `@harness/db`, `@harness/event-bus`, `@harness/di`; **not** a pipeline step.
 
 ---

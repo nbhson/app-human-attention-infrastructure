@@ -14,7 +14,7 @@ queryable, and auditable.
 
 | | |
 | --- | --- |
-| **Status** | Phases 1–3 complete · tagged `v0.3.0-harness` · review-only control plane (`review-reorient`) |
+| **Status** | Feature-complete · tagged `v0.3.0-harness` · review-only control plane (`review-reorient`) |
 | **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 975 unit tests ✅ · 9 e2e ✅ |
 | **Stack** | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker |
 | **Boundary model** | 25 `@harness/*` packages; engines never import another engine |
@@ -120,10 +120,10 @@ that verifies, scores, routes, and records:
   (Anthropic + OpenAI-compatible), the **review slice** (`ReviewAgent`,
   `ReviewIngestService`, `GitProvider`, `TicketProvider`), and the full
   verification / attention / review / evidence / observability machinery.
-- **Phase 3 (shipped):** MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one
+- **Shipped:** MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one
   `mcp.config.json`), Docker-sandbox verification, attention routing, toggle-gated
   write-back to PR/Jira, review memory, LLM-as-judge, and the closed learning
-  loop. See the [Phase-3 exit review](docs/retros/phase3-exit-review.md).
+  loop. See the [exit review](docs/retros/phase3-exit-review.md).
 
 ## Principles
 
@@ -142,11 +142,10 @@ that verifies, scores, routes, and records:
 
 | Layer | Packages |
 | --- | --- |
-| **Engines** | `orchestrator`, `agent-runtime`, `context-engine`, `artifact-tracker`, `attention-engine`, `verification-engine`, `review` |
-| **Phase-2 seams** | `auth`, `embeddings`, `evaluation`, `object-store`, `observability`, `sandbox` |
-| **Phase-3 seams** | `mcp`, `memory`, `code-index`, `judge`, `benchmark`, `writeback` |
-| **Review-slice** | `git-provider`, `ticket-provider` |
-| **Shared foundation** | `domain`, `db`, `di`, `event-bus` |
+| **Foundation** | `domain`, `event-bus`, `di`, `db`, `observability` |
+| **Engines** | `orchestrator`, `agent-runtime`, `artifact-tracker`, `verification-engine`, `attention-engine`, `context-engine`, `review`, `auth`, `embeddings`, `evaluation` |
+| **Review slice** | `git-provider`, `ticket-provider`, `writeback`, `memory`, `judge`, `benchmark` |
+| **Tooling** | `object-store`, `sandbox`, `mcp`, `code-index` |
 
 Each package documents its purpose, data model, invariants, and boundary rules in
 its own `README.md`.
@@ -182,22 +181,20 @@ pnpm dev                            # run the API + web UI
 **Requirements:** Node.js ≥ 20, pnpm ≥ 9 (pinned `9.15.4`), Docker. Full walkthrough
 in the [Developer Guide](docs/dev-guide.md).
 
-## Status & roadmap
+## Status
 
-**Phases 1–3 are complete** (`v0.1.0-harness` → `v0.2.0-harness` →
-`v0.3.0-harness`). The harness is a review-only control plane: MCP connectivity
-(GitHub/GitLab/Bitbucket/Jira via one `mcp.config.json`), AI review, Docker-sandbox
-verification, attention routing, toggle-gated write-back, review memory, and a
-closed learning loop with an LLM-as-judge quality signal.
+The harness is feature-complete through **`v0.3.0-harness`** — a review-only control
+plane: MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `mcp.config.json`),
+AI review, Docker-sandbox verification, attention routing, toggle-gated write-back,
+review memory, and a closed learning loop with an LLM-as-judge quality signal.
 
-Two items are honestly **carried forward** to Phase 4 (`EXIT-WITH-CARRYFORWARD`,
-8 of 9 exit criteria): hybrid context ranking as the default (Day-29 A/B returned
-HOLD) and auto-applied fitted attention weights. Both are named in the
-[Phase-3 backlog](docs/plan/phase-3/backlog.md) (CF-1 / CF-2) with their gates.
+Two items are honestly **carried forward** (`EXIT-WITH-CARRYFORWARD`, 8 of 9 exit
+criteria): hybrid context ranking as the default (Day-29 A/B returned HOLD) and
+auto-applied fitted attention weights. Both are named in the
+[backlog](docs/plan/phase-3/backlog.md) (CF-1 / CF-2) with their gates.
 
-The historical record of Phases 1–3 — the measurement loop, calibration, A/B
-harness, closed-loop, and the honest exit reviews — lives in
-[`docs/retros/`](docs/retros/).
+The historical record of the build — the measurement loop, calibration, A/B harness,
+closed-loop, and the honest exit reviews — lives in [`docs/retros/`](docs/retros/).
 
 ---
 
@@ -224,8 +221,8 @@ The green gate is `pnpm test && pnpm lint && pnpm e2e`.
 
 | What | Where |
 | --- | --- |
-| **Architecture spec** | [`docs/core/`](docs/core/) + one `README.md` per `@harness/*` package |
-| **Build plan & backlog** | [`docs/plan/`](docs/plan/README.md) — day-by-day plans (Phases 1–3) and the Phase-3 backlog |
+| **Architecture spec** | [`docs/architecture/`](docs/architecture/) + one `README.md` per `@harness/*` package |
+| **Build plan & backlog** | [`docs/plan/`](docs/plan/README.md) — day-by-day build history + backlog |
 | **Operations runbook** | [`docs/runbook/`](docs/runbook/README.md) — incidents, exact commands, escalation rules |
 | **Developer guide** | [`docs/dev-guide.md`](docs/dev-guide.md) — clone-to-green in ~15 minutes |
 | **Wiring map** | [`docs/architecture/wiring-map.md`](docs/architecture/wiring-map.md) — the DI object graph |
@@ -238,8 +235,7 @@ The green gate is `pnpm test && pnpm lint && pnpm e2e`.
 | `packages/` | 25 engines and shared libraries (`@harness/*`) |
 | `apps/api` | Fastify API + single DI bootstrap (`bootstrap.ts`) + the review slice |
 | `apps/web` | React + Vite review UI |
-| `docs/core/` | The architecture overview (subsystem docs live in each package's `README.md`) |
-| `docs/plan/` | Day-by-day build plans (Phases 1 / 2 / 3) + backlog |
-| `docs/architecture/` | Wiring map and living architecture notes |
+| `docs/plan/` | Day-by-day build history + backlog |
+| `docs/architecture/` | Architecture spec, wiring map, and living architecture notes |
 | `docs/runbook/` | Audit-query cookbook + operational runbook + limitations |
 | `docs/retros/` | Honest weekly retrospectives |

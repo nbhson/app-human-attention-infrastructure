@@ -3,7 +3,7 @@
 Scores a review report against a versioned rubric (severity / routing / evidence),
 and measures the judge's own quality via inter-judge agreement.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** imports only `@harness/domain` (value types + the `LLMProvider` /
 `JudgeRunStore` / `JudgeAgreementStore` seams).
 

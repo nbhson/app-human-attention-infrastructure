@@ -37,7 +37,7 @@ per-package test matrix (`.github/workflows/ci.yml`).
 - **Engines & libraries** live in `packages/*`. Each package's `README.md` states
   its invariants and boundary rules; engines never import another engine.
 - **Docs** — day plans are `docs/plan/phase-*/day-NN.md`; honest post-mortems are
-  `docs/retros/`; specs are `docs/core/` + one README per package.
+  `docs/retros/`; the architecture spec + notes are `docs/architecture/`, and one README per package.
 
 ## Commits
 

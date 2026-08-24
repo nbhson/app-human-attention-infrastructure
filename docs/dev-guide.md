@@ -59,7 +59,7 @@ What each command actually does:
   `DATABASE_URL`. Tests have a hard-coded fallback of the same local URL, but the
   scripts don't.
 - `cp mcp.config.example.json mcp.config.json` is **optional** — without it the
-  API boots fine and the providers resolve to `null` (the Phase-1 REST path for
+  API boots fine and the providers resolve to `null` (the REST path for
   GitHub/Jira, via `GITHUB_TOKEN`/`JIRA_TOKEN`). With it, GitHub/GitLab/Bitbucket/
   Jira all connect through the MCP layer driven by one file; each entry's
   `tokenEnv` is a *reference to* an env var, never a secret (the value is reduced
@@ -226,14 +226,14 @@ pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm e2e
 (`lint`, `typecheck`, `build`, `test`) are the CI-critical core every commit must
 pass. This is what CI and every day's work must pass before a commit is pushed.
 
-## 7. Phase-2 subsystems (env-gated)
+## 7. Opt-in subsystems (env-gated)
 
 The default run stays on the deterministic, no-external-service path. Each of
-these Phase-2 subsystems is opt-in via an env var; flip it on only when you need
+these subsystems is opt-in via an env var; flip it on only when you need
 that behaviour.
 
 **Object store (day-21).** Unset `OBJECT_STORE_ENDPOINT` keeps snapshot content
-inline in Postgres (the Phase-1 default). Set it (MinIO is already up via compose)
+inline in Postgres (the default). Set it (MinIO is already up via compose)
 to offload large (`> 1 MiB`) snapshots to S3, keyed by content hash:
 
 ```sh
@@ -279,9 +279,9 @@ A real embedder is optional: unset `EMBEDDINGS_BASE_URL` uses the deterministic
 `StubEmbedder`; set it (plus `EMBEDDINGS_API_KEY`/`EMBEDDINGS_MODEL`) for
 OpenAI-compatible embeddings.
 
-## 8. Phase-3 stack (env + MCP)
+## 8. Configuration stack (env + MCP)
 
-The Phase-3 surface is a **configuration-first** re-scope: external systems connect
+The configuration surface is **configuration-first**: external systems connect
 through **one `mcp.config.json`**, write-back is behind a fail-safe toggle, and the
 AI provider is swappable. All of it is env-gated; the default run stays local and
 deterministic.

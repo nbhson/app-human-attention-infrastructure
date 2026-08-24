@@ -3,7 +3,7 @@
 The tracing + metrics substrate that turns the pipeline's events into spans and
 Prometheus metrics, all joinable back to one `correlation_id`.
 
-**Status:** Phase 2 (Day 03–04) complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** shared package (R8) — imports only `@harness/domain`, `@harness/db`, `@harness/di`; provides no business logic.
 
 ---

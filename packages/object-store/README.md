@@ -4,7 +4,7 @@ The `ContentStore` seam for large artifacts — keeps big content out of Postgre
 and behind a small interface so the backing store (S3/MinIO or in-memory) can be
 swapped without touching the engines.
 
-**Status:** Phase 2 (Day 21) complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** shared package — imports only shared infrastructure.
 
 ---

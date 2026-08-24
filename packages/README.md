@@ -29,7 +29,7 @@ engines                       read/write the foundation; never a sibling engine
 foundation                    shared inward-only core; everything depends on these
    domain  event-bus  di  db  observability
      ▼
-leaves & tooling              import no @harness package (pure seams)
+tooling                       import no @harness package (pure seams)
    object-store  sandbox  mcp  code-index*
 ```
 
@@ -72,7 +72,7 @@ leaves & tooling              import no @harness package (pure seams)
 | [`judge`](judge/README.md) | Rubric-scored LLM-as-judge (shadow measurement, never mutates a review) |
 | [`benchmark`](benchmark/README.md) | Versioned review-quality corpus + regression reports (CLI-only) |
 
-## Leaves & tooling
+## Tooling
 
 | Package | One-line role |
 | --- | --- |

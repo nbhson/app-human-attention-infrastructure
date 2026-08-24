@@ -5,12 +5,12 @@
 > `apps/api/src/bootstrap.ts` (`buildContainer()` + `bootContainer()`) and
 > `apps/api/src/index.ts` — read those first, then this.
 >
-> **Status:** v1.0-candidate (Phase 3 as-built) · 25 `@harness/*` packages + 2 apps.
+> **Status:** v1.0-candidate (as-built) · 25 `@harness/*` packages + 2 apps.
 
 This answers, concretely, "when I start the app, which packages actually load,
 and how do they depend on each other?" It accompanies
 [`wiring-map.md`](wiring-map.md) (the DI object graph, token by token) and the
-[architecture spec](../core/1_HAI_Harness_Architecture_v0.2.md) (the phase/exit-criteria
+[architecture spec](HAI_Harness_Architecture_v0.6.md) (the architecture and invariants
 view). This file is about the **runtime**, not the design history.
 
 ---
@@ -50,34 +50,62 @@ Neither appears anywhere under `apps/api/src/`, so neither loads on server boot.
 
 ## The startup sequence (server)
 
-`apps/api/src/index.ts` runs these in order:
+`apps/api/src/index.ts` is the only server entry point. Starting the app walks six
+stages in a fixed order; the one-line story is **nothing "runs" until stage 5 —
+stages 1–4 only *prepare* the graph.**
 
 ```text
-1. dotenv           load .env, then ../../.env          → env (creds, toggles)
-2. buildContainer() register 47 real + 3 stub tokens    → object graph (NO side effects yet)
-3. initApiTracing() OpenTelemetry singleton             → @harness/observability (module global)
-4. buildApp()       Fastify: trace hook → auth hook → routes
-5. bootContainer()  resolve the 11 eager tokens         → bus subscriptions go live
-6. app.listen()     { port: 3000, host: '0.0.0.0' }     → serve traffic
+start app  (pnpm dev / node apps/api)
+  └─ 1. dotenv            load .env → ../../.env          env (creds, toggles)
+  └─ 2. buildContainer()  register 47 real + 3 stub      object graph (factories only, no engine runs)
+  └─ 3. initApiTracing()  resolve Db + Logger → initTracing   OTel provider (module global)
+  └─ 4. buildApp()        Fastify: trace hook → auth hook → 9 route groups
+  └─ 5. bootContainer()   resolve the 11 eager tokens      bus subscribers bind (first engine code)
+  └─ 6. app.listen()      { port: 3000, host: '0.0.0.0' }  serve traffic
 ```
 
-Key property: **step 2 executes no engine code.** `Container.register(token, factory)`
-stores a lazy factory. It is `bootContainer()` (step 5) — and, later, the first
+### Stage by stage
+
+| # | Stage | Source | What actually starts here |
+| --- | --- | --- | --- |
+| 1 | `.env` load | `index.ts:18` | Read creds + toggles from `.env`, then `../../.env` (first existing wins; an already-exported `DATABASE_URL` is never overridden) |
+| 2 | `buildContainer()` | `index.ts:28` → `bootstrap.ts:202` | Register every token as a **lazy factory** — no engine is constructed. One real side effect: `mkdirSync(SANDBOX_ROOT)` |
+| 3 | `initApiTracing()` | `index.ts:31` → `observability.ts` | The first *resolutions*: `Db` + `Logger` are constructed, then the OpenTelemetry provider is installed (module-global singleton) with `trace_correlation` write-through |
+| 4 | `buildApp()` | `index.ts:32` → `app.ts:29` | Build the Fastify server: `/health`, the trace hook, the auth hook, then 9 route groups (auth · review · reviews · provenance · ops · metrics · admin · settings · learning). Handlers run only on a request. (Between this and stage 5, `index.ts:33-35` logs each registered token — informational only) |
+| 5 | `bootContainer()` | `index.ts:37` → `bootstrap.ts:777` | Resolve the **11 eager tokens** — the first engine code that runs (the list below) |
+| 6 | `app.listen()` | `index.ts:41` | Bind `0.0.0.0:3000` and serve. The process is now idle until a request arrives |
+
+Key property: **stage 2 executes no engine code.** `Container.register(token, factory)`
+stores a lazy factory. It is `bootContainer()` (stage 5) — and, later, the first
 route that touches a token — that actually constructs objects. That is why the app
 can boot *with most external providers unconfigured*: a `null` provider or a stub
-embedder is a perfectly valid graph node; it simply fails loudly only if a request
+embedder is a perfectly valid graph node; it fails loudly only if a request
 actually tries to use it.
 
-### What `bootContainer()` eagerly resolves (11 tokens)
+### What `bootContainer()` starts (the 11 eager tokens)
 
-These 11 are resolved at boot because their constructor (or `subscribe()`) must
-**bind to the event bus before the first request** — a side effect, not a value:
+Resolved in this order because their constructor (or `subscribe()`) must **bind to
+the event bus before the first request** — a side effect, not a value:
 
 ```text
-EventLogWriter  ArtifactCaptureSubscriber  ChangeStatusSubscriber
-AttentionSubscriber  AttentionRouter  AutoApproveSampler  AutoApproveExecutor
-ContextEngine  ReembedListener  ReviewService  JudgeShadow
+1.  EventLogWriter            starts appending every bus event → event_log (append-only audit trail)
+2.  ArtifactCaptureSubscriber starts listening for artifact.created → snapshot capture
+3.  ChangeStatusSubscriber    starts listening → drives changes.status (PENDING→VERIFIED→REVIEWED, any→ROLLED_BACK)
+4.  AttentionSubscriber       starts listening for task.state_changed → scores → attention.assessment_created
+5.  AttentionRouter           subscribes → assessment_created → fatigue control → review_queue routing
+6.  AutoApproveSampler        subscribes (the silent human control duplicate)
+7.  AutoApproveExecutor       subscribes → acts on AUTO_APPROVABLE routed items → APPROVED
+8.  ContextEngine             constructed — collect→rank→trim pipeline is built at boot, ready for the first request
+9.  ReembedListener           starts listening for artifact.created/changed → re-embed affected files
+10. ReviewService             constructed — wires transitionTask / feedback / diff seams at the composition root
+11. JudgeShadow               subscribes → runs the shadow judge after review.report_created (log-only)
 ```
+
+`AutoApproveGate` and `AutoApproveKillSwitch` are constructed *transitively* here as
+inputs to `AutoApproveExecutor` (they have no bus subscription of their own).
+`@harness/memory`'s `MemoryStore` and `MemoryLifecycle` are registered but **not**
+eagerly started — the bootstrap comments mark them "no eager boot required"; the
+lifecycle tick runs on a cadence from a separate entrypoint, not at boot.
 
 Every other token is **lazy** — it materialises the first time a route asks for it.
 The review slice in particular (`ReviewIngestService` / `ReviewAgent` /
@@ -97,7 +125,7 @@ boundary except the `apps/*` layer, which may import anything.
 Layer 5 — apps (composition roots; may import anything)
           apps/api ──────────────── apps/web (no @harness deps)
                         ▲
-Layer 4 — review slice + Phase-3 seams (depend on foundation/engines)
+Layer 4 — review slice + learning seams (depend on foundation/engines)
           review  memory  judge  writeback  git-provider  ticket-provider
                         ▲
 Layer 3 — engines (depend only on domain/event-bus/db/di + observability)
@@ -218,12 +246,12 @@ deliberate:
    never import another engine" (R4) is only enforceable because `attention-engine`
    and `context-engine` are separate units with their own `package.json`, `tsconfig`,
    and lint boundary. Fold them into one folder and the rule evaporates.
-2. **Three build phases stacked cleanly.** Phase 1 delivered the foundation
-   (`domain`/`event-bus`/`db`/`di` + the engines). Phase 2 promoted cross-cutting
-   seams to packages (`auth`, `embeddings`, `evaluation`, `object-store`,
-   `observability`, `sandbox`). Phase 3 added the review slice (`git-provider`,
-   `ticket-provider`, `memory`, `judge`, `writeback`, `mcp`, `benchmark`,
-   `code-index`). Each was added as a seam because the seam *was* the delivery unit.
+2. **Built in layers.** The foundation (`domain`/`event-bus`/`db`/`di` + the
+   engines) came first, then the cross-cutting seams were promoted to packages
+   (`auth`, `embeddings`, `evaluation`, `object-store`, `observability`,
+   `sandbox`), and finally the review slice (`git-provider`, `ticket-provider`,
+   `memory`, `judge`, `writeback`, `mcp`, `benchmark`, `code-index`). Each was
+   added as a seam because the seam *was* the delivery unit.
 3. **Pure leaves for testability + safety.** `object-store`, `sandbox`, `mcp`,
    `code-index` import nothing internal on purpose — they can be unit-tested in
    isolation, and `sandbox`'s security property lives entirely in its own `docker
@@ -241,6 +269,6 @@ control plane.
 ## Cross-references
 
 - [`wiring-map.md`](wiring-map.md) — token-by-token DI object graph + the R1–R14 table.
-- [`../core/1_HAI_Harness_Architecture_v0.2.md`](../core/1_HAI_Harness_Architecture_v0.2.md) — architecture, phases, exit criteria.
+- [architecture spec](HAI_Harness_Architecture_v0.6.md) — architecture, invariants, and exit criteria.
 - [`../dev-guide.md`](../dev-guide.md) — clone-to-green in ~15 minutes.
 - [`../runbook/README.md`](../runbook/README.md) — operating the running system.

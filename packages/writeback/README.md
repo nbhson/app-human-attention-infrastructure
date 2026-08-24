@@ -4,7 +4,7 @@ Posts the outcome of a review decision back to the external PR/ticket
 (comment / status / label on a Git host; comment / transition on Jira), through
 the Week-1 MCP transport — never a second channel, never a code change.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** a seam, not an engine — imports only `@harness/domain`,
 `@harness/mcp`, `@harness/git-provider`, `@harness/ticket-provider`; every write
 rides an MCP tool call, never a host SDK.
@@ -117,5 +117,5 @@ packages/writeback → @harness/domain, @harness/mcp, @harness/git-provider, @ha
 ```
 
 Write-back never imports a host REST adapter — `GitHubProvider` / `JiraProvider` are
-the Phase-1 read path; write-back reaches hosts only through `@harness/mcp`
+the direct read path; write-back reaches hosts only through `@harness/mcp`
 (`McpServerRegistry`).

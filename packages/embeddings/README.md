@@ -4,7 +4,7 @@ The embedding-provider seam and the populate/health pipeline behind semantic
 retrieval. Installed in **shadow mode** by default — it indexes and scores
 without becoming the context ranker.
 
-**Status:** Phase 2 (Day 16–17) complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** shared package — imports only `@harness/domain`, `@harness/db`, `@harness/event-bus`, `@harness/di`.
 
 ---

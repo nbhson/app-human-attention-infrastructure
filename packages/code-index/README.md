@@ -3,7 +3,7 @@
 Indexes a checkout's symbols + module edges and computes the transitive set of
 affected tests for a change — the leaf that makes targeted verification safe.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** pure leaf (node built-ins only); consumed by the app host / verification
 through a structural seam, never a direct engine import (R4).
 

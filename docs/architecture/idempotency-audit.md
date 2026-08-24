@@ -27,9 +27,9 @@ as a deliberate exception.**
 
 - **`task_step_log`** and **`retry_log`** are append-only audit trails where a
   duplicate row is harmless and a natural key either does not exist or would
-  force artificial complexity (Phase 1 trade-off, day-10 §2.5).
+  force artificial complexity (a deliberate day-10 §2.5 trade-off).
 
-## What would change in Phase 2
+## Potential future changes
 
 - `event_log` moves to a durable write queue (fire-and-forget today admits a
   lost line under crash).

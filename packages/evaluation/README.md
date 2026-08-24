@@ -4,7 +4,7 @@ Scores the **pipeline**, not the change: routing precision/recall, attention
 efficiency, and verification quality — plus trajectory replay and the A/B
 machinery that compares two pipeline variants head-to-head.
 
-**Status:** Phase 2 (Week 2) complete (as-built) ·
+**Status:** complete (as-built) ·
 **Boundary rule:** offline/read-only — imports shared infrastructure + reads stores; never sits on the hot path.
 
 ---

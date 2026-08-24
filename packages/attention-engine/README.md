@@ -5,7 +5,7 @@ attention score, routing to review-or-approve, weight/calibration seams, the
 guard-railed auto-approve path, and the measured learning loop that fits and
 proposes new weights.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** engine (R4) — imports only shared packages; never another engine.
 
 ---
@@ -81,7 +81,7 @@ auditing a fraction. An auto-approved-then-human-rejected change emits
 
 ## Learning loop (Evaluate → Calibrate → measured Deploy)
 
-`learning/` holds the Phase-3 closed loop. It is a **structural seam, not a DI
+`learning/` holds the closed learning loop. It is a **structural seam, not a DI
 token**, and is not eagerly started — a server entrypoint (or `demo:closed-loop`)
 drives `runCycle()` on a cadence.
 

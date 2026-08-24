@@ -12,7 +12,7 @@ retired).
 
 | Where | Subject |
 | --- | --- |
-| [core/1_HAI_Harness_Architecture_v0.2](core/1_HAI_Harness_Architecture_v0.2.md) | Overall architecture, phases, exit criteria, subsystem→package map |
+| [architecture/HAI_Harness_Architecture_v0.6](architecture/HAI_Harness_Architecture_v0.6.md) | Overall architecture, phases, exit criteria, subsystem→package map |
 | `packages/orchestrator` … `packages/evaluation` | One `README.md` per built subsystem — see the mapping table in the architecture spec §5 |
 
 The full package list (25 `@harness/*` packages + 2 apps) and their documentation
@@ -21,12 +21,12 @@ key invariants, and its boundary rules.
 
 ## Build plan (`plan/`)
 
-Day-by-day plans, one file per day, across three phases — see
+The day-by-day build history, one file per day — see
 [`plan/README.md`](plan/README.md):
 
-- Phase 1 — [README](plan/phase-1/README.md) · `day-01..30` (✅ complete)
-- Phase 2 — [README](plan/phase-2/README.md) · `day-01..30` (✅ complete)
-- Phase 3 — [README](plan/phase-3/README.md) · [backlog](plan/phase-3/backlog.md) · `day-01..40` (✅ complete — tagged `v0.3.0-harness`; [exit review](retros/phase3-exit-review.md))
+- [`phase-1/`](plan/phase-1/README.md) · `day-01..30` (✅ complete)
+- [`phase-2/`](plan/phase-2/README.md) · `day-01..30` (✅ complete)
+- [`phase-3/`](plan/phase-3/README.md) · [backlog](plan/phase-3/backlog.md) · `day-01..40` (✅ complete — tagged `v0.3.0-harness`; [exit review](retros/phase3-exit-review.md))
 
 ## Architecture notes (`architecture/`)
 
@@ -38,9 +38,9 @@ Day-by-day plans, one file per day, across three phases — see
 ## Operations (`runbook/`)
 
 - [README](runbook/README.md) — startup, oversight, incidents, escalation
-- [operations](runbook/operations.md) — Phase-3 DevOps + audit procedures (v1.0-candidate)
+- [operations](runbook/operations.md) — DevOps + audit procedures (v1.0-candidate)
 - [audit-queries](runbook/audit-queries.md) — SQL cookbook for "what actually happened"
-- [limitations](runbook/limitations.md) — known Phase-1 scope cuts
+- [limitations](runbook/limitations.md) — known scope cuts
 
 ## Retrospectives (`retros/`)
 

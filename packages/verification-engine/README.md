@@ -2,10 +2,10 @@
 
 The independent, machine-side gate each change must pass before it can reach a
 human. Runs compile, test, and sandboxed checks — in isolation, with timeouts,
-with evidence attached — plus the Phase-3 clone-and-test and targeted-verification
+with evidence attached — plus the clone-and-test and targeted-verification
 paths.
 
-**Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review ·
+**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
 **Boundary rule:** engine (R4) — imports only shared packages; resolves the `TOKENS.Sandbox`
 seam, never a sibling engine's concrete (never `agent-runtime`, never `code-index`).
 
@@ -28,7 +28,7 @@ seam, never a sibling engine's concrete (never `agent-runtime`, never `code-inde
 ## Execution models
 
 ```text
-   (a) in-process change check                          (b) Phase 3 clone-and-test
+   (a) in-process change check                          (b) clone-and-test
    CompileCheck ──▶ TestCheck ──▶ SandboxedCheck |      cloneAndCheckout → CloneVerifier
                    aggregate → VerificationReport         COMPILE(package scripts) → TEST  → flags
 ```

@@ -117,7 +117,7 @@ over these states lives in `@harness/orchestrator` (`TaskStateMachine`), not her
 
 ## `identity.ts`, `actor-context.ts`, `provenance.ts`
 
-- `identity.ts` — the `users`/`sessions` identity model (Phase 2).
+- `identity.ts` — the `users`/`sessions` identity model.
 - `actor-context.ts` — the authenticated actor carried on a request.
 - `provenance.ts` — `ProvenanceChain`, a cross-aggregate read-model linking a
   task to its context, trajectory, changes, verification, risk assessment, and decision.
