@@ -2,6 +2,8 @@
 
 > **`review-reorient` (v0.6):** đường code-generation đã *nghỉ hưu*. Sản phẩm giờ là control plane **review PR/MR bên ngoài** (Bitbucket/GitLab/GitHub + Jira): AI đóng vai *reviewer chứ không phải author* — đọc diff + requirement, trả report + findings + *fix suggestions*. Các mô tả "AI sinh code / tự sửa fix" ở các mục dưới chỉ còn là lịch sử thiết kế; phần machinery được giữ (state machine, attention routing, verification, evidence) vẫn dùng lại nguyên trạng.
 
+> **Phase 3 hoàn tất (`v0.3.0-harness`):** MCP connectivity (GitHub/GitLab/Bitbucket/Jira qua một `mcp.config.json`, token qua env — không inline), write-back có toggle + `writeback_log`, review memory, LLM-as-judge + inter-judge agreement, và learning loop đóng. Exit review **8/9 tiêu chí** — còn 1 mục *hybrid search làm default* được carry-forward (Day-29 A/B trả HOLD, `keyword` vẫn là default). Xem `docs/retros/phase3-exit-review.md`.
+
 ## Tổng quan
 
 **Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa "sự chú ý của con người" trong quy trình phát triển phần mềm: một code change (PR/MR — do con người hoặc AI khác tạo) đi vào, Harness quan sát, xác minh, đánh giá, dùng AI làm reviewer, xếp ưu tiên và định tuyến tới đúng sự chú ý của con người.

@@ -144,12 +144,14 @@ The eleven conceptual subsystems are now all built and documented in their packa
 |---|---|
 | [`@harness/domain`](../../packages/domain/README.md) | Branded IDs, aggregates, event vocabulary, `TaskStatus`, `HumanDecisionType` |
 | [`@harness/event-bus`](../../packages/event-bus/README.md) | `IEventBus` + in-process `EventEmitter` implementation |
-| [`@harness/db`](../../packages/db/README.md) | Drizzle schema (41 tables), append-only `event_log`, data access |
+| [`@harness/db`](../../packages/db/README.md) | Drizzle schema (54 tables), append-only `event_log`, data access |
 | [`@harness/di`](../../packages/di/README.md) | Hand-rolled container + string `TOKENS` |
 
 **Phase-2 seams** (promoted to packages, each with its own README): [`@harness/auth`](../../packages/auth/README.md) (OIDC identity + roles), [`@harness/embeddings`](../../packages/embeddings/README.md) (pgvector embedder, shadow mode), [`@harness/evaluation`](../../packages/evaluation/README.md), [`@harness/object-store`](../../packages/object-store/README.md) (S3/MinIO), [`@harness/observability`](../../packages/observability/README.md), [`@harness/sandbox`](../../packages/sandbox/README.md) (Docker-isolated execution).
 
-**Review-slice seams** (`review-reorient`): [`@harness/git-provider`](../../packages/git-provider/README.md) (`GitProvider` — GitHub REST now; Phase 3 moves GitLab/Bitbucket/Jira to **MCP**), [`@harness/ticket-provider`](../../packages/ticket-provider/README.md) (`TicketProvider` — Jira). Both depend only on `@harness/domain` and drive the review ingest path.
+**Phase-3 seams** (promoted to packages): [`@harness/mcp`](../../packages/mcp/README.md) (generic MCP client + `mcp.config.json` — the *one* fronting file for Git/ticket tools), [`@harness/memory`](../../packages/memory/README.md) (review-memory tiers + lifecycle), [`@harness/code-index`](../../packages/code-index/README.md) (dependency graph → targeted verification), [`@harness/judge`](../../packages/judge/README.md) (rubric-scored LLM-as-judge), [`@harness/benchmark`](../../packages/benchmark/README.md) (versioned review-quality corpus), [`@harness/writeback`](../../packages/writeback/README.md) (toggle-gated comment/status write-back).
+
+**Review-slice seams** (`review-reorient`): [`@harness/git-provider`](../../packages/git-provider/README.md) (`GitProvider` — GitHub/GitLab/Bitbucket via [@harness/mcp](../../packages/mcp/README.md) MCP tools), [`@harness/ticket-provider`](../../packages/ticket-provider/README.md) (`TicketProvider` — Jira via MCP). Both depend only on `@harness/domain` and drive the review ingest path.
 
 ---
 
@@ -174,7 +176,7 @@ hai-harness/
 ├── apps/
 │   ├── api/                 # Fastify API + single DI bootstrap (bootstrap.ts)
 │   └── web/                 # React + Vite review UI
-├── packages/                # 19 packages under @harness/* (see §6 table)
+├── packages/                # 25 packages under @harness/* (see §6 table)
 ├── docs/
 │   ├── core/                # this architecture overview
 │   ├── plan/                # day-by-day build plans (Phases 1–3)
@@ -195,13 +197,18 @@ Full per-package source trees are in each package's `README.md`; the clone-to-gr
 
 - **Phase 1 — Prove the Core Loop:** complete (`v0.1.0-harness`). Vertical slice: Task → Context → Agent → Artifact → Verification → Attention → Review → Decision → Evidence.
 - **Phase 2 — Calibrate & Close the Measurement Loop:** complete (`v0.2.0-harness`). Evaluation engine, weight calibration, semantic-search infrastructure (shadow), auto-approve behind flag. Exit review: **8 of 9** criteria met; the one caveat (fitted weights 0.316 did not beat the placeholder 0.262) carries into Phase 3.
-- **Phase 3 — Learn & Automate Under Guardrails:** not started.
+- **Phase 3 — MCP Connectivity, Write-back & Close the Loop:** complete (`v0.3.0-harness`). MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `@harness/mcp` client + `mcp.config.json`), toggle-gated write-back, review memory, LLM-as-judge with inter-judge agreement, and the closed learning loop. Exit review: **8 of 9** criteria met → `EXIT-WITH-CARRYFORWARD`; the one caveat (hybrid ranking not the default — Day-29 A/B HOLD) carries into Phase 4 as [`backlog`](../plan/phase-3/backlog.md) items CF-1/CF-2. See [`phase3-exit-review`](../retros/phase3-exit-review.md).
 
 Build order and backlog: [`docs/plan/README.md`](../plan/README.md) → [`docs/plan/phase-3/README.md`](../plan/phase-3/README.md).
 
 ---
 
 ## Changelog
+
+### v0.7 (Phase 3 complete — `v0.3.0-harness`)
+- §6 — added the Phase-3 seams (`mcp`, `memory`, `code-index`, `judge`, `benchmark`, `writeback`) and repointed the review-slice note (Git/ticket connectivity is now **MCP**, not "Phase 3 moves …").
+- §6 — DB table count 41 → 54; §8 — package count 19 → 25.
+- §9 — marked Phase 3 complete with its exit verdict (`EXIT-WITH-CARRYFORWARD`; hybrid default carried forward).
 
 ### v0.6 (`review-reorient`)
 - §1–§3 — reframed the Harness from "AI code author" to "PR/MR **review** control plane": the core-loop trigger is an external code change, and the AI box is `Review / Analyze / Explain (read-only)`.

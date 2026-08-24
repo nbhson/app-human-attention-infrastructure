@@ -26,7 +26,7 @@ Day-by-day plans, one file per day, across three phases — see
 
 - Phase 1 — [README](plan/phase-1/README.md) · `day-01..30` (✅ complete)
 - Phase 2 — [README](plan/phase-2/README.md) · `day-01..30` (✅ complete)
-- Phase 3 — [README](plan/phase-3/README.md) · [backlog](plan/phase-3/backlog.md) · `day-01..40` (🔲 not started)
+- Phase 3 — [README](plan/phase-3/README.md) · [backlog](plan/phase-3/backlog.md) · `day-01..40` (✅ complete — tagged `v0.3.0-harness`; [exit review](retros/phase3-exit-review.md))
 
 ## Architecture notes (`architecture/`)
 

@@ -37,7 +37,8 @@ tasks as the ceiling — that is the *tested* envelope, not a benchmark or an SL
   process dies mid-publish, the event is gone (its side-effect may or may not have
   committed, which is exactly what the reconciler in §3 exists to catch).
 - A durable queue behind the same `IEventBus` contract (no subscriber changes) is
-  scheduled: **Phase 3, Day 34 — Durable Queue (Redis/SQS)**.
+  available as `RedisEventsBus`, selected by `EVENT_TRANSPORT` (Phase-3 Day 34,
+  **opt-in**; the in-process bus remains the default).
 
 ## 3. The reconciler is the *only* sanctioned auto-repair
 

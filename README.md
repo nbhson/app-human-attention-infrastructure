@@ -9,10 +9,10 @@ queryable, and auditable.
 
 | | |
 | --- | --- |
-| **Status** | Review slice shipped · code-generation path retired (`review-reorient`) |
-| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 616 tests ✅ |
+| **Status** | Phases 1–3 complete · tagged `v0.3.0-harness` · review-only control plane (`review-reorient`) |
+| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 969 unit tests ✅ · 9 e2e ✅ |
 | **Stack** | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker |
-| **Boundary model** | 19 `@harness/*` packages; engines never import another engine |
+| **Boundary model** | 25 `@harness/*` packages; engines never import another engine |
 
 > **Pivot note.** The harness no longer *authors* code. The internal loop — an
 > AI agent writing files, committing them, and auto-merging on approval — is
@@ -47,14 +47,14 @@ The flow is a single review vertical slice:
                                           UI shows report + suggestions
                                                     │
                               HUMAN DECISION (approve / request-changes / reject)
-                              WRITE-BACK (Phase 3 — optional comment/status → PR / Jira)
+                              WRITE-BACK (toggle-gated comment/status → PR / Jira)
 ```
 
 Two endpoints carry the slice today (`apps/api/src/routes/reviews.ts`):
 
-- `POST /api/reviews` — paste `{ prUrl, jiraTicket? }`; fetches the PR (GitHub
-  today; GitLab/Bitbucket are the Phase-3 providers), fetches the ticket if
-  given, asks the AI, and returns the stored report id.
+- `POST /api/reviews` — paste `{ prUrl, jiraTicket? }`; fetches the PR (GitHub,
+  GitLab, or Bitbucket via the MCP config), fetches the ticket if given (Jira via
+  MCP), asks the AI, and returns the stored report id.
 - `GET /api/reviews/:id` — the report, findings, and fix suggestions, ready for
   the UI.
 
@@ -102,9 +102,10 @@ that verifies, scores, routes, and records:
   (Anthropic + OpenAI-compatible), the **review slice** (`ReviewAgent`,
   `ReviewIngestService`, `GitProvider`, `TicketProvider`), and the full
   verification / attention / review / evidence / observability machinery.
-- **Next (Phase 3):** verification (clone + run tests in the Docker sandbox),
-  attention routing of reviews, write-back to PR/Jira behind a toggle, and the
-  GitLab/Bitbucket providers. See the [Phase 3 backlog](docs/plan/phase-3/backlog.md).
+- **Phase 3 (shipped):** MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one
+  `mcp.config.json`), Docker-sandbox verification, attention routing, toggle-gated
+  write-back to PR/Jira, review memory, LLM-as-judge, and the closed learning
+  loop. See the [Phase-3 exit review](docs/retros/phase3-exit-review.md).
 
 ## Principles
 
@@ -124,7 +125,9 @@ that verifies, scores, routes, and records:
 | Layer | Packages |
 | --- | --- |
 | **Engines** | `orchestrator`, `agent-runtime`, `context-engine`, `artifact-tracker`, `attention-engine`, `verification-engine`, `review` |
-| **Phase-2/3 seams** | `auth`, `embeddings`, `evaluation`, `object-store`, `observability`, `sandbox`, `git-provider`, `ticket-provider` |
+| **Phase-2 seams** | `auth`, `embeddings`, `evaluation`, `object-store`, `observability`, `sandbox` |
+| **Phase-3 seams** | `mcp`, `memory`, `code-index`, `judge`, `benchmark`, `writeback` |
+| **Review-slice** | `git-provider`, `ticket-provider` |
 | **Shared foundation** | `domain`, `db`, `di`, `event-bus` |
 
 Each package documents its purpose, data model, invariants, and boundary rules in
@@ -148,14 +151,19 @@ in the [Developer Guide](docs/dev-guide.md).
 
 ## Status & roadmap
 
-**The code-generation loop is retired** and the **review slice is shipped**
-(`POST/GET /api/reviews`). The verification + write-back breadth (clone → run
-tests in the Docker sandbox, attention routing of reviews, GitLab/Bitbucket
-providers, optional comment/status write-back) is tracked in the
-[Phase 3 backlog](docs/plan/phase-3/backlog.md).
+**Phases 1–3 are complete** (`v0.1.0-harness` → `v0.2.0-harness` →
+`v0.3.0-harness`). The harness is a review-only control plane: MCP connectivity
+(GitHub/GitLab/Bitbucket/Jira via one `mcp.config.json`), AI review, Docker-sandbox
+verification, attention routing, toggle-gated write-back, review memory, and a
+closed learning loop with an LLM-as-judge quality signal.
 
-The historical record of Phases 1–2 — the measurement loop, calibration, A/B
-harness, and the honest exit review — is unchanged and lives in
+Two items are honestly **carried forward** to Phase 4 (`EXIT-WITH-CARRYFORWARD`,
+8 of 9 exit criteria): hybrid context ranking as the default (Day-29 A/B returned
+HOLD) and auto-applied fitted attention weights. Both are named in the
+[Phase-3 backlog](docs/plan/phase-3/backlog.md) (CF-1 / CF-2) with their gates.
+
+The historical record of Phases 1–3 — the measurement loop, calibration, A/B
+harness, closed-loop, and the honest exit reviews — lives in
 [`docs/retros/`](docs/retros/).
 
 ---
@@ -175,7 +183,7 @@ harness, and the honest exit review — is unchanged and lives in
 
 | Path | What's in it |
 | --- | --- |
-| `packages/` | 19 engines and shared libraries (`@harness/*`) |
+| `packages/` | 25 engines and shared libraries (`@harness/*`) |
 | `apps/api` | Fastify API + single DI bootstrap (`bootstrap.ts`) + the review slice |
 | `apps/web` | React + Vite review UI |
 | `docs/core/` | The architecture overview (subsystem docs live in each package's `README.md`) |

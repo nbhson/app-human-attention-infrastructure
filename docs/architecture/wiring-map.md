@@ -2,7 +2,7 @@
 
 > **Living document.** Every time an engine is registered in `apps/api/src/bootstrap.ts`, add a row here. It takes ~2 minutes and saves hours of archaeology later.
 >
-> **Status:** v1.0-candidate (Phase 3 as-built) — pending Day 40 exit review.
+> **Status:** v1.0-candidate (Phase 3 as-built) — Day 40 exit review complete (`v0.3.0-harness`, EXIT-WITH-CARRYFORWARD).
 
 This table records the object graph built by `buildContainer()` (`apps/api/src/bootstrap.ts`) — the **only** place `new InProcessEventBus()` may appear (day-05 §6). Everything else asks the container for a token via `resolve(TOKENS.*)`.
 
