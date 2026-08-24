@@ -1,5 +1,10 @@
 # HAI Harness — Human-Attention Infrastructure
 
+[![CI](https://github.com/nbhson/human-attention-infrastructure-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/actions)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A5%2020-339933.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-v0.3.0--harness-7a3f3f.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/tags)
+
 **AI reviews external pull requests; a human decides.** Paste a PR / MR URL
 (+ an optional Jira ticket), and the harness fetches the diff + the requirement,
 asks the configured AI provider to review it, and stores a report with findings
@@ -89,6 +94,19 @@ tasks into the code-gen workflow, and a cancelled task is never consumed.
 
 See [the wiring map](docs/architecture/wiring-map.md) for the full object graph.
 
+## Capabilities
+
+| Area | What's shipped |
+| --- | --- |
+| **Ingest** | Paste a PR/MR URL + Jira ticket; fetch the diff + requirement through the **MCP** config — GitHub / GitLab / Bitbucket / Jira via one `mcp.config.json`, tokens referenced by env var (never inline) |
+| **Review** | The configured AI (Anthropic or OpenAI-compatible, `key`+`baseUrl`+`model`) reviews the diff **read-only** → report + findings + fix suggestions |
+| **Verify** | Clone into the Docker sandbox and run build/test; dependency-graph targeted verification; a FAILED run *flags* the report, never authors a fix |
+| **Attention & decision** | Score + route every review; a human APPROVES / REJECTS; `AUTO_APPROVABLE` stays the only auto-path — gated + sampling-audited |
+| **Write-back** | Optional, fail-safe, 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; OFF = nothing external |
+| **Memory** | Review / finding / decision memory tiers, distilled + relevance-scored, with consolidation / decay / archive |
+| **Quality & learning** | LLM-as-judge (rubric-scored) + inter-judge agreement, a versioned gold corpus, and a closed learning loop feeding decisions + judge signals back into calibration/routing |
+| **Observability** | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id` |
+
 ## What changed
 
 The `review-reorient` pivot retired the code-generation path and kept everything
@@ -133,6 +151,21 @@ that verifies, scores, routes, and records:
 Each package documents its purpose, data model, invariants, and boundary rules in
 its own `README.md`.
 
+## Review-quality measurement
+
+Quality is measured, not claimed. `pnpm benchmark:regression` re-runs a versioned
+gold corpus through judge → agreement → refit → A/B and diffs every number against
+the recorded Day-25 baseline; `pnpm judge:agreement-report` recomputes inter-judge
+and judge-vs-gold agreement **from the audit rows**:
+
+- inter-judge severity / routing agreement **0.920 / 0.945** (κ 1.000, n=6)
+- judge-vs-gold severity / routing / usefulness **0.935 / 0.958 / 1.000**
+
+The honesty boundary is stated on the tin: the demo judge is a seeded PRNG, so these
+numbers prove the *review-quality math* is regression-free — they do not detect
+live-model drift, and `n=6` is a mechanism test, not a signal. See
+[docs/retros/phase3-benchmark.md](docs/retros/phase3-benchmark.md).
+
 ## Quickstart
 
 ```sh
@@ -167,6 +200,25 @@ harness, closed-loop, and the honest exit reviews — lives in
 [`docs/retros/`](docs/retros/).
 
 ---
+
+## Security
+
+Security issues are handled privately, never in public issues — see
+[`SECURITY.md`](SECURITY.md). The repo carries **no live API keys or tokens**:
+`.env.example` has placeholders only, `.env` is gitignored, tokens are redacted
+from logs, and untrusted code (verification) runs only in the Docker sandbox.
+Write-back is fail-safe: an external write fires only when the whole toggle chain
+is armed.
+
+## Contributing
+
+Bug reports, features, and docs fixes are welcome — see
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
+The green gate is `pnpm test && pnpm lint && pnpm e2e`.
+
+## License
+
+[MIT](LICENSE) © 2026 Sơn Nguyễn.
 
 ## Documentation
 
