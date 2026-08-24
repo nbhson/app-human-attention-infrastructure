@@ -81,7 +81,7 @@ What each command actually does:
 | --- | --- | --- |
 | `packages/domain` | `@harness/domain` | Branded IDs, core types, `TaskStatus`, canonical event types (incl. `learning.*`, `memory.*`, `writeback.*`) |
 | `packages/event-bus` | `@harness/event-bus` | `IEventBus` + `InProcessEventBus` (default), `RedisEventsBus` (durable), `transport-resolver` (`EVENT_TRANSPORT`) |
-| `packages/db` | `@harness/db` | Drizzle schema (54 tables), migrations, `createDb`, `EventLogWriter`, `WritebackLogStore`/`JudgeRunStore`/`JudgeAgreementStore`, `FaultyDb` |
+| `packages/db` | `@harness/db` | Drizzle schema (49 tables), migrations, `createDb`, `EventLogWriter`, `WritebackLogStore`/`JudgeRunStore`/`JudgeAgreementStore`, `FaultyDb` |
 | `packages/di` | `@harness/di` | `Container`, `TOKENS`, `Logger` (pino), architecture test |
 | `packages/orchestrator` | `@harness/orchestrator` | `TaskStateMachine`, `TaskService` (the dispatch/workflow/retry loop was retired) |
 | `packages/agent-runtime` | `@harness/agent-runtime` | `LLMProvider` (Anthropic + OpenAI-compatible), `MockLLM`, `ReviewAgent` (the ReAct write path was retired) |

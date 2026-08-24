@@ -15,7 +15,7 @@ queryable, and auditable.
 | | |
 | --- | --- |
 | **Status** | Phases 1–3 complete · tagged `v0.3.0-harness` · review-only control plane (`review-reorient`) |
-| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 969 unit tests ✅ · 9 e2e ✅ |
+| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 975 unit tests ✅ · 9 e2e ✅ |
 | **Stack** | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker |
 | **Boundary model** | 25 `@harness/*` packages; engines never import another engine |
 

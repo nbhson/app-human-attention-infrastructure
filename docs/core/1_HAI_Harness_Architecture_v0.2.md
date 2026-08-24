@@ -144,7 +144,7 @@ The eleven conceptual subsystems are now all built and documented in their packa
 |---|---|
 | [`@harness/domain`](../../packages/domain/README.md) | Branded IDs, aggregates, event vocabulary, `TaskStatus`, `HumanDecisionType` |
 | [`@harness/event-bus`](../../packages/event-bus/README.md) | `IEventBus` + in-process `EventEmitter` implementation |
-| [`@harness/db`](../../packages/db/README.md) | Drizzle schema (54 tables), append-only `event_log`, data access |
+| [`@harness/db`](../../packages/db/README.md) | Drizzle schema (49 tables), append-only `event_log`, data access |
 | [`@harness/di`](../../packages/di/README.md) | Hand-rolled container + string `TOKENS` |
 
 **Phase-2 seams** (promoted to packages, each with its own README): [`@harness/auth`](../../packages/auth/README.md) (OIDC identity + roles), [`@harness/embeddings`](../../packages/embeddings/README.md) (pgvector embedder, shadow mode), [`@harness/evaluation`](../../packages/evaluation/README.md), [`@harness/object-store`](../../packages/object-store/README.md) (S3/MinIO), [`@harness/observability`](../../packages/observability/README.md), [`@harness/sandbox`](../../packages/sandbox/README.md) (Docker-isolated execution).

@@ -6,6 +6,10 @@
 
 This table records the object graph built by `buildContainer()` (`apps/api/src/bootstrap.ts`) — the **only** place `new InProcessEventBus()` may appear (day-05 §6). Everything else asks the container for a token via `resolve(TOKENS.*)`.
 
+> **Companion read:** [runtime-startup.md](runtime-startup.md) answers "which packages
+> load at start, and how do they depend on each other" at the package level — this
+> file is the token-level view of the same graph.
+
 ## Legend
 
 - **Token** — string key from `packages/di/src/tokens.ts`.
@@ -402,12 +406,11 @@ memory.entry_created          memory.consolidated      memory.archived
 learning.stage_completed      learning.loop_completed
 ```
 
-### DB tables — 54
+### DB tables — 49
 
 ```text
-Orchestrator          projects, tasks, task_state_history,
-                      task_step_log◌, dispatch_log◌, retry_log◌
-Agent runtime         llm_call_log, agent_runs◌, trajectory_steps◌, code_mode_sessions◌
+Orchestrator          projects, tasks, task_state_history, retry_log◌
+Agent runtime         llm_call_log, agent_runs◌, trajectory_steps◌
 Artifact tracker      artifacts, changes, snapshots
 Context engine        contexts, source_usefulness, context_source_cache,
                       context_source_embeddings, shadow_rank_comparisons
@@ -422,7 +425,6 @@ Integration/write-back provider_configs, writeback_log
 Evidence              evidence, evidence_links
 Event log             event_log
 Memory                memory_entries, memory_entry_evidence
-Code index            code_index_symbols, code_index_deps
 Judge                 judge_runs, judge_agreements
 Benchmark             review_examples
 Identity              users, sessions
@@ -430,5 +432,7 @@ Observability         trace_correlation
 Evaluation (A/B)      evaluation_reports, ab_experiments, ab_runs
 ```
 
-`◌` = orphaned by `review-reorient` (persisted, no live writer). See
-`packages/db/README.md` for the full owning-domain table.
+`◌` = orphaned by `review-reorient` (persisted, no live writer). The five tables
+dropped by `review-reorient` migration 0042 (`task_step_log`, `dispatch_log`,
+`code_mode_sessions`, `code_index_symbols`, `code_index_deps`) no longer appear
+here. See `packages/db/README.md` for the full owning-domain table.
