@@ -6,4 +6,4 @@ CREATE TABLE "source_usefulness" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "source_usefulness" ADD CONSTRAINT "source_usefulness_context_id_contexts_id_fk" FOREIGN KEY ("context_id") REFERENCES "public"."contexts"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "source_usefulness" ADD CONSTRAINT "source_usefulness_context_id_contexts_id_fk" FOREIGN KEY ("context_id") REFERENCES "contexts"("id") ON DELETE no action ON UPDATE no action;

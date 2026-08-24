@@ -39,7 +39,7 @@ import { dedupKey } from '../dedup.js';
 class FakeMcpClient implements McpClient {
   readonly calls: Array<{ name: string; args: Record<string, unknown> }> = [];
 
-  constructor(private readonly result: ToolResult = { isError: false, content: [] }) {}
+  constructor(protected readonly result: ToolResult = { isError: false, content: [] }) {}
 
   initialize() {
     return Promise.resolve({ name: 'fake', version: '0.0.0' });

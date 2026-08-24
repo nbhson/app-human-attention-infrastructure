@@ -56,12 +56,31 @@ function stubDocker(): { docker: string; log: string; sandbox: DockerSandbox } {
   return { docker, log, sandbox: new DockerSandbox({ dockerBinary: docker }) };
 }
 
-function readLog(log: string): Array<{ verb: string; name: string }> {
+function parseLog(log: string): Array<{ verb: string; name: string }> {
   return readFileSync(log, 'utf8')
     .trim()
     .split('\n')
     .filter(Boolean)
     .map((line) => JSON.parse(line) as { verb: string; name: string });
+}
+
+/**
+ * The `run` child writes its entry at Node cold-boot, which under full-suite
+ * CPU contention can outrace the 0.2s sandbox timeout — a one-shot read would
+ * race the tail and intermittently miss the `run` verb. Poll until both the
+ * `run` entry and its `rm` harvest entry have landed.
+ */
+async function readLog(log: string): Promise<Array<{ verb: string; name: string }>> {
+  const deadline = Date.now() + 2000;
+  for (;;) {
+    const entries = parseLog(log);
+    const hasRun = entries.some((entry) => entry.verb === 'run');
+    const hasRm = entries.some((entry) => entry.verb === 'rm');
+    if ((hasRun && hasRm) || Date.now() >= deadline) {
+      return entries;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 describe('DockerSandbox orphan harvest (day-26 §3.3)', () => {
@@ -76,7 +95,7 @@ describe('DockerSandbox orphan harvest (day-26 §3.3)', () => {
     expect(result.timedOut).toBe(true);
     expect(result.exitCode).toBe(137);
 
-    const entries = readLog(log);
+    const entries = await readLog(log);
     const run = entries.find((entry) => entry.verb === 'run');
     const rm = entries.find((entry) => entry.verb === 'rm');
 

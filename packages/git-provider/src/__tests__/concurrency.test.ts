@@ -60,7 +60,9 @@ class FakeMcpClient implements McpClient {
     return result;
   }
 
-  close(): Promise<void> {}
+  close(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 /** A registry that hands out one client per host and records every lookup. */
@@ -86,7 +88,9 @@ class RecordingRegistry implements McpServerRegistry {
     return [...this.clients.keys()];
   }
 
-  closeAll(): Promise<void> {}
+  closeAll(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 function githubClient(number: number, title: string): FakeMcpClient {
