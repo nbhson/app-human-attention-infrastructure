@@ -29,6 +29,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MockLLM, mockTextResponse } from '@harness/agent-runtime';
+import { MockOidcProvider } from '@harness/auth';
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 import type { DrizzleDB } from '@harness/db';
@@ -45,11 +46,18 @@ import {
   reviewReports,
   taskStateHistory,
   tasks,
+  users,
   writebackLog,
 } from '@harness/db';
 import { createTestDb, destroyTestDb } from '@harness/db/test-utils';
 import type { TestDb } from '@harness/db/test-utils';
-import { GitProviderType, PullRequestFileStatus, TicketProviderType } from '@harness/domain';
+import {
+  GitProviderType,
+  PullRequestFileStatus,
+  Role,
+  TicketProviderType,
+  newUserID,
+} from '@harness/domain';
 import type { Issue, PullRequest, WriteBackIntent, WriteBackResult } from '@harness/domain';
 import type { CloneResult, FetchPullRequestInput, GitProvider } from '@harness/git-provider';
 import type { FetchIssueInput, TicketProvider } from '@harness/ticket-provider';
@@ -62,6 +70,8 @@ import { buildContainer, bootContainer } from '../apps/api/src/bootstrap.js';
 import { resolveReviewInput } from '../apps/api/src/review-input-facade.js';
 
 const SCHEMA = 'e2e_load_profile';
+const SUB = 'mock|e2e-reviewer';
+const USER_ID = newUserID();
 
 /** One response valid for both the review and judge parsers (see full-system). */
 const DUAL_VALID = JSON.stringify({
@@ -263,6 +273,7 @@ let app: ReturnType<typeof buildApp>;
 let git: FakeGitProvider;
 let ticket: FakeTicketProvider;
 let writeback: RecordingWriteBack;
+let authCookie = '';
 let sandboxRoot: string;
 let savedSandboxRoot: string | undefined;
 
@@ -282,10 +293,19 @@ beforeAll(async () => {
   container.register(TOKENS.GitProvider, () => git);
   container.register(TOKENS.TicketProvider, () => ticket);
   container.register(TOKENS.WriteBackService, () => writeback);
+  // Replace the env-driven OIDC provider with the mock AFTER `buildContainer`
+  // so login resolves a deterministic REVIEWER principal.
+  container.register(
+    TOKENS.OidcProvider,
+    () => new MockOidcProvider({ sub: SUB, email: 'reviewer@example.com', name: 'E2E Reviewer' }),
+  );
   bootContainer(container);
 
   app = buildApp(container);
   await app.ready();
+
+  await seedReviewer();
+  authCookie = await loginCookie();
 });
 
 afterAll(async () => {
@@ -334,6 +354,29 @@ async function waitForCount(count: () => Promise<number>, expected: number): Pro
   }
 }
 
+/** Seed the reviewer principal so the mock login preserves its REVIEWER role. */
+async function seedReviewer(): Promise<void> {
+  await testDb.db.insert(users).values({
+    id: USER_ID,
+    oidc_sub: SUB,
+    email: 'reviewer@example.com',
+    display_name: 'E2E Reviewer',
+    roles: [Role.Operate, Role.Reviewer],
+  });
+}
+
+/** Complete a mock OIDC login and return the resulting `sid` cookie. */
+async function loginCookie(): Promise<string> {
+  const login = await app.inject({ method: 'GET', url: '/api/auth/login' });
+  const location = new URL(login.headers.location!);
+  const callback = await app.inject({
+    method: 'GET',
+    url: `/api/auth/callback?code=${location.searchParams.get('code')}&state=${location.searchParams.get('state')}`,
+  });
+  expect(callback.statusCode).toBe(200);
+  return callback.headers['set-cookie']!.toString().split(';')[0]!; // "sid=..."
+}
+
 describe('load profile (day-37)', () => {
   it('10 concurrent full-system reviews land distinct, un-bleeded reports', async () => {
     const db = container.resolve<DrizzleDB>(TOKENS.Db);
@@ -345,7 +388,12 @@ describe('load profile (day-37)', () => {
 
     const replies = await Promise.all(
       reviews.map((r) =>
-        app.inject({ method: 'POST', url: '/api/reviews', payload: { prUrl: r.prUrl } }),
+        app.inject({
+          method: 'POST',
+          url: '/api/reviews',
+          headers: { cookie: authCookie },
+          payload: { prUrl: r.prUrl },
+        }),
       ),
     );
 

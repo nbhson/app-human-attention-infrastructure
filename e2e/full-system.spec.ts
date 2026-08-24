@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MockLLM, mockTextResponse } from '@harness/agent-runtime';
+import { MockOidcProvider } from '@harness/auth';
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 import {
@@ -37,6 +38,7 @@ import {
   reviewReports,
   taskStateHistory,
   tasks,
+  users,
   writebackLog,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
@@ -47,8 +49,10 @@ import {
   GitProviderType,
   MemoryKind,
   PullRequestFileStatus,
+  Role,
   TicketProviderType,
   newEvidenceID,
+  newUserID,
 } from '@harness/domain';
 import type {
   Issue,
@@ -69,6 +73,8 @@ import { buildContainer, bootContainer } from '../apps/api/src/bootstrap.js';
 import { writebackEnabled } from '../apps/api/src/writeback-gate.js';
 
 const SCHEMA = 'e2e_full_system';
+const SUB = 'mock|e2e-reviewer';
+const USER_ID = newUserID();
 
 /** One response valid for *both* the review parser and the judge parser. */
 const DUAL_VALID = JSON.stringify({
@@ -187,6 +193,7 @@ let app: ReturnType<typeof buildApp>;
 let git: FakeGitProvider;
 let ticket: FakeTicketProvider;
 let writeback: RecordingWriteBack;
+let authCookie = '';
 let sandboxRoot: string;
 let savedSandboxRoot: string | undefined;
 let savedWritebackEnabled: string | undefined;
@@ -219,10 +226,20 @@ beforeAll(async () => {
   container.register(TOKENS.GitProvider, () => git);
   container.register(TOKENS.TicketProvider, () => ticket);
   container.register(TOKENS.WriteBackService, () => writeback);
+  // Replace the env-driven OIDC provider with the mock AFTER `buildContainer`
+  // so login resolves a deterministic principal (a REVIEWER) instead of needing
+  // `OIDC_MOCK` in the caller's shell.
+  container.register(
+    TOKENS.OidcProvider,
+    () => new MockOidcProvider({ sub: SUB, email: 'reviewer@example.com', name: 'E2E Reviewer' }),
+  );
   bootContainer(container);
 
   app = buildApp(container);
   await app.ready();
+
+  await seedReviewer();
+  authCookie = await loginCookie();
 });
 
 afterAll(async () => {
@@ -282,6 +299,29 @@ async function waitForCount(count: () => Promise<number>, expected: number): Pro
   }
 }
 
+/** Seed the reviewer principal so the mock login preserves its REVIEWER role. */
+async function seedReviewer(): Promise<void> {
+  await testDb.db.insert(users).values({
+    id: USER_ID,
+    oidc_sub: SUB,
+    email: 'reviewer@example.com',
+    display_name: 'E2E Reviewer',
+    roles: [Role.Operate, Role.Reviewer],
+  });
+}
+
+/** Complete a mock OIDC login and return the resulting `sid` cookie. */
+async function loginCookie(): Promise<string> {
+  const login = await app.inject({ method: 'GET', url: '/api/auth/login' });
+  const location = new URL(login.headers.location!);
+  const callback = await app.inject({
+    method: 'GET',
+    url: `/api/auth/callback?code=${location.searchParams.get('code')}&state=${location.searchParams.get('state')}`,
+  });
+  expect(callback.statusCode).toBe(200);
+  return callback.headers['set-cookie']!.toString().split(';')[0]!; // "sid=..."
+}
+
 describe('full-system E2E (day-37)', () => {
   it('golden path: ingest → report → judge shadow → no decision mutation', async () => {
     const db = container.resolve<DrizzleDB>(TOKENS.Db);
@@ -289,6 +329,7 @@ describe('full-system E2E (day-37)', () => {
     const reply = await app.inject({
       method: 'POST',
       url: '/api/reviews',
+      headers: { cookie: authCookie },
       payload: { prUrl: 'https://github.com/acme/api/pull/42' },
     });
     expect(reply.statusCode).toBe(201);
@@ -307,7 +348,11 @@ describe('full-system E2E (day-37)', () => {
     expect(git.requests[0]?.number).toBe(42);
 
     // The report is readable back over HTTP with its findings + suggestions.
-    const get = await app.inject({ method: 'GET', url: `/api/reviews/${created.reportId}` });
+    const get = await app.inject({
+      method: 'GET',
+      url: `/api/reviews/${created.reportId}`,
+      headers: { cookie: authCookie },
+    });
     expect(get.statusCode).toBe(200);
     const report = get.json<{
       overallVerdict: string;
@@ -386,6 +431,7 @@ describe('full-system E2E (day-37)', () => {
     const ingest = await app.inject({
       method: 'POST',
       url: '/api/reviews',
+      headers: { cookie: authCookie },
       payload: { prUrl: 'https://github.com/acme/api/pull/43' },
     });
     const { reportId } = ingest.json<{ reportId: string }>();
@@ -393,6 +439,7 @@ describe('full-system E2E (day-37)', () => {
     const decision = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie: authCookie },
       payload: { decision: 'APPROVE', rationale: 'LGTM', writeback: true },
     });
     expect(decision.statusCode).toBe(200);
@@ -417,6 +464,7 @@ describe('full-system E2E (day-37)', () => {
     const ingest = await app.inject({
       method: 'POST',
       url: '/api/reviews',
+      headers: { cookie: authCookie },
       payload: { prUrl: 'https://github.com/acme/api/pull/44' },
     });
     const { reportId } = ingest.json<{ reportId: string }>();
@@ -424,6 +472,7 @@ describe('full-system E2E (day-37)', () => {
     const decision = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
+      headers: { cookie: authCookie },
       payload: { decision: 'REQUEST_CHANGES', writeback: true },
     });
     expect(decision.statusCode).toBe(200);
@@ -442,6 +491,7 @@ describe('full-system E2E (day-37)', () => {
     const reply = await app.inject({
       method: 'POST',
       url: '/api/reviews',
+      headers: { cookie: authCookie },
       payload: { prUrl: 'https://github.com/acme/api/pull/7', jiraTicket: 'ACME-42' },
     });
     expect(reply.statusCode).toBe(201);
