@@ -11,6 +11,7 @@ import type { ContextSnapshot, ContextSourceType } from '@harness/domain';
 
 const SECTION_PROJECT = '## Project Context';
 const SECTION_TASK = '## Task';
+const SECTION_MEMORY = '## Review Memory';
 const SECTION_FILES = '## Relevant Files (ranked, budgeted)';
 
 /** The static Phase-1 project-context rule (day-21 §2.2). */
@@ -18,6 +19,44 @@ const PROJECT_CONTEXT_RULE = '[architecture rules — Phase 1: static CONVENTION
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+/**
+ * One rendered review-memory entry. Injected by {@link MemoryContextResolver} as
+ * `metadata.memory[i]` (`{id, kind, content, confidence, relevance}`); the
+ * renderer only needs the display fields and ignores the rest.
+ */
+interface RenderedMemoryEntry {
+  readonly kind: string;
+  readonly content: string;
+  readonly confidence: number | undefined;
+  readonly relevance: number | undefined;
+}
+
+/**
+ * Extract the injected review-memory section from `metadata`, defensively. The
+ * section is optional and rides a `Record<string, unknown>`, so a missing or
+ * malformed value must degrade to an empty section — never a render error.
+ * Only entries with a non-empty string `content` are rendered.
+ */
+function memorySection(metadata: Record<string, unknown>): RenderedMemoryEntry[] {
+  const memory = metadata.memory;
+  if (!Array.isArray(memory)) return [];
+
+  const out: RenderedMemoryEntry[] = [];
+  for (const raw of memory) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const entry = raw as Record<string, unknown>;
+    const content = entry.content;
+    if (typeof content !== 'string' || content.length === 0) continue;
+    out.push({
+      kind: typeof entry.kind === 'string' ? entry.kind : 'MEMORY',
+      content,
+      confidence: typeof entry.confidence === 'number' ? entry.confidence : undefined,
+      relevance: typeof entry.relevance === 'number' ? entry.relevance : undefined,
+    });
+  }
+  return out;
 }
 
 /**
@@ -44,6 +83,7 @@ function fenceFor(sourceType: ContextSourceType, sourceId: string): string {
 export function renderContextPrompt(snapshot: ContextSnapshot): string {
   const taskDescription = asString(snapshot.metadata.taskDescription);
   const requirements = asString(snapshot.metadata.requirements);
+  const memory = memorySection(snapshot.metadata);
 
   const lines: string[] = [];
   lines.push(SECTION_PROJECT);
@@ -57,6 +97,18 @@ export function renderContextPrompt(snapshot: ContextSnapshot): string {
     lines.push(requirements);
   }
   lines.push('');
+
+  if (memory.length > 0) {
+    lines.push(SECTION_MEMORY);
+    for (const entry of memory) {
+      const meta: string[] = [];
+      if (entry.confidence !== undefined) meta.push(`confidence: ${Math.round(entry.confidence)}`);
+      if (entry.relevance !== undefined) meta.push(`relevance: ${entry.relevance.toFixed(2)}`);
+      const suffix = meta.length > 0 ? ` (${meta.join(', ')})` : '';
+      lines.push(`- [${entry.kind}] ${entry.content}${suffix}`);
+    }
+    lines.push('');
+  }
 
   lines.push(SECTION_FILES);
   for (const source of snapshot.sources) {

@@ -88,4 +88,57 @@ describe('renderContextPrompt', () => {
 
     expect(renderContextPrompt(bare)).toContain('(no description)');
   });
+
+  it('renders the injected review-memory section between Task and Relevant Files', () => {
+    const withMemory = createContextSnapshot({
+      id: newContextID(),
+      taskId: newTaskID(),
+      sources: [],
+      totalTokens: 0,
+      rankMethod: 'keyword',
+      metadata: {
+        taskDescription: 'Fix the payment bug',
+        memory: [
+          {
+            id: 'mem-1',
+            kind: 'DECISION',
+            content: 'reject until verified',
+            confidence: 80,
+            relevance: 0.91,
+          },
+        ],
+      },
+    });
+
+    const prompt = renderContextPrompt(withMemory);
+
+    const task = prompt.indexOf('## Task');
+    const memory = prompt.indexOf('## Review Memory');
+    const files = prompt.indexOf('## Relevant Files (ranked, budgeted)');
+
+    expect(memory).toBeGreaterThan(task);
+    expect(files).toBeGreaterThan(memory);
+    expect(prompt).toContain(
+      '- [DECISION] reject until verified (confidence: 80, relevance: 0.91)',
+    );
+  });
+
+  it('omits the memory section when none is injected (backward compatible)', () => {
+    const prompt = renderContextPrompt(snapshot([]));
+    expect(prompt).not.toContain('## Review Memory');
+  });
+
+  it('degrades a malformed memory section to empty rather than throwing', () => {
+    const malformed = createContextSnapshot({
+      id: newContextID(),
+      taskId: newTaskID(),
+      sources: [],
+      totalTokens: 0,
+      rankMethod: 'keyword',
+      metadata: { memory: [{ id: 'x', kind: 'DECISION', content: 42 }] },
+    });
+
+    expect(() => renderContextPrompt(malformed)).not.toThrow();
+    expect(renderContextPrompt(malformed)).not.toContain('## Review Memory');
+  });
 });

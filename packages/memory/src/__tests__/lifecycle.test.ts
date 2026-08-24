@@ -220,6 +220,31 @@ describe('archiveBelowThreshold (day-19 §2.4)', () => {
     expect(seen[0]?.memory_id).toBe(dropped);
     expect(seen[0]?.reason).toBe('below_confidence_threshold');
   });
+
+  it('archives every below-threshold row in one pass and emits one event each', async () => {
+    const a = newMemoryID();
+    const b = newMemoryID();
+    const c = newMemoryID();
+    await seedEntry({ id: a, content: 'forgotten a', confidence: 1 });
+    await seedEntry({ id: b, content: 'forgotten b', confidence: 2 });
+    await seedEntry({ id: c, content: 'still useful', confidence: 30 });
+
+    const seen: MemoryArchivedPayload[] = [];
+    bus.subscribe<MemoryArchivedPayload>(EventType.MemoryArchived, (event) => {
+      seen.push(event.payload);
+    });
+
+    const result = await archiveBelowThreshold(db, bus);
+
+    expect(result.archived).toBe(2);
+    expect((await entryRow(a)).status).toBe('ARCHIVED');
+    expect((await entryRow(b)).status).toBe('ARCHIVED');
+    expect((await entryRow(c)).status).toBe('ACTIVE');
+
+    // One audit event per archived row — batching collapses the writes, not the provenance.
+    expect(new Set(seen.map((p) => p.memory_id))).toEqual(new Set([a, b]));
+    expect(seen.every((p) => p.reason === 'below_confidence_threshold')).toBe(true);
+  });
 });
 
 describe('retrieval excludes archived entries (day-19 §2.4)', () => {

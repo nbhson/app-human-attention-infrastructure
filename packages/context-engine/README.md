@@ -81,7 +81,11 @@ records `shadow_rank_comparisons` without affecting the hot path.
 `memory-resolver.ts` (`MemoryContextResolver`) asks the domain `MemoryProvider` seam
 for top-K review memory and injects it as a `memory` section on a `ContextSnapshot`
 (`metadata.memory`) — so this engine reads review memory without importing
-`@harness/memory`.
+`@harness/memory`. `render.ts` renders that section back into the final prompt as a
+`## Review Memory` block (`- [kind] content (confidence, relevance)`) placed between
+the `## Task` and `## Relevant Files` sections, so injected memory actually reaches
+the reviewer. A missing or malformed `metadata.memory` degrades to no section —
+rendering never fails on an absent seam.
 
 ## Cache
 
