@@ -67,9 +67,31 @@ export function ReportStats({
   stats,
   overallVerdict,
 }: {
-  readonly stats: ReviewStats;
+  readonly stats: ReviewStats | undefined;
   readonly overallVerdict: Verdict;
 }): JSX.Element {
+  // The backend may serve a report whose derived statistics block is missing
+  // (e.g. a report written before the stats reduction landed). Degrade to a
+  // notice rather than white-screening the whole page on `stats.attentionShare`.
+  if (stats === undefined) {
+    return (
+      <section
+        data-testid="report-stats"
+        style={{
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-4)',
+          background: 'var(--color-surface-2)',
+          marginTop: 'var(--space-3)',
+        }}
+      >
+        <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
+          Statistics are unavailable for this report.
+        </p>
+      </section>
+    );
+  }
+
   const attentionPct = Math.round(stats.attentionShare * 100);
   const verdict = VERDICT_STYLE[overallVerdict] ?? VERDICT_STYLE.COMMENT;
 

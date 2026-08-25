@@ -42,4 +42,12 @@ describe('ReportStats', () => {
     expect(screen.getByTestId('severity-segment-CRITICAL')).toBeInTheDocument();
     expect(screen.queryByTestId('severity-segment-INFO')).not.toBeInTheDocument();
   });
+
+  it('degrades to a notice instead of crashing when stats are absent', () => {
+    render(<ReportStats stats={undefined} overallVerdict="COMMENT" />);
+
+    expect(screen.getByTestId('report-stats')).toBeInTheDocument();
+    expect(screen.getByText('Statistics are unavailable for this report.')).toBeInTheDocument();
+    expect(screen.queryByTestId('verdict-badge')).not.toBeInTheDocument();
+  });
 });
