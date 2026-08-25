@@ -37,6 +37,7 @@ import { WriteBackError } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
+import { computeReviewStats } from '../review-stats.js';
 import { writebackEnabled } from '../writeback-gate.js';
 
 /** The per-host tool map, reused to resolve a report's repo slug to a write-back host. */
@@ -124,6 +125,7 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         summary: report.summary,
         overallVerdict: report.overall_verdict,
         createdAt: report.created_at,
+        stats: computeReviewStats(report.pr_payload, findingsRows),
         findings: findingsRows.map((f) => ({
           id: f.id,
           severity: f.severity,
