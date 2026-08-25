@@ -184,7 +184,14 @@ export default function ReviewReportPage(): JSX.Element {
       </nav>
 
       {activeTab === 'review' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 16 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+            gap: 24,
+            marginTop: 16,
+          }}
+        >
           <section>
             <h3 style={{ marginTop: 0 }}>Findings ({data.findings.length})</h3>
             {data.findings.length === 0 && <p>No findings.</p>}
@@ -267,6 +274,7 @@ export default function ReviewReportPage(): JSX.Element {
                       border: '1px solid var(--color-border)',
                       borderRadius: 'var(--radius)',
                       padding: 8,
+                      maxWidth: '100%',
                       overflowX: 'auto',
                       whiteSpace: 'pre',
                     }}
