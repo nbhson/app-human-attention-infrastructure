@@ -63,6 +63,9 @@ export default function QueuePage(): JSX.Element {
         <p style={{ margin: 0 }}>
           <Link to="/reviews/new">+ New AI review</Link>
         </p>
+        <p style={{ margin: 0 }}>
+          <Link to="/audit">System activity →</Link>
+        </p>
       </div>
       <h2>Review Queue ({sorted.length})</h2>
 

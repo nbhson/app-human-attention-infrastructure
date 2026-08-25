@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 import { config } from 'dotenv';
 
 import { TOKENS } from '@harness/di';
+import { brand, EventType } from '@harness/domain';
+import { createEvent } from '@harness/event-bus';
+import type { IEventBus } from '@harness/event-bus';
 
 import { buildApp } from './app.js';
 import { bootContainer, buildContainer } from './bootstrap.js';
@@ -36,6 +39,18 @@ for (const token of Object.values(TOKENS)) {
 // Bind bus subscribers so their side effects are live before serving requests.
 bootContainer(container);
 
+// Emit the runtime lifecycle event (day-34 §4.5) *after* the subscribers are
+// bound so the EventLogWriter picks it up — "application started" shows up as the
+// first entry on the audit timeline, carrying the components that were wired.
+const bus = container.resolve<IEventBus>(TOKENS.EventBus);
+bus.publish(
+  createEvent(EventType.SystemStarted, brand('bootstrap', 'CorrelationID'), {
+    service: 'harness-api',
+    transport: process.env.EVENT_TRANSPORT ?? 'inproc',
+    components: Object.values(TOKENS),
+  }),
+);
+
 const start = async (): Promise<void> => {
   try {
     await app.listen({ port: 3000, host: '0.0.0.0' });
@@ -44,5 +59,18 @@ const start = async (): Promise<void> => {
     process.exit(1);
   }
 };
+
+// A graceful stop is itself an auditable fact, not just a missing process.
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    bus.publish(
+      createEvent(EventType.SystemStopped, brand('bootstrap', 'CorrelationID'), {
+        service: 'harness-api',
+        reason: signal,
+      }),
+    );
+    process.exit(0);
+  });
+}
 
 void start();
