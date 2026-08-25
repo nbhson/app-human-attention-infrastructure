@@ -213,10 +213,6 @@ Bug reports, features, and docs fixes are welcome — see
 [`CONTRIBUTING.md`](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
 The green gate is `pnpm test && pnpm lint && pnpm e2e`.
 
-## License
-
-[MIT](LICENSE) © 2026 Sơn Nguyễn.
-
 ## Documentation
 
 | What | Where |
@@ -237,3 +233,7 @@ The green gate is `pnpm test && pnpm lint && pnpm e2e`.
 | `docs/architecture/` | Architecture spec, wiring map, and living architecture notes |
 | `docs/runbook/` | Audit-query cookbook + operational runbook + limitations |
 | `docs/retros/` | Honest weekly retrospectives |
+
+## License
+
+[MIT](LICENSE) © 2026 Sơn Nguyễn.
