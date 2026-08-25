@@ -63,7 +63,8 @@ export interface ReviewReport {
   readonly summary: string;
   readonly overallVerdict: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
   readonly createdAt: string;
-  readonly stats: ReviewStats;
+  /** Derived statistics; absent when the backend serves a report without them. */
+  readonly stats?: ReviewStats;
   readonly findings: readonly ReviewFinding[];
   readonly suggestions: readonly FixSuggestion[];
 }
