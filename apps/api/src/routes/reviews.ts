@@ -17,7 +17,7 @@
 
 import type { FastifyInstance } from 'fastify';
 
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 
 import { requireRole } from '@harness/auth';
 import { TOKENS } from '@harness/di';
@@ -30,15 +30,25 @@ import {
   WritebackAction,
 } from '@harness/domain';
 import type { ReviewReportID, WriteBackIntent } from '@harness/domain';
-import { fixSuggestions, reviewDecisions, reviewFindings, reviewReports } from '@harness/db';
+import {
+  fixSuggestions,
+  judgeRuns,
+  llmCallLog,
+  reviewDecisions,
+  reviewFindings,
+  reviewReports,
+  writebackLog,
+} from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { parseRepoPath, StaticGitToolMap } from '@harness/git-provider';
 import { WriteBackError } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
+import { computeFindingAnchor } from '../finding-anchor.js';
 import { computeReviewStats } from '../review-stats.js';
 import { writebackEnabled } from '../writeback-gate.js';
+import { normalizePrFiles } from '../pr-files.js';
 
 /** The per-host tool map, reused to resolve a report's repo slug to a write-back host. */
 const GIT_TOOL_MAP = new StaticGitToolMap();
@@ -114,6 +124,34 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         .where(eq(fixSuggestions.report_id, id))
         .orderBy(asc(fixSuggestions.order_index));
 
+      const llmRows =
+        report.correlation_id !== null && report.correlation_id !== undefined
+          ? await db
+              .select()
+              .from(llmCallLog)
+              .where(eq(llmCallLog.correlation_id, report.correlation_id))
+              .orderBy(asc(llmCallLog.created_at))
+          : [];
+      const judgeRows = await db
+        .select()
+        .from(judgeRuns)
+        .where(eq(judgeRuns.report_id, id))
+        .orderBy(asc(judgeRuns.created_at));
+      const decisionRows = await db
+        .select()
+        .from(reviewDecisions)
+        .where(eq(reviewDecisions.report_id, id))
+        .orderBy(asc(reviewDecisions.created_at));
+      const decisionIds = decisionRows.map((row) => row.id);
+      const writebackRows =
+        decisionIds.length === 0
+          ? []
+          : await db
+              .select()
+              .from(writebackLog)
+              .where(inArray(writebackLog.decision_id, decisionIds))
+              .orderBy(asc(writebackLog.created_at));
+
       return {
         id: report.id,
         prUrl: report.pr_url,
@@ -131,6 +169,7 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
           severity: f.severity,
           file: f.file,
           line: f.line,
+          anchor: computeFindingAnchor(report.pr_payload, f.file, f.line),
           message: f.message,
           suggestion: f.suggestion,
           orderIndex: f.order_index,
@@ -142,6 +181,45 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
           proposed: s.proposed,
           rationale: s.rationale,
           orderIndex: s.order_index,
+        })),
+        diff: normalizePrFiles(report.pr_payload),
+        trace: {
+          calls: llmRows.map((row) => ({
+            model: row.model,
+            inputTokens: row.input_tokens,
+            outputTokens: row.output_tokens,
+            stopReason: row.stop_reason,
+            requestHash: row.request_hash,
+            createdAt: row.created_at,
+          })),
+          judge: judgeRows.map((row) => ({
+            model: row.model,
+            promptVersion: row.prompt_version,
+            temperature: row.temperature,
+            severityAgreement: row.severity_agreement,
+            routingAgreement: row.routing_agreement,
+            evidenceSufficiency: row.evidence_sufficiency,
+            overall: row.overall,
+            reasoning: row.reasoning,
+            createdAt: row.created_at,
+          })),
+        },
+        decisions: decisionRows.map((row) => ({
+          id: row.id,
+          decision: row.decision,
+          rationale: row.rationale,
+          writebackEnabled: row.writeback_enabled,
+          createdAt: row.created_at,
+        })),
+        writebacks: writebackRows.map((row) => ({
+          id: row.id,
+          provider: row.provider,
+          action: row.action,
+          status: row.status,
+          externalRef: row.external_ref,
+          error: row.error,
+          decisionId: row.decision_id,
+          createdAt: row.created_at,
         })),
       };
     },
