@@ -86,6 +86,7 @@ const report: ReviewReport = {
   },
   decisions: [],
   writebacks: [],
+  writeback: { enabled: true },
 };
 
 function renderReport(): void {
@@ -156,5 +157,17 @@ describe('ReviewReportPage', () => {
         comment: 'LGTM',
       }),
     );
+  });
+
+  it('disables the write-back checkbox and explains when the server is not armed', async () => {
+    mocked.getReport.mockResolvedValue({ ...report, writeback: { enabled: false } });
+
+    renderReport();
+
+    const checkbox = await screen.findByRole('checkbox', {
+      name: /Write decision back to PR/,
+    });
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByText(/Write-back is not armed on this deployment/)).toBeInTheDocument();
   });
 });
