@@ -22,7 +22,14 @@ import { eq } from 'drizzle-orm';
 
 import { AuthService, MockOidcProvider, SessionService } from '@harness/auth';
 import { Container, TOKENS } from '@harness/di';
-import { EventType, newReviewReportID, newUserID, Role, WritebackAction } from '@harness/domain';
+import {
+  EventType,
+  newDecisionID,
+  newReviewReportID,
+  newUserID,
+  Role,
+  WritebackAction,
+} from '@harness/domain';
 import type { WriteBackIntent } from '@harness/domain';
 import { reviewDecisions, reviewReports, sessions, users, writebackLog } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
@@ -325,6 +332,51 @@ describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
     expect(res.statusCode).toBe(400);
     expect(intents).toHaveLength(0);
     expect(await decisionRows()).toHaveLength(0);
+
+    await app.close();
+  });
+});
+
+describe('GET /api/reviews (list with pending filter)', () => {
+  it('lists the seeded report as undecided, then hides it once a decision exists', async () => {
+    const { app, cookie } = await build();
+
+    let res = await app.inject({ method: 'GET', url: '/api/reviews', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    let list = res.json() as Array<{ id: string; decided: boolean }>;
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ id: reportId, decided: false });
+
+    res = await app.inject({ method: 'GET', url: '/api/reviews?pending=1', headers: { cookie } });
+    list = res.json() as Array<{ id: string; decided: boolean }>;
+    expect(list).toHaveLength(1);
+    expect(list[0]?.id).toBe(reportId);
+
+    // Record a decision: the report flips to decided and drops out of ?pending=1.
+    await testDb.db.insert(reviewDecisions).values({
+      id: newDecisionID(),
+      report_id: reportId,
+      decision: 'APPROVE',
+      writeback_enabled: false,
+    });
+
+    res = await app.inject({ method: 'GET', url: '/api/reviews', headers: { cookie } });
+    list = res.json() as Array<{ id: string; decided: boolean }>;
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ id: reportId, decided: true });
+
+    res = await app.inject({ method: 'GET', url: '/api/reviews?pending=1', headers: { cookie } });
+    const pendingAfter = res.json() as Array<{ id: string }>;
+    expect(pendingAfter).toHaveLength(0);
+
+    await app.close();
+  });
+
+  it('returns 401 without a credential', async () => {
+    const { app } = await build();
+
+    const res = await app.inject({ method: 'GET', url: '/api/reviews' });
+    expect(res.statusCode).toBe(401);
 
     await app.close();
   });

@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ReviewApiError, reviewApi, type QueueListItem } from '../api/review';
+import { reviewsApi } from '../api/reviews';
 import QueuePage from './QueuePage';
 
 vi.mock('../api/review', async (importOriginal) => {
@@ -13,7 +14,13 @@ vi.mock('../api/review', async (importOriginal) => {
   return { ...actual, reviewApi: { ...actual.reviewApi, listQueue: vi.fn(), claim: vi.fn() } };
 });
 
+vi.mock('../api/reviews', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/reviews')>();
+  return { ...actual, reviewsApi: { ...actual.reviewsApi, list: vi.fn() } };
+});
+
 const mocked = vi.mocked(reviewApi);
+const mockedReviews = vi.mocked(reviewsApi);
 
 function renderQueue(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -56,6 +63,7 @@ function item(
 describe('QueuePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedReviews.list.mockResolvedValue([]);
   });
 
   it('renders rows sorted by position, with label, score, and flaky marker', async () => {
@@ -91,5 +99,27 @@ describe('QueuePage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Someone else claimed');
     expect(mocked.listQueue).toHaveBeenCalled();
+  });
+
+  it('surfaces pending AI reviews as links into the report', async () => {
+    mocked.listQueue.mockResolvedValue([]);
+    mockedReviews.list.mockResolvedValue([
+      {
+        id: 'report-1',
+        prUrl: 'https://github.com/acme/app/pull/9',
+        prNumber: 9,
+        repo: 'github.com/acme/app',
+        prTitle: 'Wire write-back into decide',
+        overallVerdict: 'REQUEST_CHANGES',
+        createdAt: '2026-08-23T00:00:00.000Z',
+        decided: false,
+      },
+    ]);
+
+    renderQueue();
+
+    expect(await screen.findByText(/Reviews awaiting a decision \(1\)/)).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /Continue review/ });
+    expect(link).toHaveAttribute('href', '/reviews/report-1');
   });
 });

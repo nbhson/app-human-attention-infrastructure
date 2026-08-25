@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ReviewApiError, reviewApi, type QueueListItem } from '../api/review';
+import { reviewsApi } from '../api/reviews';
 import { LabelBadge } from '../components/LabelBadge';
 import { Skeleton } from '../components/Skeleton';
 
@@ -40,6 +41,16 @@ export default function QueuePage(): JSX.Element {
     refetchInterval: 5_000,
   });
 
+  const {
+    data: pendingReviews = [],
+    isLoading: pendingReviewsLoading,
+    isError: pendingReviewsError,
+  } = useQuery({
+    queryKey: ['pendingReviews'],
+    queryFn: () => reviewsApi.list(true),
+    refetchInterval: 5_000,
+  });
+
   const claim = useMutation({
     mutationFn: (id: string) => reviewApi.claim(id),
     onSuccess: async () => {
@@ -67,6 +78,48 @@ export default function QueuePage(): JSX.Element {
           <Link to="/audit">System activity →</Link>
         </p>
       </div>
+
+      <section aria-label="Reviews awaiting a decision" style={{ marginBottom: 24 }}>
+        <h2 style={{ marginTop: 0 }}>Reviews awaiting a decision ({pendingReviews.length})</h2>
+        {pendingReviewsLoading && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <Skeleton height={44} />
+          </div>
+        )}
+        {!pendingReviewsLoading && pendingReviewsError && <p>Could not load pending reviews.</p>}
+        {!pendingReviewsLoading && !pendingReviewsError && pendingReviews.length === 0 && (
+          <p>No review requests are waiting on a decision.</p>
+        )}
+        {!pendingReviewsLoading && !pendingReviewsError && pendingReviews.length > 0 && (
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
+            {pendingReviews.map((item) => (
+              <li
+                key={item.id}
+                data-testid={`pending-review-${item.id}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '10px 12px',
+                  background: 'var(--color-surface-2)',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{item.prTitle}</div>
+                  <div style={{ color: 'var(--color-text-faint)', fontSize: '0.85rem' }}>
+                    {item.repo} · #{item.prNumber} · {item.overallVerdict}
+                  </div>
+                </div>
+                <Link to={`/reviews/${item.id}`}>Continue review</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <h2>Review Queue ({sorted.length})</h2>
 
       {conflictMessage && (
