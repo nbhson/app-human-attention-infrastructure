@@ -77,6 +77,27 @@ describe('parseReviewOutput', () => {
     expect(out.suggestions).toEqual([]);
   });
 
+  it('coerces a string line number to a number', () => {
+    const out = parseReviewOutput(
+      JSON.stringify({
+        summary: '',
+        overallVerdict: 'COMMENT',
+        findings: [
+          { severity: 'MAJOR', file: 'src/a.ts', line: '42', message: 'a bug' },
+          { severity: 'MINOR', file: 'src/b.ts', line: ' 17 ', message: 'b bug' },
+          { severity: 'INFO', file: 'src/c.ts', line: 'line 9', message: 'c note' },
+        ],
+        suggestions: [],
+      }),
+    );
+
+    expect(out.findings).toEqual([
+      { severity: 'MAJOR', file: 'src/a.ts', line: 42, message: 'a bug' },
+      { severity: 'MINOR', file: 'src/b.ts', line: 17, message: 'b bug' },
+      { severity: 'INFO', file: 'src/c.ts', message: 'c note' },
+    ]);
+  });
+
   it('throws ReviewParseError on non-JSON', () => {
     expect(() => parseReviewOutput('definitely not json {')).toThrow(ReviewParseError);
   });

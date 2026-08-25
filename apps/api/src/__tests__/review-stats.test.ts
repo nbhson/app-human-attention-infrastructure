@@ -20,19 +20,28 @@ describe('computeReviewStats', () => {
     expect(stats.changedLines).toBe(47);
   });
 
-  it('computes flagged lines as distinct file:line anchors and flagged files', () => {
+  it('counts flagged files and the added lines they hold', () => {
     const findings = [
       { severity: 'CRITICAL', file: 'a.ts', line: 10 },
-      { severity: 'MAJOR', file: 'a.ts', line: 10 }, // duplicate anchor → deduped
-      { severity: 'MAJOR', file: 'a.ts', line: 11 },
+      { severity: 'MAJOR', file: 'a.ts', line: 11 }, // same file, deduped
       { severity: 'NIT', file: 'b.ts', line: null }, // whole-file finding, no line
     ];
 
-    const stats = computeReviewStats({ files: [{ additions: 50, deletions: 50 }] }, findings);
+    const stats = computeReviewStats(
+      {
+        files: [
+          { path: 'a.ts', additions: 30, deletions: 5 },
+          { path: 'b.ts', additions: 20, deletions: 0 },
+          { path: 'c.ts', additions: 50, deletions: 0 }, // no finding → not flagged
+        ],
+      },
+      findings,
+    );
 
     expect(stats.flaggedFiles).toBe(2); // a.ts + b.ts
-    expect(stats.flaggedLines).toBe(2); // a.ts:10 and a.ts:11
-    expect(stats.attentionShare).toBe(0.02); // 2 / 100
+    expect(stats.flaggedAddedLines).toBe(50); // 30 + 20
+    expect(stats.addedLines).toBe(100);
+    expect(stats.attentionShare).toBe(0.5); // 50 / 100
   });
 
   it('counts findings per severity band, every band present', () => {
@@ -60,12 +69,23 @@ describe('computeReviewStats', () => {
     expect(stats.findingTotal).toBe(0);
   });
 
-  it('clamps attentionShare to 1 when anchors exceed changed lines', () => {
+  it('measures attention as flagged added lines over all added lines', () => {
     const findings = [
       { severity: 'CRITICAL', file: 'a.ts', line: 1 },
       { severity: 'CRITICAL', file: 'a.ts', line: 2 },
     ];
-    const stats = computeReviewStats({ files: [{ additions: 1, deletions: 0 }] }, findings);
-    expect(stats.attentionShare).toBe(1);
+
+    const stats = computeReviewStats(
+      {
+        files: [
+          { path: 'a.ts', additions: 5, deletions: 0 },
+          { path: 'b.ts', additions: 15, deletions: 0 },
+        ],
+      },
+      findings,
+    );
+
+    expect(stats.flaggedAddedLines).toBe(5);
+    expect(stats.attentionShare).toBe(0.25); // 5 / 20, not ~0 from one anchor over 20 changed lines
   });
 });

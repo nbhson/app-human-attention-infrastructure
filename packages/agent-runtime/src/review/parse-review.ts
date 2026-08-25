@@ -47,6 +47,28 @@ function normalizeVerdict(raw: unknown): ReviewVerdictT {
   return ReviewVerdict.Comment;
 }
 
+/**
+ * Coerce a model-emitted `line` to a number, or `undefined` when absent/unusable.
+ * Models routinely emit `"line": 42` in one review and `"line": "42"` in the next;
+ * requiring `typeof line === 'number'` silently drops the string form and leaves
+ * the finding line-less (dragging the report's flagged-added-lines share to 0).
+ */
+function normalizeLine(raw: unknown): number | undefined {
+  if (typeof raw === 'number') {
+    return raw;
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return undefined;
+}
+
 function normalizeFindings(raw: unknown): ReviewFindingOutput[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -59,11 +81,12 @@ function normalizeFindings(raw: unknown): ReviewFindingOutput[] {
     if (file.length === 0 || message.length === 0) {
       continue;
     }
+    const line = normalizeLine(f.line);
     out.push({
       severity: normalizeSeverity(f.severity),
       file,
       message,
-      ...(typeof f.line === 'number' ? { line: f.line } : {}),
+      ...(line !== undefined ? { line } : {}),
       ...(typeof f.suggestion === 'string' && f.suggestion.length > 0
         ? { suggestion: f.suggestion }
         : {}),
