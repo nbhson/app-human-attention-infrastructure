@@ -49,6 +49,7 @@ const report: ReviewReport = {
       message: 'Off-by-one in the window check.',
       suggestion: 'Compare against `>` instead of `>=`.',
       orderIndex: 0,
+      anchor: { status: 'verified', detail: 'line 42 is in this diff' },
     },
   ],
   suggestions: [
@@ -61,6 +62,30 @@ const report: ReviewReport = {
       orderIndex: 0,
     },
   ],
+  diff: [
+    {
+      path: 'src/limit.ts',
+      status: 'modified',
+      additions: 40,
+      deletions: 10,
+      patch: '@@ -42,1 +42,1 @@\n-if (count >= limit) reject();\n+if (count > limit) reject();',
+    },
+  ],
+  trace: {
+    calls: [
+      {
+        model: 'gpt-4.1',
+        inputTokens: 150,
+        outputTokens: 80,
+        stopReason: 'end_turn',
+        requestHash: 'sha256-offbyone',
+        createdAt: '2026-08-23T00:00:01.000Z',
+      },
+    ],
+    judge: [],
+  },
+  decisions: [],
+  writebacks: [],
 };
 
 function renderReport(): void {

@@ -7,6 +7,15 @@
 
 const BASE = '/api/reviews';
 
+/** Trust-loop anchor status: did the finding's `file:line` resolve into the diff? */
+export type AnchorStatus = 'verified' | 'unverified';
+
+/** The per-finding anchor verdict + a short human-readable reason. */
+export interface FindingAnchor {
+  readonly status: AnchorStatus;
+  readonly detail: string;
+}
+
 /** A review finding as returned by `GET /api/reviews/:id`. */
 export interface ReviewFinding {
   readonly id: string;
@@ -16,6 +25,7 @@ export interface ReviewFinding {
   readonly message: string;
   readonly suggestion: string | null;
   readonly orderIndex: number;
+  readonly anchor: FindingAnchor;
 }
 
 /** A fix suggestion as returned by `GET /api/reviews/:id`. */
@@ -26,6 +36,69 @@ export interface FixSuggestion {
   readonly proposed: string;
   readonly rationale: string;
   readonly orderIndex: number;
+}
+
+/** One file's diff as returned by `GET /api/reviews/:id` (normalised `pr_payload.files`). */
+export interface PrFile {
+  readonly path: string;
+  readonly status: string;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly patch: string;
+}
+
+/**
+ * One model-call metadata row. NOTE: the stored `llm_call_log` is metadata-only —
+ * there is deliberately no raw prompt/response transcript persisted for a review,
+ * so this maps model + token counts + stop reason + a request hash, not the text.
+ */
+export interface LlmCall {
+  readonly model: string;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly stopReason: string | null;
+  readonly requestHash: string;
+  readonly createdAt: string;
+}
+
+/** One shadow-judge run against this report (scores are 0..1). */
+export interface JudgeRun {
+  readonly model: string;
+  readonly promptVersion: string | null;
+  readonly temperature: number | null;
+  readonly severityAgreement: number;
+  readonly routingAgreement: number;
+  readonly evidenceSufficiency: number;
+  readonly overall: number;
+  readonly reasoning: string | null;
+  readonly createdAt: string;
+}
+
+/** The "AI trace" payload: metadata about how this report was produced. */
+export interface ReviewTrace {
+  readonly calls: readonly LlmCall[];
+  readonly judge: readonly JudgeRun[];
+}
+
+/** One persisted human decision on this report (audit). */
+export interface ReviewDecisionRecord {
+  readonly id: string;
+  readonly decision: string;
+  readonly rationale: string | null;
+  readonly writebackEnabled: boolean;
+  readonly createdAt: string;
+}
+
+/** One write-back attempt tied to a decision (audit). */
+export interface WritebackRecord {
+  readonly id: string;
+  readonly provider: string;
+  readonly action: string;
+  readonly status: string;
+  readonly externalRef: string | null;
+  readonly error: string | null;
+  readonly decisionId: string | null;
+  readonly createdAt: string;
 }
 
 /** A review finding severity band. */
@@ -67,6 +140,10 @@ export interface ReviewReport {
   readonly stats?: ReviewStats;
   readonly findings: readonly ReviewFinding[];
   readonly suggestions: readonly FixSuggestion[];
+  readonly diff: readonly PrFile[];
+  readonly trace: ReviewTrace;
+  readonly decisions: readonly ReviewDecisionRecord[];
+  readonly writebacks: readonly WritebackRecord[];
 }
 
 /** Response of `POST /api/reviews`. */
