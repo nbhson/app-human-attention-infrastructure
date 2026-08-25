@@ -24,8 +24,8 @@ describe('ReportStats', () => {
 
     expect(screen.getByTestId('verdict-badge')).toHaveTextContent('Request changes');
     expect(screen.getByTestId('attention-pct')).toHaveTextContent('25%');
-    expect(screen.getByText('20 of 80 added lines')).toBeInTheDocument();
-    expect(screen.getByText('Issues touch 3 of 4 files')).toBeInTheDocument();
+    expect(screen.getByText('20 of 80 code lines')).toBeInTheDocument();
+    expect(screen.getByText('Issues touch 3 of 4 source files')).toBeInTheDocument();
   });
 
   it('labels every severity band with its count and share of total findings', () => {

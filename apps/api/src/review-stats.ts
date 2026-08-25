@@ -4,9 +4,10 @@
  * The product's whole thesis is "route human attention to only what matters", so
  * the report surface owes the reviewer a one-glance answer to two questions:
  *
- *  - Of the PR's added lines, how many live in files that carry an actionable
- *    finding (CRITICAL/MAJOR/MINOR — nitpicks and praise don't count) (→ how
- *    much of this diff needs a human to look at it)?
+ *  - Of the PR's *source-code* lines, how many live in files that carry an
+ *    actionable finding (CRITICAL/MAJOR/MINOR — nitpicks/praise don't count, and
+ *    a lockfile/README/Dockerfile rewrite isn't source) (→ how much of the *code*
+ *    in this diff needs a human to look at it)?
  *  - Split the findings across the severity bands (→ how much of the review is
  *    CRITICAL vs MINOR vs …)?
  *
@@ -19,6 +20,8 @@
 
 import { ReviewSeverity } from '@harness/domain';
 import type { ReviewSeverity as ReviewSeverityType } from '@harness/domain';
+
+import { isSourceFile } from './review-file-classify.js';
 
 /** Severity bands, highest first — the same order the AI reports them in. */
 export const SEVERITY_ORDER = [
@@ -47,17 +50,17 @@ export type SeverityCounts = Record<ReviewSeverityType, number>;
 
 /** The derived, denormalised statistics block surfaced on the report. */
 export interface ReviewStats {
-  /** Files in the PR diff (from the stored `pr_payload`). */
+  /** Source/logic files in the diff (generated, doc, config and infra excluded). */
   readonly totalFiles: number;
-  /** Lines added across all files. */
+  /** Lines added across source files. */
   readonly addedLines: number;
-  /** Lines removed across all files. */
+  /** Lines removed across source files. */
   readonly removedLines: number;
-  /** `addedLines + removedLines` — the PR's diff size. */
+  /** `addedLines + removedLines` — the source diff's size. */
   readonly changedLines: number;
-  /** Added lines living in files that carry at least one actionable finding. */
+  /** Added source lines living in files that carry at least one actionable finding. */
   readonly flaggedAddedLines: number;
-  /** Distinct files that carry at least one actionable finding (NIT/INFO excluded). */
+  /** Distinct source files that carry an actionable finding (NIT/INFO excluded). */
   readonly flaggedFiles: number;
   /** `flaggedAddedLines / addedLines`, clamped to [0, 1] (0 when nothing is added). */
   readonly attentionShare: number;
@@ -107,7 +110,14 @@ export function computeReviewStats(
 ): ReviewStats {
   const payload =
     typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
-  const files = Array.isArray(payload.files) ? payload.files : [];
+  const allFiles = Array.isArray(payload.files) ? payload.files : [];
+  // The attention block is about *code*, not the whole diff. A lockfile that
+  // adds 9k lines, a README rewrite, or a Dockerfile/nginx tweak must not move
+  // "needs human attention" — the metric is meant to answer "how much of the
+  // SOURCE you wrote needs a human to look at it". So the diff-derived numbers
+  // count only hand-written source files; `findingTotal` + `severity` still span
+  // every finding (a CRITICAL on a deleted file still shows in the severity bar).
+  const files = allFiles.filter((file) => isSourceFile(file?.path ?? ''));
 
   const addedLines = files.reduce((sum, file) => sum + toNonNegative(file?.additions), 0);
   const removedLines = files.reduce((sum, file) => sum + toNonNegative(file?.deletions), 0);
@@ -127,6 +137,7 @@ export function computeReviewStats(
     if (
       typeof finding.file === 'string' &&
       finding.file.length > 0 &&
+      isSourceFile(finding.file) &&
       ACTIONABLE_SEVERITIES.has(finding.severity)
     ) {
       flaggedFiles.add(finding.file);

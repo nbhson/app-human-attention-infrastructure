@@ -3,12 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { computeReviewStats, SEVERITY_ORDER } from '../review-stats.js';
 
 describe('computeReviewStats', () => {
-  it('sums per-file additions/deletions and counts files', () => {
+  it('sums source-file additions/deletions and counts source files', () => {
     const stats = computeReviewStats(
       {
         files: [
-          { additions: 10, deletions: 2 },
-          { additions: 30, deletions: 5 },
+          { path: 'src/a.ts', additions: 10, deletions: 2 },
+          { path: 'src/b.ts', additions: 30, deletions: 5 },
+          { path: 'package-lock.json', additions: 9000, deletions: 0 }, // generated → excluded
+          { path: 'README.md', additions: 400, deletions: 0 }, // doc → excluded
+          { path: 'Dockerfile', additions: 12, deletions: 0 }, // infra → excluded
         ],
       },
       [],
@@ -44,6 +47,31 @@ describe('computeReviewStats', () => {
     expect(stats.flaggedAddedLines).toBe(30); // 30, not 30+20+10
     expect(stats.addedLines).toBe(110);
     expect(stats.attentionShare).toBe(0.2727); // 30 / 110
+  });
+
+  it('never flags non-source files, even with an actionable finding', () => {
+    const findings = [
+      { severity: 'CRITICAL', file: 'node_modules/', line: null }, // generated dir prefix
+      { severity: 'MAJOR', file: 'README.md', line: null }, // doc
+      { severity: 'MINOR', file: 'Dockerfile', line: null }, // infra
+      { severity: 'MINOR', file: 'src/app.ts', line: 3 }, // real source
+    ];
+
+    const stats = computeReviewStats(
+      {
+        files: [
+          { path: 'src/app.ts', additions: 40, deletions: 0 },
+          { path: 'README.md', additions: 364, deletions: 0 },
+          { path: 'Dockerfile', additions: 11, deletions: 0 },
+        ],
+      },
+      findings,
+    );
+
+    expect(stats.flaggedFiles).toBe(1); // src/app.ts only
+    expect(stats.flaggedAddedLines).toBe(40);
+    expect(stats.addedLines).toBe(40); // README + Dockerfile excluded from the whole block
+    expect(stats.attentionShare).toBe(1); // 40 / 40
   });
 
   it('counts findings per severity band, every band present', () => {

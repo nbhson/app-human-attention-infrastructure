@@ -8,10 +8,11 @@ import { SEVERITIES, severityColor, severityLabel } from './severity';
  *
  *  1. A verdict badge (APPROVE / REQUEST_CHANGES / COMMENT) in the verdict's
  *     status colour.
- *  2. An attention hero: the share of the PR's added lines that live in files
- *     carrying an actionable finding (CRITICAL/MAJOR/MINOR) — the product's
- *     whole "route attention to only what matters" promise as one number — plus
- *     the supporting file/line counts.
+ *  2. An attention hero: the share of the PR's *source-code* added lines that live
+ *     in source files carrying an actionable finding (CRITICAL/MAJOR/MINOR — the
+ *     product's whole "route attention to only what matters" promise as one
+ *     number, measured over code, not lockfiles/READMEs/Dockerfiles) — plus the
+ *     supporting file/line counts.
  *  3. A severity split: a 100%-stacked bar over the findings, with a legend that
  *     names every band, count, and percentage (never colour alone).
  */
@@ -171,12 +172,12 @@ export function ReportStats({
               {attentionPct}%
             </span>
             <span style={{ color: 'var(--color-text-muted)' }}>
-              {stats.flaggedAddedLines} of {stats.addedLines} added lines
+              {stats.flaggedAddedLines} of {stats.addedLines} code lines
             </span>
           </div>
           <div
             role="img"
-            aria-label={`${attentionPct}% of added lines need attention`}
+            aria-label={`${attentionPct}% of code lines need attention`}
             style={{
               marginTop: 'var(--space-2)',
               height: 8,
@@ -201,7 +202,7 @@ export function ReportStats({
               fontSize: '0.8rem',
             }}
           >
-            Issues touch {stats.flaggedFiles} of {stats.totalFiles} files
+            Issues touch {stats.flaggedFiles} of {stats.totalFiles} source files
           </div>
         </div>
       </div>
