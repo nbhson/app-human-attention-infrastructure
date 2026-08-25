@@ -111,3 +111,32 @@ export function isSourceFile(path: string): boolean {
   }
   return SOURCE_EXTENSIONS.has(path.slice(dot).toLowerCase());
 }
+
+/**
+ * Sub-category of a hand-written source file, used by the attention breakdown so
+ * "2395 added lines" isn't read as "2395 lines of dense logic": a greenfield PR
+ * is mostly test specs, styles and markup, which carry far lower bug-density per
+ * line than the actual source. Returns null for anything {@link isSourceFile}
+ * already rejects (generated/doc/config/infra).
+ */
+export type SourceCategory = 'test' | 'style' | 'markup' | 'source';
+
+const TEST_FILENAME = /\.(spec|test)\.[cm]?[jt]sx?$/i;
+const STYLE_EXTENSION = /\.(css|scss|sass|less)$/i;
+const MARKUP_EXTENSION = /\.(html?|vue|svelte)$/i;
+
+export function classifySourceFile(path: string): SourceCategory | null {
+  if (!isSourceFile(path)) {
+    return null;
+  }
+  if (TEST_FILENAME.test(path)) {
+    return 'test';
+  }
+  if (STYLE_EXTENSION.test(path)) {
+    return 'style';
+  }
+  if (MARKUP_EXTENSION.test(path)) {
+    return 'markup';
+  }
+  return 'source';
+}

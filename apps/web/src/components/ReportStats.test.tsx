@@ -16,6 +16,16 @@ const stats: ReviewStats = {
   attentionShare: 0.75,
   findingTotal: 5,
   severity: { CRITICAL: 2, MAJOR: 1, MINOR: 1, NIT: 1, INFO: 0 },
+  composition: [
+    { category: 'source', files: 3, additions: 60, deletions: 15 },
+    { category: 'test', files: 1, additions: 20, deletions: 5 },
+  ],
+  excluded: { files: 1, additions: 9000, deletions: 0 },
+  flaggedFilesList: [
+    { file: 'src/a.ts', severities: ['CRITICAL', 'MAJOR'] },
+    { file: 'src/b.ts', severities: ['MINOR'] },
+    { file: 'src/c.ts', severities: ['CRITICAL'] },
+  ],
 };
 
 describe('ReportStats', () => {

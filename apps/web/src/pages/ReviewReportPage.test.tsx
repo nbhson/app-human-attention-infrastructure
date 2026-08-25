@@ -39,6 +39,9 @@ const report: ReviewReport = {
     attentionShare: 1,
     findingTotal: 1,
     severity: { CRITICAL: 0, MAJOR: 1, MINOR: 0, NIT: 0, INFO: 0 },
+    composition: [{ category: 'source', files: 1, additions: 40, deletions: 10 }],
+    excluded: { files: 0, additions: 0, deletions: 0 },
+    flaggedFilesList: [{ file: 'src/limit.ts', severities: ['MAJOR'] }],
   },
   findings: [
     {

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { reviewsApi, type ReviewDecision } from '../api/reviews';
 import { AnchorBadge } from '../components/AnchorBadge';
+import { BreakdownTab } from '../components/BreakdownTab';
 import { DiffTab } from '../components/DiffTab';
 import { ReportStats } from '../components/ReportStats';
 import { Skeleton, SkeletonLines } from '../components/Skeleton';
@@ -17,10 +18,11 @@ import { severityColor, severityLabel, sortFindingsBySeverity } from '../compone
  * point at, how they were produced, and everything we can prove about it.
  */
 
-type ReviewTab = 'review' | 'diff' | 'trace' | 'verification';
+type ReviewTab = 'review' | 'breakdown' | 'diff' | 'trace' | 'verification';
 
 const TABS: readonly { key: ReviewTab; label: string }[] = [
   { key: 'review', label: 'Review' },
+  { key: 'breakdown', label: 'Breakdown' },
   { key: 'diff', label: 'Diff' },
   { key: 'trace', label: 'AI trace' },
   { key: 'verification', label: 'Verification' },
@@ -288,6 +290,12 @@ export default function ReviewReportPage(): JSX.Element {
               ))}
             </ul>
           </section>
+        </div>
+      )}
+
+      {activeTab === 'breakdown' && (
+        <div style={{ marginTop: 16 }}>
+          <BreakdownTab stats={data.stats} />
         </div>
       )}
 
