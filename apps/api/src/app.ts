@@ -16,6 +16,7 @@ import type { DrizzleDB } from '@harness/db';
 import { registerReviewRoutes } from './routes/review.js';
 import { registerReviewIngestRoutes } from './routes/reviews.js';
 import { registerProvenanceRoutes } from './routes/provenance.js';
+import { registerAuditRoutes } from './routes/audit.js';
 import { registerOpsRoutes } from './routes/ops.js';
 import { registerMetricsRoutes } from './routes/metrics.js';
 import { registerAuthRoutes } from './routes/auth.js';
@@ -42,6 +43,7 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
   registerReviewRoutes(app, container);
   registerReviewIngestRoutes(app, container);
   registerProvenanceRoutes(app, container);
+  registerAuditRoutes(app, container);
   registerOpsRoutes(app, container.resolve<DrizzleDB>(TOKENS.Db));
   registerMetricsRoutes(app);
   registerAdminRoutes(app, container);

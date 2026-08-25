@@ -16,3 +16,4 @@ export * from './authz-events.js';
 export * from './integration-events.js';
 export * from './memory-events.js';
 export * from './learning-events.js';
+export * from './system-events.js';

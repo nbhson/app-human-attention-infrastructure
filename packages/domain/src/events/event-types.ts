@@ -59,6 +59,12 @@ export const EventType = {
   // to the candidate it fitted and the deployment it became.
   LearningStageCompleted: 'learning.stage_completed',
   LearningLoopCompleted: 'learning.loop_completed',
+  // Runtime lifecycle (day-34 §4.5): the process itself as a first-class system.
+  // `system.started` lands in `event_log` once the object graph is booted and the
+  // subscribers are bound, so the audit timeline shows "application started" and
+  // which components were wired; `system.stopped` marks a graceful shutdown.
+  SystemStarted: 'system.started',
+  SystemStopped: 'system.stopped',
 } as const;
 /** A domain event type string. */
 export type EventType = (typeof EventType)[keyof typeof EventType];
