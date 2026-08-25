@@ -16,45 +16,5 @@ services:
       timeout: 5s
       retries: 10
 
-  # Scrapes the host-run API's /metrics (day-04 §2.3).
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: harness-prometheus
-    volumes:
-      - ./infra/prometheus:/etc/prometheus:ro
-    ports:
-      - "9090:9090"
-
-  # Serves the provisioning-as-code dashboards from infra/grafana (day-04 §3.4).
-  grafana:
-    image: grafana/grafana:latest
-    container_name: harness-grafana
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: harness
-    volumes:
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infra/grafana/provisioning/dashboards:/var/lib/grafana/dashboards:ro
-    ports:
-      - "3001:3000"
-    depends_on:
-      - prometheus
-
-  # S3-compatible object store for day-21 large-artifact offload. The API only
-  # talks to it when OBJECT_STORE_ENDPOINT is set; left running otherwise it is
-  # inert.
-  minio:
-    image: minio/minio:latest
-    container_name: harness-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000" # S3 API
-      - "9001:9001" # console
-    volumes:
-      - miniodata:/data
-
 volumes:
   pgdata:
-  miniodata:
