@@ -29,6 +29,17 @@ const report: ReviewReport = {
   summary: 'Solid change, one correctness concern.',
   overallVerdict: 'REQUEST_CHANGES',
   createdAt: '2026-08-23T00:00:00.000Z',
+  stats: {
+    totalFiles: 1,
+    addedLines: 40,
+    removedLines: 10,
+    changedLines: 50,
+    flaggedLines: 1,
+    flaggedFiles: 1,
+    attentionShare: 0.02,
+    findingTotal: 1,
+    severity: { CRITICAL: 0, MAJOR: 1, MINOR: 0, NIT: 0, INFO: 0 },
+  },
   findings: [
     {
       id: 'finding-1',
@@ -76,7 +87,7 @@ describe('ReviewReportPage', () => {
     renderReport();
 
     expect(await screen.findByText('Add rate limiting')).toBeInTheDocument();
-    expect(screen.getByText('REQUEST_CHANGES')).toBeInTheDocument();
+    expect(screen.getByTestId('verdict-badge')).toHaveTextContent('Request changes');
     expect(screen.getByText('Findings (1)')).toBeInTheDocument();
     expect(screen.getByText('Off-by-one in the window check.')).toBeInTheDocument();
     expect(screen.getByText('Fix suggestions (1)')).toBeInTheDocument();
@@ -92,7 +103,7 @@ describe('ReviewReportPage', () => {
     fireEvent.click(await screen.findByRole('radio', { name: /APPROVE/ }));
     fireEvent.click(screen.getByRole('button', { name: /Submit/ }));
 
-    expect(await screen.findByText('APPROVE')).toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: /APPROVE/ })).toBeChecked();
     expect(mocked.decide).toHaveBeenCalledWith('report-abc', 'APPROVE');
   });
 });

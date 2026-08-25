@@ -1,0 +1,139 @@
+/*
+ * HAI Harness web theme — the single source of truth for colour and spacing.
+ *
+ * The three review screens previously styled everything inline with ad-hoc hex
+ * values, so two files could disagree on the same colour (e.g. CRITICAL was
+ * `#dc2626` in the badge but `#cf222e` in the report). Every token lives here
+ * now; pages and components consume `var(--…)` so a surface/text change is one
+ * edit and dark mode is a `prefers-color-scheme` re-definition instead of a
+ * per-file hunt.
+ */
+
+:root {
+  /* Surfaces + text */
+  --color-bg: #ffffff;
+  --color-surface: #f6f8fa;
+  --color-surface-2: #ffffff;
+  --color-border: #d0d7de;
+  --color-text: #1f2328;
+  --color-text-muted: #57606a;
+  --color-text-faint: #6e7781;
+
+  /* Status + verdict */
+  --color-danger: #cf222e;
+  --color-danger-bg: #ffebe9;
+  --color-warning: #bc4c00;
+  --color-warning-bg: #fff8c5;
+  --color-success: #1a7f37;
+  --color-info: #0969da;
+
+  /* Severity bands (status palette, reserved — never reused as "series N") */
+  --sev-critical: #cf222e;
+  --sev-major: #bc4c00;
+  --sev-minor: #9a6700;
+  --sev-nit: #6e7781;
+  --sev-info: #0969da;
+
+  /* Priority tiers keyed off the queue `label` */
+  --prio-critical: #dc2626;
+  --prio-high: #ea580c;
+  --prio-medium: #ca8a04;
+  --prio-low: #6b7280;
+
+  /* Skeleton shimmer */
+  --skeleton-base: #eaeef2;
+  --skeleton-shine: #f6f8fa;
+
+  /* Geometry + type */
+  --radius: 6px;
+  --radius-lg: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0d1117;
+    --color-surface: #161b22;
+    --color-surface-2: #1c2128;
+    --color-border: #30363d;
+    --color-text: #e6edf3;
+    --color-text-muted: #9198a1;
+    --color-text-faint: #7d8590;
+
+    --color-danger: #f85149;
+    --color-danger-bg: #3d1419;
+    --color-warning: #e0823d;
+    --color-warning-bg: #3d2d0c;
+    --color-success: #3fb950;
+    --color-info: #58a6ff;
+
+    --sev-critical: #f85149;
+    --sev-major: #e0823d;
+    --sev-minor: #d29922;
+    --sev-nit: #8b949e;
+    --sev-info: #58a6ff;
+
+    --prio-critical: #f85149;
+    --prio-high: #e0823d;
+    --prio-medium: #d29922;
+    --prio-low: #8b949e;
+
+    --skeleton-base: #21262d;
+    --skeleton-shine: #2a2f36;
+  }
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-info);
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--font-mono);
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Skeleton shimmer — a subtle pulse so a loading row reads as "coming", not empty. */
+@keyframes skeleton-pulse {
+  0% {
+    background-color: var(--skeleton-base);
+  }
+  50% {
+    background-color: var(--skeleton-shine);
+  }
+  100% {
+    background-color: var(--skeleton-base);
+  }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+  background-color: var(--skeleton-base);
+  border-radius: var(--radius);
+}

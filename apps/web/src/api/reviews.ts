@@ -28,6 +28,29 @@ export interface FixSuggestion {
   readonly orderIndex: number;
 }
 
+/** A review finding severity band. */
+export type ReviewSeverity = 'CRITICAL' | 'MAJOR' | 'MINOR' | 'NIT' | 'INFO';
+
+/**
+ * Derived statistics on the report, computed server-side from the stored PR
+ * payload + findings. Surfaces the product's core promise: how much of the PR's
+ * changed surface actually needs a human to look at it, split by severity.
+ */
+export interface ReviewStats {
+  readonly totalFiles: number;
+  readonly addedLines: number;
+  readonly removedLines: number;
+  readonly changedLines: number;
+  /** Distinct `file:line` anchors a finding points at (line-level findings only). */
+  readonly flaggedLines: number;
+  /** Distinct files carrying at least one finding. */
+  readonly flaggedFiles: number;
+  /** `flaggedLines / changedLines`, clamped to [0, 1]. */
+  readonly attentionShare: number;
+  readonly findingTotal: number;
+  readonly severity: Record<ReviewSeverity, number>;
+}
+
 /** The composed report as returned by `GET /api/reviews/:id`. */
 export interface ReviewReport {
   readonly id: string;
@@ -40,6 +63,7 @@ export interface ReviewReport {
   readonly summary: string;
   readonly overallVerdict: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
   readonly createdAt: string;
+  readonly stats: ReviewStats;
   readonly findings: readonly ReviewFinding[];
   readonly suggestions: readonly FixSuggestion[];
 }

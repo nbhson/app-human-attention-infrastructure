@@ -67,12 +67,18 @@ describe('QueuePage', () => {
     renderQueue();
 
     expect(await screen.findByText(/Review Queue \(2\)/)).toBeInTheDocument();
-    const rows = screen.getAllByRole('row');
-    // Table header row + two data rows, `q1` (position 1) before `q2`.
-    expect(rows[1]).toHaveTextContent('CRITICAL');
-    expect(rows[2]).toHaveTextContent('HIGH');
-    expect(rows[1]).toHaveTextContent('0.91');
-    expect(rows[1]).toHaveTextContent('*');
+    const q1 = screen.getByTestId('queue-item-q1');
+    const q2 = screen.getByTestId('queue-item-q2');
+    expect(q1).toHaveTextContent('CRITICAL');
+    expect(q1).toHaveTextContent('0.91');
+    expect(q1).toHaveTextContent('flaky');
+    expect(q2).toHaveTextContent('HIGH');
+    expect(q2).toHaveTextContent('0.74');
+
+    // Sorted by position: q1 (position 1) renders before q2 (position 2).
+    const items = screen.getAllByTestId(/queue-item-/);
+    expect(items[0]).toBe(q1);
+    expect(items[1]).toBe(q2);
   });
 
   it('shows a 409 toast and refetches when a claim loses', async () => {
