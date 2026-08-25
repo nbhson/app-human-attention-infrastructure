@@ -54,7 +54,7 @@ import {
   QueueItemNotFoundError,
   QueueStateError,
 } from './types.js';
-import { assertTransition } from './state-machine.js';
+import { assertTransition, IllegalTransitionError } from './state-machine.js';
 import type {
   DecisionInput,
   DiffProvider,
@@ -275,10 +275,10 @@ export class ReviewService {
   /** Submit a decision on a CLAIMED item (day-22 §2.3). */
   async decide(queueId: ReviewQueueItemID, input: DecisionInput): Promise<QueueItemDetail> {
     const row = await this.mustGetRow(queueId);
-    assertTransition(row.status, 'decide');
 
     // A rejection without a reason is un-actionable (Spec 8 §2.3); approve may
-    // stay terse.
+    // stay terse. Checked before any write so a validation failure never mutates
+    // the row.
     if (input.decision === 'REJECT' && input.rationale.trim().length === 0) {
       throw new MissingRationaleError();
     }
@@ -298,7 +298,11 @@ export class ReviewService {
           input.decision === 'APPROVE' ? HumanDecisionType.Approved : HumanDecisionType.Rejected;
         const target = input.decision === 'APPROVE' ? TaskStatus.Approved : TaskStatus.Rejected;
 
-        // 1. Guarded queue flip: CLAIMED → DECIDED (a second decide is a state error).
+        // 1. Guarded queue flip: CLAIMED → DECIDED. This UPDATE — not the
+        //    `row.status` read above — is the concurrency authority, because a
+        //    racing decide can flip the row between our read and our write. A
+        //    second decide on an already-DECIDED row is a state conflict
+        //    (QueueStateError); on a never-claimed row it stays an illegal move.
         const flipped = await this.db
           .update(reviewQueue)
           .set({ status: ReviewQueueStatus.Decided })
@@ -307,7 +311,18 @@ export class ReviewService {
           )
           .returning({ id: reviewQueue.id });
         if (flipped.length === 0) {
-          throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
+          const current = await this.db
+            .select({ status: reviewQueue.status })
+            .from(reviewQueue)
+            .where(eq(reviewQueue.id, queueId));
+          const currentStatus = current[0]?.status;
+          if (currentStatus === undefined) {
+            throw new QueueItemNotFoundError(queueId);
+          }
+          if (currentStatus === ReviewQueueStatus.Decided) {
+            throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, currentStatus);
+          }
+          throw new IllegalTransitionError(currentStatus, 'decide');
         }
 
         // 2. Record the decision (auditable, never silent).
