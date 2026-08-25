@@ -126,21 +126,26 @@ over these states lives in `@harness/orchestrator` (`TaskStateMachine`), not her
 
 ## `events/` — Domain event vocabulary
 
-`EventType` (const-object union, 21 values), `EventEnvelope<T>` (`event_id`,
+`EventType` (const-object union, 33 values), `EventEnvelope<T>` (`event_id`,
 `event_type`, `event_version`, `occurred_at`, `correlation_id`, `payload`), and
 one `*Payload` interface per event.
 
 ```text
-task:   task.created, task.state_changed, task.execution_finished, task.failed,
-        task.orphan_recovered
+task:     task.created, task.state_changed, task.execution_finished, task.failed,
+          task.orphan_recovered
 artifact: artifact.created, artifact.changed, artifact.rollback_requested, artifact.merged
 verification: verification.completed
 attention: attention.assessment_created, attention.item_routed,
-        attention.threshold_adjusted, attention.inflation_detected, attention.item_deferred
-review: review.decision_submitted, review.item_claimed, review.item_released,
-        review.item_escalated
-authz:  authz.decision_denied
+          attention.threshold_adjusted, attention.inflation_detected, attention.item_deferred
+review:   review.decision_submitted, review.item_claimed, review.item_released,
+          review.item_escalated, review.report_created, review.fix_suggestion_created
+authz:    authz.decision_denied
 evaluation: evaluation.escalation_leakage
+integration: integration.pr_fetched, integration.ticket_fetched,
+          integration.writeback_completed
+memory:   memory.entry_created, memory.consolidated, memory.archived
+learning: learning.stage_completed, learning.loop_completed
+system:   system.started, system.stopped
 ```
 
 The bus that transports these lives in `@harness/event-bus`. `TaskTrigger`

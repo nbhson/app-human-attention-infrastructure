@@ -388,7 +388,7 @@ Three of these are placeholder string names kept for the abandoned code-gen path
 the other 47 are the real registrations. Note there is **no `TOKENS.Runner`** — the
 verification sandbox is `TOKENS.Sandbox` → `DockerSandbox`.
 
-### `EventType.*` — 31 events
+### `EventType.*` — 33 events
 
 ```text
 task.created                 task.state_changed        task.execution_finished
@@ -404,6 +404,7 @@ review.report_created         review.fix_suggestion_created
 integration.writeback_completed
 memory.entry_created          memory.consolidated      memory.archived
 learning.stage_completed      learning.loop_completed
+system.started                system.stopped
 ```
 
 ### DB tables — 49

@@ -59,7 +59,7 @@ start app  (pnpm dev / node apps/api)
   └─ 1. dotenv            load .env → ../../.env          env (creds, toggles)
   └─ 2. buildContainer()  register 47 real + 3 stub      object graph (factories only, no engine runs)
   └─ 3. initApiTracing()  resolve Db + Logger → initTracing   OTel provider (module global)
-  └─ 4. buildApp()        Fastify: trace hook → auth hook → 9 route groups
+  └─ 4. buildApp()        Fastify: trace hook → auth hook → 10 route groups
   └─ 5. bootContainer()   resolve the 11 eager tokens      bus subscribers bind (first engine code)
   └─ 6. app.listen()      { port: 3000, host: '0.0.0.0' }  serve traffic
 ```
@@ -71,7 +71,7 @@ start app  (pnpm dev / node apps/api)
 | 1 | `.env` load | `index.ts:18` | Read creds + toggles from `.env`, then `../../.env` (first existing wins; an already-exported `DATABASE_URL` is never overridden) |
 | 2 | `buildContainer()` | `index.ts:28` → `bootstrap.ts:202` | Register every token as a **lazy factory** — no engine is constructed. One real side effect: `mkdirSync(SANDBOX_ROOT)` |
 | 3 | `initApiTracing()` | `index.ts:31` → `observability.ts` | The first *resolutions*: `Db` + `Logger` are constructed, then the OpenTelemetry provider is installed (module-global singleton) with `trace_correlation` write-through |
-| 4 | `buildApp()` | `index.ts:32` → `app.ts:29` | Build the Fastify server: `/health`, the trace hook, the auth hook, then 9 route groups (auth · review · reviews · provenance · ops · metrics · admin · settings · learning). Handlers run only on a request. (Between this and stage 5, `index.ts:33-35` logs each registered token — informational only) |
+| 4 | `buildApp()` | `index.ts:32` → `app.ts:29` | Build the Fastify server: `/health`, the trace hook, the auth hook, then 10 route groups (auth · review · reviews · provenance · audit · ops · metrics · admin · settings · learning). Handlers run only on a request. (Between this and stage 5, `index.ts:33-35` logs each registered token — informational only) |
 | 5 | `bootContainer()` | `index.ts:37` → `bootstrap.ts:777` | Resolve the **11 eager tokens** — the first engine code that runs (the list below) |
 | 6 | `app.listen()` | `index.ts:41` | Bind `0.0.0.0:3000` and serve. The process is now idle until a request arrives |
 
@@ -111,6 +111,20 @@ Every other token is **lazy** — it materialises the first time a route asks fo
 The review slice in particular (`ReviewIngestService` / `ReviewAgent` /
 `GitProvider` / `TicketProvider` / `WriteBackService`) resolves on the first
 `POST /api/reviews`, not at boot.
+
+---
+
+### Runtime lifecycle events (auditable boot & shutdown)
+
+The process is itself an event source, so startup and shutdown are first-class
+audit entries, not just stdout. After `bootContainer()` returns (stage 5) and
+before `app.listen()` (stage 6), `index.ts` publishes `system.started` carrying
+`service`, `transport`, and the full token list; on `SIGINT`/`SIGTERM` it publishes
+`system.stopped` with the signal as `reason` before exiting. Both flow through
+`EventLogWriter` into `event_log`, so the `/api/audit` timeline
+([`../runbook/audit-queries.md`](../runbook/audit-queries.md)) opens with
+"application started"/"application stopped" bracketing the events, LLM calls, tool
+calls, and agent runs of a session.
 
 ---
 
