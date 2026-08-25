@@ -110,5 +110,5 @@ to fit them from the `was_useful` column the decision loop now collects.
 ---
 
 *Follows [wiring-map](../architecture/wiring-map.md) and the
-[Phase-3 backlog](../plan/phase-3/backlog.md). Companion: the weekly retrospectives
+Phase-3 backlog. Companion: the weekly retrospectives
 in this directory.*

@@ -117,4 +117,4 @@ that later flips on by mistake fails the suite rather than nudging a live host.
 
 ---
 
-*Next: [Day 38 — Docs: Specs to v1.0 Candidates, Runbook + Dev Guide](../plan/phase-3/day-38.md)*
+*Next: Day 38 — Docs: Specs to v1.0 Candidates, Runbook + Dev Guide*

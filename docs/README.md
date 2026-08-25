@@ -19,15 +19,6 @@ The full package list (25 `@harness/*` packages + 2 apps) and their documentatio
 live under [`../packages/`](../packages/) — each `README.md` covers modules,
 key invariants, and its boundary rules.
 
-## Build plan (`plan/`)
-
-The day-by-day build history, one file per day — see
-[`plan/README.md`](plan/README.md):
-
-- [`phase-1/`](plan/phase-1/README.md) · `day-01..30` (✅ complete)
-- [`phase-2/`](plan/phase-2/README.md) · `day-01..30` (✅ complete)
-- [`phase-3/`](plan/phase-3/README.md) · [backlog](plan/phase-3/backlog.md) · `day-01..40` (✅ complete — tagged `v0.3.0-harness`; [exit review](retros/phase3-exit-review.md))
-
 ## Architecture notes (`architecture/`)
 
 - [wiring-map](architecture/wiring-map.md) — the DI object graph (living document)

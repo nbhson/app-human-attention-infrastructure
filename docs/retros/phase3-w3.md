@@ -121,6 +121,6 @@ test` (**787** tests / 139 files) are all green before this note is committed. T
 demo runs end-to-end with no live key, no network, and no Docker — the sandbox
 clone/test legs are exercised by their own unit/parity suites.*
 
-*Next: [Day 16 — Review-memory Model: Reviews/Findings/Decisions Tiers](../plan/phase-3/day-16.md).
+*Next: Day 16 — Review-memory Model: Reviews/Findings/Decisions Tiers.
 Week 4 pivots to review memory; the clone/verify machinery is now stable — do not
 refactor it mid-phase.*

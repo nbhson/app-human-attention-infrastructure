@@ -18,7 +18,7 @@ liveness off the Day-4 registry plus the Day-07 report's new sections.*
 ```bash
 docker compose down -v
 docker compose up -d          # wait for postgres healthy
-pnpm db:migrate               # applies migrations through 0030 (Spec 8 review enum)
+pnpm --filter @harness/db migrate   # applies migrations through 0030 (Spec 8 review enum)
 pnpm dev                      # API on http://localhost:3000 for §2
 ```
 

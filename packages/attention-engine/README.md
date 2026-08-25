@@ -5,7 +5,7 @@ attention score, routing to review-or-approve, weight/calibration seams, the
 guard-railed auto-approve path, and the measured learning loop that fits and
 proposes new weights.
 
-**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
+**Status:** complete (as-built) ·
 **Boundary rule:** engine (R4) — imports only shared packages; never another engine.
 
 ---

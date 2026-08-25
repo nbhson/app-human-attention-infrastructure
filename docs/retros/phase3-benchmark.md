@@ -97,4 +97,4 @@ a screenshot is not an audit (day-39 §2.2).
 
 ---
 
-*Next: [Day 40 — Phase-3 Exit Review: Learning Closed + Demonstrable; Tag Release](../plan/phase-3/day-40.md)*
+*Next: Day 40 — Phase-3 Exit Review: Learning Closed + Demonstrable; Tag Release*

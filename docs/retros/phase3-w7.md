@@ -113,4 +113,4 @@ live broker ships in the repo — that path is compile-tested only, mirroring th
 
 ---
 
-*Next: [Day 36 — Hardening: Write-back Idempotency, Token Redaction, Multi-provider Concurrency](../plan/phase-3/day-36.md)*
+*Next: Day 36 — Hardening: Write-back Idempotency, Token Redaction, Multi-provider Concurrency*

@@ -23,7 +23,7 @@ queryable, and auditable.
 > AI agent writing files, committing them, and auto-merging on approval — is
 > retired. The product is now a read-only **PR review control plane**: the AI is
 > the *reviewer*, not the author. See [§What changed](#what-changed) and the
-> [retirement record](docs/plan/phase-3/backlog.md).
+> [Phase-3 exit review](docs/retros/phase3-exit-review.md).
 
 ---
 
@@ -171,7 +171,7 @@ live-model drift, and `n=6` is a mechanism test, not a signal. See
 git clone <repo-url> harness-human-attention-infrastructure
 cd harness-human-attention-infrastructure
 pnpm install                        # links the @harness/* workspace packages
-docker compose up -d                # Postgres :5432 · Prometheus :9090 · Grafana :3001 · MinIO :9000
+docker compose up -d                # Postgres :5432 (the only docker service)
 cp .env.example .env                # DATABASE_URL + placeholder provider keys
 pnpm --filter @harness/db migrate   # apply migrations
 pnpm test                           # unit + integration (~2 min)
@@ -190,8 +190,8 @@ review memory, and a closed learning loop with an LLM-as-judge quality signal.
 
 Two items are honestly **carried forward** (`EXIT-WITH-CARRYFORWARD`, 8 of 9 exit
 criteria): hybrid context ranking as the default (Day-29 A/B returned HOLD) and
-auto-applied fitted attention weights. Both are named in the
-[backlog](docs/plan/phase-3/backlog.md) (CF-1 / CF-2) with their gates.
+auto-applied fitted attention weights. Both are named as CF-1 / CF-2 in the
+[Phase-3 exit review](docs/retros/phase3-exit-review.md).
 
 The historical record of the build — the measurement loop, calibration, A/B harness,
 closed-loop, and the honest exit reviews — lives in [`docs/retros/`](docs/retros/).
@@ -222,7 +222,6 @@ The green gate is `pnpm test && pnpm lint && pnpm e2e`.
 | What | Where |
 | --- | --- |
 | **Architecture spec** | [`docs/architecture/`](docs/architecture/) + one `README.md` per `@harness/*` package |
-| **Build plan & backlog** | [`docs/plan/`](docs/plan/README.md) — day-by-day build history + backlog |
 | **Operations runbook** | [`docs/runbook/`](docs/runbook/README.md) — incidents, exact commands, escalation rules |
 | **Developer guide** | [`docs/dev-guide.md`](docs/dev-guide.md) — clone-to-green in ~15 minutes |
 | **Wiring map** | [`docs/architecture/wiring-map.md`](docs/architecture/wiring-map.md) — the DI object graph |
@@ -235,7 +234,6 @@ The green gate is `pnpm test && pnpm lint && pnpm e2e`.
 | `packages/` | 25 engines and shared libraries (`@harness/*`) |
 | `apps/api` | Fastify API + single DI bootstrap (`bootstrap.ts`) + the review slice |
 | `apps/web` | React + Vite review UI |
-| `docs/plan/` | Day-by-day build history + backlog |
 | `docs/architecture/` | Architecture spec, wiring map, and living architecture notes |
 | `docs/runbook/` | Audit-query cookbook + operational runbook + limitations |
 | `docs/retros/` | Honest weekly retrospectives |

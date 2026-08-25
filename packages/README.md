@@ -85,8 +85,8 @@ tooling                       import no @harness package (pure seams)
 
 | App | Role |
 | --- | --- |
-| [`apps/api`](../apps/api/README.md) | Fastify server — the composition root (`buildContainer` + `bootContainer`) |
-| [`apps/web`](../apps/web/README.md) | React/Vite SPA — talks to the API over HTTP only |
+| `apps/api` | Fastify server — the composition root (`buildContainer` + `bootContainer`) |
+| `apps/web` | React/Vite SPA — talks to the API over HTTP only |
 
 ## Why flat?
 

@@ -19,7 +19,7 @@ retired.
 | --- | --- | --- |
 | Node.js | ≥ 20 | Engine runtime + `engines` field |
 | pnpm | ≥ 9 | `packageManager` pins `9.15.4` |
-| Docker | any recent | local PostgreSQL (+ pgvector), Prometheus, Grafana, MinIO — all via `docker compose` |
+| Docker | any recent | local PostgreSQL (+ pgvector) via `docker compose` |
 
 Nothing else. No global TypeScript, no Postgres client install, no service mesh.
 
@@ -30,7 +30,7 @@ git clone <repo-url> harness-human-attention-infrastructure
 cd harness-human-attention-infrastructure
 
 pnpm install             # links the @harness/* workspace packages
-docker compose up -d     # starts postgres:16 (pgvector) + Prometheus + Grafana + MinIO
+docker compose up -d     # starts postgres:16 (pgvector) — the only docker service
 
 cp .env.example .env     # DATABASE_URL + placeholder provider keys
 
@@ -47,13 +47,12 @@ What each command actually does:
 
 - `pnpm install` links the 25 `@harness/*` packages via workspace protocol, so
   importing `@harness/db` from another package resolves to `packages/db`, not npm.
-- `docker compose up -d` runs the four services in `docker-compose.yml`: **Postgres**
-  (the `pgvector/pgvector:pg16` image — vector column + plain SQL in one),
-  **Prometheus** (scrapes the host-run API's `GET /metrics`), **Grafana**
-  (provisioning-as-code dashboards from `infra/grafana`), and **MinIO**
-  (S3-compatible object store for day-21 artifact offload). Postgres binds
+- `docker compose up -d` runs the one service in `docker-compose.yml`: **Postgres**
+  (the `pgvector/pgvector:pg16` image — vector column + plain SQL in one), bound to
   `localhost:5432` with user/password/db `harness`/`harness`/`harness` in the
-  `pgdata` volume; MinIO is inert until `OBJECT_STORE_ENDPOINT` is set.
+  `pgdata` volume. No Prometheus, Grafana, or MinIO is bundled: the metrics are
+  served in Prometheus text format at `GET /metrics` for your own scraper, and the
+  object store needs your own S3-compatible endpoint (see §7).
 - `cp .env.example .env` — the `.env` is auto-loaded (best-effort) by
   `packages/db/src/env.ts`'s dotenv config; `migrate`/`seed` **throw** without a
   `DATABASE_URL`. Tests have a hard-coded fallback of the same local URL, but the
@@ -111,11 +110,11 @@ What each command actually does:
 
 | You want to… | Look at |
 | --- | --- |
-| Change the task state machine | `2_Task_Work_Orchestrator_v0.3.md` §3 + `packages/orchestrator/src/state-machine/` |
-| Change how changes are scored | `6_Attention_Engine_v0.2.md` §3 + `packages/attention-engine/src/scoring.ts` / `factors.ts` |
-| Change context ranking | `4_Context_Engine_v0.3.md` §5 + `packages/context-engine/src/rank.ts` + `retrieval/retriever-factory.ts` |
+| Change the task state machine | `packages/orchestrator/README.md` + `packages/orchestrator/src/state-machine/` |
+| Change how changes are scored | `packages/attention-engine/README.md` + `packages/attention-engine/src/scoring.ts` / `factors.ts` |
+| Change context ranking | `packages/context-engine/README.md` + `packages/context-engine/src/rank.ts` + `retrieval/retriever-factory.ts` |
 | Add/rename a ranking method | `packages/context-engine/src/retrieval/retriever-factory.ts` (`rank_method`) |
-| Add a verification check | `7_Verification_Engine_v0.3.md` §4 + `packages/verification-engine/src/checks/` |
+| Add a verification check | `packages/verification-engine/README.md` + `packages/verification-engine/src/checks/` |
 | Add a clone/targeted check | `packages/verification-engine/src/clone-checks/` + `targeted-verifier.ts` |
 | Change review endpoints | `apps/api/src/routes/review.ts` + `packages/review/` |
 | Change the review-slice ingest flow | `apps/api/src/services/review-ingest.ts` + `apps/api/src/routes/reviews.ts` |
@@ -196,7 +195,7 @@ violated rule. Fix it by passing the dependency through the constructor (wired i
 neighbours is *events and data*, not method calls — so a change to the Agent
 Runtime cannot silently alter the Attention Engine's behaviour. It keeps each
 engine independently testable and replaceable, which is the whole point of the
-modular monolith (Architecture spec §4.5, §18).
+modular monolith (Architecture spec §7, cross-cutting invariants).
 
 ## 6. Testing philosophy
 
@@ -233,14 +232,15 @@ these subsystems is opt-in via an env var; flip it on only when you need
 that behaviour.
 
 **Object store (day-21).** Unset `OBJECT_STORE_ENDPOINT` keeps snapshot content
-inline in Postgres (the default). Set it (MinIO is already up via compose)
-to offload large (`> 1 MiB`) snapshots to S3, keyed by content hash:
+inline in Postgres (the default). Set it to a S3-compatible endpoint — the repo
+provisions none, so point it at your own S3/MinIO — to offload large (`> 1 MiB`)
+snapshots, keyed by content hash:
 
 ```sh
-OBJECT_STORE_ENDPOINT=http://localhost:9000 \
+OBJECT_STORE_ENDPOINT=https://s3.example.com \
 OBJECT_STORE_BUCKET=harness-artifacts \
-OBJECT_STORE_ACCESS_KEY_ID=minioadmin \
-OBJECT_STORE_SECRET_ACCESS_KEY=minioadmin \
+OBJECT_STORE_ACCESS_KEY_ID=... \
+OBJECT_STORE_SECRET_ACCESS_KEY=... \
 OBJECT_STORE_THRESHOLD_BYTES=1048576 \
 pnpm dev
 ```

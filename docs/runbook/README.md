@@ -232,7 +232,7 @@ docker compose exec -T postgres psql -U harness -d harness \
 - `attention.threshold_adjusted` firing with usefulness still falling → the
   nudge is self-correcting but the band is noisy; let it run.
 - **Usefulness < 50% on `HIGH` for ~2 weeks** → the weights are untuned (they're
-  explicit placeholders — `6_Attention_Engine_v0.2.md` §3). This is a **policy
+  explicit placeholders — `packages/attention-engine/README.md`). This is a **policy
   decision for weight calibration, not a code fix in production**. Escalate
   to the owner, don't hand-tune `PRIORITY_WEIGHTS`.
 
@@ -247,7 +247,7 @@ only after the calibration path exists.
 you've exhausted R1–R5 and must move it by hand.
 
 > **This is the last resort.** It bypasses the state machine's validators, so it is
-> *your* job to pick a valid transition (`2_Task_Work_Orchestrator_v0.3.md` §3) and
+> *your* job to pick a valid transition (`packages/orchestrator/README.md`) and
 > to leave a complete audit trail. Skipping the history row is forbidden — it makes
 > the timeline un-replayable (audit-query Q2).
 
@@ -325,10 +325,11 @@ before expecting a message broker, or before "fixing" the nonexistent worker poo
 
 ## R9 — Degradation fallback alerts (Day 26)
 
-The opt-in subsystems degrade **loudly**: every fallback bumps a Prometheus counter
-and (on a sustained rate) pages via `infra/prometheus/alerts.yml`. A silent
-fallback is a subsystem that's "down" but quietly misbehaving — the exact failure
-Spec 10 exists to prevent. The counters are served by the API's `GET /metrics`:
+The opt-in subsystems degrade **loudly**: every fallback bumps a Prometheus-format
+counter. A silent fallback is a subsystem that's "down" but quietly misbehaving —
+the exact failure the degradation contract exists to prevent. There is no bundled
+Prometheus/Grafana to scrape or page on the counters — point your own at the API's
+`GET /metrics`:
 
 ```bash
 curl -s localhost:3000/metrics \
@@ -338,15 +339,15 @@ curl -s localhost:3000/metrics \
 | Alert | Meaning (the fallback) | Diagnose | Response |
 | --- | --- | --- | --- |
 | `SemanticFallbackSustained` | semantic shadow → keyword (`rank_method = keyword`) | `curl -s localhost:3000/metrics \| grep harness_context_semantic_fallback_total` | The keyword path is serving **correctly** — this is fail-open. Check the embedder: is `EMBEDDINGS_BASE_URL` reachable (`curl -s $EMBEDDINGS_BASE_URL`)? Without it the shadow stops *measuring*, which silently unvalidated the Day-18 invariant. |
-| `ObjectStoreFallbackSustained` | oversize content inlined to db | `curl -s localhost:3000/metrics \| grep harness_object_store_fallback_total` | MinIO is down: `docker compose ps minio` then `curl -s http://localhost:9000/minio/health/live`. Bring it back before Postgres grows past sizing. |
-| `ObjectStoreErrorSustained` | writes fail-closed (caller rejected, never silent byte loss) | `grep harness_object_store_error_total` | Same MinIO triage, but *worse*: content at/over the inline ceiling is being **rejected**, not inlined. Check bucket/creds/disk. |
-| `ObjectStoreIntegrityDrift` | SHA-256 read-back mismatch | `grep harness_object_store_integrity_error_total` | **Data-integrity incident, not availability.** A stored object's bytes no longer hash to its address — tampering or silent corruption. Open an incident immediately; do not just restart MinIO. |
-| `SandboxFallbackSustained` | verification → in-process (no isolation) | `grep harness_sandbox_fallback_total` | Docker daemon or the pinned image is unavailable: `docker images harness-verify:node20`; rebuild if missing (`docker build -t harness-verify:node20 packages/sandbox`). Fail-open, but isolation is the point (Spec 7 §5.5) — triage it. |
+| `ObjectStoreFallbackSustained` | oversize content inlined to db | `curl -s localhost:3000/metrics \| grep harness_object_store_fallback_total` | The S3-compatible endpoint is down: check `OBJECT_STORE_ENDPOINT` reachability, then bucket/creds. The repo no longer provisions MinIO — you supply it. Bring it back before Postgres grows past sizing. |
+| `ObjectStoreErrorSustained` | writes fail-closed (caller rejected, never silent byte loss) | `grep harness_object_store_error_total` | Same object-store triage, but *worse*: content at/over the inline ceiling is being **rejected**, not inlined. Check bucket/creds/disk. |
+| `ObjectStoreIntegrityDrift` | SHA-256 read-back mismatch | `grep harness_object_store_integrity_error_total` | **Data-integrity incident, not availability.** A stored object's bytes no longer hash to its address — tampering or silent corruption. Open an incident immediately; do not just restart the object store. |
+| `SandboxFallbackSustained` | verification → in-process (no isolation) | `grep harness_sandbox_fallback_total` | Docker daemon or the pinned image is unavailable: `docker images harness-verify:node20`; rebuild if missing (`docker build -t harness-verify:node20 packages/sandbox`). Fail-open, but isolation is the point (see `packages/sandbox/README.md`) — triage it. |
 
-The degradation contract, exact counter, and the failure-injection test that
-proves each one are tabled in [hardening-gates.md](../plan/phase-2/hardening-gates.md).
-Thresholds in `alerts.yml` are deliberately conservative placeholders; tune them
-against real SLIs at the Day-26 retrospect, not in an incident.
+The degradation contract and exact counter are covered by each subsystem's
+failure-injection tests (see `packages/object-store/src/__tests__/failure-injection.test.ts`
+for the object-store case). There are no bundled alert thresholds — tune them
+against your own real SLIs, not in an incident.
 
 ---
 

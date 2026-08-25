@@ -131,5 +131,5 @@ retrieval; every ingested entry cites ≥1 evidence; `pnpm test && pnpm lint` gr
 hermetically against an isolated Postgres schema, dropped on exit — no live API key, no
 network, no shared database mutation.*
 
-*Next: [Day 21 — LLM-as-judge on Review Reports: Severity/Routing Rubric](../plan/phase-3/day-21.md).
+*Next: Day 21 — LLM-as-judge on Review Reports: Severity/Routing Rubric.
 Memory is now stable — do not refactor it mid-phase; Week 5 pivots to review-quality calibration.*

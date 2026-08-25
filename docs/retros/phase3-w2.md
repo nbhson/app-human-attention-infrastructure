@@ -97,5 +97,5 @@ token bytes.
 (**745** tests / 134 files) are all green before this note is committed. The
 stubbed demo runs end-to-end with no live token and no key in the repo.*
 
-*Next: [Day 11 — Clone a PR into a sandbox worktree (`GitProvider.cloneAndCheckout`)](../plan/phase-3/day-11.md). Week 3 pivots to verification breadth; the
+*Next: Day 11 — Clone a PR into a sandbox worktree (`GitProvider.cloneAndCheckout`). Week 3 pivots to verification breadth; the
 write-back seam is closed at this checkpoint — do not start it back up early.*

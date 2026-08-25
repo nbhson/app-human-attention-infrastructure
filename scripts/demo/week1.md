@@ -19,10 +19,10 @@ mock OIDC exchange (`day-01 §3.5`).*
 ## 0. Prereqs & clean stack
 
 ```bash
-docker compose down -v        # fresh postgres + prometheus + grafana
+docker compose down -v        # fresh postgres (the only docker service)
 docker compose up -d          # wait for postgres healthy
 
-pnpm db:migrate               # apply migrations to the fresh DB
+pnpm --filter @harness/db migrate   # apply migrations to the fresh DB
 pnpm dev                      # API on http://localhost:3000
 ```
 
@@ -163,9 +163,9 @@ curl -s http://localhost:3000/metrics | grep -E 'harness_(routing_items_total|re
 #   harness_assessment_usefulness_total{was_useful="true"} 1
 ```
 
-Optional: open **Grafana** at http://localhost:3001 (admin : `harness`) → the
-**Attention & Review** dashboard (uid `harness-attention`) shows the routing
-funnel, usefulness ratio and dwell distribution over the scrape interval.
+There is no bundled Grafana — the metrics above are Prometheus text format. Point
+your own scraper at `/metrics` to build the routing funnel, usefulness ratio, and
+dwell distribution over the scrape interval.
 
 ---
 
