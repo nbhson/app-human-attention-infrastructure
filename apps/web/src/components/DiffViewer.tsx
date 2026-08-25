@@ -38,6 +38,7 @@ export function DiffViewer({ diffs }: { readonly diffs: readonly ReviewFileDiff[
               fontSize: '0.8rem',
               overflowX: 'auto',
               background: '#f6f8fa',
+              color: '#000000',
               padding: 8,
               borderRadius: 6,
             }}
