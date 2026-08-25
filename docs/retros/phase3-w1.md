@@ -105,4 +105,4 @@ one @harness/mcp client + one mcp.config.json fronts GitHub, GitLab, Bitbucket, 
 (**704** tests / 128 files) are all green before this note is committed. The
 stubbed demo runs end-to-end with no live token and no key in the repo.*
 
-*Next: [Day 06 — `WriteBackService` interface + MCP-backed comment/status impl](../plan/phase-3/day-06.md).*
+*Next: Day 06 — `WriteBackService` interface + MCP-backed comment/status impl.*

@@ -21,7 +21,7 @@ invariant mechanical.*
 docker compose down -v
 docker compose up -d          # wait for postgres healthy
 
-pnpm db:migrate               # applies migrations through 0026 (context_source_cache)
+pnpm --filter @harness/db migrate   # applies migrations through 0026 (context_source_cache)
 pnpm seed:metrics-checkpoint  # prime a decidable review window (used by earlier weeks)
 pnpm dev                      # API on http://localhost:3000 for §3
 ```

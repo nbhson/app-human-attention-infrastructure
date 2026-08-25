@@ -4,7 +4,7 @@ The provider seam that reads an external pull request / merge request from a Git
 host, so the AI reviewer has a diff to review — and, for the write-back path,
 maps write capabilities to the same host's MCP tools.
 
-**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
+**Status:** complete (as-built) ·
 **Boundary rule:** depends only on `@harness/domain`; never an engine, host SDK, or event-bus.
 
 ---

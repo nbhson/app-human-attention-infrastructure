@@ -262,7 +262,7 @@ Toàn bộ lộ trình 3 giai đoạn xây dựng đã hoàn tất, tagged `v0.3
 - **Calibrate & Close the Measurement Loop** (`v0.2.0-harness`): Evaluation Engine v0 (metrics + A/B harness), calibrate attention weights từ data `was_useful`, semantic search infra (shadow, sau Ranker seam), auto-approve sau flag + audit.
 - **Learn & Automate Under Guardrails** (`v0.3.0-harness`): Memory/Evidence, targeted/incremental verification (dependency graph), context ranking hybrid (đã xây — default vẫn keyword vì A/B HOLD), multi-agent bounded, benchmark + LLM-as-judge, đóng vòng Evaluate → Calibrate → Deploy → Observe.
 
-Lịch sử phân kỳ theo ngày nằm ở `docs/plan/` (phase-1/2/3); tổng kết exit ở `docs/retros/phase3-exit-review.md`.
+Lịch sử phân kỳ theo ngày (`docs/plan/`, phase-1/2/3) đã được gỡ bỏ; tổng kết exit ở `docs/retros/phase3-exit-review.md`.
 
 ---
 
@@ -282,6 +282,6 @@ Các điểm "cần lưu ý" trước đây nay đã được giải quyết tro
 - ✅ **Data storage strategy** — PostgreSQL 16 cho tất cả; conventions rõ ràng; evidence append-only
 - ✅ **Error handling & fallback** — FailureClass (TRANSIENT/PERMANENT/RESOURCE), retry policy, escalation → AWAITING_HUMAN_INTERVENTION
 - ✅ **Spec 9 (Memory/Evidence) & Spec 11 (Evaluation Engine)** — đã formalize từ các ghi chú "Phase sau" thành spec riêng: Evidence store append-only và Evaluation seam
-- ⚠️ **Auth** — vẫn là một mục P0 trong backlog (xem `docs/plan/phase-3/backlog.md`)
+- ✅ **Auth** — đã có `@harness/auth` (`requireRole` + session/OIDC identity); SSO đầy đủ vẫn là P0 ngoài phạm vi.
 
-**Kết luận:** Kiến trúc giữ nguyên hướng đi đúng (tập trung human attention bottleneck, evidence > confidence), nay đã đủ chi tiết để implement — với 11 phân hệ (state machine chặt chẽ, event model có audit trail), lộ trình rõ ràng, và kế hoạch từng bước trong `docs/plan/`.
+**Kết luận:** Kiến trúc giữ nguyên hướng đi đúng (tập trung human attention bottleneck, evidence > confidence), nay đã đủ chi tiết để implement — với 11 phân hệ (state machine chặt chẽ, event model có audit trail), lộ trình rõ ràng, và kế hoạch từng bước đã được ghi trong lịch sử build.

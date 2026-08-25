@@ -4,7 +4,7 @@ Builds the context the reviewer actually sees: exact tokenization, relevance
 ranking (keyword default; hybrid + RAG Fusion built and selectable), freshness
 gating, review-memory injection, and an invalidate-on-change cache.
 
-**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
+**Status:** complete (as-built) ·
 **Boundary rule:** engine (R4) — imports only shared packages; consumes the embedder and
 memory seams, never another engine.
 
@@ -70,7 +70,7 @@ what the model will count.
   variants and re-fuses them — opt-in, never the default.
 
 `RetrieverFactory.resolve(rank_method)` selects among them, but
-`DEFAULT_RANK_METHOD` is **held at `keyword`** by the Day-29 A/B gate: the hybrid
+`DEFAULT_RANK_METHOD` is **held at `keyword`** by the A/B gate: the hybrid
 arm reproduced the keyword order exactly over the replay corpus (no measured WIN),
 so the default does not flip on a non-result. `hybrid` and `rag_fusion` remain
 *selectable* per request; the semantic shadow (`retrieval/shadow.ts`) scores and

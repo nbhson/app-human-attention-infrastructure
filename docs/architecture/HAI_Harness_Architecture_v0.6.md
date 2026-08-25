@@ -174,11 +174,10 @@ hai-harness/
 ├── packages/                # 25 packages under @harness/* (see §6 table)
 ├── docs/
 │   ├── architecture/        # architecture spec + wiring map + living notes
-│   ├── plan/                # day-by-day build plans (Phases 1–3)
-│   ├── runbook/             # operators runbook (R1–R8), audit cookbook, limitations
+│   ├── runbook/             # operators runbook (R1–R10), audit cookbook, limitations
 │   ├── retros/              # honest weekly + phase retrospectives
 │   └── dev-guide.md         # clone-to-green walkthrough
-├── infra/                   # docker / deployment
+├── docker-compose.yml       # Postgres :5432 (the only docker service)
 ├── scripts/                 # demo + eval scripts
 └── README.md                # project entry point
 ```
@@ -191,9 +190,9 @@ Full per-package source trees are in each package's `README.md`; the clone-to-gr
 
 - **Core loop** (`v0.1.0-harness`): Task → Context → Agent → Artifact → Verification → Attention → Review → Decision → Evidence.
 - **Measurement loop** (`v0.2.0-harness`): Evaluation engine, weight calibration, semantic-search infrastructure (shadow), auto-approve behind flag. Exit review: **8 of 9** criteria met; the one caveat (fitted weights 0.316 did not beat the placeholder 0.262) carried forward.
-- **Review control plane** (`v0.3.0-harness`): MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `@harness/mcp` client + `mcp.config.json`), toggle-gated write-back, review memory, LLM-as-judge with inter-judge agreement, and the closed learning loop. Exit review: **8 of 9** criteria met → `EXIT-WITH-CARRYFORWARD`; the one caveat (hybrid ranking not the default — Day-29 A/B HOLD) is carried forward as [`backlog`](../plan/phase-3/backlog.md) items CF-1/CF-2. See [`phase3-exit-review`](../retros/phase3-exit-review.md).
+- **Review control plane** (`v0.3.0-harness`): MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `@harness/mcp` client + `mcp.config.json`), toggle-gated write-back, review memory, LLM-as-judge with inter-judge agreement, and the closed learning loop. Exit review: **8 of 9** criteria met → `EXIT-WITH-CARRYFORWARD`; the one caveat (hybrid ranking not the default — Day-29 A/B HOLD) is carried forward (CF-1 / CF-2) in the [`phase3-exit-review`](../retros/phase3-exit-review.md).
 
-Build order and backlog: [`docs/plan/README.md`](../plan/README.md) → [`docs/plan/phase-3/README.md`](../plan/phase-3/README.md).
+The day-by-day build plan has been retired; the honest build history and exit reviews live in [`docs/retros/`](../retros/).
 
 ---
 

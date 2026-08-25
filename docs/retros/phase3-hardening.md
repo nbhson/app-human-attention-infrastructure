@@ -121,4 +121,4 @@ remains compile-tested only; no live key has ever been committed.
 
 ---
 
-*Next: [Day 37 — E2E Full System under Phase-3 Infra + Load Profile](../plan/phase-3/day-37.md)*
+*Next: Day 37 — E2E Full System under Phase-3 Infra + Load Profile*

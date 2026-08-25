@@ -25,7 +25,7 @@ hand-authored table.*
 docker compose down -v        # fresh postgres
 docker compose up -d          # wait for postgres healthy
 
-pnpm db:migrate               # apply migrations (includes 0022 auto-approve + calibration)
+pnpm --filter @harness/db migrate   # apply migrations (includes 0022 auto-approve + calibration)
 pnpm seed:metrics-checkpoint  # prime a decidable review window (real actor + was_useful)
 pnpm eval:make-dataset --label=outcome   # §1
 pnpm eval:fit --dataset=<id>             # §2

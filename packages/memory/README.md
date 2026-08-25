@@ -4,7 +4,7 @@ Distills past reviews, findings, and decisions into curated, evidence-backed
 memory; retrieves it relevance-scored for the next review; and runs its
 lifecycle (consolidate → decay → archive).
 
-**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
+**Status:** complete (as-built) ·
 **Boundary rule:** imports only `@harness/domain`, `@harness/event-bus`, `@harness/db`,
 `@harness/di` (R16); consumed by context/attention via the event bus, never by a sibling engine import.
 

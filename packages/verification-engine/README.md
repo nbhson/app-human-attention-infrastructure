@@ -5,7 +5,7 @@ human. Runs compile, test, and sandboxed checks — in isolation, with timeouts,
 with evidence attached — plus the clone-and-test and targeted-verification
 paths.
 
-**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
+**Status:** complete (as-built) ·
 **Boundary rule:** engine (R4) — imports only shared packages; resolves the `TOKENS.Sandbox`
 seam, never a sibling engine's concrete (never `agent-runtime`, never `code-index`).
 

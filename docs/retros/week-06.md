@@ -85,4 +85,4 @@ is `'phase1-keyword-dependency'`, `semanticShadowEnabled` is OFF, and the
 auto-approve flag is OFF. Tag `v0.2.0-harness` cut on the reviewed commit.*
 
 *Prev: [Week-6 A/B dry-run results](week6-ab-results.md) · See also: [Phase-2 →
-3 metrics checkpoint](phase2-metrics.md), [Phase-3 backlog](../plan/phase-3/backlog.md).*
+3 metrics checkpoint](phase2-metrics.md), Phase-3 backlog.*

@@ -108,4 +108,4 @@ on the hot path; the seam is the available cutover point, not the engine's sourc
 
 ---
 
-*Next: [Day 31 — Learning Pipeline: Review Decisions → Calibration Update (Automated)](../plan/phase-3/day-31.md)*
+*Next: Day 31 — Learning Pipeline: Review Decisions → Calibration Update (Automated)*

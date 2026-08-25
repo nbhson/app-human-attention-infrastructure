@@ -3,7 +3,7 @@
 **Status:** Accepted — *partly superseded by `review-reorient`* (see below)
 **Date:** 2026-08-21 (Day 14)
 **Deciders:** HAI Harness build
-**Spec ref:** 5_Artifact_Change_Tracker_v0.2.md (updated)
+**Spec ref:** `packages/artifact-tracker/README.md` (as-built home; the former `5_Artifact_Change_Tracker_v0.2.md` is retired)
 
 > **`review-reorient` note.** The Day-24 merge step (`MergeService` /
 > `ShellGitAdapter.applyAndCommit`) was retired with the code-generation path. The

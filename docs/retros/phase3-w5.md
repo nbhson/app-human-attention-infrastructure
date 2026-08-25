@@ -98,4 +98,4 @@ the verdict is HOLD. The default weight set was **not** flipped.
 
 ---
 
-*Next: [Day 26 — Hybrid Retriever Default: BM25 + Embeddings Fused](../plan/phase-3/day-26.md)*
+*Next: Day 26 — Hybrid Retriever Default: BM25 + Embeddings Fused*

@@ -10,7 +10,7 @@ Summary:
 
 ```sh
 pnpm install                     # links the @harness/* workspace packages
-docker compose up -d             # Postgres :5432 (+ Prometheus/Grafana/MinIO)
+docker compose up -d             # Postgres :5432 (the only docker service)
 cp .env.example .env             # placeholders only — no real keys
 pnpm --filter @harness/db migrate
 pnpm build                       # workspace deps resolve to built dist/
@@ -36,8 +36,8 @@ per-package test matrix (`.github/workflows/ci.yml`).
   `apps/api/src/routes/reviews.ts`.
 - **Engines & libraries** live in `packages/*`. Each package's `README.md` states
   its invariants and boundary rules; engines never import another engine.
-- **Docs** — day plans are `docs/plan/phase-*/day-NN.md`; honest post-mortems are
-  `docs/retros/`; the architecture spec + notes are `docs/architecture/`, and one README per package.
+- **Docs** — honest post-mortems are `docs/retros/`; the architecture spec + notes
+  are `docs/architecture/`, and one README per package.
 
 ## Commits
 

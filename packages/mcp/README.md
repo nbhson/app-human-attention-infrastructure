@@ -4,7 +4,7 @@ The **one client** the harness uses to reach Git hosts (GitHub/GitLab/Bitbucket)
 and ticket systems (Jira). It speaks only the protocol — `initialize`,
 `tools/list`, `tools/call` over JSON-RPC 2.0 — and knows nothing about PRs, MRs,
 or issues. The internet ships the MCP servers; we ship the client + a config
-file (Day 02), not per-provider REST adapters.
+file, not per-provider REST adapters.
 
 **Status:** as-built ·
 **Boundary rule:** a leaf protocol package — depends on nothing but `@harness/domain`.

@@ -11,7 +11,7 @@ claim, decide, release, escalate, or drop changes awaiting review.
 ## Purpose
 
 1. **Expose the queue** — list/detail read models over `review_queue` rows.
-2. **Enforce the lifecycle** — the Spec 8 legal-transition graph.
+2. **Enforce the lifecycle** — the `ReviewAction`/`ALLOWED_FROM` legal-transition graph.
 3. **Capture decisions** — `APPROVE` / `REJECT` with a required rationale.
 4. **Handle the off-ramps** — `release` (claim timeout), `escalate` (higher authority), `drop`.
 5. **Feed the attention loop** — report reviewer usefulness back to calibration.
@@ -53,7 +53,7 @@ state-machine table. A bad move throws `IllegalTransitionError`, never logs-and-
 ## Decisions
 
 The API accepts `APPROVE` / `REJECT` (`DecisionChoice`). A submitted
-decision carries `rationale` (required) + `wasUseful` (feeds the Day-19
+decision carries `rationale` (required) + `wasUseful` (feeds the
 alert-fatigue loop). `HumanDecisionType` also has `REQUEST_CHANGES`,
 `OVERRIDDEN`, `DEFERRED`, `ESCALATED`, and the machine `AUTO_APPROVED` (recorded
 by the attention engine, never passed through the review UI).
@@ -69,7 +69,7 @@ as narrow interfaces and injected by the composition root:
 | --- | --- |
 | `TaskTransition` | Drive the task state machine (`transitionTask`) — e.g. `REJECT → REWORK`. |
 | `FeedbackReporter` | Report `wasUseful` + comment back to attention calibration. |
-| `DiffProvider` | Day-17 unified diffs (`diffChange → ReviewFileDiff[]`). |
+| `DiffProvider` | unified diffs (`diffChange → ReviewFileDiff[]`). |
 
 ---
 

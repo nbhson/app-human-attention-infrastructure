@@ -3,7 +3,7 @@
 A versioned store of gold-labelled review examples — the ground truth for
 review-quality measurement — plus the corpus loader and judge-vs-gold evaluation.
 
-**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
+**Status:** complete (as-built) ·
 **Boundary rule:** read-only evaluator — imports only `@harness/domain`, `@harness/db`,
 `@harness/judge`; never `attention-engine`, `context-engine`, or `review`.
 

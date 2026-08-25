@@ -3,7 +3,7 @@
 PostgreSQL access for the whole system: the schema (49 tables), migrations,
 seeding, and the data-access surface every package reads/writes through.
 
-**Status:** v1.0-candidate (as-built) — pending Day 40 exit review ·
+**Status:** complete (as-built) ·
 **Boundary rule:** imports only `@harness/domain` + `@harness/event-bus`; never an engine.
 
 ---
