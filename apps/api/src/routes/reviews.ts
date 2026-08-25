@@ -194,6 +194,12 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         summary: report.summary,
         overallVerdict: report.overall_verdict,
         createdAt: report.created_at,
+        // The server's *current* write-back arming (the WRITEBACK_ENABLED ceiling).
+        // The UI uses this to disable + explain the "write back" checkbox rather
+        // than letting an operator tick it and silently record OFF. The
+        // per-provider WRITEBACK_<PROVIDER> arm is a further, host-level gate
+        // still enforced at decision time.
+        writeback: { enabled: writebackEnabled(true) },
         stats: computeReviewStats(report.pr_payload, findingsRows),
         findings: findingsRows.map((f) => ({
           id: f.id,

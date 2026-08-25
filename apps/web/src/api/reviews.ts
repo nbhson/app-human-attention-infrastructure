@@ -145,6 +145,13 @@ export interface ReviewReport {
   readonly trace: ReviewTrace;
   readonly decisions: readonly ReviewDecisionRecord[];
   readonly writebacks: readonly WritebackRecord[];
+  /**
+   * The server's current write-back arming (the `WRITEBACK_ENABLED` ceiling).
+   * When `enabled` is false the "write back" checkbox is not armed: toggling it
+   * would be recorded as OFF, so the UI disables + explains it instead. Absent
+   * only on a backend predating this field (treat as unarmed).
+   */
+  readonly writeback?: { readonly enabled: boolean };
 }
 
 /** Response of `POST /api/reviews`. */

@@ -105,6 +105,14 @@ export default function ReviewReportPage(): JSX.Element {
 
   const findings = sortFindingsBySeverity(data.findings);
 
+  // The server decides whether the "write back" checkbox is even meaningful: an
+  // unarmed deployment (WRITEBACK_ENABLED off) would record the toggle as OFF no
+  // matter what, so we disable + explain it instead of letting the reviewer tick
+  // a box that silently does nothing. REQUEST_CHANGES never writes by design.
+  const writebackArmed = data.writeback?.enabled ?? false;
+  const requestChanges = decision === 'REQUEST_CHANGES';
+  const writebackAllowed = writebackArmed && !requestChanges;
+
   return (
     <main style={{ maxWidth: 1040, margin: '0 auto', padding: 16, paddingBottom: 96 }}>
       <p style={{ margin: 0 }}>
@@ -395,11 +403,12 @@ export default function ReviewReportPage(): JSX.Element {
                 type="checkbox"
                 checked={writeback}
                 onChange={(event) => setWriteback(event.target.checked)}
+                disabled={!writebackAllowed}
                 aria-label="Write decision back to PR"
               />
               Write the decision back to the PR
             </label>
-            {writeback && (
+            {writeback && writebackAllowed && (
               <textarea
                 aria-label="Write-back comment"
                 placeholder="Comment to post on the PR (leave blank for a decision summary)"
@@ -419,8 +428,14 @@ export default function ReviewReportPage(): JSX.Element {
               />
             )}
             <p style={{ margin: 0, color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>
-              Write-back only fires when the operator has armed it (WRITEBACK_ENABLED) and the host
-              is configured. APPROVE/REJECT post a comment + status; REQUEST_CHANGES never writes.
+              {!writebackArmed
+                ? 'Write-back is not armed on this deployment (WRITEBACK_ENABLED is off). This ' +
+                  'decision will still be recorded, but nothing will be posted to the PR until an ' +
+                  'operator sets WRITEBACK_ENABLED=1 and the per-provider WRITEBACK_<PROVIDER> for ' +
+                  'this host.'
+                : requestChanges
+                  ? 'REQUEST_CHANGES is recorded for audit but never writes back to the PR.'
+                  : 'APPROVE posts a comment + success status; REJECT posts a comment + failure status.'}
             </p>
           </div>
         </form>
