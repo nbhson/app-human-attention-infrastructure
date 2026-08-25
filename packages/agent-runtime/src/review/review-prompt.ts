@@ -54,9 +54,9 @@ Rules:
 - Order findings by severity (CRITICAL first), then file. Order suggestions in a natural apply order.
 - If there is nothing wrong, return an empty findings array and overallVerdict "APPROVE".
 - Be specific: reference actual files and lines from the diff. Never invent a file that is not in the diff.
-- The DIFF already excludes generated/dependency files (lockfiles, node_modules, build output, source maps). Review the hand-written source it actually contains.
-- Read and critique the logic of each source file — correctness, structure, syntax, quality, and bugs. Cite concrete lines; do not stop at file metadata or a headline summary.
-- Do not report cosmetic-only issues (a missing trailing newline, whitespace, or formatting) unless they cause a real defect. Reserve NIT for genuine small improvements and INFO for genuine praise.`;
+- The DIFF contains ONLY hand-written source code — lockfiles, build output, docs (README), config (package.json / Dockerfile / nginx / CI) and other infra files have already been removed. Those files are not in the diff; do not invent findings about them.
+- Review the logic of every source file: correctness and hidden bugs (edge cases, race conditions, null/undefined handling, off-by-one), clean code (dead code, duplication, magic numbers, confusing naming), and structure. Cite concrete lines; do not stop at file metadata or a headline summary.
+- Findings are about the code. Do NOT report cosmetic issues (a missing trailing newline, whitespace, or formatting) at all. NIT is for a genuine small code improvement; INFO is for genuine praise. When the code is clean, return an empty findings array and overallVerdict "APPROVE".`;
 
 export function buildReviewPrompt(input: ReviewPromptInput): ReviewPrompt {
   const requirement =

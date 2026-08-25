@@ -36,7 +36,7 @@ const report: ReviewReport = {
     changedLines: 50,
     flaggedAddedLines: 1,
     flaggedFiles: 1,
-    attentionShare: 0.02,
+    attentionShare: 1,
     findingTotal: 1,
     severity: { CRITICAL: 0, MAJOR: 1, MINOR: 0, NIT: 0, INFO: 0 },
   },

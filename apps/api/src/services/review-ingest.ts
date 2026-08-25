@@ -16,7 +16,7 @@
 
 import { eq } from 'drizzle-orm';
 
-import { isGeneratedFile } from '../review-file-classify.js';
+import { isSourceFile } from '../review-file-classify.js';
 
 import type { ReviewAgent } from '@harness/agent-runtime';
 import {
@@ -106,13 +106,16 @@ export function parseGithubPrUrl(prUrl: string): { repo: string; number: number 
 }
 
 /**
- * Concatenate a PR's per-file patches into one diff block. Generated files are
- * skipped (see {@link isGeneratedFile}) and empty/binary patches are dropped, so
- * the block the AI reads is hand-written source, not lockfile/build noise.
+ * Concatenate a PR's per-file patches into one diff block. Only hand-written
+ * source files are kept (see {@link isSourceFile}); empty/binary patches are
+ * dropped. Lockfiles, build output, docs (README), config (package.json /
+ * Dockerfile / nginx) and other infra files are removed here, so the block the
+ * AI reads is *code it can actually critique* — not a README/Dockerfile rewrite
+ * surfacing "missing newline" findings that have nothing to do with the change.
  */
 export function buildDiff(files: readonly PullRequestFile[]): string {
   return files
-    .filter((f) => !isGeneratedFile(f.path) && f.patch.trim().length > 0)
+    .filter((f) => isSourceFile(f.path) && f.patch.trim().length > 0)
     .map((f) => `=== ${f.path} (${f.status}, +${f.additions} -${f.deletions}) ===\n${f.patch}`)
     .join('\n\n');
 }

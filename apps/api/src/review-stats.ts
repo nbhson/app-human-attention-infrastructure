@@ -4,10 +4,11 @@
  * The product's whole thesis is "route human attention to only what matters", so
  * the report surface owes the reviewer a one-glance answer to two questions:
  *
- *  - Of the PR's *source-code* lines, how many live in files that carry an
- *    actionable finding (CRITICAL/MAJOR/MINOR — nitpicks/praise don't count, and
- *    a lockfile/README/Dockerfile rewrite isn't source) (→ how much of the *code*
- *    in this diff needs a human to look at it)?
+ *  - What share of the PR's *source files* carry an actionable finding
+ *    (CRITICAL/MAJOR/MINOR — nitpicks/praise don't count, and a
+ *    lockfile/README/Dockerfile rewrite isn't source)? That is the product's
+ *    one-glance "how much of this change needs a human" answer, and it is
+ *    directly provable: every flagged file is named in a finding.
  *  - Split the findings across the severity bands (→ how much of the review is
  *    CRITICAL vs MINOR vs …)?
  *
@@ -62,7 +63,12 @@ export interface ReviewStats {
   readonly flaggedAddedLines: number;
   /** Distinct source files that carry an actionable finding (NIT/INFO excluded). */
   readonly flaggedFiles: number;
-  /** `flaggedAddedLines / addedLines`, clamped to [0, 1] (0 when nothing is added). */
+  /**
+   * `flaggedFiles / totalFiles`, clamped to [0, 1] (0 when no source files).
+   * File-based, not line-based, so the hero is provable at a glance: "3 of 12
+   * files" maps one-to-one onto the findings listed below (a 600-line file with
+   * one finding is *one* file, not 600 lines of unclear "attention").
+   */
   readonly attentionShare: number;
   /** Total number of findings (the denominator for the severity split). */
   readonly findingTotal: number;
@@ -123,15 +129,13 @@ export function computeReviewStats(
   const removedLines = files.reduce((sum, file) => sum + toNonNegative(file?.deletions), 0);
   const changedLines = addedLines + removedLines;
 
-  // Attention is file-granular, not line-granular: a finding about a file means
-  // "review this file". Counting only `file:line` anchors under-reports — a
-  // handful of anchors divided by thousands of changed lines reads as 0% on any
-  // large PR — and a file-level finding (no line, e.g. "missing newline") would
-  // otherwise contribute nothing. So the flagged share is the ADDED lines lying
-  // in files that carry at least one actionable finding. NIT and INFO are
-  // deliberately excluded: they are nitpicks / praise, not calls for attention,
-  // and counting them is what turned a one-line NIT into "100%" and an
-  // INFO-tagged README into "46%".
+  // The attention share is counted per *file*, not per line: a finding about a
+  // file means "review this file", and "3 of 12 source files" is something the
+  // reviewer can prove by counting the `file`s on the findings below. Counting
+  // added *lines* is what produced the absurd numbers this pivot walks away
+  // from — one finding in a 600-line `toeic.service.ts` inflating the hero to
+  // 25%, or a README rewrite (not even source) to "44%". NIT and INFO are
+  // deliberately excluded: they are nitpicks / praise, not calls for attention.
   const flaggedFiles = new Set<string>();
   for (const finding of findings) {
     if (
@@ -164,7 +168,7 @@ export function computeReviewStats(
     changedLines,
     flaggedAddedLines,
     flaggedFiles: flaggedFiles.size,
-    attentionShare: share(flaggedAddedLines, addedLines),
+    attentionShare: share(flaggedFiles.size, files.length),
     findingTotal: findings.length,
     severity,
   };
