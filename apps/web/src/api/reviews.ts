@@ -203,8 +203,21 @@ export const reviewsApi = {
   getReport(id: string): Promise<ReviewReport> {
     return json<ReviewReport>(fetch(`${BASE}/${id}`));
   },
-  /** Record the human verdict on a report. */
-  decide(id: string, decision: ReviewDecision): Promise<{ reportId: string; decision: string }> {
-    return post<{ reportId: string; decision: string }>(`/${id}/decision`, { decision });
+  /**
+   * Record the human verdict on a report, optionally arming a PR write-back.
+   * `writeback` arms the request-level flag; `comment` overrides the default
+   * decision-summary body. Both are gated server-side (never trusted here).
+   */
+  decide(
+    id: string,
+    input: { decision: ReviewDecision; writeback?: boolean; comment?: string },
+  ): Promise<{ reportId: string; decision: string }> {
+    return post<{ reportId: string; decision: string }>(`/${id}/decision`, {
+      decision: input.decision,
+      ...(input.writeback === true ? { writeback: true } : {}),
+      ...(input.comment !== undefined && input.comment.trim().length > 0
+        ? { comment: input.comment.trim() }
+        : {}),
+    });
   },
 };
