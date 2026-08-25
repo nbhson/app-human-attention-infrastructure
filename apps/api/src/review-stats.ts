@@ -22,7 +22,8 @@
 import { ReviewSeverity } from '@harness/domain';
 import type { ReviewSeverity as ReviewSeverityType } from '@harness/domain';
 
-import { isSourceFile } from './review-file-classify.js';
+import { classifySourceFile, isSourceFile } from './review-file-classify.js';
+import type { SourceCategory } from './review-file-classify.js';
 
 /** Severity bands, highest first — the same order the AI reports them in. */
 export const SEVERITY_ORDER = [
@@ -63,6 +64,24 @@ export interface ReviewStats {
   readonly flaggedAddedLines: number;
   /** Distinct source files that carry an actionable finding (NIT/INFO excluded). */
   readonly flaggedFiles: number;
+  /** The source diff split by what the added lines are (test/style/markup/source). */
+  readonly composition: readonly {
+    readonly category: SourceCategory;
+    readonly files: number;
+    readonly additions: number;
+    readonly deletions: number;
+  }[];
+  /** Diff lines rejected as non-source (generated/doc/config/infra) — out of the metric. */
+  readonly excluded: {
+    readonly files: number;
+    readonly additions: number;
+    readonly deletions: number;
+  };
+  /** Source files carrying an actionable finding — the proof of `attentionShare`. */
+  readonly flaggedFilesList: readonly {
+    readonly file: string;
+    readonly severities: readonly string[];
+  }[];
   /**
    * `flaggedFiles / totalFiles`, clamped to [0, 1] (0 when no source files).
    * File-based, not line-based, so the hero is provable at a glance: "3 of 12
@@ -136,7 +155,10 @@ export function computeReviewStats(
   // from — one finding in a 600-line `toeic.service.ts` inflating the hero to
   // 25%, or a README rewrite (not even source) to "44%". NIT and INFO are
   // deliberately excluded: they are nitpicks / praise, not calls for attention.
-  const flaggedFiles = new Set<string>();
+  // Group actionable findings per source file so `attentionShare` is provable:
+  // `flaggedFiles.size` is the numerator, and `flaggedFilesList` names each file
+  // with its severities (the proof). The Map also feeds `flaggedAddedLines`.
+  const flaggedFiles = new Map<string, string[]>();
   for (const finding of findings) {
     if (
       typeof finding.file === 'string' &&
@@ -144,7 +166,12 @@ export function computeReviewStats(
       isSourceFile(finding.file) &&
       ACTIONABLE_SEVERITIES.has(finding.severity)
     ) {
-      flaggedFiles.add(finding.file);
+      const existing = flaggedFiles.get(finding.file);
+      if (existing) {
+        existing.push(finding.severity);
+      } else {
+        flaggedFiles.set(finding.file, [finding.severity]);
+      }
     }
   }
   const flaggedAddedLines = files.reduce((sum, file) => {
@@ -153,6 +180,45 @@ export function computeReviewStats(
       ? sum + toNonNegative(file?.additions)
       : sum;
   }, 0);
+
+  // The source diff, split by what the added lines actually are (test specs /
+  // styles / markup / the remaining source) so "2395 added lines" is not read as
+  // "2395 lines of dense logic". Only source files are in this breakdown.
+  const COMPOSITION_ORDER = [
+    'test',
+    'style',
+    'markup',
+    'source',
+  ] as const satisfies readonly SourceCategory[];
+  const composition = COMPOSITION_ORDER.map((category) => {
+    const inCategory = files.filter((file) => classifySourceFile(file?.path ?? '') === category);
+    return {
+      category,
+      files: inCategory.length,
+      additions: inCategory.reduce((sum, file) => sum + toNonNegative(file?.additions), 0),
+      deletions: inCategory.reduce((sum, file) => sum + toNonNegative(file?.deletions), 0),
+    };
+  }).filter((row) => row.files > 0);
+
+  // The part of the diff we deliberately throw away: lockfiles, docs, config and
+  // infra. Surfacing it shows the attention denominator is small *for a reason*.
+  const allAdded = allFiles.reduce((sum, file) => sum + toNonNegative(file?.additions), 0);
+  const allRemoved = allFiles.reduce((sum, file) => sum + toNonNegative(file?.deletions), 0);
+  const excluded: ReviewStats['excluded'] = {
+    files: allFiles.length - files.length,
+    additions: allAdded - addedLines,
+    deletions: allRemoved - removedLines,
+  };
+
+  const flaggedFilesList: ReviewStats['flaggedFilesList'] = [...flaggedFiles.entries()]
+    .map(([file, severities]) => ({ file, severities: [...severities] }))
+    .sort((a, b) => {
+      const worst = (severities: readonly string[]): number =>
+        Math.min(
+          ...severities.map((severity) => (SEVERITY_ORDER as readonly string[]).indexOf(severity)),
+        );
+      return worst(a.severities) - worst(b.severities) || a.file.localeCompare(b.file);
+    });
 
   const severity = Object.fromEntries(SEVERITY_ORDER.map((band) => [band, 0])) as SeverityCounts;
   for (const finding of findings) {
@@ -171,5 +237,8 @@ export function computeReviewStats(
     attentionShare: share(flaggedFiles.size, files.length),
     findingTotal: findings.length,
     severity,
+    composition,
+    excluded,
+    flaggedFilesList,
   };
 }

@@ -118,4 +118,39 @@ describe('computeReviewStats', () => {
     expect(stats.flaggedAddedLines).toBe(5);
     expect(stats.attentionShare).toBe(0.5); // 1 flagged file / 2 source files, not 5 lines / 20 lines
   });
+
+  it('splits the source diff by category and names the flagged files (proving the share)', () => {
+    const stats = computeReviewStats(
+      {
+        files: [
+          { path: 'src/toeic.service.ts', additions: 605, deletions: 0 },
+          { path: 'src/toeic.service.spec.ts', additions: 543, deletions: 0 },
+          { path: 'src/_badges.scss', additions: 75, deletions: 0 },
+          { path: 'src/app.component.html', additions: 9, deletions: 0 },
+          { path: 'package-lock.json', additions: 8776, deletions: 0 }, // generated → excluded
+          { path: 'README.md', additions: 364, deletions: 0 }, // doc → excluded
+        ],
+      },
+      [
+        { severity: 'MAJOR', file: 'src/toeic.service.ts', line: 33 },
+        { severity: 'MINOR', file: 'src/toeic.service.ts', line: 9 },
+        { severity: 'CRITICAL', file: 'src/toeic.service.spec.ts', line: null },
+        { severity: 'NIT', file: 'src/toeic.service.spec.ts', line: null }, // nitpick → not flagged
+      ],
+    );
+
+    expect(stats.addedLines).toBe(1232); // 605 + 543 + 75 + 9, lockfile/README out
+    expect(stats.composition).toEqual([
+      { category: 'test', files: 1, additions: 543, deletions: 0 },
+      { category: 'style', files: 1, additions: 75, deletions: 0 },
+      { category: 'markup', files: 1, additions: 9, deletions: 0 },
+      { category: 'source', files: 1, additions: 605, deletions: 0 },
+    ]);
+    expect(stats.excluded).toEqual({ files: 2, additions: 9140, deletions: 0 });
+    // NIT dropped; severities grouped per file, worst-first.
+    expect(stats.flaggedFilesList).toEqual([
+      { file: 'src/toeic.service.spec.ts', severities: ['CRITICAL'] },
+      { file: 'src/toeic.service.ts', severities: ['MAJOR', 'MINOR'] },
+    ]);
+  });
 });

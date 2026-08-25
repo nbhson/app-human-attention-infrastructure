@@ -120,6 +120,24 @@ export interface ReviewStats {
   readonly flaggedAddedLines: number;
   /** Distinct files carrying at least one actionable finding (NIT/INFO excluded). */
   readonly flaggedFiles: number;
+  /** The source diff split by what the added lines are (test/style/markup/source). */
+  readonly composition: readonly {
+    readonly category: 'test' | 'style' | 'markup' | 'source';
+    readonly files: number;
+    readonly additions: number;
+    readonly deletions: number;
+  }[];
+  /** Diff lines rejected as non-source (generated/doc/config/infra) — out of the metric. */
+  readonly excluded: {
+    readonly files: number;
+    readonly additions: number;
+    readonly deletions: number;
+  };
+  /** Source files carrying an actionable finding — the proof of `attentionShare`. */
+  readonly flaggedFilesList: readonly {
+    readonly file: string;
+    readonly severities: readonly string[];
+  }[];
   /** `flaggedFiles / totalFiles`, clamped to [0, 1]. */
   readonly attentionShare: number;
   readonly findingTotal: number;
