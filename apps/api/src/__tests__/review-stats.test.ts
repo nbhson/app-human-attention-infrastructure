@@ -46,7 +46,7 @@ describe('computeReviewStats', () => {
     expect(stats.flaggedFiles).toBe(1); // a.ts only
     expect(stats.flaggedAddedLines).toBe(30); // 30, not 30+20+10
     expect(stats.addedLines).toBe(110);
-    expect(stats.attentionShare).toBe(0.2727); // 30 / 110
+    expect(stats.attentionShare).toBe(0.25); // 1 flagged file / 4 source files
   });
 
   it('never flags non-source files, even with an actionable finding', () => {
@@ -71,7 +71,7 @@ describe('computeReviewStats', () => {
     expect(stats.flaggedFiles).toBe(1); // src/app.ts only
     expect(stats.flaggedAddedLines).toBe(40);
     expect(stats.addedLines).toBe(40); // README + Dockerfile excluded from the whole block
-    expect(stats.attentionShare).toBe(1); // 40 / 40
+    expect(stats.attentionShare).toBe(1); // 1 flagged file / 1 source file
   });
 
   it('counts findings per severity band, every band present', () => {
@@ -99,7 +99,7 @@ describe('computeReviewStats', () => {
     expect(stats.findingTotal).toBe(0);
   });
 
-  it('measures attention as flagged added lines over all added lines', () => {
+  it('measures attention as the share of source files with an actionable finding', () => {
     const findings = [
       { severity: 'CRITICAL', file: 'a.ts', line: 1 },
       { severity: 'CRITICAL', file: 'a.ts', line: 2 },
@@ -116,6 +116,6 @@ describe('computeReviewStats', () => {
     );
 
     expect(stats.flaggedAddedLines).toBe(5);
-    expect(stats.attentionShare).toBe(0.25); // 5 / 20, not ~0 from one anchor over 20 changed lines
+    expect(stats.attentionShare).toBe(0.5); // 1 flagged file / 2 source files, not 5 lines / 20 lines
   });
 });

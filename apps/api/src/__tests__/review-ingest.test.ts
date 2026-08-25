@@ -11,7 +11,7 @@ function file(path: string, patch = '--- a/x\n+++ b/x\n'): PullRequestFile {
 }
 
 describe('buildDiff', () => {
-  it('skips generated/dependency files and keeps hand-written source', () => {
+  it('keeps hand-written source and drops generated, doc, config and infra files', () => {
     const files = [
       file('package-lock.json'),
       file('node_modules/.bin/ng'),
@@ -19,18 +19,24 @@ describe('buildDiff', () => {
       file('src/main.ts.map'),
       file('assets/app.min.js'),
       file('src/app.ts'),
+      file('src/app.component.scss'),
       file('Dockerfile'),
+      file('README.md'),
+      file('package.json'),
     ];
 
     const diff = buildDiff(files);
 
     expect(diff).toContain('src/app.ts');
-    expect(diff).toContain('Dockerfile');
+    expect(diff).toContain('src/app.component.scss');
     expect(diff).not.toContain('package-lock.json');
     expect(diff).not.toContain('node_modules/.bin/ng');
     expect(diff).not.toContain('dist/toeic-app/browser/chunk-B3-J63dS.js');
     expect(diff).not.toContain('src/main.ts.map');
     expect(diff).not.toContain('assets/app.min.js');
+    expect(diff).not.toContain('Dockerfile');
+    expect(diff).not.toContain('README.md');
+    expect(diff).not.toContain('package.json');
   });
 
   it('drops files whose patch is empty (binaries and empty diffs)', () => {

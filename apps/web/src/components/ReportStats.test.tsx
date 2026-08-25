@@ -13,19 +13,19 @@ const stats: ReviewStats = {
   changedLines: 100,
   flaggedAddedLines: 20,
   flaggedFiles: 3,
-  attentionShare: 0.25,
+  attentionShare: 0.75,
   findingTotal: 5,
   severity: { CRITICAL: 2, MAJOR: 1, MINOR: 1, NIT: 1, INFO: 0 },
 };
 
 describe('ReportStats', () => {
-  it('shows the verdict and the attention share as a percentage', () => {
+  it('shows the verdict and the attention share as a percentage over source files', () => {
     render(<ReportStats stats={stats} overallVerdict="REQUEST_CHANGES" />);
 
     expect(screen.getByTestId('verdict-badge')).toHaveTextContent('Request changes');
-    expect(screen.getByTestId('attention-pct')).toHaveTextContent('25%');
-    expect(screen.getByText('20 of 80 code lines')).toBeInTheDocument();
-    expect(screen.getByText('Issues touch 3 of 4 source files')).toBeInTheDocument();
+    expect(screen.getByTestId('attention-pct')).toHaveTextContent('75%');
+    expect(screen.getByText('3 of 4 source files')).toBeInTheDocument();
+    expect(screen.getByText(/NIT and INFO don't count/)).toBeInTheDocument();
   });
 
   it('labels every severity band with its count and share of total findings', () => {

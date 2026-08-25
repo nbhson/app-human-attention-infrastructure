@@ -106,9 +106,10 @@ export type ReviewSeverity = 'CRITICAL' | 'MAJOR' | 'MINOR' | 'NIT' | 'INFO';
 
 /**
  * Derived statistics on the report, computed server-side from the stored PR
- * payload + findings. Surfaces the product's core promise: how many of the PR's
- * added lines sit in files with an actionable finding (→ how much of the diff
- * actually needs a human), split by severity.
+ * payload + findings. Surfaces the product's core promise: what share of the
+ * PR's source files carry an actionable finding (→ how much of the change
+ * actually needs a human), split by severity. The attention share is file-based,
+ * so it is provable from the findings' `file` fields.
  */
 export interface ReviewStats {
   readonly totalFiles: number;
@@ -119,7 +120,7 @@ export interface ReviewStats {
   readonly flaggedAddedLines: number;
   /** Distinct files carrying at least one actionable finding (NIT/INFO excluded). */
   readonly flaggedFiles: number;
-  /** `flaggedAddedLines / addedLines`, clamped to [0, 1]. */
+  /** `flaggedFiles / totalFiles`, clamped to [0, 1]. */
   readonly attentionShare: number;
   readonly findingTotal: number;
   readonly severity: Record<ReviewSeverity, number>;
