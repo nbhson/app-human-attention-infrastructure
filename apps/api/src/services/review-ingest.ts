@@ -30,7 +30,7 @@ import type {
   AiProviderType,
   Issue,
   ProjectID,
-  PullRequest,
+  PullRequestFile,
   ReviewReportID,
   TaskID,
 } from '@harness/domain';
@@ -103,9 +103,65 @@ export function parseGithubPrUrl(prUrl: string): { repo: string; number: number 
   );
 }
 
-/** Concatenate a PR's per-file patches into one diff block for the AI reviewer. */
-function buildDiff(pr: PullRequest): string {
-  return pr.files
+/**
+ * Basenames of dependency/manifest files the reviewer should never spend
+ * attention on — lockfiles are machine-generated and can dwarf the real diff.
+ */
+const SKIP_FILENAMES = new Set([
+  'package-lock.json',
+  'npm-shrinkwrap.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'bun.lock',
+  'bun.lockb',
+  'Cargo.lock',
+  'Gemfile.lock',
+  'composer.lock',
+  'poetry.lock',
+  'Pipfile.lock',
+  'go.sum',
+  '.DS_Store',
+  'Thumbs.db',
+]);
+
+/** Path patterns for generated/build/dependency output, not hand-written source. */
+const SKIP_PATH_PATTERNS = [
+  /(^|\/)node_modules\//,
+  /(^|\/)dist\//,
+  /(^|\/)build\//,
+  /(^|\/)out\//,
+  /(^|\/)coverage\//,
+  /(^|\/)\.next\//,
+  /(^|\/)\.nuxt\//,
+  /(^|\/)\.angular\//,
+  /(^|\/)vendor\//,
+  /(^|\/)target\//,
+  /(^|\/)\.cache\//,
+  /\.map$/,
+  /\.min\.(js|mjs|css)$/,
+];
+
+/**
+ * Whether a PR file is worth feeding the reviewer. The point is to stop a giant
+ * generated file (an 8k-line `package-lock.json`, `dist/` bundles, source maps…)
+ * from swamping the context so the model can actually read the source it should
+ * be reviewing.
+ */
+export function isReviewableFile(path: string): boolean {
+  if (!path || SKIP_FILENAMES.has(path.split('/').pop() ?? '')) {
+    return false;
+  }
+  return !SKIP_PATH_PATTERNS.some((pattern) => pattern.test(path));
+}
+
+/**
+ * Concatenate a PR's reviewable per-file patches into one diff block. Generated
+ * files are skipped (see {@link isReviewableFile}) and empty/binary patches are
+ * dropped, so the block the AI reads is hand-written source, not lockfile noise.
+ */
+export function buildDiff(files: readonly PullRequestFile[]): string {
+  return files
+    .filter((f) => isReviewableFile(f.path) && f.patch.trim().length > 0)
     .map((f) => `=== ${f.path} (${f.status}, +${f.additions} -${f.deletions}) ===\n${f.patch}`)
     .join('\n\n');
 }
@@ -210,7 +266,7 @@ export class ReviewIngestService {
         prUrl: pr.url,
         prTitle: pr.title,
         requirement,
-        diff: buildDiff(pr),
+        diff: buildDiff(pr.files),
       },
       { model, correlationId: task.id },
     );
