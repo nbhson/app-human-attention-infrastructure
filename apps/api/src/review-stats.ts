@@ -4,7 +4,8 @@
  * The product's whole thesis is "route human attention to only what matters", so
  * the report surface owes the reviewer a one-glance answer to two questions:
  *
- *  - Of the PR's added lines, how many live in files that carry a finding (→ how
+ *  - Of the PR's added lines, how many live in files that carry an actionable
+ *    finding (CRITICAL/MAJOR/MINOR — nitpicks and praise don't count) (→ how
  *    much of this diff needs a human to look at it)?
  *  - Split the findings across the severity bands (→ how much of the review is
  *    CRITICAL vs MINOR vs …)?
@@ -28,6 +29,19 @@ export const SEVERITY_ORDER = [
   ReviewSeverity.Info,
 ] as const;
 
+/**
+ * Severities that demand a human action. NIT and INFO are excluded: they flag
+ * nitpicks and praise (an INFO finding on a thorough README is a compliment,
+ * not a call for attention), and counting them is what inflated the attention
+ * hero to 100% on a one-line NIT, or 46% on a README whose only finding is a
+ * compliment.
+ */
+const ACTIONABLE_SEVERITIES = new Set<string>([
+  ReviewSeverity.Critical,
+  ReviewSeverity.Major,
+  ReviewSeverity.Minor,
+]);
+
 /** A severity-band count keyed by band name. */
 export type SeverityCounts = Record<ReviewSeverityType, number>;
 
@@ -41,9 +55,9 @@ export interface ReviewStats {
   readonly removedLines: number;
   /** `addedLines + removedLines` — the PR's diff size. */
   readonly changedLines: number;
-  /** Added lines living in files that carry at least one finding. */
+  /** Added lines living in files that carry at least one actionable finding. */
   readonly flaggedAddedLines: number;
-  /** Distinct files that carry at least one finding. */
+  /** Distinct files that carry at least one actionable finding (NIT/INFO excluded). */
   readonly flaggedFiles: number;
   /** `flaggedAddedLines / addedLines`, clamped to [0, 1] (0 when nothing is added). */
   readonly attentionShare: number;
@@ -104,10 +118,17 @@ export function computeReviewStats(
   // handful of anchors divided by thousands of changed lines reads as 0% on any
   // large PR — and a file-level finding (no line, e.g. "missing newline") would
   // otherwise contribute nothing. So the flagged share is the ADDED lines lying
-  // in files that carry at least one finding.
+  // in files that carry at least one actionable finding. NIT and INFO are
+  // deliberately excluded: they are nitpicks / praise, not calls for attention,
+  // and counting them is what turned a one-line NIT into "100%" and an
+  // INFO-tagged README into "46%".
   const flaggedFiles = new Set<string>();
   for (const finding of findings) {
-    if (typeof finding.file === 'string' && finding.file.length > 0) {
+    if (
+      typeof finding.file === 'string' &&
+      finding.file.length > 0 &&
+      ACTIONABLE_SEVERITIES.has(finding.severity)
+    ) {
       flaggedFiles.add(finding.file);
     }
   }

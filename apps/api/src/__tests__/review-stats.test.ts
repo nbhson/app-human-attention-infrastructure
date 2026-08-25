@@ -20,28 +20,30 @@ describe('computeReviewStats', () => {
     expect(stats.changedLines).toBe(47);
   });
 
-  it('counts flagged files and the added lines they hold', () => {
+  it('counts actionable files and the added lines they hold (NIT/INFO excluded)', () => {
     const findings = [
       { severity: 'CRITICAL', file: 'a.ts', line: 10 },
       { severity: 'MAJOR', file: 'a.ts', line: 11 }, // same file, deduped
-      { severity: 'NIT', file: 'b.ts', line: null }, // whole-file finding, no line
+      { severity: 'NIT', file: 'b.ts', line: null }, // nitpick → not flagged
+      { severity: 'INFO', file: 'd.ts', line: null }, // praise → not flagged
     ];
 
     const stats = computeReviewStats(
       {
         files: [
           { path: 'a.ts', additions: 30, deletions: 5 },
-          { path: 'b.ts', additions: 20, deletions: 0 },
-          { path: 'c.ts', additions: 50, deletions: 0 }, // no finding → not flagged
+          { path: 'b.ts', additions: 20, deletions: 0 }, // NIT only
+          { path: 'c.ts', additions: 50, deletions: 0 }, // no finding
+          { path: 'd.ts', additions: 10, deletions: 0 }, // INFO only
         ],
       },
       findings,
     );
 
-    expect(stats.flaggedFiles).toBe(2); // a.ts + b.ts
-    expect(stats.flaggedAddedLines).toBe(50); // 30 + 20
-    expect(stats.addedLines).toBe(100);
-    expect(stats.attentionShare).toBe(0.5); // 50 / 100
+    expect(stats.flaggedFiles).toBe(1); // a.ts only
+    expect(stats.flaggedAddedLines).toBe(30); // 30, not 30+20+10
+    expect(stats.addedLines).toBe(110);
+    expect(stats.attentionShare).toBe(0.2727); // 30 / 110
   });
 
   it('counts findings per severity band, every band present', () => {

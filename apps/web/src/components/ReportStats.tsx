@@ -9,8 +9,9 @@ import { SEVERITIES, severityColor, severityLabel } from './severity';
  *  1. A verdict badge (APPROVE / REQUEST_CHANGES / COMMENT) in the verdict's
  *     status colour.
  *  2. An attention hero: the share of the PR's added lines that live in files
- *     carrying a finding — the product's whole "route attention to only what
- *     matters" promise as one number — plus the supporting file/line counts.
+ *     carrying an actionable finding (CRITICAL/MAJOR/MINOR) — the product's
+ *     whole "route attention to only what matters" promise as one number — plus
+ *     the supporting file/line counts.
  *  3. A severity split: a 100%-stacked bar over the findings, with a legend that
  *     names every band, count, and percentage (never colour alone).
  */
@@ -200,7 +201,7 @@ export function ReportStats({
               fontSize: '0.8rem',
             }}
           >
-            Findings touch {stats.flaggedFiles} of {stats.totalFiles} files
+            Issues touch {stats.flaggedFiles} of {stats.totalFiles} files
           </div>
         </div>
       </div>
