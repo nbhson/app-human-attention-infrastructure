@@ -199,6 +199,15 @@ Build order and backlog: [`docs/plan/README.md`](../plan/README.md) → [`docs/p
 
 ## Changelog
 
+### v0.8 (day-34 system-activity audit timeline)
+- §7 — `event_log` now also records the runtime lifecycle (`system.started` /
+  `system.stopped`), so application boot and shutdown are themselves auditable.
+- Added `GET /api/audit` — a `requireRole`-guarded, cursor-paginated read model
+  merging `event_log` + `llm_call_log` + `trajectory_steps` + `agent_runs` into one
+  newest-first timeline — and the `/audit` web tab that renders it with
+  click-through detail. See the [audit cookbook](../runbook/audit-queries.md) and
+  [`packages/db/README.md`](../../packages/db/README.md).
+
 ### v0.7 (Phase 3 complete — `v0.3.0-harness`)
 - §6 — added the Phase-3 seams (`mcp`, `memory`, `code-index`, `judge`, `benchmark`, `writeback`) and repointed the review-slice note (Git/ticket connectivity is now **MCP**, not "Phase 3 moves …").
 - §6 — DB table count 41 → 54; §8 — package count 19 → 25.

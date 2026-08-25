@@ -205,6 +205,35 @@ ORDER BY file;
 
 ---
 
+## Q11 — The unified `/api/audit` timeline (every trail, one stream)
+
+The web audit tab (`/audit`) reads this endpoint instead of running SQL: it merges
+the four append-only sources — `event_log`, `llm_call_log`, `trajectory_steps`
+(joined to its `agent_runs` parent for `correlation_id`), and `agent_runs` — into
+one newest-first list, one row per fact, with the full source payload in `detail`
+for click-through.
+
+```bash
+curl -s 'localhost:3000/api/audit?limit=100' \
+  --cookie 'sid=<operator-session>' | jq '.items[] | {kind, title, summary}'
+```
+
+| Query param | Default | Meaning |
+| --- | --- | --- |
+| `limit` | 100 (max 500) | rows fetched per source before the cross-source merge |
+| `before` | now | ISO-8601 cursor; returns strictly-older rows |
+| `kind` | all | restrict to `event` \| `llm` \| `tool` \| `run` |
+| `eventType` | all | restrict events to one type (e.g. `system.started`) |
+| `correlationId` | all | restrict every source to one task/session id |
+
+`kind` names the four row types: `event` (bus events, including the
+`system.started` / `system.stopped` boot markers), `llm` (model calls), `tool`
+(tool calls), and `run` (the agent-run envelope with a computed `duration_ms`).
+The response is `{ items, nextBefore }`; pass `before=nextBefore` to page older.
+The endpoint requires an Operate/Reviewer/Admin session (`requireRole`).
+
+---
+
 ## Sample output (fresh E2E run)
 
 Captured after `pnpm --filter @harness/api exec tsx scripts/e2e-happy-path.ts`, which
