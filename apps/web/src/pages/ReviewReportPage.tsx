@@ -77,6 +77,8 @@ export default function ReviewReportPage(): JSX.Element {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const [decision, setDecision] = useState<ReviewDecision | null>(null);
+  const [writeback, setWriteback] = useState(false);
+  const [comment, setComment] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ReviewTab>('review');
 
@@ -87,7 +89,8 @@ export default function ReviewReportPage(): JSX.Element {
   });
 
   const decide = useMutation({
-    mutationFn: () => reviewsApi.decide(id, decision as ReviewDecision),
+    mutationFn: () =>
+      reviewsApi.decide(id, { decision: decision as ReviewDecision, writeback, comment }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviewReport', id] }),
     onError: (error: unknown) =>
       setSubmitError(error instanceof Error ? error.message : 'Decision failed.'),
@@ -376,6 +379,49 @@ export default function ReviewReportPage(): JSX.Element {
             >
               {decide.isPending ? 'Submitting…' : 'Submit'}
             </button>
+          </div>
+
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={writeback}
+                onChange={(event) => setWriteback(event.target.checked)}
+                aria-label="Write decision back to PR"
+              />
+              Write the decision back to the PR
+            </label>
+            {writeback && (
+              <textarea
+                aria-label="Write-back comment"
+                placeholder="Comment to post on the PR (leave blank for a decision summary)"
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: 8,
+                  borderRadius: 6,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  font: 'inherit',
+                  resize: 'vertical',
+                }}
+              />
+            )}
+            <p style={{ margin: 0, color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>
+              Write-back only fires when the operator has armed it (WRITEBACK_ENABLED) and the host
+              is configured. APPROVE/REJECT post a comment + status; REQUEST_CHANGES never writes.
+            </p>
           </div>
         </form>
 

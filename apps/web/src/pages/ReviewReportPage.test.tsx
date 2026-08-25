@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -129,6 +129,32 @@ describe('ReviewReportPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Submit/ }));
 
     expect(await screen.findByRole('radio', { name: /APPROVE/ })).toBeChecked();
-    expect(mocked.decide).toHaveBeenCalledWith('report-abc', 'APPROVE');
+    expect(mocked.decide).toHaveBeenCalledWith('report-abc', {
+      decision: 'APPROVE',
+      writeback: false,
+      comment: '',
+    });
+  });
+
+  it('forwards the write-back toggle and comment to the decide call', async () => {
+    mocked.getReport.mockResolvedValue(report);
+    mocked.decide.mockResolvedValue({ reportId: 'report-abc', decision: 'APPROVE' });
+
+    renderReport();
+
+    fireEvent.click(await screen.findByRole('radio', { name: /APPROVE/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Write decision back to PR/ }));
+    fireEvent.change(screen.getByLabelText(/Write-back comment/), {
+      target: { value: 'LGTM' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Submit/ }));
+
+    await waitFor(() =>
+      expect(mocked.decide).toHaveBeenCalledWith('report-abc', {
+        decision: 'APPROVE',
+        writeback: true,
+        comment: 'LGTM',
+      }),
+    );
   });
 });
