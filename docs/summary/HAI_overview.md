@@ -66,6 +66,16 @@ Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (qua
 - **REJECT / REQUEST_CHANGES:** quyết định + rationale gửi lại tác giả.
 - **Luôn ghi:** event log + decision log — nền cho việc *đo* và *học* (tinh chỉnh calibration/routing từ tín hiệu `was_useful`).
 
+### 4. Bề mặt report — attention metric & Breakdown (`review-reorient`)
+
+Report giờ trả một con số "needs human attention" **chứng minh được** chứ không phải cảm tính:
+
+- **Tính theo file, không theo dòng:** `flaggedFiles / totalFiles` — `totalFiles` chỉ đếm **source** thật (loại lockfile / `dist/` / docs / config / infra), `flaggedFiles` đếm file có ≥1 finding `CRITICAL / MAJOR / MINOR` (NIT / INFO **không** tính).
+- **File bị flag được liệt kê tên + severity** ngay trên report → "3 trong 12 file" map 1-1 với danh sách findings bên dưới.
+- Tab **Breakdown** trình bày phép tính: file bị flag kèm severity, findings "có tính" vs rác NIT/INFO, và bảng split source lines theo `test / style / markup / source` + số dòng non-source bị loại.
+
+Prompt reviewer cũng chỉ review source: generated files không bao giờ vào context model, và được yêu cầu tìm lỗi đúng đắn / bug ẩn / clean code — không báo nitpick (như thiếu trailing newline…).
+
 ---
 
 ## Mô hình kiến trúc 4 lớp

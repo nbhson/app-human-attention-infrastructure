@@ -60,8 +60,9 @@ Two endpoints carry the slice today (`apps/api/src/routes/reviews.ts`):
 - `POST /api/reviews` — paste `{ prUrl, jiraTicket? }`; fetches the PR (GitHub,
   GitLab, or Bitbucket via the MCP config), fetches the ticket if given (Jira via
   MCP), asks the AI, and returns the stored report id.
-- `GET /api/reviews/:id` — the report, findings, and fix suggestions, ready for
-  the UI.
+- `GET /api/reviews/:id` — the report, findings (each with a diff-anchor status),
+  fix suggestions, and the derived `stats` block (attention share + source
+  composition + excluded lines), ready for the UI.
 
 On top of that retained-but-not-yet-wired-into-this-slice machinery sits the
 wider pipeline — the canonical task state machine, independent verification
@@ -93,6 +94,25 @@ tasks into the code-gen workflow, and a cancelled task is never consumed.
 | **Artifact Tracker** | Snapshots, diffs, and provenance for every change |
 
 See [the wiring map](docs/architecture/wiring-map.md) for the full object graph.
+
+## Attention metric
+
+The report's one-glance "needs human attention" number is provable, not a vibe:
+
+- **File-based, not line-based** — `flaggedFiles / totalFiles`. `totalFiles`
+  counts only hand-written **source** files in the diff (lockfiles, `dist/`,
+  docs, config and infra are excluded); `flaggedFiles` counts the ones carrying a
+  CRITICAL / MAJOR / MINOR finding — NIT and INFO don't count.
+- **Bias-proof** — every flagged file is named on the report, so "3 of 12 files"
+  maps one-to-one onto the findings below it.
+- **Breakdown tab** — the report UI's **Breakdown** tab lays out the arithmetic:
+  the flagged files with their severities, the findings that count vs. the
+  NIT/INFO noise, and what the added source lines actually are (test / style /
+  markup / source) plus the non-source lines that were excluded.
+
+The reviewer prompt is source-only too: generated files never reach the model,
+and it is asked to find correctness, hidden bugs, and clean-code issues — never
+nitpicks like a missing trailing newline.
 
 ## Capabilities
 
