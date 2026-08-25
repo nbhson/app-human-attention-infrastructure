@@ -16,6 +16,8 @@
 
 import { eq } from 'drizzle-orm';
 
+import { isGeneratedFile } from '../review-file-classify.js';
+
 import type { ReviewAgent } from '@harness/agent-runtime';
 import {
   brand,
@@ -30,7 +32,7 @@ import type {
   AiProviderType,
   Issue,
   ProjectID,
-  PullRequest,
+  PullRequestFile,
   ReviewReportID,
   TaskID,
 } from '@harness/domain';
@@ -103,9 +105,14 @@ export function parseGithubPrUrl(prUrl: string): { repo: string; number: number 
   );
 }
 
-/** Concatenate a PR's per-file patches into one diff block for the AI reviewer. */
-function buildDiff(pr: PullRequest): string {
-  return pr.files
+/**
+ * Concatenate a PR's per-file patches into one diff block. Generated files are
+ * skipped (see {@link isGeneratedFile}) and empty/binary patches are dropped, so
+ * the block the AI reads is hand-written source, not lockfile/build noise.
+ */
+export function buildDiff(files: readonly PullRequestFile[]): string {
+  return files
+    .filter((f) => !isGeneratedFile(f.path) && f.patch.trim().length > 0)
     .map((f) => `=== ${f.path} (${f.status}, +${f.additions} -${f.deletions}) ===\n${f.patch}`)
     .join('\n\n');
 }
@@ -210,7 +217,7 @@ export class ReviewIngestService {
         prUrl: pr.url,
         prTitle: pr.title,
         requirement,
-        diff: buildDiff(pr),
+        diff: buildDiff(pr.files),
       },
       { model, correlationId: task.id },
     );

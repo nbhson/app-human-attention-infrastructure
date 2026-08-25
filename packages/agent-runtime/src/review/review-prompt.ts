@@ -53,7 +53,10 @@ Rules:
 - "findings" are problems. "suggestions" are concrete fixes. A finding may exist without a matching suggestion, and vice-versa.
 - Order findings by severity (CRITICAL first), then file. Order suggestions in a natural apply order.
 - If there is nothing wrong, return an empty findings array and overallVerdict "APPROVE".
-- Be specific: reference actual files and lines from the diff. Never invent a file that is not in the diff.`;
+- Be specific: reference actual files and lines from the diff. Never invent a file that is not in the diff.
+- The DIFF already excludes generated/dependency files (lockfiles, node_modules, build output, source maps). Review the hand-written source it actually contains.
+- Read and critique the logic of each source file — correctness, structure, syntax, quality, and bugs. Cite concrete lines; do not stop at file metadata or a headline summary.
+- Do not report cosmetic-only issues (a missing trailing newline, whitespace, or formatting) unless they cause a real defect. Reserve NIT for genuine small improvements and INFO for genuine praise.`;
 
 export function buildReviewPrompt(input: ReviewPromptInput): ReviewPrompt {
   const requirement =
