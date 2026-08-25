@@ -159,6 +159,19 @@ export interface ReviewCreatedResult {
 /** One of the three human decisions the review report accepts. */
 export type ReviewDecision = 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT';
 
+/** One row in the AI-review list (`GET /api/reviews`). */
+export interface ReviewsListItem {
+  readonly id: string;
+  readonly prUrl: string;
+  readonly prNumber: number;
+  readonly repo: string;
+  readonly prTitle: string;
+  readonly overallVerdict: ReviewReport['overallVerdict'];
+  readonly createdAt: string;
+  /** Whether a human decision has already been recorded for this report. */
+  readonly decided: boolean;
+}
+
 /** An API failure with a status code, so the UI can branch on 400/503/… */
 export class ReviewsApiError extends Error {
   constructor(
@@ -198,6 +211,10 @@ export const reviewsApi = {
         ? { jiraTicket: input.jiraTicket }
         : {}),
     });
+  },
+  /** List reports; `pending=true` keeps only ones still awaiting a decision. */
+  list(pending?: boolean): Promise<ReviewsListItem[]> {
+    return json<ReviewsListItem[]>(fetch(`${BASE}${pending ? '?pending=1' : ''}`));
   },
   /** Read back the stored report, findings, and fix suggestions. */
   getReport(id: string): Promise<ReviewReport> {

@@ -2,8 +2,9 @@
  * Review-slice HTTP routes (review-reorient Phase 3) — the thin Fastify surface
  * over {@link ReviewIngestService} and the `review_reports` projection.
  *
- * Three endpoints:
+ * Four endpoints:
  *  - `POST   /api/reviews`           paste a PR URL (+ optional Jira ticket) → AI review
+ *  - `GET    /api/reviews`           list reports (+ optional ?pending=1 to keep only the un-decided)
  *  - `GET    /api/reviews/:id`       the stored report + findings + fix suggestions
  *  - `POST   /api/reviews/:id/decision` the human's approve/reject/request-changes call.
  *    Persists a `review_decisions` row (with the effective write-back toggle for
@@ -17,7 +18,7 @@
 
 import type { FastifyInstance } from 'fastify';
 
-import { asc, eq, inArray } from 'drizzle-orm';
+import { asc, desc, eq, inArray } from 'drizzle-orm';
 
 import { requireRole } from '@harness/auth';
 import { TOKENS } from '@harness/di';
@@ -96,6 +97,36 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         }
         throw error;
       }
+    },
+  );
+
+  app.get<{ Querystring: { pending?: string } }>(
+    '/api/reviews',
+    { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
+    async (request) => {
+      const rows = await db.select().from(reviewReports).orderBy(desc(reviewReports.created_at));
+      const ids = rows.map((row) => row.id);
+      const decidedRows =
+        ids.length === 0
+          ? []
+          : await db
+              .select({ reportId: reviewDecisions.report_id })
+              .from(reviewDecisions)
+              .where(inArray(reviewDecisions.report_id, ids));
+      const decidedIds = new Set(decidedRows.map((row) => row.reportId));
+      const pendingOnly = request.query.pending === '1' || request.query.pending === 'true';
+      return rows
+        .filter((row) => (pendingOnly ? !decidedIds.has(row.id) : true))
+        .map((row) => ({
+          id: row.id,
+          prUrl: row.pr_url,
+          prNumber: row.pr_number,
+          repo: row.repo,
+          prTitle: row.pr_title,
+          overallVerdict: row.overall_verdict,
+          createdAt: row.created_at,
+          decided: decidedIds.has(row.id),
+        }));
     },
   );
 
