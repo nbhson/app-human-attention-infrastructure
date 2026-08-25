@@ -34,7 +34,7 @@ const report: ReviewReport = {
     addedLines: 40,
     removedLines: 10,
     changedLines: 50,
-    flaggedLines: 1,
+    flaggedAddedLines: 1,
     flaggedFiles: 1,
     attentionShare: 0.02,
     findingTotal: 1,

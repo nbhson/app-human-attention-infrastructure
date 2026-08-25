@@ -11,7 +11,7 @@ const stats: ReviewStats = {
   addedLines: 80,
   removedLines: 20,
   changedLines: 100,
-  flaggedLines: 25,
+  flaggedAddedLines: 20,
   flaggedFiles: 3,
   attentionShare: 0.25,
   findingTotal: 5,
@@ -24,7 +24,7 @@ describe('ReportStats', () => {
 
     expect(screen.getByTestId('verdict-badge')).toHaveTextContent('Request changes');
     expect(screen.getByTestId('attention-pct')).toHaveTextContent('25%');
-    expect(screen.getByText('25 of 100 changed lines')).toBeInTheDocument();
+    expect(screen.getByText('20 of 80 added lines')).toBeInTheDocument();
     expect(screen.getByText('Findings touch 3 of 4 files')).toBeInTheDocument();
   });
 

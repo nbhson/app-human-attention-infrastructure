@@ -4,8 +4,8 @@
  * The product's whole thesis is "route human attention to only what matters", so
  * the report surface owes the reviewer a one-glance answer to two questions:
  *
- *  - Of the PR's changed lines, how many actually carry a finding (→ how much of
- *    this diff needs a human to look at it)?
+ *  - Of the PR's added lines, how many live in files that carry a finding (→ how
+ *    much of this diff needs a human to look at it)?
  *  - Split the findings across the severity bands (→ how much of the review is
  *    CRITICAL vs MINOR vs …)?
  *
@@ -41,11 +41,11 @@ export interface ReviewStats {
   readonly removedLines: number;
   /** `addedLines + removedLines` — the PR's diff size. */
   readonly changedLines: number;
-  /** Distinct `file:line` anchors a finding points at (line-level findings only). */
-  readonly flaggedLines: number;
+  /** Added lines living in files that carry at least one finding. */
+  readonly flaggedAddedLines: number;
   /** Distinct files that carry at least one finding. */
   readonly flaggedFiles: number;
-  /** `flaggedLines / changedLines`, clamped to [0, 1] (0 when the PR is empty). */
+  /** `flaggedAddedLines / addedLines`, clamped to [0, 1] (0 when nothing is added). */
   readonly attentionShare: number;
   /** Total number of findings (the denominator for the severity split). */
   readonly findingTotal: number;
@@ -63,6 +63,7 @@ export interface FindingRef {
 /** The subset of the stored `pr_payload` the stats read (see `PullRequestFile`). */
 interface StoredPrPayload {
   readonly files?: readonly {
+    readonly path?: string;
     readonly additions?: number;
     readonly deletions?: number;
   }[];
@@ -98,16 +99,24 @@ export function computeReviewStats(
   const removedLines = files.reduce((sum, file) => sum + toNonNegative(file?.deletions), 0);
   const changedLines = addedLines + removedLines;
 
-  const flaggedAnchors = new Set<string>();
+  // Attention is file-granular, not line-granular: a finding about a file means
+  // "review this file". Counting only `file:line` anchors under-reports — a
+  // handful of anchors divided by thousands of changed lines reads as 0% on any
+  // large PR — and a file-level finding (no line, e.g. "missing newline") would
+  // otherwise contribute nothing. So the flagged share is the ADDED lines lying
+  // in files that carry at least one finding.
   const flaggedFiles = new Set<string>();
   for (const finding of findings) {
     if (typeof finding.file === 'string' && finding.file.length > 0) {
       flaggedFiles.add(finding.file);
-      if (finding.line !== null && finding.line !== undefined) {
-        flaggedAnchors.add(`${finding.file}:${finding.line}`);
-      }
     }
   }
+  const flaggedAddedLines = files.reduce((sum, file) => {
+    const path = file?.path;
+    return typeof path === 'string' && flaggedFiles.has(path)
+      ? sum + toNonNegative(file?.additions)
+      : sum;
+  }, 0);
 
   const severity = Object.fromEntries(SEVERITY_ORDER.map((band) => [band, 0])) as SeverityCounts;
   for (const finding of findings) {
@@ -121,9 +130,9 @@ export function computeReviewStats(
     addedLines,
     removedLines,
     changedLines,
-    flaggedLines: flaggedAnchors.size,
+    flaggedAddedLines,
     flaggedFiles: flaggedFiles.size,
-    attentionShare: share(flaggedAnchors.size, changedLines),
+    attentionShare: share(flaggedAddedLines, addedLines),
     findingTotal: findings.length,
     severity,
   };

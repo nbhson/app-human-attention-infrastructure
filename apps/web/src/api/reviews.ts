@@ -114,11 +114,11 @@ export interface ReviewStats {
   readonly addedLines: number;
   readonly removedLines: number;
   readonly changedLines: number;
-  /** Distinct `file:line` anchors a finding points at (line-level findings only). */
-  readonly flaggedLines: number;
+  /** Added lines living in files carrying at least one finding. */
+  readonly flaggedAddedLines: number;
   /** Distinct files carrying at least one finding. */
   readonly flaggedFiles: number;
-  /** `flaggedLines / changedLines`, clamped to [0, 1]. */
+  /** `flaggedAddedLines / addedLines`, clamped to [0, 1]. */
   readonly attentionShare: number;
   readonly findingTotal: number;
   readonly severity: Record<ReviewSeverity, number>;
