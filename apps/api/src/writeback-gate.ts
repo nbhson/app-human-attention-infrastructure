@@ -6,15 +6,16 @@
  * request-level flag and a global env ceiling —
  *
  * ```
- * effective = (request.writeback === true) && (WRITEBACK_ENABLED is '1' | 'true')
+ * effective = (request.writeback === true) && (WRITEBACK_ENABLED is not '0' | 'false')
  * ```
  *
- * `WRITEBACK_ENABLED` is OFF at rest (unset ⇒ off), so a request-level ON is
- * defeated unless an operator has explicitly armed the whole deployment. The
- * per-request flag is the *human's* choice; the env ceiling is the operator's —
- * and the service's own `enabled(provider)` check (`WRITEBACK_<PROVIDER>`) is a
- * third, per-host confirmation that no write is dispatched by accident (day-09
- * §2.1, §6).
+ * The ceiling is **ON by default** (unset ⇒ on), so the feature ships armed. An
+ * operator opts a whole deployment out with `WRITEBACK_ENABLED=0` (or `false`).
+ * The per-request flag is still the *human's* choice — a decision that doesn't
+ * ask for a write never writes — and the service's own `enabled(provider)` check
+ * (`WRITEBACK_<PROVIDER>`, also on-by-default) is a third, per-host confirmation
+ * that no write is dispatched by accident (day-09 §2.1, §6; default inverted so
+ * write-back works out of the box).
  */
 
 /**
@@ -23,13 +24,13 @@
  * @param writeback - the request-level `writeback` flag (missing/falsy ⇒ OFF).
  * @param env - the process environment (injected for testability).
  * @returns true only when both the request asks for a write AND the
- *   `WRITEBACK_ENABLED` env ceiling is armed.
+ *   `WRITEBACK_ENABLED` ceiling is armed (armed unless set to `0`/`false`).
  */
 export function writebackEnabled(
   writeback: unknown,
   env: Record<string, string | undefined> = process.env,
 ): boolean {
   const ceiling = env['WRITEBACK_ENABLED'];
-  const ceilingOn = ceiling === '1' || ceiling === 'true';
+  const ceilingOn = ceiling !== '0' && ceiling !== 'false';
   return writeback === true && ceilingOn;
 }

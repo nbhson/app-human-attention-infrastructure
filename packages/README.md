@@ -67,7 +67,7 @@ tooling                       import no @harness package (pure seams)
 | --- | --- |
 | [`git-provider`](git-provider/README.md) | `GitProvider` — GitHub/GitLab/Bitbucket via the MCP config; clone + head-sha |
 | [`ticket-provider`](ticket-provider/README.md) | `TicketProvider` — Jira via the MCP config |
-| [`writeback`](writeback/README.md) | `MCPWriteBack` — optional comment/status write-back (toggle-gated) |
+| [`writeback`](writeback/README.md) | `MCPWriteBack` — comment/status write-back (on by default, opt-out via `WRITEBACK_ENABLED=0` / `WRITEBACK_<PROVIDER>=0`) |
 | [`memory`](memory/README.md) | Review-memory tiers + consolidation/decay/archive lifecycle |
 | [`judge`](judge/README.md) | Rubric-scored LLM-as-judge (shadow measurement, never mutates a review) |
 | [`benchmark`](benchmark/README.md) | Versioned review-quality corpus + regression reports (CLI-only) |

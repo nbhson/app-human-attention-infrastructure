@@ -8,6 +8,7 @@ import { DiffTab } from '../components/DiffTab';
 import { ReportStats } from '../components/ReportStats';
 import { Skeleton, SkeletonLines } from '../components/Skeleton';
 import { TraceTab } from '../components/TraceTab';
+import { VerificationTab } from '../components/VerificationTab';
 import { severityColor, severityLabel, sortFindingsBySeverity } from '../components/severity';
 
 /**
@@ -79,7 +80,7 @@ export default function ReviewReportPage(): JSX.Element {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const [decision, setDecision] = useState<ReviewDecision | null>(null);
-  const [writeback, setWriteback] = useState(false);
+  const [writeback, setWriteback] = useState(true);
   const [comment, setComment] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ReviewTab>('review');
@@ -107,9 +108,9 @@ export default function ReviewReportPage(): JSX.Element {
 
   const findings = sortFindingsBySeverity(data.findings);
 
-  // The server decides whether the "write back" checkbox is even meaningful: an
-  // unarmed deployment (WRITEBACK_ENABLED off) would record the toggle as OFF no
-  // matter what, so we disable + explain it instead of letting the reviewer tick
+  // The server decides whether the "write back" checkbox is even meaningful: a
+  // write-back-disabled deployment (WRITEBACK_ENABLED=0) records the toggle as OFF
+  // no matter what, so we disable + explain it instead of letting the reviewer tick
   // a box that silently does nothing. REQUEST_CHANGES never writes by design.
   const writebackArmed = data.writeback?.enabled ?? false;
   const requestChanges = decision === 'REQUEST_CHANGES';
@@ -339,13 +340,8 @@ export default function ReviewReportPage(): JSX.Element {
       )}
 
       {activeTab === 'verification' && (
-        <div style={{ marginTop: 16 }} data-testid="verification-tab">
-          <p style={{ color: 'var(--color-text-muted)' }}>
-            Verification isn't wired into the review flow yet. This tab will show runnable
-            reproductions (clone → typecheck → test → evidence) once the sandbox/agent engines are
-            built back into ingestion; for now the anchor status on each finding is the honest proxy
-            — every claim is still anchored against the stored diff, or labeled not anchored.
-          </p>
+        <div style={{ marginTop: 16 }}>
+          <VerificationTab verification={data.verification} />
         </div>
       )}
 
@@ -472,10 +468,10 @@ export default function ReviewReportPage(): JSX.Element {
             )}
             <p style={{ margin: 0, color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>
               {!writebackArmed
-                ? 'Write-back is not armed on this deployment (WRITEBACK_ENABLED is off). This ' +
+                ? 'Write-back is disabled on this deployment (WRITEBACK_ENABLED=0 is set). This ' +
                   'decision will still be recorded, but nothing will be posted to the PR until an ' +
-                  'operator sets WRITEBACK_ENABLED=1 and the per-provider WRITEBACK_<PROVIDER> for ' +
-                  'this host.'
+                  'operator removes that override (or sets WRITEBACK_ENABLED=1), with the ' +
+                  'per-provider WRITEBACK_<PROVIDER> left armed.'
                 : requestChanges
                   ? 'REQUEST_CHANGES is recorded for audit but never writes back to the PR.'
                   : 'APPROVE posts a comment + success status; REJECT posts a comment + failure status.'}

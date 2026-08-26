@@ -4,14 +4,14 @@ import { PullRequestFileStatus } from '@harness/domain';
 import type { PullRequestFile } from '@harness/domain';
 
 import { buildDiff } from '../services/review-ingest.js';
-import { isGeneratedFile, isSourceFile } from '../review-file-classify.js';
+import { isGeneratedFile, isReviewableFile, isSourceFile } from '../review-file-classify.js';
 
 function file(path: string, patch = '--- a/x\n+++ b/x\n'): PullRequestFile {
   return { path, status: PullRequestFileStatus.Modified, additions: 1, deletions: 0, patch };
 }
 
 describe('buildDiff', () => {
-  it('keeps hand-written source and drops generated, doc, config and infra files', () => {
+  it('keeps every hand-written file — source, docs, config and infra — and drops only generated artifacts', () => {
     const files = [
       file('package-lock.json'),
       file('node_modules/.bin/ng'),
@@ -23,20 +23,24 @@ describe('buildDiff', () => {
       file('Dockerfile'),
       file('README.md'),
       file('package.json'),
+      file('docker-compose.yml'),
+      file('.env'),
     ];
 
     const diff = buildDiff(files);
 
     expect(diff).toContain('src/app.ts');
     expect(diff).toContain('src/app.component.scss');
+    expect(diff).toContain('Dockerfile');
+    expect(diff).toContain('README.md');
+    expect(diff).toContain('package.json');
+    expect(diff).toContain('docker-compose.yml');
+    expect(diff).toContain('.env');
     expect(diff).not.toContain('package-lock.json');
     expect(diff).not.toContain('node_modules/.bin/ng');
     expect(diff).not.toContain('dist/toeic-app/browser/chunk-B3-J63dS.js');
     expect(diff).not.toContain('src/main.ts.map');
     expect(diff).not.toContain('assets/app.min.js');
-    expect(diff).not.toContain('Dockerfile');
-    expect(diff).not.toContain('README.md');
-    expect(diff).not.toContain('package.json');
   });
 
   it('drops files whose patch is empty (binaries and empty diffs)', () => {
@@ -46,6 +50,19 @@ describe('buildDiff', () => {
 
     expect(diff).toContain('src/app.ts');
     expect(diff).not.toContain('logo.png');
+  });
+
+  it('redacts secret values from .env patches before they reach the diff', () => {
+    const files = [
+      file('.env', '--- a/.env\n+++ b/.env\n@@ -1 +1 @@\n+API_KEY=sk-live-abc\n+PORT=3000\n'),
+    ];
+
+    const diff = buildDiff(files);
+
+    expect(diff).toContain('=== .env');
+    expect(diff).toContain('+API_KEY=<redacted>');
+    expect(diff).toContain('+PORT=3000');
+    expect(diff).not.toContain('sk-live-abc');
   });
 });
 
@@ -65,6 +82,25 @@ describe('isGeneratedFile', () => {
     expect(isGeneratedFile('src/app.ts')).toBe(false);
     expect(isGeneratedFile('Dockerfile')).toBe(false);
     expect(isGeneratedFile('package.json')).toBe(false);
+  });
+});
+
+describe('isReviewableFile', () => {
+  it('is true for every hand-written file — source, docs, config and infra', () => {
+    expect(isReviewableFile('src/app.ts')).toBe(true);
+    expect(isReviewableFile('README.md')).toBe(true);
+    expect(isReviewableFile('package.json')).toBe(true);
+    expect(isReviewableFile('Dockerfile')).toBe(true);
+    expect(isReviewableFile('docker-compose.yml')).toBe(true);
+    expect(isReviewableFile('.env')).toBe(true);
+  });
+
+  it('is false for a generated artifact', () => {
+    expect(isReviewableFile('package-lock.json')).toBe(false);
+    expect(isReviewableFile('node_modules/.bin/ng')).toBe(false);
+    expect(isReviewableFile('dist/app/chunk.js')).toBe(false);
+    expect(isReviewableFile('src/app.ts.map')).toBe(false);
+    expect(isReviewableFile('assets/app.min.js')).toBe(false);
   });
 });
 

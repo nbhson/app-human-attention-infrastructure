@@ -80,7 +80,7 @@ What each command actually does:
 | --- | --- | --- |
 | `packages/domain` | `@harness/domain` | Branded IDs, core types, `TaskStatus`, canonical event types (incl. `learning.*`, `memory.*`, `writeback.*`) |
 | `packages/event-bus` | `@harness/event-bus` | `IEventBus` + `InProcessEventBus` (default), `RedisEventsBus` (durable), `transport-resolver` (`EVENT_TRANSPORT`) |
-| `packages/db` | `@harness/db` | Drizzle schema (49 tables), migrations, `createDb`, `EventLogWriter`, `WritebackLogStore`/`JudgeRunStore`/`JudgeAgreementStore`, `FaultyDb` |
+| `packages/db` | `@harness/db` | Drizzle schema (50 tables), migrations, `createDb`, `EventLogWriter`, `WritebackLogStore`/`JudgeRunStore`/`JudgeAgreementStore`, `FaultyDb` |
 | `packages/di` | `@harness/di` | `Container`, `TOKENS`, `Logger` (pino), architecture test |
 | `packages/orchestrator` | `@harness/orchestrator` | `TaskStateMachine`, `TaskService` (the dispatch/workflow/retry loop was retired) |
 | `packages/agent-runtime` | `@harness/agent-runtime` | `LLMProvider` (Anthropic + OpenAI-compatible), `MockLLM`, `ReviewAgent` (the ReAct write path was retired) |
@@ -310,16 +310,17 @@ AI_MODEL=gpt-4.1 \
 pnpm dev
 ```
 
-**Write-back toggles (day-09) — fail-safe, three layers.** An external write fires
-only when *every* layer is armed: (1) the global ceiling `WRITEBACK_ENABLED=1`,
-(2) the per-provider flag (`WRITEBACK_GITHUB`/`WRITEBACK_GITLAB`/
-`WRITEBACK_BITBUCKET`/`WRITEBACK_JIRA`), and (3) a `writeback: true` request flag
-on the decision. Unset/at-rest ⇒ nothing external is written; `provider_configs`
-holds only a `token_redacted` hint, never a token. (See runbook
-[operations.md](runbook/operations.md) OP-1/OP-2.)
+**Write-back toggles (day-09) — on by default, three opt-out layers.** An external
+write fires when no layer opts out: (1) the global ceiling `WRITEBACK_ENABLED` is
+unset (⇒ `0` disables fleet-wide), (2) the per-provider flag (`WRITEBACK_GITHUB`/
+`WRITEBACK_GITLAB`/`WRITEBACK_BITBUCKET`/`WRITEBACK_JIRA`) is unset (⇒ `0` disables
+a host), and (3) the decision carries `writeback: true` (the review UI ticks it by
+default). `provider_configs` holds only a `token_redacted` hint, never a token.
+(See runbook [operations.md](runbook/operations.md) OP-1/OP-2.)
 
 ```sh
-WRITEBACK_ENABLED=1 WRITEBACK_GITHUB=1 pnpm dev
+# The historical off-at-rest behavior, if you want it back fleet-wide:
+WRITEBACK_ENABLED=0 pnpm dev
 ```
 
 **Durable queue (day-34).** `EVENT_TRANSPORT=inproc|redis|sqs` selects the event

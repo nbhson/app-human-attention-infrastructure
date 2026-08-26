@@ -23,6 +23,11 @@ export const EventType = {
   AttentionInflationDetected: 'attention.inflation_detected',
   AttentionItemDeferred: 'attention.item_deferred',
   DecisionSubmitted: 'review.decision_submitted',
+  // Review-reorient (Phase 3): the human verdict on a review-slice report —
+  // distinct from the Phase-1 `DecisionSubmitted` (which targets a `change` and a
+  // Phase-1 reviewer). This one targets a `review_report` so the memory write-half
+  // can ground it in `review_decisions` (not the retired `decisions` table).
+  ReviewDecisionSubmitted: 'review.report_decision_submitted',
   // Day-24 (Phase 2): the review-surface lifecycle (Spec 8), distinct from the
   // decision itself — `claimed` starts the dwell timer, `released` re-queues a
   // timed-out claim, `escalated` records the reviewer's higher-authority handoff.

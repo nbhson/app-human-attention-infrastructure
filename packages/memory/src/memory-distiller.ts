@@ -12,7 +12,7 @@
  */
 
 import { HumanDecisionType } from '@harness/domain';
-import type { ReviewSeverity, ReviewVerdict } from '@harness/domain';
+import type { ReviewDecisionType, ReviewSeverity, ReviewVerdict } from '@harness/domain';
 import type { MemoryKind } from '@harness/domain';
 
 /** A single problem the reviewer found, reduced to the fields the distiller reads. */
@@ -51,6 +51,25 @@ export interface DecisionDistillInput {
   readonly changeId: string | null;
   /** The decision made. */
   readonly decision: HumanDecisionType;
+  /** The reason given, when the reviewer left one. */
+  readonly rationale: string | null;
+}
+
+/**
+ * A recorded review-slice decision, reduced to what a DECISION memory needs.
+ * Distinct from {@link DecisionDistillInput}: the review slice keys its verdict
+ * to a `review_report` (not a Phase-1 `change`), and its verdict vocabulary is
+ * {@link ReviewDecisionType} (APPROVE / REQUEST_CHANGES / REJECT).
+ */
+export interface ReviewDecisionDistillInput {
+  /** The decision id (event correlation). */
+  readonly decisionId: string;
+  /** The review report the decision targets (the stable topic). */
+  readonly reportId: string;
+  /** Web URL of the PR — a human-readable anchor, when the parent report is known. */
+  readonly prUrl: string | null;
+  /** The verdict recorded. */
+  readonly decision: ReviewDecisionType;
   /** The reason given, when the reviewer left one. */
   readonly rationale: string | null;
 }
@@ -151,6 +170,30 @@ export class MemoryDistiller {
         metadata: {
           decision_id: input.decisionId,
           change_id: input.changeId,
+          decision: input.decision,
+        },
+      },
+    ];
+  }
+
+  /**
+   * A recorded review-slice decision → one `DECISION` entry. `reportId` is the
+   * stable topic (re-deciding the same report versions onto the prior entry);
+   * the `review:` prefix keeps it from ever colliding with a Phase-1
+   * `decision:<changeId>` subject that happens to share the same UUID.
+   */
+  distillReviewDecision(input: ReviewDecisionDistillInput): DistilledMemory[] {
+    return [
+      {
+        kind: 'DECISION',
+        subject: `decision:review:${input.reportId}`,
+        content:
+          `Decision ${input.decision} on ${input.prUrl ?? `review ${input.reportId}`}` +
+          (input.rationale ? `:\n${input.rationale}` : ''),
+        confidence: DECISION_BASE_CONFIDENCE,
+        metadata: {
+          decision_id: input.decisionId,
+          review_report_id: input.reportId,
           decision: input.decision,
         },
       },

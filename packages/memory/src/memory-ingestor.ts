@@ -18,13 +18,15 @@ import { createHash } from 'node:crypto';
 
 import { eq } from 'drizzle-orm';
 
-import { decisions, evidence, reviewFindings, reviewReports } from '@harness/db';
+import { decisions, evidence, reviewDecisions, reviewFindings, reviewReports } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { EventType, newEvidenceID } from '@harness/domain';
 import type {
   DecisionSubmittedPayload,
   EvidenceID,
   HumanDecisionType,
+  ReviewDecisionSubmittedPayload,
+  ReviewDecisionType,
   ReviewReportCreatedPayload,
   ReviewSeverity,
   ReviewVerdict,
@@ -33,7 +35,11 @@ import type { IEventBus } from '@harness/event-bus';
 import type { Logger } from '@harness/di';
 
 import { MemoryDistiller } from './memory-distiller.js';
-import type { DecisionDistillInput, ReviewFindingDistill } from './memory-distiller.js';
+import type {
+  DecisionDistillInput,
+  ReviewDecisionDistillInput,
+  ReviewFindingDistill,
+} from './memory-distiller.js';
 import { MemoryStore } from './memory-store.js';
 import { appendVersion } from './versioned-append.js';
 
@@ -75,6 +81,18 @@ export class MemoryIngestor {
         });
       });
     });
+
+    this.bus.subscribe<ReviewDecisionSubmittedPayload>(
+      EventType.ReviewDecisionSubmitted,
+      (event) => {
+        void this.ingestReviewDecision(event.payload).catch((error) => {
+          this.logger?.error('memory: ingest review decision failed', {
+            decision_id: event.payload.decision_id,
+            error: String(error),
+          });
+        });
+      },
+    );
   }
 
   /**
@@ -168,6 +186,58 @@ export class MemoryIngestor {
       rationale: decision.rationale,
     };
     for (const candidate of this.distiller.distillDecision(input)) {
+      await appendVersion(this.store, candidate, [evidenceId]);
+    }
+  }
+
+  /**
+   * A review-slice decision → one `DECISION` entry, grounded in the
+   * `review_decisions` row (the review slice no longer writes the Phase-1
+   * `decisions` table). The parent report supplies the PR URL as a human-readable
+   * anchor; the report id is the stable topic.
+   */
+  async ingestReviewDecision(payload: ReviewDecisionSubmittedPayload): Promise<void> {
+    const decision = await this.db
+      .select()
+      .from(reviewDecisions)
+      .where(eq(reviewDecisions.id, payload.decision_id))
+      .limit(1)
+      .then((rows) => rows[0]);
+    if (!decision) {
+      return;
+    }
+
+    const report = await this.db
+      .select()
+      .from(reviewReports)
+      .where(eq(reviewReports.id, payload.review_report_id))
+      .limit(1)
+      .then((rows) => rows[0]);
+    const prUrl = report?.pr_url ?? null;
+
+    const evidenceId = await this.recordEvidence(
+      DECISION_EVIDENCE_KIND,
+      JSON.stringify(
+        {
+          kind: 'review_decision',
+          decision_id: decision.id,
+          review_report_id: decision.report_id,
+          decision: decision.decision,
+          rationale: decision.rationale,
+        },
+        null,
+        2,
+      ),
+    );
+
+    const input: ReviewDecisionDistillInput = {
+      decisionId: decision.id,
+      reportId: decision.report_id,
+      prUrl,
+      decision: decision.decision as ReviewDecisionType,
+      rationale: decision.rationale,
+    };
+    for (const candidate of this.distiller.distillReviewDecision(input)) {
       await appendVersion(this.store, candidate, [evidenceId]);
     }
   }

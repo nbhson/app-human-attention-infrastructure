@@ -7,6 +7,25 @@
 >
 > **Status:** v1.0-candidate · 25 `@harness/*` packages + 2 apps.
 
+## The moat — what "model + MCP" structurally cannot do
+
+The concern is fair: the `paste PR → AI review → human decide` slice *is* a
+commodity — a stateless, read-only `model + MCP` reproduces it, so competing there
+is competing on the wrong field. But across the 25 packages there are exactly four
+things such a setup can never have:
+
+| Axis | Why it can't be replaced | Already built |
+| --- | --- | --- |
+| **RUN** — run the real code | MCP only *reads*; it can't clone + run `tsc`/`vitest` in a sandbox | `verification-engine` + `sandbox` → `ReviewVerificationService` (wired, on by default — opt out via `VERIFY_REVIEW_ENABLED=0`) |
+| **REMEMBER** — cross-PR memory | `model + MCP` is stateless; it remembers nothing between two reviews | `memory` — write-half wired (`MemoryIngestor`); read not yet consumed by prompt assembly |
+| **BUDGET** — allocate attention | Reviewing one PR is easy; allocating attention across 50 PRs / 10 reviewers is not | `attention-engine` (only matters at scale) |
+| **PROVE** — demonstrate + audit | It can't prove its own reviews are good, and has no ledger | `judge` + `benchmark` + `event_log`/`correlation_id` |
+
+**Reframe the product:** don't sell "AI review" — selling that loses to
+`model + MCP` for certain. Sell *"infrastructure for the one scarce resource a
+software team has — reviewer attention — with machine evidence, memory, and a
+decision ledger."* That is, literally, the repo's name.
+
 ## How to read this
 
 **Import ≠ value.** A package registered in the DI container is just "code present in
@@ -31,7 +50,7 @@ one of these 5 packages, the product breaks immediately.
 | `git-provider` | Turns pasted URL into an **actual PR** (diff, files, title) — without it, "paste PR" is meaningless | Every ingest |
 | `ticket-provider` | Pulls in **Jira requirements** into the prompt (optional) | When `jiraTicket` is present |
 | `review` | **Queue + decision flow** — list page + APPROVE/REQUEST_CHANGES/REJECT decision bar | Read/write report |
-| `writeback` | **Comment + status written back to PR** (outside the app, on GitHub) | When APPROVE/REJECT + toggle ON |
+| `writeback` | **Comment + status written back to PR** (outside the app, on GitHub) | When APPROVE/REJECT (on by default; opt out via `WRITEBACK_ENABLED=0` / un-ticking the checkbox) |
 
 > On **these same 5 packages**, the trust-loop (finding `verified`/`unverified`) is a
 > pure function in `apps/api/src/finding-anchor.ts` — it answers "is the AI fabricating
@@ -45,25 +64,25 @@ cold repo), they are either "imported but not running" or running orphaned.
 
 | Package | Condition to produce value | Current state |
 | --- | --- | --- |
-| `verification-engine` | Wired into review flow + `GITHUB_TOKEN` + repo has test suite | Imported, **not called** |
+| `verification-engine` | Wired into review flow + `GITHUB_TOKEN` + repo has test suite | Wired — `ReviewVerificationService` (clone → build → test), on by default (opt out via `VERIFY_REVIEW_ENABLED=0`), surfaced on the Verification tab |
 | `attention-engine` | **Scale**: multiple PRs / multiple reviewers for routing + fatigue to matter | Subscribed but happy path `AWAITING_REVIEW` never runs (task is CANCELLED immediately) |
 | `artifact-tracker` | Flow must **produce an artifact** (after verification runs) | Subscribed but no `artifact.created` |
 | `context-engine` | Needs **repo index corpus** for collect→rank→trim to have something to read | Review flow assembles prompt itself, does not use it |
-| `memory` | **Warm repo**: has repeated review history so "past decisions inform new reviews" | Read wired, **write not wired** |
+| `memory` | **Warm repo**: has repeated review history so "past decisions inform new reviews" | Write wired (`MemoryIngestor` booted); read still not consumed by prompt assembly |
 | `embeddings` | **Large repo** needs semantic search (keyword path is sufficient for small repos) | Stub default, keyword path not read |
 | `judge` | Needs **rubric baseline** + must surface `judge_runs` to UI | Runs shadow but **log-only**, not visible |
 | `evaluation` | Needs **corpus + time** to measure review quality over time | Offline — correct placement |
 | `object-store` | Needs `OBJECT_STORE_ENDPOINT` (S3/MinIO) + has artifacts to offload | In-memory fallback, offload disabled |
-| `sandbox` | Needs `VERIFY_SANDBOX_ENABLED=1` + Docker | Only `CompileCheck` in-process |
+| `sandbox` | Needs `VERIFY_SANDBOX_ENABLED=1` + Docker | Runs the review clone's `build`+`test` via `SandboxRunner` (wedge #1); the Phase-1 `SandboxedCheck` still gates on `VERIFY_SANDBOX_ENABLED=1` |
 | `code-index` | Wire **in-process** to select the correct test for verification | CLI-only (demo script) |
 | `benchmark` | Needs **corpus regression** to compare quality across versions | CLI-only (out-of-band) |
 
 **Key insight:** Group B splits into 2 tiers —
 
-1. **Need to wire into the flow** (`verification-engine`, `attention-engine`,
-   `artifact-tracker`, `memory`, `code-index`): value lies in the wiring, costs vary.
-   `verification-engine` is the most expensive (clone + sandbox + handle non-testable
-   repos); `attention-engine` is nearly free (pure score function, already tested).
+1. **Need to wire into the flow** (`attention-engine`, `artifact-tracker`,
+   `code-index`): value lies in the wiring, costs vary. Two of the original five —
+   `verification-engine` (wedge #1) and `memory` (wedge #2) — are now wired; the
+   remaining three are the next candidates.
 2. **Already in the right place** (`evaluation`, `benchmark`): offline is its nature,
    not part of the hot path — do not touch.
 
@@ -79,7 +98,7 @@ modular-monolith intentionally chooses many small seams to keep boundary rules
 | `domain` | Branded ID, aggregate, event vocabulary, `TaskStatus`, `ReviewDecisionType` |
 | `event-bus` | `IEventBus` (in-process / optional Redis) |
 | `di` | `Container`, `TOKENS`, `createRootLogger` |
-| `db` | Drizzle schema (49 tables) + `EventLogWriter` |
+| `db` | Drizzle schema (50 tables) + `EventLogWriter` |
 | `observability` | OpenTelemetry tracing + Prometheus metrics |
 | `auth` | OIDC identity + roles + `SessionService` (route guard) |
 | `mcp` | `McpServerRegistry` + generic client — **foundation** for `git-provider`/`ticket-provider` |
@@ -101,4 +120,4 @@ wiring into the flow today**. Per [`runtime-startup.md`](runtime-startup.md), on
 ## Cross-references
 
 - [`wiring-map.md`](wiring-map.md) — token-by-token DI graph + R1–R14 table.
-- [`runtime-startup.md`](runtime-startup.md) — what loads at boot, 11 eager tokens.
+- [`runtime-startup.md`](runtime-startup.md) — what loads at boot, 13 eager tokens.

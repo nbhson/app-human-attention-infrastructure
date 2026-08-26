@@ -70,11 +70,11 @@ Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (qua
 
 Report giờ trả một con số "needs human attention" **chứng minh được** chứ không phải cảm tính:
 
-- **Tính theo file, không theo dòng:** `flaggedFiles / totalFiles` — `totalFiles` chỉ đếm **source** thật (loại lockfile / `dist/` / docs / config / infra), `flaggedFiles` đếm file có ≥1 finding `CRITICAL / MAJOR / MINOR` (NIT / INFO **không** tính).
+- **Tính theo file, không theo dòng:** `flaggedFiles / totalFiles` — `totalFiles` đếm mọi file do con người viết (source + docs/config/infra; chỉ loại generated như lockfile / `dist/`), `flaggedFiles` đếm file có ≥1 finding `CRITICAL / MAJOR / MINOR` (NIT / INFO **không** tính).
 - **File bị flag được liệt kê tên + severity** ngay trên report → "3 trong 12 file" map 1-1 với danh sách findings bên dưới.
-- Tab **Breakdown** trình bày phép tính: file bị flag kèm severity, findings "có tính" vs rác NIT/INFO, và bảng split source lines theo `test / style / markup / source` + số dòng non-source bị loại.
+- Tab **Breakdown** trình bày phép tính: file bị flag kèm severity, findings "có tính" vs rác NIT/INFO, và bảng split lines theo `test / style / markup / source / config`; chỉ generated files bị loại.
 
-Prompt reviewer cũng chỉ review source: generated files không bao giờ vào context model, và được yêu cầu tìm lỗi đúng đắn / bug ẩn / clean code — không báo nitpick (như thiếu trailing newline…).
+Prompt reviewer review **mọi file do con người viết** — source, docs (README), config (YAML/Dockerfile/.env/CI) và infra — trừ generated files; secret trong `.env`/Compose được **redact** trước khi vào context model. Yêu cầu tìm lỗi đúng đắn / bug ẩn / clean code, và cả lỗi misconfig/security ở config/infra — không báo nitpick (như thiếu trailing newline…).
 
 ---
 

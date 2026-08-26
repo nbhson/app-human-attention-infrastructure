@@ -96,17 +96,17 @@ appended to `writeback_log` (PENDING → SUCCEEDED / FAILED / DUPLICATE) with a
 deterministic `dedup_key` (sha-256 over provider | target | action | normalized
 payload). When toggled off, **no row exists** — so "no rows" is itself the proof.
 
-**The three-layer toggle (all must be ON for a byte to leave the system):**
+**The three-layer toggle (on by default; a byte leaves only when no layer opts out):**
 
-1. Env ceiling `WRITEBACK_ENABLED` (`apps/api/src/bootstrap`).
+1. Env ceiling `WRITEBACK_ENABLED` — unset ⇒ ON, `=0` disables fleet-wide (`apps/api/src/bootstrap`).
 2. Config-surface per-provider `enabled` in `provider_configs`.
-3. Request-level flag carried on the review/decision call.
+3. Request-level flag carried on the review/decision call — the review UI ticks it by default.
 
 **Procedure — prove OFF:**
 
 ```bash
-# 1. the env ceiling (unset/false ⇒ no writes, period)
-grep -E '^WRITEBACK_' .env 2>/dev/null || echo "WRITEBACK_* unset → OFF (default)"
+# 1. the env ceiling (unset ⇒ ON; WRITEBACK_ENABLED=0 ⇒ no writes, period)
+grep -E '^WRITEBACK_' .env 2>/dev/null || echo "WRITEBACK_* unset → ON (default); set =0 to opt out"
 
 # 2. per-provider enabled flags — any false row is a disabled destination
 docker compose exec -T postgres psql -U harness -d harness \

@@ -51,12 +51,17 @@ export const TOKENS = {
   ReviewIngestService: 'ReviewIngestService',
   GitProvider: 'GitProvider',
   TicketProvider: 'TicketProvider',
+  // Review-reorient Phase 3: run the PR's real code in the sandbox (wedge #1).
+  ReviewVerifier: 'ReviewVerifier',
+  ReviewVerificationService: 'ReviewVerificationService',
   // Review-reorient Phase 3: the MCP connection layer (day-02).
   McpServerRegistry: 'McpServerRegistry',
   // Review-reorient Phase 3: the write-back seam (day-06).
   WriteBackService: 'WriteBackService',
   // Review-reorient Phase 3: review memory (day-16).
   MemoryStore: 'MemoryStore',
+  // Review-reorient Phase 3: review-memory ingestion (write-half, wedge #2).
+  MemoryIngestor: 'MemoryIngestor',
   // Review-reorient Phase 3: review memory retrieval (day-18).
   MemoryProvider: 'MemoryProvider',
   MemoryContextResolver: 'MemoryContextResolver',

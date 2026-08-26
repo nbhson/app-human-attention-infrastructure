@@ -10,7 +10,7 @@
  *  - APPROVE + ON  → a COMMENT and a STATUS intent are emitted.
  *  - REJECT  + ON  → a COMMENT and a STATUS (failure) intent are emitted.
  *  - any OFF (missing flag or unarmed ceiling) → zero intents, `writeback: false`.
- *  - `WRITEBACK_ENABLED=false` at rest defeats a request-level ON.
+ *  - `WRITEBACK_ENABLED=0` (explicit off) defeats a request-level ON.
  *  - the decision row persists its effective toggle for audit.
  *  - no credential → 401; an OPERATOR-only principal → 403 + `authz.decision_denied`.
  */
@@ -257,8 +257,10 @@ describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
     await app.close();
   });
 
-  it('WRITEBACK_ENABLED=false at rest defeats a request-level ON', async () => {
-    // No WRITEBACK_ENABLED → ceiling OFF, even though the request asks for ON.
+  it('WRITEBACK_ENABLED=0 (explicit off) defeats a request-level ON', async () => {
+    // An operator opts the deployment out with WRITEBACK_ENABLED=0 — the ceiling
+    // is off even though the request asks for ON.
+    process.env.WRITEBACK_ENABLED = '0';
     const { app, intents, cookie } = await build();
 
     const res = await app.inject({

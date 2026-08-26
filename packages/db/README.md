@@ -1,6 +1,6 @@
 # @harness/db — Database Layer
 
-PostgreSQL access for the whole system: the schema (49 tables), migrations,
+PostgreSQL access for the whole system: the schema (50 tables), migrations,
 seeding, and the data-access surface every package reads/writes through.
 
 **Status:** complete (as-built) ·
@@ -11,7 +11,7 @@ seeding, and the data-access surface every package reads/writes through.
 ## Purpose
 
 1. **Abstract PostgreSQL** behind Drizzle ORM (driver `postgres.js`).
-2. **Hold the schema** — 49 tables, each owned by exactly one package's logic.
+2. **Hold the schema** — 50 tables, each owned by exactly one package's logic.
 3. **Keep `event_log` append-only** — the source of truth for *what happened*.
 4. **Expose data access** — `createDb`, `asReadonlyDb`, `AbStore`, `EventLogWriter`,
    audit helpers, and the write-back / judge log/run stores (`WritebackLogStore`,
@@ -40,7 +40,7 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 
 ---
 
-## Schema — 49 tables, grouped by owning domain
+## Schema — 50 tables, grouped by owning domain
 
 | Domain | Tables |
 | --- | --- |
@@ -50,7 +50,7 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 | **Context engine** | `contexts`, `source_usefulness`, `context_source_cache`, `context_source_embeddings`, `shadow_rank_comparisons` |
 | **Verification** | `verification_requests`, `verification_results`, `verification_check_results`, `verification_test_results`, `verification_reports` |
 | **Attention** | `assessments`, `assessment_feedback`, `attention_thresholds`, `calibration_datasets`, `calibration_weights`, `calibration_rows`, `auto_approve_kill_switch` |
-| **Review** | `review_queue`, `decisions`, `review_decisions`, `review_reports`, `review_findings`, `fix_suggestions` |
+| **Review** | `review_queue`, `decisions`, `review_decisions`, `review_reports`, `review_findings`, `review_verifications`, `fix_suggestions` |
 | **Integration (writeback)** | `provider_configs`, `writeback_log` |
 | **Evidence** | `evidence`, `evidence_links` |
 | **Event log** | `event_log` |
@@ -73,7 +73,10 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 > tiers), `judge_runs` / `judge_agreements` (rubric shadow judging), `review_examples`
 > (gold-labelled benchmark corpus), `source_usefulness` (learned-usage ranking
 > signal), and `review_decisions` (human verdict on the AI report, carrying the
-> effective `writeback_enabled` flag at decision time).
+> effective `writeback_enabled` flag at decision time). `review_verifications`
+> (one row per report) records a best-effort machine-side verification — clone the
+> PR at its head SHA, run the clone's own `build` then `test` in the Docker
+> sandbox, and persist the aggregated flag + markdown render (wedge #1).
 
 ---
 
@@ -146,7 +149,7 @@ src/
 └── schema/
     ├── enums.ts        # CHECK constraints + value lists
     ├── index.ts        # relational schema registry
-    └── *.ts            # 49 table definitions across 41 files
+    └── *.ts            # 50 table definitions across 42 files
 ```
 
 ## Public API surface

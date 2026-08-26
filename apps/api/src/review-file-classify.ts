@@ -1,12 +1,15 @@
 /**
  * Shared file classification for the review slice.
  *
- * Two orthogonal tests, kept in one module so the "generated" deny-list cannot
- * drift between the two places that care about it:
+ * Three tests, kept in one module so the "generated" deny-list cannot drift
+ * between the call sites that care about it:
  *
  *  - {@link isGeneratedFile}: a generated/dependency artifact (lockfile, build
  *    output, source map, minified bundle) that is not hand-written and should
  *    never reach the reviewer's context.
+ *  - {@link isReviewableFile}: everything *but* a generated artifact — source,
+ *    docs, config and infra alike. This is the review-scope boundary: the AI
+ *    reviews every hand-written file in the PR.
  *  - {@link isSourceFile}: hand-written programming source — a recognised code
  *    extension that is *not* generated. This is what the "needs human attention"
  *    metric counts, so a 9k-line lockfile or a docs/config/infra file does not
@@ -100,6 +103,18 @@ export function isGeneratedFile(path: string): boolean {
   return GENERATED_PATH_PATTERNS.some((pattern) => pattern.test(path));
 }
 
+/**
+ * True for anything a human reviewer would actually read — docs, config, infra
+ * and source — i.e. everything *except* a generated artifact. This is the
+ * review-scope boundary: {@link buildDiff} hands the AI every one of these
+ * files, whether it is `src/app.ts`, `README.md`, `docker-compose.yml` or a
+ * `Dockerfile`. Contrast with {@link isSourceFile}, the narrower is-this-code
+ * test the attention metric uses.
+ */
+export function isReviewableFile(path: string): boolean {
+  return !isGeneratedFile(path);
+}
+
 /** True for hand-written programming/web source (a code extension, not generated). */
 export function isSourceFile(path: string): boolean {
   if (isGeneratedFile(path)) {
@@ -139,4 +154,20 @@ export function classifySourceFile(path: string): SourceCategory | null {
     return 'markup';
   }
   return 'source';
+}
+
+/** A reviewable file's category: the source sub-categories, plus `config` for docs/config/infra. */
+export type ReviewableCategory = SourceCategory | 'config';
+
+/**
+ * Category of a hand-written file for the attention breakdown. Source files keep
+ * their {@link classifySourceFile} sub-category (test/style/markup/source);
+ * every other reviewable file — docs, config and infra (README, Dockerfile,
+ * YAML, JSON, env) — is `config`. Callers must pass a reviewable path: generated
+ * artifacts are filtered out before this is called, so a `null` from
+ * {@link classifySourceFile} here means "reviewable but not source", not
+ * "generated".
+ */
+export function classifyReviewableFile(path: string): ReviewableCategory {
+  return classifySourceFile(path) ?? 'config';
 }

@@ -8,11 +8,11 @@ import { SEVERITIES, severityColor, severityLabel } from './severity';
  *
  *  1. A verdict badge (APPROVE / REQUEST_CHANGES / COMMENT) in the verdict's
  *     status colour.
- *  2. An attention hero: the share of the PR's *source files* that carry an
- *     actionable finding (CRITICAL/MAJOR/MINOR — the product's whole "route
+ *  2. An attention hero: the share of the PR's *hand-written files* that carry
+ *     an actionable finding (CRITICAL/MAJOR/MINOR — the product's whole "route
  *     attention to only what matters" promise as one number, measured over
- *     code, not lockfiles/READMEs/Dockerfiles, and provable file-by-file from
- *     the findings list below) — plus the supporting counts.
+ *     every file a human wrote — source, docs, config and infra — and provable
+ *     file-by-file from the findings list below) — plus the supporting counts.
  *  3. A severity split: a 100%-stacked bar over the findings, with a legend that
  *     names every band, count, and percentage (never colour alone).
  */
@@ -172,12 +172,12 @@ export function ReportStats({
               {attentionPct}%
             </span>
             <span style={{ color: 'var(--color-text-muted)' }}>
-              {stats.flaggedFiles} of {stats.totalFiles} source files
+              {stats.flaggedFiles} of {stats.totalFiles} files
             </span>
           </div>
           <div
             role="img"
-            aria-label={`${attentionPct}% of source files have actionable findings`}
+            aria-label={`${attentionPct}% of hand-written files have actionable findings`}
             style={{
               marginTop: 'var(--space-2)',
               height: 8,

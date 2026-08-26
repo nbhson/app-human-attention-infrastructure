@@ -30,12 +30,12 @@ const stats: ReviewStats = {
 };
 
 describe('ReportStats', () => {
-  it('shows the verdict and the attention share as a percentage over source files', () => {
+  it('shows the verdict and the attention share as a percentage over hand-written files', () => {
     render(<ReportStats stats={stats} overallVerdict="REQUEST_CHANGES" />);
 
     expect(screen.getByTestId('verdict-badge')).toHaveTextContent('Request changes');
     expect(screen.getByTestId('attention-pct')).toHaveTextContent('75%');
-    expect(screen.getByText('3 of 4 source files')).toBeInTheDocument();
+    expect(screen.getByText('3 of 4 files')).toBeInTheDocument();
     expect(screen.getByText(/NIT and INFO don't count/)).toBeInTheDocument();
   });
 
