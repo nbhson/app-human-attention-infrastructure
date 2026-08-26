@@ -10,14 +10,14 @@ const verified: FindingAnchor = { status: 'verified', detail: 'line 10 is in thi
 const unverified: FindingAnchor = { status: 'unverified', detail: 'file not touched by this PR' };
 
 describe('AnchorBadge', () => {
-  it('labels a verified anchor with a check', () => {
+  it('labels a resolved anchor "anchored" with a check', () => {
     render(<AnchorBadge anchor={verified} />);
-    expect(screen.getByTestId('anchor-verified')).toHaveTextContent('verified');
+    expect(screen.getByTestId('anchor-verified')).toHaveTextContent('anchored');
   });
 
-  it('labels an unverified anchor with a warning', () => {
+  it('labels an unresolved anchor "not anchored" with a warning', () => {
     render(<AnchorBadge anchor={unverified} />);
-    expect(screen.getByTestId('anchor-unverified')).toHaveTextContent('unverified');
+    expect(screen.getByTestId('anchor-unverified')).toHaveTextContent('not anchored');
   });
 
   it('exposes the reason as a tooltip for both verdicts', () => {

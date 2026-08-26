@@ -2,9 +2,10 @@ import type { FindingAnchor } from '../api/reviews';
 
 /**
  * Trust-loop anchor badge (review-reorient Phase 3) — turns a finding's
- * `verified` / `unverified` anchor verdict into a glanceable pill. Green = the
- * AI's `file:line` resolved into the PR diff; amber = it did not (the claim may
- * be hallucinated). Theme tokens, so it follows dark mode automatically.
+ * anchor verdict (did the AI's `file:line` resolve into the PR diff?) into a
+ * glanceable pill. "anchored" = the line is in the diff; "not anchored" = it is
+ * not (the claim may be hallucinated) — evidence anchoring, NOT a test run.
+ * Theme tokens, so it follows dark mode automatically.
  */
 
 const TONE: Record<
@@ -18,13 +19,13 @@ const TONE: Record<
 > = {
   verified: {
     icon: '✓',
-    label: 'verified',
+    label: 'anchored',
     color: 'var(--color-success)',
     background: 'transparent',
   },
   unverified: {
     icon: '⚠',
-    label: 'unverified',
+    label: 'not anchored',
     color: 'var(--color-warning)',
     background: 'var(--color-warning-bg)',
   },
