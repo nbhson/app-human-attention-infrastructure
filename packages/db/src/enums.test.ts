@@ -7,6 +7,7 @@ import {
   ChangeStatus,
   ContextSourceType,
   FileChangeType,
+  FindingKind,
   HumanDecisionType,
   MemoryKind,
   MemoryStatus,
@@ -31,6 +32,7 @@ import {
   changeStatuses,
   contextSourceTypes,
   fileChangeTypes,
+  findingKinds,
   humanDecisionTypes,
   memoryKinds,
   memoryStatuses,
@@ -112,6 +114,10 @@ describe('schema enum drift guards', () => {
 
   it('reviewSeverities match ReviewSeverity', () => {
     expect(reviewSeverities).toEqual(Object.values(ReviewSeverity));
+  });
+
+  it('findingKinds match FindingKind (fix vs remove)', () => {
+    expect(findingKinds).toEqual(Object.values(FindingKind));
   });
 
   it('providerKinds match ProviderKind', () => {

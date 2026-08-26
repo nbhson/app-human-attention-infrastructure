@@ -7,8 +7,9 @@
  * value sets so a malformed severity never reaches the database CHECK.
  */
 
-import { ReviewSeverity, ReviewVerdict } from '@harness/domain';
+import { FindingKind, ReviewSeverity, ReviewVerdict } from '@harness/domain';
 import type {
+  FindingKind as FindingKindT,
   ReviewSeverity as ReviewSeverityT,
   ReviewVerdict as ReviewVerdictT,
 } from '@harness/domain';
@@ -20,6 +21,7 @@ import type {
 } from './review-output.js';
 
 const SEVERITIES = new Set<string>(Object.values(ReviewSeverity));
+const KINDS = new Set<string>(Object.values(FindingKind));
 const VERDICTS = new Set<string>(Object.values(ReviewVerdict));
 
 /** The model's output was not parseable as a review object. */
@@ -45,6 +47,13 @@ function normalizeVerdict(raw: unknown): ReviewVerdictT {
     return raw as ReviewVerdictT;
   }
   return ReviewVerdict.Comment;
+}
+
+function normalizeKind(raw: unknown): FindingKindT {
+  if (typeof raw === 'string' && KINDS.has(raw)) {
+    return raw as FindingKindT;
+  }
+  return FindingKind.Correctness;
 }
 
 /**
@@ -84,6 +93,7 @@ function normalizeFindings(raw: unknown): ReviewFindingOutput[] {
     const line = normalizeLine(f.line);
     out.push({
       severity: normalizeSeverity(f.severity),
+      kind: normalizeKind(f.kind),
       file,
       message,
       ...(line !== undefined ? { line } : {}),

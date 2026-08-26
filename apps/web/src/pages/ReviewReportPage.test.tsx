@@ -40,13 +40,15 @@ const report: ReviewReport = {
     findingTotal: 1,
     severity: { CRITICAL: 0, MAJOR: 1, MINOR: 0, NIT: 0, INFO: 0 },
     composition: [{ category: 'source', files: 1, additions: 40, deletions: 10 }],
-    excluded: { files: 0, additions: 0, deletions: 0 },
+    excluded: { files: 0, additions: 0, deletions: 0, filesList: [] },
     flaggedFilesList: [{ file: 'src/limit.ts', severities: ['MAJOR'] }],
+    cleanup: { files: 0, findings: 0, filesList: [] },
   },
   findings: [
     {
       id: 'finding-1',
       severity: 'MAJOR',
+      kind: 'correctness',
       file: 'src/limit.ts',
       line: 42,
       message: 'Off-by-one in the window check.',

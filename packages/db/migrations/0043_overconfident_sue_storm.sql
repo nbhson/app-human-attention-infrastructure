@@ -1,0 +1,2 @@
+ALTER TABLE "review_findings" ADD COLUMN "kind" text DEFAULT 'correctness' NOT NULL;--> statement-breakpoint
+ALTER TABLE "review_findings" ADD CONSTRAINT "review_findings_kind_check" CHECK (kind IN ('correctness', 'cleanup'));

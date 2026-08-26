@@ -21,6 +21,7 @@ import {
 } from '@harness/domain';
 import type {
   AiProviderType,
+  FindingKind,
   ReviewReport,
   ReviewReportCreatedPayload,
   ReviewReportID,
@@ -69,6 +70,7 @@ async function loadReport(db: DrizzleDB, reportId: ReviewReportID): Promise<Revi
       createReviewFinding({
         id: brand(finding.id, 'ReviewFindingID'),
         severity: finding.severity as ReviewSeverity,
+        kind: finding.kind as FindingKind,
         file: finding.file,
         message: finding.message,
         ...(finding.line === null ? {} : { line: finding.line }),

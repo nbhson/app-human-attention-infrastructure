@@ -20,12 +20,13 @@ const stats: ReviewStats = {
     { category: 'source', files: 3, additions: 60, deletions: 15 },
     { category: 'test', files: 1, additions: 20, deletions: 5 },
   ],
-  excluded: { files: 1, additions: 9000, deletions: 0 },
+  excluded: { files: 1, additions: 9000, deletions: 0, filesList: [] },
   flaggedFilesList: [
     { file: 'src/a.ts', severities: ['CRITICAL', 'MAJOR'] },
     { file: 'src/b.ts', severities: ['MINOR'] },
     { file: 'src/c.ts', severities: ['CRITICAL'] },
   ],
+  cleanup: { files: 0, findings: 0, filesList: [] },
 };
 
 describe('ReportStats', () => {

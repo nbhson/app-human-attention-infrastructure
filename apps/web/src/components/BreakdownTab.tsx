@@ -201,6 +201,114 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
           fewer findings than a dense logic change, so a low finding count on a big line count isn't
           under-review.
         </p>
+
+        {stats.excluded.filesList.length > 0 ? (
+          <>
+            <p style={{ ...SMALL, margin: 'var(--space-3) 0 var(--space-1)' }}>
+              Files outside the metric
+            </p>
+            <ul data-testid="excluded-files" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {stats.excluded.filesList.map(({ path, additions, reason }) => (
+                <li
+                  key={path}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'baseline',
+                    padding: '5px 0',
+                    borderBottom: '1px solid var(--color-border)',
+                  }}
+                >
+                  <code style={{ wordBreak: 'break-word' }}>{path}</code>
+                  <span
+                    style={{
+                      color: 'var(--color-text-muted)',
+                      fontSize: '0.8rem',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    +{additions}
+                  </span>
+                  <span
+                    style={{
+                      color: 'var(--color-text-faint)',
+                      fontSize: '0.72rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.03em',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {reason === 'generated' ? 'Generated' : 'Non-source'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </section>
+
+      {/* 4 — cleanup opportunities: the remove/simplify axis, separate from bugs */}
+      <section>
+        <h3 style={{ marginTop: 0 }}>Cleanup opportunities</h3>
+        <p style={{ color: 'var(--color-text-muted)' }}>
+          Dead code, unused functions, duplication, magic numbers and confusing naming — findings
+          whose action is <em>remove / simplify</em>, not <em>fix</em>. They don't move the
+          attention percentage, but they're listed here so a redundant function isn't lost in the
+          noise.
+        </p>
+
+        {stats.cleanup.files > 0 ? (
+          <>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: 'var(--space-2)',
+                marginBottom: 'var(--space-2)',
+              }}
+            >
+              <div style={TILE}>
+                <div style={SMALL}>Files</div>
+                <div data-testid="cleanup-files" style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+                  {stats.cleanup.files}
+                </div>
+              </div>
+              <div style={TILE}>
+                <div style={SMALL}>Findings</div>
+                <div
+                  data-testid="cleanup-findings"
+                  style={{ fontSize: '1.25rem', fontWeight: 600 }}
+                >
+                  {stats.cleanup.findings}
+                </div>
+              </div>
+            </div>
+            <ul
+              data-testid="cleanup-files-list"
+              style={{ listStyle: 'none', padding: 0, margin: 0 }}
+            >
+              {stats.cleanup.filesList.map(({ file, count }) => (
+                <li
+                  key={file}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'baseline',
+                    padding: '6px 0',
+                    borderBottom: '1px solid var(--color-border)',
+                  }}
+                >
+                  <code style={{ wordBreak: 'break-word' }}>{file}</code>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+                    {count} {count === 1 ? 'finding' : 'findings'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p style={{ color: 'var(--color-text-muted)' }}>No dead code / duplication flagged.</p>
+        )}
       </section>
     </div>
   );

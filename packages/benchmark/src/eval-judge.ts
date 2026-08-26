@@ -14,7 +14,12 @@
  * real {@link import('@harness/judge').Judge}.
  */
 
-import { AiProviderType, createReviewFinding, createReviewReport } from '@harness/domain';
+import {
+  AiProviderType,
+  createReviewFinding,
+  createReviewReport,
+  FindingKind,
+} from '@harness/domain';
 import type { JudgeScores, ReviewReport } from '@harness/domain';
 import type { Judge } from '@harness/judge';
 
@@ -43,6 +48,7 @@ export function reportFromExample(example: ReviewExample): ReviewReport {
 function toFinding(finding: ArtifactFinding) {
   return createReviewFinding({
     severity: finding.severity,
+    kind: FindingKind.Correctness, // benchmark gold examples carry no kind → treat as a fix
     file: finding.file,
     message: finding.message,
     ...(finding.line !== undefined ? { line: finding.line } : {}),

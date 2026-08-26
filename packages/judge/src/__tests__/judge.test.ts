@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AiProviderType,
+  FindingKind,
   ReviewSeverity,
   ReviewVerdict,
   createFixSuggestion,
@@ -69,6 +70,7 @@ function fixtureReport(): ReviewReport {
     findings: [
       createReviewFinding({
         severity: ReviewSeverity.Critical,
+        kind: FindingKind.Correctness,
         file: 'src/widget.ts',
         line: 42,
         message: 'Missing null check on user input',
@@ -76,6 +78,7 @@ function fixtureReport(): ReviewReport {
       }),
       createReviewFinding({
         severity: ReviewSeverity.Minor,
+        kind: FindingKind.Cleanup,
         file: 'README.md',
         message: 'Typo in the endpoint description',
       }),

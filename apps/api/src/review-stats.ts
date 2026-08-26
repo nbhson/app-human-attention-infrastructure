@@ -22,7 +22,7 @@
 import { ReviewSeverity } from '@harness/domain';
 import type { ReviewSeverity as ReviewSeverityType } from '@harness/domain';
 
-import { classifySourceFile, isSourceFile } from './review-file-classify.js';
+import { classifySourceFile, isGeneratedFile, isSourceFile } from './review-file-classify.js';
 import type { SourceCategory } from './review-file-classify.js';
 
 /** Severity bands, highest first — the same order the AI reports them in. */
@@ -76,12 +76,34 @@ export interface ReviewStats {
     readonly files: number;
     readonly additions: number;
     readonly deletions: number;
+    /** The rejected files, named — the proof of what the denominator leaves out. */
+    readonly filesList: readonly {
+      readonly path: string;
+      readonly additions: number;
+      readonly deletions: number;
+      /** `generated` = lockfile/build artefact; `non-source` = docs/config/infra. */
+      readonly reason: 'generated' | 'non-source';
+    }[];
   };
   /** Source files carrying an actionable finding — the proof of `attentionShare`. */
   readonly flaggedFilesList: readonly {
     readonly file: string;
     readonly severities: readonly string[];
   }[];
+  /**
+   * Cleanup opportunities (dead code / duplication / naming), a parallel signal
+   * to `attentionShare`: counted at every severity (a NIT "unused function" is
+   * still a removal candidate the reviewer may want to see) but never moved the
+   * attention percentage — that stays a function of actionable severity alone.
+   */
+  readonly cleanup: {
+    /** Distinct source files carrying at least one `cleanup` finding. */
+    readonly files: number;
+    /** Total `cleanup` findings across those files. */
+    readonly findings: number;
+    /** The proof: each cleanup-carrying file, with its cleanup-finding count. */
+    readonly filesList: readonly { readonly file: string; readonly count: number }[];
+  };
   /**
    * `flaggedFiles / totalFiles`, clamped to [0, 1] (0 when no source files).
    * File-based, not line-based, so the hero is provable at a glance: "3 of 12
@@ -98,6 +120,8 @@ export interface ReviewStats {
 /** The subset of a finding the stats need — DB row(s) or API-mapped row(s) alike. */
 export interface FindingRef {
   readonly severity: string;
+  /** Finding kind — `cleanup` marks dead code / duplication / naming. */
+  readonly kind?: string;
   readonly file: string;
   readonly line: number | null;
 }
@@ -201,13 +225,34 @@ export function computeReviewStats(
   }).filter((row) => row.files > 0);
 
   // The part of the diff we deliberately throw away: lockfiles, docs, config and
-  // infra. Surfacing it shows the attention denominator is small *for a reason*.
+  // infra. Surfacing it — by name, not just count — shows the attention
+  // denominator is small *for a reason*: it is verifiable that "9,140 excluded
+  // lines" means "package-lock.json", not hidden logic. `generated` (lockfile /
+  // build artefact) is split from `non-source` (docs/config/infra) so the reader
+  // sees which are which instead of one undifferentiated blob.
   const allAdded = allFiles.reduce((sum, file) => sum + toNonNegative(file?.additions), 0);
   const allRemoved = allFiles.reduce((sum, file) => sum + toNonNegative(file?.deletions), 0);
+  const excludedFiles = allFiles.filter((file) => !isSourceFile(file?.path ?? ''));
   const excluded: ReviewStats['excluded'] = {
-    files: allFiles.length - files.length,
+    files: excludedFiles.length,
     additions: allAdded - addedLines,
     deletions: allRemoved - removedLines,
+    filesList: excludedFiles
+      .map((file) => {
+        const path = file?.path ?? '';
+        return {
+          path,
+          additions: toNonNegative(file?.additions),
+          deletions: toNonNegative(file?.deletions),
+          reason: (isGeneratedFile(path) ? 'generated' : 'non-source') as
+            'generated' | 'non-source',
+        };
+      })
+      .sort((a, b) => {
+        // Generated first (most obviously out of scope), then largest lines first.
+        if (a.reason !== b.reason) return a.reason === 'generated' ? -1 : 1;
+        return b.additions - a.additions || a.path.localeCompare(b.path);
+      }),
   };
 
   const flaggedFilesList: ReviewStats['flaggedFilesList'] = [...flaggedFiles.entries()]
@@ -219,6 +264,24 @@ export function computeReviewStats(
         );
       return worst(a.severities) - worst(b.severities) || a.file.localeCompare(b.file);
     });
+
+  // Cleanup opportunities (dead code / duplication / naming): tally `cleanup`-kind
+  // findings per source file. This selects on the *kind* axis, orthogonal to the
+  // `flaggedFiles` severity selection above, so a NIT "unused function" surfaces
+  // here as a removal candidate without inflating `flaggedFiles`/`attentionShare`.
+  const cleanupTally = new Map<string, number>();
+  for (const finding of findings) {
+    if (
+      finding.kind === 'cleanup' &&
+      typeof finding.file === 'string' &&
+      isSourceFile(finding.file)
+    ) {
+      cleanupTally.set(finding.file, (cleanupTally.get(finding.file) ?? 0) + 1);
+    }
+  }
+  const cleanupFilesList = [...cleanupTally.entries()]
+    .map(([file, count]) => ({ file, count }))
+    .sort((a, b) => b.count - a.count || a.file.localeCompare(b.file));
 
   const severity = Object.fromEntries(SEVERITY_ORDER.map((band) => [band, 0])) as SeverityCounts;
   for (const finding of findings) {
@@ -240,5 +303,10 @@ export function computeReviewStats(
     composition,
     excluded,
     flaggedFilesList,
+    cleanup: {
+      files: cleanupTally.size,
+      findings: [...cleanupTally.values()].reduce((sum, count) => sum + count, 0),
+      filesList: cleanupFilesList,
+    },
   };
 }

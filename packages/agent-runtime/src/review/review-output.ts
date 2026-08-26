@@ -7,11 +7,13 @@
  * them to a {@link ReviewReport}.
  */
 
-import type { ReviewSeverity, ReviewVerdict } from '@harness/domain';
+import type { FindingKind, ReviewSeverity, ReviewVerdict } from '@harness/domain';
 
 /** One problem the AI found in the PR (unidentified — see module doc). */
 export interface ReviewFindingOutput {
   readonly severity: ReviewSeverity;
+  /** What to do about it: fix (`correctness`) vs remove/simplify (`cleanup`). */
+  readonly kind?: FindingKind;
   readonly file: string;
   readonly line?: number;
   readonly message: string;

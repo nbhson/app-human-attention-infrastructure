@@ -260,6 +260,9 @@ export const reviewVerdicts = ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'] as const
 /** `review_findings.severity` — a finding severity band. */
 export const reviewSeverities = ['CRITICAL', 'MAJOR', 'MINOR', 'NIT', 'INFO'] as const;
 
+/** `review_findings.kind` — what to do about a finding: fix vs remove/simplify. */
+export const findingKinds = ['correctness', 'cleanup'] as const;
+
 /** `provider_configs.kind` — what a provider config configures. */
 export const providerKinds = ['git', 'ticket', 'ai'] as const;
 
@@ -292,6 +295,9 @@ export const reviewSeverityCheck = inList(
   'severity',
   reviewSeverities,
 );
+
+/** `review_findings.kind`. */
+export const findingKindCheck = inList('review_findings_kind_check', 'kind', findingKinds);
 
 /** `provider_configs.kind`. */
 export const providerKindCheck = inList('provider_configs_kind_check', 'kind', providerKinds);
