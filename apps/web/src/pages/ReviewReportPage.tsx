@@ -196,6 +196,18 @@ export default function ReviewReportPage(): JSX.Element {
         >
           <section>
             <h3 style={{ marginTop: 0 }}>Findings ({data.findings.length})</h3>
+            {data.findings.length > 0 && (
+              <p
+                style={{
+                  margin: '-4px 0 12px',
+                  color: 'var(--color-text-faint)',
+                  fontSize: '0.75rem',
+                }}
+              >
+                Anchored means the cited <code>file:line</code> falls inside this PR&apos;s diff; a
+                warning means it did not. This is evidence anchoring, not a test run.
+              </p>
+            )}
             {data.findings.length === 0 && <p>No findings.</p>}
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {findings.map((finding) => (
@@ -332,7 +344,7 @@ export default function ReviewReportPage(): JSX.Element {
             Verification isn't wired into the review flow yet. This tab will show runnable
             reproductions (clone → typecheck → test → evidence) once the sandbox/agent engines are
             built back into ingestion; for now the anchor status on each finding is the honest proxy
-            — every claim is still verified against the stored diff, or labeled unverified.
+            — every claim is still anchored against the stored diff, or labeled not anchored.
           </p>
         </div>
       )}
