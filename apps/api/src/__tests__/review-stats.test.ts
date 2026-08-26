@@ -146,11 +146,62 @@ describe('computeReviewStats', () => {
       { category: 'markup', files: 1, additions: 9, deletions: 0 },
       { category: 'source', files: 1, additions: 605, deletions: 0 },
     ]);
-    expect(stats.excluded).toEqual({ files: 2, additions: 9140, deletions: 0 });
+    expect(stats.excluded).toEqual({
+      files: 2,
+      additions: 9140,
+      deletions: 0,
+      filesList: [
+        { path: 'package-lock.json', additions: 8776, deletions: 0, reason: 'generated' },
+        { path: 'README.md', additions: 364, deletions: 0, reason: 'non-source' },
+      ],
+    });
     // NIT dropped; severities grouped per file, worst-first.
     expect(stats.flaggedFilesList).toEqual([
       { file: 'src/toeic.service.spec.ts', severities: ['CRITICAL'] },
       { file: 'src/toeic.service.ts', severities: ['MAJOR', 'MINOR'] },
     ]);
+  });
+
+  it('tallies cleanup findings per source file as a parallel signal', () => {
+    const findings = [
+      { severity: 'MINOR', kind: 'cleanup', file: 'src/dead.ts', line: 4 },
+      { severity: 'NIT', kind: 'cleanup', file: 'src/dead.ts', line: 9 },
+      { severity: 'NIT', kind: 'cleanup', file: 'src/dup.ts', line: null },
+      { severity: 'MAJOR', kind: 'correctness', file: 'src/app.ts', line: 1 },
+    ];
+
+    const stats = computeReviewStats(
+      {
+        files: [
+          { path: 'src/dead.ts', additions: 10, deletions: 0 },
+          { path: 'src/dup.ts', additions: 20, deletions: 0 },
+          { path: 'src/app.ts', additions: 30, deletions: 0 },
+        ],
+      },
+      findings,
+    );
+
+    // Cleanup counts every severity (the NIT "unused function" is still surfacing).
+    expect(stats.cleanup.files).toBe(2); // dead.ts + dup.ts
+    expect(stats.cleanup.findings).toBe(3); // two on dead.ts + one on dup.ts
+    expect(stats.cleanup.filesList).toEqual([
+      { file: 'src/dead.ts', count: 2 },
+      { file: 'src/dup.ts', count: 1 },
+    ]);
+    // Attention stays severity-based: dead.ts (MINOR) + app.ts (MAJOR) are flagged,
+    // dup.ts (NIT only) is not — kind does not gate attention, it runs alongside.
+    expect(stats.flaggedFiles).toBe(2);
+    expect(stats.attentionShare).toBe(0.6667); // 2/3, rounded to 4 dp
+  });
+
+  it('never tallies cleanup for non-source files', () => {
+    const stats = computeReviewStats(
+      { files: [{ path: 'README.md', additions: 20, deletions: 0 }] },
+      [{ severity: 'NIT', kind: 'cleanup', file: 'README.md', line: 1 }],
+    );
+
+    expect(stats.cleanup.files).toBe(0);
+    expect(stats.cleanup.findings).toBe(0);
+    expect(stats.cleanup.filesList).toEqual([]);
   });
 });

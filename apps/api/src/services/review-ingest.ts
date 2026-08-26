@@ -22,6 +22,7 @@ import type { ReviewAgent } from '@harness/agent-runtime';
 import {
   brand,
   EventType,
+  FindingKind,
   newFixSuggestionID,
   newProjectID,
   newReviewFindingID,
@@ -246,6 +247,7 @@ export class ReviewIngestService {
         id: newReviewFindingID(),
         report_id: reportId,
         severity: finding.severity,
+        kind: finding.kind ?? FindingKind.Correctness,
         file: finding.file,
         line: finding.line ?? null,
         message: finding.message,

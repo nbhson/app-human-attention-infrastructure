@@ -22,11 +22,27 @@ const stats: ReviewStats = {
     { category: 'style', files: 1, additions: 75, deletions: 0 },
     { category: 'markup', files: 1, additions: 9, deletions: 0 },
   ],
-  excluded: { files: 2, additions: 9140, deletions: 0 },
+  excluded: {
+    files: 2,
+    additions: 9140,
+    deletions: 0,
+    filesList: [
+      { path: 'package-lock.json', additions: 8776, deletions: 0, reason: 'generated' },
+      { path: 'README.md', additions: 364, deletions: 0, reason: 'non-source' },
+    ],
+  },
   flaggedFilesList: [
     { file: 'src/toeic.service.spec.ts', severities: ['CRITICAL'] },
     { file: 'src/toeic.service.ts', severities: ['MAJOR', 'MINOR'] },
   ],
+  cleanup: {
+    files: 2,
+    findings: 3,
+    filesList: [
+      { file: 'src/dead.ts', count: 2 },
+      { file: 'src/dup.ts', count: 1 },
+    ],
+  },
 };
 
 describe('BreakdownTab', () => {
@@ -46,6 +62,25 @@ describe('BreakdownTab', () => {
     expect(screen.getByText(/sit outside the attention metric/)).toBeInTheDocument();
     expect(screen.getByTestId('signal-count')).toHaveTextContent('3'); // CRITICAL + MAJOR + MINOR
     expect(screen.getByTestId('noise-count')).toHaveTextContent('1'); // NIT + INFO
+  });
+
+  it('names every excluded file so the denominator is provable, not just counted', () => {
+    render(<BreakdownTab stats={stats} />);
+
+    const excluded = screen.getByTestId('excluded-files');
+    expect(excluded).toHaveTextContent('package-lock.json');
+    expect(excluded).toHaveTextContent('Generated');
+    expect(excluded).toHaveTextContent('README.md');
+    expect(excluded).toHaveTextContent('Non-source');
+  });
+
+  it('lists cleanup opportunities (dead code) separately from the attention share', () => {
+    render(<BreakdownTab stats={stats} />);
+
+    expect(screen.getByTestId('cleanup-files')).toHaveTextContent('2');
+    expect(screen.getByTestId('cleanup-findings')).toHaveTextContent('3');
+    expect(screen.getByTestId('cleanup-files-list')).toHaveTextContent('src/dead.ts');
+    expect(screen.getByTestId('cleanup-files-list')).toHaveTextContent('2 findings');
   });
 
   it('degrades to a notice instead of crashing when stats are absent', () => {

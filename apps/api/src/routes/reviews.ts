@@ -204,6 +204,7 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         findings: findingsRows.map((f) => ({
           id: f.id,
           severity: f.severity,
+          kind: f.kind,
           file: f.file,
           line: f.line,
           anchor: computeFindingAnchor(report.pr_payload, f.file, f.line),

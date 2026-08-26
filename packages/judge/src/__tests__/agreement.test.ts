@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AiProviderType,
+  FindingKind,
   ReviewSeverity,
   ReviewVerdict,
   createReviewFinding,
@@ -130,12 +131,14 @@ describe('canonicalReportHash', () => {
       findings: overrides.findings ?? [
         createReviewFinding({
           severity: ReviewSeverity.Critical,
+          kind: FindingKind.Correctness,
           file: 'src/widget.ts',
           line: 42,
           message: 'Missing null check',
         }),
         createReviewFinding({
           severity: ReviewSeverity.Minor,
+          kind: FindingKind.Cleanup,
           file: 'README.md',
           message: 'Typo',
         }),

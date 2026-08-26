@@ -20,6 +20,8 @@ export interface FindingAnchor {
 export interface ReviewFinding {
   readonly id: string;
   readonly severity: 'CRITICAL' | 'MAJOR' | 'MINOR' | 'NIT' | 'INFO';
+  /** What to do about it: fix (`correctness`) vs remove/simplify (`cleanup`). */
+  readonly kind: 'correctness' | 'cleanup';
   readonly file: string;
   readonly line: number | null;
   readonly message: string;
@@ -132,12 +134,26 @@ export interface ReviewStats {
     readonly files: number;
     readonly additions: number;
     readonly deletions: number;
+    /** The rejected files, named — the proof of what the denominator leaves out. */
+    readonly filesList: readonly {
+      readonly path: string;
+      readonly additions: number;
+      readonly deletions: number;
+      /** `generated` = lockfile/build artefact; `non-source` = docs/config/infra. */
+      readonly reason: 'generated' | 'non-source';
+    }[];
   };
   /** Source files carrying an actionable finding — the proof of `attentionShare`. */
   readonly flaggedFilesList: readonly {
     readonly file: string;
     readonly severities: readonly string[];
   }[];
+  /** Cleanup opportunities (dead code / duplication), a parallel signal to attention. */
+  readonly cleanup: {
+    readonly files: number;
+    readonly findings: number;
+    readonly filesList: readonly { readonly file: string; readonly count: number }[];
+  };
   /** `flaggedFiles / totalFiles`, clamped to [0, 1]. */
   readonly attentionShare: number;
   readonly findingTotal: number;

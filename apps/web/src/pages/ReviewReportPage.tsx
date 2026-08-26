@@ -223,6 +223,21 @@ export default function ReviewReportPage(): JSX.Element {
                     >
                       {severityLabel(finding.severity)}
                     </span>
+                    {finding.kind === 'cleanup' && (
+                      <span
+                        style={{
+                          color: 'var(--color-text-faint)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: '999px',
+                          padding: '0 8px',
+                          fontSize: '0.72rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.03em',
+                        }}
+                      >
+                        Cleanup
+                      </span>
+                    )}
                     <code>
                       {finding.file}
                       {finding.line !== null ? `:${finding.line}` : ''}

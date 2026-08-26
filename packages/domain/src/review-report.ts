@@ -23,6 +23,24 @@ export const ReviewSeverity = {
 /** A review finding severity. */
 export type ReviewSeverity = (typeof ReviewSeverity)[keyof typeof ReviewSeverity];
 
+/**
+ * What *kind* of finding this is — the action axis, orthogonal to severity.
+ * `severity` asks "how urgent?", `kind` asks "what do you do about it?":
+ *
+ *  - `correctness` — a bug / logic defect (edge case, null/undefined, race,
+ *    off-by-one …): the action is *fix it*.
+ *  - `cleanup` — dead code / unused function, duplication, magic number,
+ *    confusing naming: the action is *remove / simplify it*.
+ *
+ * Defaults to `correctness` (safe: an unlabelled finding is treated as a bug).
+ */
+export const FindingKind = {
+  Correctness: 'correctness',
+  Cleanup: 'cleanup',
+} as const;
+/** A review finding kind (what to do about it). */
+export type FindingKind = (typeof FindingKind)[keyof typeof FindingKind];
+
 /** The overall verdict the review report recommends for the PR. */
 export const ReviewVerdict = {
   Approve: 'APPROVE',
@@ -43,6 +61,8 @@ export interface ReviewFinding {
   readonly id: ReviewFindingID;
   /** Severity band. */
   readonly severity: ReviewSeverity;
+  /** What to do about it: fix (`correctness`) or remove/simplify (`cleanup`). */
+  readonly kind: FindingKind;
   /** Repo-relative file the finding is in. */
   readonly file: string;
   /** 1-based line, when the finding is tied to a single line. */

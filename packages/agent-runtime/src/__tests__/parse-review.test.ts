@@ -26,6 +26,7 @@ describe('parseReviewOutput', () => {
     expect(out.findings).toEqual([
       {
         severity: 'MAJOR',
+        kind: 'correctness',
         file: 'src/a.ts',
         line: 4,
         message: 'a bug',
@@ -60,6 +61,27 @@ describe('parseReviewOutput', () => {
     expect(out.findings[0]?.severity).toBe('INFO');
   });
 
+  it('keeps a valid cleanup kind and clamps an unknown kind to correctness', () => {
+    const out = parseReviewOutput(
+      JSON.stringify({
+        summary: '',
+        overallVerdict: 'COMMENT',
+        findings: [
+          { severity: 'NIT', kind: 'cleanup', file: 'src/dead.ts', message: 'unused' },
+          { severity: 'MAJOR', kind: 'FUZZY', file: 'src/b.ts', message: 'b' },
+          { severity: 'MAJOR', file: 'src/c.ts', message: 'c' },
+        ],
+        suggestions: [],
+      }),
+    );
+
+    expect(out.findings).toEqual([
+      { severity: 'NIT', kind: 'cleanup', file: 'src/dead.ts', message: 'unused' },
+      { severity: 'MAJOR', kind: 'correctness', file: 'src/b.ts', message: 'b' },
+      { severity: 'MAJOR', kind: 'correctness', file: 'src/c.ts', message: 'c' },
+    ]);
+  });
+
   it('drops findings missing a file or message', () => {
     const out = parseReviewOutput(
       JSON.stringify({
@@ -73,7 +95,9 @@ describe('parseReviewOutput', () => {
       }),
     );
 
-    expect(out.findings).toEqual([{ severity: 'MAJOR', file: 'x', message: 'ok' }]);
+    expect(out.findings).toEqual([
+      { severity: 'MAJOR', kind: 'correctness', file: 'x', message: 'ok' },
+    ]);
     expect(out.suggestions).toEqual([]);
   });
 
@@ -92,9 +116,9 @@ describe('parseReviewOutput', () => {
     );
 
     expect(out.findings).toEqual([
-      { severity: 'MAJOR', file: 'src/a.ts', line: 42, message: 'a bug' },
-      { severity: 'MINOR', file: 'src/b.ts', line: 17, message: 'b bug' },
-      { severity: 'INFO', file: 'src/c.ts', message: 'c note' },
+      { severity: 'MAJOR', kind: 'correctness', file: 'src/a.ts', line: 42, message: 'a bug' },
+      { severity: 'MINOR', kind: 'correctness', file: 'src/b.ts', line: 17, message: 'b bug' },
+      { severity: 'INFO', kind: 'correctness', file: 'src/c.ts', message: 'c note' },
     ]);
   });
 
