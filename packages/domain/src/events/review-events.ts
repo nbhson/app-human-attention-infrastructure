@@ -5,12 +5,14 @@
 import type {
   ChangeID,
   DecisionID,
+  ReviewReportID,
   ReviewerID,
   ReviewQueueItemID,
   TaskID,
   UserID,
 } from '../ids.js';
 import type { HumanDecisionType } from '../review.js';
+import type { ReviewDecisionType } from '../review-decision.js';
 
 /** Payload for {@link import('./event-types.js').EventType.DecisionSubmitted}. */
 export interface DecisionSubmittedPayload {
@@ -27,6 +29,18 @@ export interface DecisionSubmittedPayload {
    * Additive — `reviewer_id` is kept so Phase-1 consumers don't break.
    */
   readonly actor_id: UserID;
+}
+
+/** Payload for {@link import('./event-types.js').EventType.ReviewDecisionSubmitted}. */
+export interface ReviewDecisionSubmittedPayload {
+  /** The recorded review-slice decision. */
+  readonly decision_id: DecisionID;
+  /** The review report the decision targets. */
+  readonly review_report_id: ReviewReportID;
+  /** The verdict recorded (APPROVE / REQUEST_CHANGES / REJECT). */
+  readonly decision: ReviewDecisionType;
+  /** The reviewer's rationale, if given. */
+  readonly rationale?: string;
 }
 
 /** Payload for {@link import('./event-types.js').EventType.ReviewItemClaimed}. */

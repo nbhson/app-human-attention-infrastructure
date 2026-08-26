@@ -9,7 +9,7 @@ import { severityColor, severityLabel } from './severity';
  * the arithmetic and its inputs so a reviewer can prove the number in three
  * glances:
  *
- *  1. Which source files are flagged → exactly why it reads "4 of 19".
+ *  1. Which files are flagged → exactly why it reads "4 of 19".
  *  2. Which findings count toward attention vs. don't (NIT/INFO are noise).
  *  3. What the added source lines actually are (a greenfield PR is mostly test
  *     specs/styles, not dense logic — findings-per-line is not linear).
@@ -23,6 +23,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   style: 'Stylesheets',
   markup: 'Markup',
   source: 'Source code',
+  config: 'Config / docs / infra',
 };
 
 function pct(count: number, total: number): string {
@@ -67,18 +68,16 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
         <p style={{ color: 'var(--color-text-muted)' }}>
           {attentionPct}% means{' '}
           <strong data-testid="attention-files">
-            {stats.flaggedFiles} of {stats.totalFiles} source files
+            {stats.flaggedFiles} of {stats.totalFiles} files
           </strong>{' '}
-          carry a CRITICAL, MAJOR or MINOR finding. It counts files, not lines, and it counts only
-          hand-written source — lockfiles, docs, config and infra are excluded. NIT and INFO don't
-          count.
+          carry a CRITICAL, MAJOR or MINOR finding. It counts files, not lines, and it counts every
+          file a human wrote — source, docs, config and infra; only generated artifacts (lockfiles,
+          build output) are excluded. NIT and INFO don't count.
         </p>
 
         {stats.flaggedFilesList.length > 0 ? (
           <>
-            <p style={{ ...SMALL, margin: 'var(--space-3) 0 var(--space-1)' }}>
-              Flagged source files
-            </p>
+            <p style={{ ...SMALL, margin: 'var(--space-3) 0 var(--space-1)' }}>Flagged files</p>
             <ul data-testid="flagged-files" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {stats.flaggedFilesList.map(({ file, severities }) => (
                 <li
@@ -114,7 +113,7 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
           </>
         ) : (
           <p style={{ color: 'var(--color-text-muted)' }}>
-            No source file carries an actionable finding — clean diff.
+            No file carries an actionable finding — clean diff.
           </p>
         )}
       </section>
@@ -155,7 +154,7 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
 
       {/* 3 — what the added lines actually are */}
       <section>
-        <h3 style={{ marginTop: 0 }}>Where the {stats.addedLines} added source lines are</h3>
+        <h3 style={{ marginTop: 0 }}>Where the {stats.addedLines} added lines are</h3>
         {stats.composition.length > 0 ? (
           <ul data-testid="composition" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {stats.composition.map((row) => (
@@ -191,11 +190,11 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
             ))}
           </ul>
         ) : (
-          <p style={{ color: 'var(--color-text-muted)' }}>No source files in this diff.</p>
+          <p style={{ color: 'var(--color-text-muted)' }}>No hand-written files in this diff.</p>
         )}
         <p style={{ color: 'var(--color-text-muted)', margin: 'var(--space-2) 0 0' }}>
           {stats.excluded.files > 0
-            ? `${stats.excluded.files} more files (+${stats.excluded.additions} lines) — lockfiles, docs, config and infra — sit outside the attention metric. `
+            ? `${stats.excluded.files} more files (+${stats.excluded.additions} lines) — generated artifacts like lockfiles and build output — sit outside the attention metric. `
             : ''}
           Findings-per-line isn't linear: a greenfield PR of mostly test specs and styles has far
           fewer findings than a dense logic change, so a low finding count on a big line count isn't
@@ -208,7 +207,7 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
               Files outside the metric
             </p>
             <ul data-testid="excluded-files" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {stats.excluded.filesList.map(({ path, additions, reason }) => (
+              {stats.excluded.filesList.map(({ path, additions }) => (
                 <li
                   key={path}
                   style={{
@@ -238,7 +237,7 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {reason === 'generated' ? 'Generated' : 'Non-source'}
+                    Generated
                   </span>
                 </li>
               ))}

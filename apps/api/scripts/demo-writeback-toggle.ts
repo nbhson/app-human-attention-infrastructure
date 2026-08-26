@@ -3,8 +3,8 @@
  *
  * Contrasts the day-09 toggle's two sides without any live credentials or DB:
  *
- *  1. The `writebackEnabled` gate — OFF at rest, `WRITEBACK_ENABLED` ceiling
- *     defeats a request-level ON.
+ *  1. The `writebackEnabled` gate — ON by default; an explicit
+ *     `WRITEBACK_ENABLED=0` ceiling defeats a request-level ON.
  *  2. An APPROVE decision with the toggle ON dispatches a COMMENT + STATUS
  *     through the real `MCPWriteBack` seam (against an in-memory fake client),
  *     recording two SUCCEEDED rows linked by a decision id.
@@ -109,9 +109,12 @@ async function main(): Promise<void> {
     `  writebackEnabled(true, { WRITEBACK_ENABLED: '1' })  → ${writebackEnabled(true, { WRITEBACK_ENABLED: '1' })}`,
   );
   console.log(
+    `  writebackEnabled(true, { WRITEBACK_ENABLED: '0' })  → ${writebackEnabled(true, { WRITEBACK_ENABLED: '0' })}`,
+  );
+  console.log(
     `  writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' }) → ${writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' })}`,
   );
-  console.log('  → WRITEBACK_ENABLED=false at rest defeats a request-level ON ✓');
+  console.log('  → unset is ON; WRITEBACK_ENABLED=0 defeats a request-level ON ✓');
   console.log();
 
   console.log('=== 2. APPROVE with toggle OFF → nothing external ===');

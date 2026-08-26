@@ -275,6 +275,16 @@ export const writebackStatuses = ['PENDING', 'SUCCEEDED', 'FAILED', 'DUPLICATE']
 /** `review_decisions.decision` — the human's verdict on a report (day-09 §2.2). */
 export const reviewDecisionTypes = ['APPROVE', 'REQUEST_CHANGES', 'REJECT'] as const;
 
+/** `review_verifications.status` — the review-slice verification lifecycle. */
+export const reviewVerificationStatuses = [
+  'PENDING',
+  'RUNNING',
+  'PASSED',
+  'FAILED',
+  'SKIPPED',
+  'ERROR',
+] as const;
+
 /** `review_reports.ai_provider`. */
 export const aiProviderCheck = inList(
   'review_reports_ai_provider_check',
@@ -321,6 +331,13 @@ export const reviewDecisionTypeCheck = inList(
   'review_decisions_decision_check',
   'decision',
   reviewDecisionTypes,
+);
+
+/** `review_verifications.status`. */
+export const reviewVerificationStatusCheck = inList(
+  'review_verifications_status_check',
+  'status',
+  reviewVerificationStatuses,
 );
 
 // --- Day-16 (Phase 3) review memory ------------------------------------------

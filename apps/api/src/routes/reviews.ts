@@ -24,6 +24,8 @@ import { requireRole } from '@harness/auth';
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 import {
+  brand,
+  EventType,
   newDecisionID,
   newWritebackID,
   ReviewDecisionType,
@@ -38,9 +40,12 @@ import {
   reviewDecisions,
   reviewFindings,
   reviewReports,
+  reviewVerifications,
   writebackLog,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
+import { createEvent } from '@harness/event-bus';
+import type { IEventBus } from '@harness/event-bus';
 import { parseRepoPath, StaticGitToolMap } from '@harness/git-provider';
 import { WriteBackError } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
@@ -70,10 +75,24 @@ interface DecideBody {
 
 const DECISIONS = new Set<string>(Object.values(ReviewDecisionType));
 
+/** The `review_verifications.flag` JSON shape (a persisted {@link VerificationFlag}). */
+interface StoredVerificationFlag {
+  readonly failedKinds?: readonly string[];
+  readonly timedOutKinds?: readonly string[];
+  readonly failedChecks?: readonly {
+    readonly kind: string;
+    readonly status: string;
+    readonly exitCode?: number;
+    readonly evidenceRef?: string;
+    readonly tail: string;
+  }[];
+}
+
 /** Register the review endpoints under `/api/reviews`. */
 export function registerReviewIngestRoutes(app: FastifyInstance, container: Container): void {
   const ingest = container.resolve<ReviewIngestService>(TOKENS.ReviewIngestService);
   const db = container.resolve<DrizzleDB>(TOKENS.Db);
+  const bus = container.resolve<IEventBus>(TOKENS.EventBus);
 
   app.post<{ Body: CreateReviewBody }>(
     '/api/reviews',
@@ -183,6 +202,14 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
               .where(inArray(writebackLog.decision_id, decisionIds))
               .orderBy(asc(writebackLog.created_at));
 
+      const verificationRows = await db
+        .select()
+        .from(reviewVerifications)
+        .where(eq(reviewVerifications.report_id, id))
+        .limit(1);
+      const verificationRow = verificationRows[0] ?? null;
+      const verificationFlag = (verificationRow?.flag ?? null) as StoredVerificationFlag | null;
+
       return {
         id: report.id,
         prUrl: report.pr_url,
@@ -259,6 +286,31 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
           decisionId: row.decision_id,
           createdAt: row.created_at,
         })),
+        // The machine-side verification (wedge #1): null when no run has been
+        // recorded yet (e.g. the report predates this field, or verification is
+        // disabled and no row was written). The UI renders the honest status —
+        // PENDING/RUNNING/PASSED/FAILED/SKIPPED/ERROR — with the failed/timed-out
+        // breakdown when the run failed.
+        verification:
+          verificationRow === null
+            ? null
+            : {
+                status: verificationRow.status,
+                overall: verificationRow.overall as 'PASSED' | 'FAILED' | null,
+                headSha: verificationRow.head_sha,
+                contentHash: verificationRow.content_hash,
+                durationMs: verificationRow.duration_ms,
+                failedKinds: verificationFlag?.failedKinds ?? [],
+                timedOutKinds: verificationFlag?.timedOutKinds ?? [],
+                failedChecks: (verificationFlag?.failedChecks ?? []).map((check) => ({
+                  kind: check.kind,
+                  status: check.status,
+                  ...(check.exitCode === undefined ? {} : { exitCode: check.exitCode }),
+                  tail: check.tail,
+                })),
+                rendered: verificationRow.rendered,
+                error: verificationRow.error,
+              },
       };
     },
   );
@@ -304,6 +356,19 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         ...(rationale === undefined ? {} : { rationale }),
         writeback_enabled: effective,
       });
+
+      // The memory write-half (wedge #2) is event-driven: publish the review-slice
+      // decision so `MemoryIngestor` can distill a grounded DECISION entry. Published
+      // *before* the early returns below — the decision is recorded regardless of
+      // whether write-back fires, and memory must remember it either way.
+      bus.publish(
+        createEvent(EventType.ReviewDecisionSubmitted, brand(id, 'CorrelationID'), {
+          decision_id: decisionId,
+          review_report_id: id,
+          decision: decision as ReviewDecisionType,
+          ...(rationale === undefined ? {} : { rationale }),
+        }),
+      );
 
       if (!effective || decision === ReviewDecisionType.RequestChanges) {
         // OFF — nothing external, provably. REQUEST_CHANGES never writes even with

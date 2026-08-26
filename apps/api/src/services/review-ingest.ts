@@ -16,7 +16,8 @@
 
 import { eq } from 'drizzle-orm';
 
-import { isSourceFile } from '../review-file-classify.js';
+import { isReviewableFile } from '../review-file-classify.js';
+import { redactSensitivePatch } from '../review-secret-redact.js';
 
 import type { ReviewAgent } from '@harness/agent-runtime';
 import {
@@ -107,17 +108,22 @@ export function parseGithubPrUrl(prUrl: string): { repo: string; number: number 
 }
 
 /**
- * Concatenate a PR's per-file patches into one diff block. Only hand-written
- * source files are kept (see {@link isSourceFile}); empty/binary patches are
- * dropped. Lockfiles, build output, docs (README), config (package.json /
- * Dockerfile / nginx) and other infra files are removed here, so the block the
- * AI reads is *code it can actually critique* — not a README/Dockerfile rewrite
- * surfacing "missing newline" findings that have nothing to do with the change.
+ * Concatenate a PR's per-file patches into one diff block. Every hand-written
+ * file is kept — source, docs (README), config and infra (Dockerfile, YAML,
+ * JSON, env, …) alike; only generated artifacts ({@link isGeneratedFile}) and
+ * empty/binary patches are dropped (see {@link isReviewableFile}). Secret values
+ * on `.env` / Compose files are masked (see {@link redactSensitivePatch}) so a
+ * live credential never reaches the LLM prompt. The AI reviews the *whole*
+ * change, not just the code.
  */
 export function buildDiff(files: readonly PullRequestFile[]): string {
   return files
-    .filter((f) => isSourceFile(f.path) && f.patch.trim().length > 0)
-    .map((f) => `=== ${f.path} (${f.status}, +${f.additions} -${f.deletions}) ===\n${f.patch}`)
+    .filter((f) => isReviewableFile(f.path) && f.patch.trim().length > 0)
+    .map(
+      (f) =>
+        `=== ${f.path} (${f.status}, +${f.additions} -${f.deletions}) ===\n` +
+        redactSensitivePatch(f.path, f.patch),
+    )
     .join('\n\n');
 }
 

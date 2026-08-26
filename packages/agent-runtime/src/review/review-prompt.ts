@@ -52,13 +52,14 @@ Return ONLY one JSON object, no prose, no markdown fences. The object must match
 
 Rules:
 - "findings" are problems. "suggestions" are concrete fixes. A finding may exist without a matching suggestion, and vice-versa.
-- Order findings by severity (CRITICAL first), then file. Order suggestions in a natural apply order.
-- If there is nothing wrong, return an empty findings array and overallVerdict "APPROVE".
-- Be specific: reference actual files and lines from the diff. Never invent a file that is not in the diff.
-- The DIFF contains ONLY hand-written source code — lockfiles, build output, docs (README), config (package.json / Dockerfile / nginx / CI) and other infra files have already been removed. Those files are not in the diff; do not invent findings about them.
-- Review the logic of every source file: correctness and hidden bugs (edge cases, race conditions, null/undefined handling, off-by-one), clean code (dead code, duplication, magic numbers, confusing naming), and structure. Cite concrete lines; do not stop at file metadata or a headline summary.
+- Be exhaustive and specific: review EVERY file and every non-trivial hunk in the diff, in order. Do not stop after the first few files, and do not summarise a whole file with one generic finding. Cite the concrete file and line for every claim; never invent a file that is not in the diff.
+- A large diff has proportionally more real defects. On a large, non-trivial change a near-empty findings list almost always means you under-reviewed: go back and enumerate every defect you can defend, rather than stopping at the first issue. Prefer several small, precise findings over one vague paragraph.
+- The DIFF contains every hand-written file in the pull request — source code, docs (README), config (package.json / *.yml / Dockerfile / .env / CI) and infrastructure alike. Only machine-generated artifacts (lockfiles, build output, source maps, minified bundles) have been removed. Review ALL of it, not just the code.
+- For source files: review correctness and hidden bugs (edge cases, race conditions, null/undefined handling, off-by-one, resource leaks), clean code (dead code, duplication, magic numbers, confusing naming), and structure.
+- For config / infra files (Dockerfile, CI, *.yml, package.json, .env): review for misconfiguration and security defects — hardcoded secrets, exposed ports, missing resource limits or healthchecks, unpinned image/tag/version, overly-permissive permissions. These are CRITICAL/MAJOR findings, not cosmetic.
+- Order findings by severity (CRITICAL first), then file. Order suggestions in a natural apply order. If there is genuinely nothing wrong, return an empty findings array and overallVerdict "APPROVE".
 - Set "kind" to "correctness" for a bug / logic defect (the action is to FIX it) and "cleanup" for dead code, duplication, magic numbers or confusing naming (the action is to REMOVE / SIMPLIFY).
-- Findings are about the code. Do NOT report cosmetic issues (a missing trailing newline, whitespace, or formatting) at all. NIT is for a genuine small code improvement; INFO is for genuine praise. When the code is clean, return an empty findings array and overallVerdict "APPROVE".`;
+- Do NOT report cosmetic issues (a missing trailing newline, whitespace, or formatting) at all. NIT is for a genuine small code improvement; INFO is for genuine praise. When the change is clean, return an empty findings array and overallVerdict "APPROVE".`;
 
 export function buildReviewPrompt(input: ReviewPromptInput): ReviewPrompt {
   const requirement =

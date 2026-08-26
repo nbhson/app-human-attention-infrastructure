@@ -103,13 +103,42 @@ export interface WritebackRecord {
   readonly createdAt: string;
 }
 
+/** The review-slice machine-verification lifecycle (clone → build → test). */
+export type ReviewVerificationStatus =
+  'PENDING' | 'RUNNING' | 'PASSED' | 'FAILED' | 'SKIPPED' | 'ERROR';
+
+/**
+ * A machine-side verification run over the report (wedge #1): the PR is cloned at
+ * its head SHA and its own `build` then `test` scripts are run in the Docker
+ * sandbox. A FAILED run is information, never a gate — the human still decides.
+ */
+export interface ReviewVerification {
+  readonly status: ReviewVerificationStatus;
+  /** PASSED / FAILED once the run completes; null while pending/running/skipped. */
+  readonly overall: 'PASSED' | 'FAILED' | null;
+  readonly headSha: string | null;
+  readonly contentHash: string | null;
+  readonly durationMs: number | null;
+  readonly failedKinds: readonly string[];
+  readonly timedOutKinds: readonly string[];
+  readonly failedChecks: readonly {
+    readonly kind: string;
+    readonly status: string;
+    readonly exitCode?: number;
+    readonly tail: string;
+  }[];
+  /** Pre-rendered markdown of the flag (for a raw read, not styled). */
+  readonly rendered: string | null;
+  readonly error: string | null;
+}
+
 /** A review finding severity band. */
 export type ReviewSeverity = 'CRITICAL' | 'MAJOR' | 'MINOR' | 'NIT' | 'INFO';
 
 /**
  * Derived statistics on the report, computed server-side from the stored PR
  * payload + findings. Surfaces the product's core promise: what share of the
- * PR's source files carry an actionable finding (→ how much of the change
+ * PR's hand-written files carry an actionable finding (→ how much of the change
  * actually needs a human), split by severity. The attention share is file-based,
  * so it is provable from the findings' `file` fields.
  */
@@ -122,14 +151,14 @@ export interface ReviewStats {
   readonly flaggedAddedLines: number;
   /** Distinct files carrying at least one actionable finding (NIT/INFO excluded). */
   readonly flaggedFiles: number;
-  /** The source diff split by what the added lines are (test/style/markup/source). */
+  /** The diff split by what the added lines are (test/style/markup/source/config). */
   readonly composition: readonly {
-    readonly category: 'test' | 'style' | 'markup' | 'source';
+    readonly category: 'test' | 'style' | 'markup' | 'source' | 'config';
     readonly files: number;
     readonly additions: number;
     readonly deletions: number;
   }[];
-  /** Diff lines rejected as non-source (generated/doc/config/infra) — out of the metric. */
+  /** Generated artifacts (lockfiles/build output) rejected from the metric. */
   readonly excluded: {
     readonly files: number;
     readonly additions: number;
@@ -139,11 +168,9 @@ export interface ReviewStats {
       readonly path: string;
       readonly additions: number;
       readonly deletions: number;
-      /** `generated` = lockfile/build artefact; `non-source` = docs/config/infra. */
-      readonly reason: 'generated' | 'non-source';
     }[];
   };
-  /** Source files carrying an actionable finding — the proof of `attentionShare`. */
+  /** Files carrying an actionable finding — the proof of `attentionShare`. */
   readonly flaggedFilesList: readonly {
     readonly file: string;
     readonly severities: readonly string[];
@@ -187,6 +214,11 @@ export interface ReviewReport {
    * only on a backend predating this field (treat as unarmed).
    */
   readonly writeback?: { readonly enabled: boolean };
+  /**
+   * The machine-side verification run (wedge #1), `null` when none has been
+   * recorded yet. FAILED is information, not a gate — the human still decides.
+   */
+  readonly verification?: ReviewVerification | null;
 }
 
 /** Response of `POST /api/reviews`. */

@@ -9,14 +9,14 @@ describe('writebackEnabled (day-09)', () => {
     expect(writebackEnabled('true', { WRITEBACK_ENABLED: '1' })).toBe(false); // not a boolean true
   });
 
-  it('is OFF at rest — an unset WRITEBACK_ENABLED defeats a request-level ON', () => {
-    expect(writebackEnabled(true, {})).toBe(false);
-    expect(writebackEnabled(true, { WRITEBACK_ENABLED: '0' })).toBe(false);
-    expect(writebackEnabled(true, { WRITEBACK_ENABLED: 'false' })).toBe(false);
-  });
-
-  it('is ON only when both the flag and the env ceiling are armed', () => {
+  it('is ON at rest — an unset WRITEBACK_ENABLED leaves the ceiling armed', () => {
+    expect(writebackEnabled(true, {})).toBe(true);
     expect(writebackEnabled(true, { WRITEBACK_ENABLED: '1' })).toBe(true);
     expect(writebackEnabled(true, { WRITEBACK_ENABLED: 'true' })).toBe(true);
+  });
+
+  it('is OFF when the env ceiling is explicitly disabled', () => {
+    expect(writebackEnabled(true, { WRITEBACK_ENABLED: '0' })).toBe(false);
+    expect(writebackEnabled(true, { WRITEBACK_ENABLED: 'false' })).toBe(false);
   });
 });

@@ -23,13 +23,10 @@ const stats: ReviewStats = {
     { category: 'markup', files: 1, additions: 9, deletions: 0 },
   ],
   excluded: {
-    files: 2,
-    additions: 9140,
+    files: 1,
+    additions: 8776,
     deletions: 0,
-    filesList: [
-      { path: 'package-lock.json', additions: 8776, deletions: 0, reason: 'generated' },
-      { path: 'README.md', additions: 364, deletions: 0, reason: 'non-source' },
-    ],
+    filesList: [{ path: 'package-lock.json', additions: 8776, deletions: 0 }],
   },
   flaggedFilesList: [
     { file: 'src/toeic.service.spec.ts', severities: ['CRITICAL'] },
@@ -51,7 +48,7 @@ describe('BreakdownTab', () => {
 
     expect(screen.getByTestId('breakdown-tab')).toBeInTheDocument();
     expect(screen.getByText('Why 50%?')).toBeInTheDocument();
-    expect(screen.getByTestId('attention-files')).toHaveTextContent('2 of 4 source files');
+    expect(screen.getByTestId('attention-files')).toHaveTextContent('2 of 4 files');
     expect(screen.getByTestId('flagged-files')).toHaveTextContent('src/toeic.service.ts');
   });
 
@@ -64,14 +61,12 @@ describe('BreakdownTab', () => {
     expect(screen.getByTestId('noise-count')).toHaveTextContent('1'); // NIT + INFO
   });
 
-  it('names every excluded file so the denominator is provable, not just counted', () => {
+  it('names every excluded (generated) file so the denominator is provable, not just counted', () => {
     render(<BreakdownTab stats={stats} />);
 
     const excluded = screen.getByTestId('excluded-files');
     expect(excluded).toHaveTextContent('package-lock.json');
     expect(excluded).toHaveTextContent('Generated');
-    expect(excluded).toHaveTextContent('README.md');
-    expect(excluded).toHaveTextContent('Non-source');
   });
 
   it('lists cleanup opportunities (dead code) separately from the attention share', () => {

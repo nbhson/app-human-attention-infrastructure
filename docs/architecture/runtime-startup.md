@@ -57,10 +57,10 @@ stages 1–4 only *prepare* the graph.**
 ```text
 start app  (pnpm dev / node apps/api)
   └─ 1. dotenv            load .env → ../../.env          env (creds, toggles)
-  └─ 2. buildContainer()  register 47 real + 3 stub      object graph (factories only, no engine runs)
+  └─ 2. buildContainer()  register 50 real + 3 stub      object graph (factories only, no engine runs)
   └─ 3. initApiTracing()  resolve Db + Logger → initTracing   OTel provider (module global)
   └─ 4. buildApp()        Fastify: trace hook → auth hook → 10 route groups
-  └─ 5. bootContainer()   resolve the 11 eager tokens      bus subscribers bind (first engine code)
+  └─ 5. bootContainer()   resolve the 13 eager tokens      bus subscribers bind (first engine code)
   └─ 6. app.listen()      { port: 3000, host: '0.0.0.0' }  serve traffic
 ```
 
@@ -72,7 +72,7 @@ start app  (pnpm dev / node apps/api)
 | 2 | `buildContainer()` | `index.ts:28` → `bootstrap.ts:202` | Register every token as a **lazy factory** — no engine is constructed. One real side effect: `mkdirSync(SANDBOX_ROOT)` |
 | 3 | `initApiTracing()` | `index.ts:31` → `observability.ts` | The first *resolutions*: `Db` + `Logger` are constructed, then the OpenTelemetry provider is installed (module-global singleton) with `trace_correlation` write-through |
 | 4 | `buildApp()` | `index.ts:32` → `app.ts:29` | Build the Fastify server: `/health`, the trace hook, the auth hook, then 10 route groups (auth · review · reviews · provenance · audit · ops · metrics · admin · settings · learning). Handlers run only on a request. (Between this and stage 5, `index.ts:33-35` logs each registered token — informational only) |
-| 5 | `bootContainer()` | `index.ts:37` → `bootstrap.ts:777` | Resolve the **11 eager tokens** — the first engine code that runs (the list below) |
+| 5 | `bootContainer()` | `index.ts:37` → `bootstrap.ts:777` | Resolve the **13 eager tokens** — the first engine code that runs (the list below) |
 | 6 | `app.listen()` | `index.ts:41` | Bind `0.0.0.0:3000` and serve. The process is now idle until a request arrives |
 
 Key property: **stage 2 executes no engine code.** `Container.register(token, factory)`
@@ -82,7 +82,7 @@ can boot *with most external providers unconfigured*: a `null` provider or a stu
 embedder is a perfectly valid graph node; it fails loudly only if a request
 actually tries to use it.
 
-### What `bootContainer()` starts (the 11 eager tokens)
+### What `bootContainer()` starts (the 13 eager tokens)
 
 Resolved in this order because their constructor (or `subscribe()`) must **bind to
 the event bus before the first request** — a side effect, not a value:
@@ -99,13 +99,16 @@ the event bus before the first request** — a side effect, not a value:
 9.  ReembedListener           starts listening for artifact.created/changed → re-embed affected files
 10. ReviewService             constructed — wires transitionTask / feedback / diff seams at the composition root
 11. JudgeShadow               subscribes → runs the shadow judge after review.report_created (log-only)
+12. ReviewVerificationService subscribes → review.report_created → clone → build → test → `review_verifications` (wedge #1, on by default — opt out via `VERIFY_REVIEW_ENABLED=0`)
+13. MemoryIngestor            subscribes → review.report_created / review.report_decision_submitted → distill REVIEW/FINDING/DECISION memory (wedge #2)
 ```
 
 `AutoApproveGate` and `AutoApproveKillSwitch` are constructed *transitively* here as
 inputs to `AutoApproveExecutor` (they have no bus subscription of their own).
 `@harness/memory`'s `MemoryStore` and `MemoryLifecycle` are registered but **not**
-eagerly started — the bootstrap comments mark them "no eager boot required"; the
-lifecycle tick runs on a cadence from a separate entrypoint, not at boot.
+eagerly started — `MemoryIngestor` (above) is the eager write-half of the memory
+subsystem; the read path (`MemoryProvider`/`MemoryContextResolver`) stays lazy and
+the lifecycle tick runs on a cadence from a separate entrypoint, not at boot.
 
 Every other token is **lazy** — it materialises the first time a route asks for it.
 The review slice in particular (`ReviewIngestService` / `ReviewAgent` /
@@ -200,21 +203,21 @@ The canonical edges (from each package's `package.json`, self-edges omitted):
 | 1 | `domain` | foundation | ✅ (types only) | Branded IDs, aggregates, event vocabulary, `TaskStatus`, `HumanDecisionType`, `AiProviderType` |
 | 2 | `event-bus` | foundation | ✅ | `IEventBus` + in-process impl (+ optional `RedisEventsBus`) |
 | 3 | `di` | foundation | ✅ | `Container`, `TOKENS`, `createRootLogger` (pino) |
-| 4 | `db` | persistence | ✅ | Drizzle schema (49 tables), `createDb`, `EventLogWriter`, log/run stores |
+| 4 | `db` | persistence | ✅ | Drizzle schema (50 tables), `createDb`, `EventLogWriter`, log/run stores |
 | 5 | `observability` | telemetry | ✅ | OpenTelemetry tracing + Prometheus metrics (module-global singleton) |
 | 6 | `auth` | engine | ✅ | OIDC identity + roles + `SessionService` (guards the review routes) |
 | 7 | `orchestrator` | engine | ✅ | `TaskStateMachine` + `TaskService` (transition seam) |
 | 8 | `agent-runtime` | engine | ✅ | `LLMProvider` seam (Anthropic / OpenAI-compatible / Mock) + `ReviewAgent` |
 | 9 | `artifact-tracker` | engine | ✅ | `ArtifactTracker`, `SnapshotStore`, `ChangeStatusSubscriber`, `DiffEngine` |
-| 10 | `verification-engine` | engine | ✅ | `CompileCheck` / `TestCheck` / `SandboxedCheck`, `EvidenceStore` |
+| 10 | `verification-engine` | engine | ✅ | `CompileCheck` / `TestCheck` / `SandboxedCheck`, `EvidenceStore`, `CloneVerifier` (review clone → build → test, wedge #1) |
 | 11 | `attention-engine` | engine | ✅ | Scoring, routing, fatigue, auto-approve chain, learning loop |
 | 12 | `context-engine` | engine | ✅ | collect → rank → trim → render context (keyword default) |
 | 13 | `embeddings` | engine | ✅ | `Embedder` (stub default / OpenAI-compatible), indexer + re-embed listener |
 | 14 | `evaluation` | engine | ✅ | `MetricsComputer` (offline gauges; not on the hot path) |
 | 15 | `review` | review slice | ✅ | Review queue persistence + decision flow |
-| 16 | `memory` | review slice | ✅ | Review-memory tiers + lifecycle (read wired; write not yet bound at boot) |
+| 16 | `memory` | review slice | ✅ | Review-memory tiers + lifecycle (read + write wired via `MemoryIngestor` at boot) |
 | 17 | `judge` | review slice | ✅ | Rubric-shadowed LLM-as-judge (pure measurement) |
-| 18 | `writeback` | review slice | ✅ | `MCPWriteBack` — optional comment/status write-back (toggle-gated) |
+| 18 | `writeback` | review slice | ✅ | `MCPWriteBack` — comment/status write-back (on by default, opt-out via `WRITEBACK_ENABLED=0` / `WRITEBACK_<PROVIDER>=0`) |
 | 19 | `git-provider` | review slice | ✅ | `GitProvider` (GitHub/GitLab/Bitbucket via MCP), clone + head-sha |
 | 20 | `ticket-provider` | review slice | ✅ | `TicketProvider` (Jira via MCP) |
 | 21 | `object-store` | leaf | ✅ | `ContentStore` (S3/MinIO or in-memory fallback) |
@@ -244,9 +247,10 @@ env. None of these prevent boot — an absent provider resolves to `null` or a s
 | `ContentStore` | `ObjectStoreContentStore(S3/MinIO)` when `OBJECT_STORE_ENDPOINT` set | `InMemoryContentStore` (offload disabled, threshold `∞`) |
 | `OidcProvider` | `OpenIdClientProvider` when `OIDC_ISSUER_URL`/client/secret set | `MockOidcProvider` |
 | `Sandbox` check | `SandboxedCheck` when `VERIFY_SANDBOX_ENABLED=1` | in-process `CompileCheck` only |
+| `ReviewVerificationService` | runs the review clone's `build`+`test` by default (opt out via `VERIFY_REVIEW_ENABLED=0`) | records a `SKIPPED` `review_verifications` row (best-effort, never a gate) |
 | `EventBus` | `RedisEventsBus` when `EVENT_TRANSPORT=redis|sqs` (+ operator transport) | `InProcessEventBus` (`inproc`, default) |
 | `McpServerRegistry` | parsed from `mcp.config.json` / `MCP_CONFIG_PATH` | empty registry (settings list empty) |
-| `WriteBackService` | armed per `WRITEBACK_*` toggle | register `null`-safe, never writes externally |
+| `WriteBackService` | armed by default (opt out via `WRITEBACK_ENABLED=0` / `WRITEBACK_<PROVIDER>=0`) | register `null`-safe, never writes externally |
 
 ---
 

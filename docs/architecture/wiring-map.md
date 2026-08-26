@@ -64,7 +64,10 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 | `JudgeShadow` | `JudgeShadow(Db, EventBus, Judge, Logger)` + `subscribe()` | review-reorient (day-21) | eager-resolved at boot (side effect: `review.report_created` → run the judge, log-only and fire-and-forget on its own failure) |
 | `ReviewAgent` | `ReviewAgent(LLMProvider)` | review-reorient | `ReviewIngestService` (LLM → structured report + findings + fix suggestions) |
 | `ReviewIngestService` | `ReviewIngestService(db, bus, taskService, gitProvider, ticketProvider, reviewAgent, aiProvider, model, logger)` | review-reorient | `routes/reviews.ts` (`POST /api/reviews`, `GET /api/reviews/:id`) |
-| `MemoryStore` | `MemoryStore(Db, EventBus, Logger)` | review-reorient (day-16) | `MemoryProvider` (the `MemoryRetriever` read path); the `MemoryIngestor` write path is wired by `demo:memory` + unit tests, not yet bound at server boot (see the note below). Sole writer of `memory_entries` — every entry carries ≥1 `memory_entry_evidence` link. |
+| `ReviewVerifier` | `CloneVerifier(CloneCompileCheck(SandboxRunner), CloneTestCheck(SandboxRunner))` over the Docker `Sandbox`, pinned image + `VERIFY_SANDBOX_*` budgets | review-reorient Phase 3 (wedge #1) | `ReviewVerificationService` (clone → build → test; sandbox-only, never the harness process) |
+| `ReviewVerificationService` | `ReviewVerificationService(db, bus, gitProvider, verifier, enabled, logger)` + `subscribe()` | review-reorient Phase 3 (wedge #1) | eager-resolved at boot (side effect: `review.report_created` → fire-and-forget clone/verify → `review_verifications` row); on by default (opt out via `VERIFY_REVIEW_ENABLED=0`), never a gate |
+| `MemoryStore` | `MemoryStore(Db, EventBus, Logger)` | review-reorient (day-16) | `MemoryProvider` (the `MemoryRetriever` read path) and `MemoryIngestor` (the write path). Sole writer of `memory_entries` — every entry carries ≥1 `memory_entry_evidence` link. |
+| `MemoryIngestor` | `MemoryIngestor(Db, EventBus, MemoryStore, MemoryDistiller, Logger)` + `subscribe()` | review-reorient Phase 3 (wedge #2) | eager-resolved at boot (side effect: `review.report_created` / `review.decision_submitted` / `review.report_decision_submitted` → distill REVIEW/FINDING/DECISION entries grounded in an evidence row) |
 | `MemoryProvider` | `MemoryRetriever(MemoryStore, () => new Date(), Logger)` | review-reorient (day-18) | `MemoryContextResolver` via the domain `MemoryProvider` seam (so `@harness/context-engine` reads memory without importing `@harness/memory`) |
 | `MemoryContextResolver` | `MemoryContextResolver(MemoryProvider)` | review-reorient (day-18) | pulls top-K memory and injects it as a `memory` section on a `ContextSnapshot` (`metadata.memory`); not resolved by any route today |
 | `MemoryLifecycle` | `MemoryLifecycle(Db, EventBus, Logger)` | review-reorient (day-19) | not eagerly started — a server entrypoint drives `tick()` (consolidate → decay → archive), directly or via `MemoryLifecycleScheduler` |
@@ -82,18 +85,16 @@ linked back from `writeback_log.decision_id`, day-09). `WriteBackService` is
 resolved lazily by the decision route — it is **not** in `bootContainer()`'s eager
 list, so a review decision is the only thing that ever reaches an external MCP tool.
 
-The review-memory subsystem (day-16/17/18/19) is registered lazily — none of its
-four tokens is in `bootContainer()`'s eager list. The **read** half (`MemoryProvider`
-→ `MemoryContextResolver`) is fully wired for the container: any future consumer
-resolves `TOKENS.MemoryContextResolver` and injects top-K memory into a snapshot.
-The **write** half (`MemoryIngestor` → `MemoryDistiller` → `MemoryStore`) is *not*
-bound at server boot today — its two `subscribe()` registrations (on
-`review.report_created` / `review.decision_submitted`) are exercised by
-`scripts/demo-memory.ts` (`pnpm demo:memory`) and the `@harness/memory` unit suite,
-which construct `new MemoryIngestor(db, bus, store).subscribe()` directly. Binding
-that subscription into `bootContainer()` is a later integration step, not a gap in
-the memory domain itself — the `memory.entry_created` event is already emitted so
-the bus can fan in the moment the ingestor is subscribed.
+The review-memory subsystem (day-16/17/18/19) is registered lazily — but its
+**write** half (`MemoryIngestor`) is now in `bootContainer()`'s eager list (wedge
+#2). The **read** half (`MemoryProvider` → `MemoryContextResolver`) is fully wired
+for the container: any future consumer resolves `TOKENS.MemoryContextResolver` and
+injects top-K memory into a snapshot. `MemoryIngestor`'s three `subscribe()`
+registrations (on `review.report_created` / `review.decision_submitted` /
+`review.report_decision_submitted`) distill every review report, finding, and
+decision into `memory_entries` grounded in an `evidence` row the moment it binds —
+the `memory.entry_created` event is emitted so the bus can fan in the read side as
+soon as a consumer resolves it.
 
 The three `ENGINE_STUB_TOKENS` (`Orchestrator`, `AgentRuntime`, `AttentionEngine`) are the
 Day-05 placeholder names. `Orchestrator` and `AgentRuntime`'s code-generation concretions
@@ -276,6 +277,7 @@ Registrations are lazy, but bus subscriptions are **side effects** — so
 EventLogWriter   ArtifactCaptureSubscriber   ChangeStatusSubscriber
 AttentionSubscriber   AttentionRouter   AutoApproveSampler   AutoApproveExecutor
 ContextEngine   ReembedListener   ReviewService   JudgeShadow
+ReviewVerificationService   MemoryIngestor
 ```
 
 The review slice (`ReviewIngestService` / `ReviewAgent` / `GitProvider` /
@@ -322,15 +324,18 @@ The review slice (`ReviewIngestService` / `ReviewAgent` / `GitProvider` /
 36. `WriteBackService` — needs `McpServerRegistry`, `Db`, the git/ticket tool maps (day-06).
 37. `ReviewAgent` — needs `LLMProvider`.
 38. `ReviewIngestService` — needs `Db`, `EventBus`, `TaskService`, `GitProvider`, `TicketProvider`, `ReviewAgent`, `aiProvider`, `model`, `Logger`.
-39. `MemoryStore` — needs `Db`, `EventBus`, `Logger` (sole writer of `memory_entries`).
-40. `MemoryProvider` — needs `MemoryStore`, a clock, `Logger` (resolves to `MemoryRetriever`).
-41. `MemoryContextResolver` — needs `MemoryProvider`.
-42. `MemoryLifecycle` — needs `Db`, `EventBus`, `Logger` (registered, not started).
-43. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
-44. `Judge` — needs `LLMProvider`, `Db` (via `DrizzleJudgeRunStore`, records `judge_runs`), and the model id (day-21).
-45. `JudgeShadow` — needs `Db`, `EventBus`, `Judge`, `Logger`; subscribes on `review.report_created` (day-21; eager-resolved).
-46. `MetricsComputer` — no deps.
-47. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
+39. `ReviewVerifier` — needs `Sandbox` + `VERIFY_SANDBOX_IMAGE`/`CPU`/`MEMORY`/`CLONE_TIMEOUT_S`; resolves to `CloneVerifier(CloneCompileCheck(SandboxRunner), CloneTestCheck(SandboxRunner))` (wedge #1).
+40. `ReviewVerificationService` — needs `Db`, `EventBus`, `GitProvider`, `ReviewVerifier`, `VERIFY_REVIEW_ENABLED`, `Logger`; subscribes on `review.report_created` → clone → build → test → `review_verifications` row (wedge #1; eager-resolved).
+41. `MemoryStore` — needs `Db`, `EventBus`, `Logger` (sole writer of `memory_entries`).
+42. `MemoryIngestor` — needs `Db`, `EventBus`, `MemoryStore`, `MemoryDistiller`, `Logger`; subscribes on `review.report_created` / `review.decision_submitted` / `review.report_decision_submitted` → distills REVIEW/FINDING/DECISION entries (wedge #2; eager-resolved).
+43. `MemoryProvider` — needs `MemoryStore`, a clock, `Logger` (resolves to `MemoryRetriever`).
+44. `MemoryContextResolver` — needs `MemoryProvider`.
+45. `MemoryLifecycle` — needs `Db`, `EventBus`, `Logger` (registered, not started).
+46. `ReviewService` — needs `Db`, `EventBus`, three structural seams, `Logger`.
+47. `Judge` — needs `LLMProvider`, `Db` (via `DrizzleJudgeRunStore`, records `judge_runs`), and the model id (day-21).
+48. `JudgeShadow` — needs `Db`, `EventBus`, `Judge`, `Logger`; subscribes on `review.report_created` (day-21; eager-resolved).
+49. `MetricsComputer` — no deps.
+50. `Orchestrator` / `AgentRuntime` / `AttentionEngine` — stubs (see above).
 
 Engines receive `IEventBus` (the interface), never `InProcessEventBus` (the concrete class) — enforced by the container's type signatures.
 
@@ -361,7 +366,7 @@ Generated by grepping the source (`packages/di/src/tokens.ts`,
 `packages/domain/src/events/event-types.ts`, `packages/db/src/schema/*`), not from
 memory. If a name below is wrong, the *source* moved — fix the source, then this.
 
-### `TOKENS.*` — 50 tokens
+### `TOKENS.*` — 53 tokens
 
 ```text
 EventBus   Logger   Db   EventLogWriter
@@ -378,17 +383,18 @@ ReviewService
 AutoApproveGate   AutoApproveKillSwitch   AutoApproveSampler   AutoApproveExecutor
 MetricsComputer
 ReviewAgent   ReviewIngestService   GitProvider   TicketProvider
+ReviewVerifier   ReviewVerificationService
 McpServerRegistry   WriteBackService
-MemoryStore   MemoryProvider   MemoryContextResolver   MemoryLifecycle
+MemoryStore   MemoryIngestor   MemoryProvider   MemoryContextResolver   MemoryLifecycle
 Judge   JudgeShadow
 ```
 
 Three of these are placeholder string names kept for the abandoned code-gen path
 (`Orchestrator` / `AgentRuntime` / `AttentionEngine` — see the stub rows above);
-the other 47 are the real registrations. Note there is **no `TOKENS.Runner`** — the
+the other 50 are the real registrations. Note there is **no `TOKENS.Runner`** — the
 verification sandbox is `TOKENS.Sandbox` → `DockerSandbox`.
 
-### `EventType.*` — 33 events
+### `EventType.*` — 34 events
 
 ```text
 task.created                 task.state_changed        task.execution_finished
@@ -401,13 +407,14 @@ review.decision_submitted     review.item_claimed      review.item_released
 review.item_escalated        authz.decision_denied     evaluation.escalation_leakage
 integration.pr_fetched        integration.ticket_fetched
 review.report_created         review.fix_suggestion_created
+review.report_decision_submitted
 integration.writeback_completed
 memory.entry_created          memory.consolidated      memory.archived
 learning.stage_completed      learning.loop_completed
 system.started                system.stopped
 ```
 
-### DB tables — 49
+### DB tables — 50
 
 ```text
 Orchestrator          projects, tasks, task_state_history, retry_log◌
@@ -421,7 +428,7 @@ Attention             assessments, assessment_feedback, attention_thresholds,
                       calibration_datasets, calibration_weights, calibration_rows,
                       auto_approve_kill_switch
 Review                review_queue, decisions, review_decisions,
-                      review_reports, review_findings, fix_suggestions
+                      review_reports, review_findings, review_verifications, fix_suggestions
 Integration/write-back provider_configs, writeback_log
 Evidence              evidence, evidence_links
 Event log             event_log

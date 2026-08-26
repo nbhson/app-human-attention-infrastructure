@@ -137,28 +137,28 @@ describe('ReviewReportPage', () => {
     expect(await screen.findByRole('radio', { name: /APPROVE/ })).toBeChecked();
     expect(mocked.decide).toHaveBeenCalledWith('report-abc', {
       decision: 'APPROVE',
-      writeback: false,
+      writeback: true,
       comment: '',
     });
   });
 
-  it('forwards the write-back toggle and comment to the decide call', async () => {
+  it('forwards an un-checked write-back and a comment to the decide call', async () => {
     mocked.getReport.mockResolvedValue(report);
     mocked.decide.mockResolvedValue({ reportId: 'report-abc', decision: 'APPROVE' });
 
     renderReport();
 
     fireEvent.click(await screen.findByRole('radio', { name: /APPROVE/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: /Write decision back to PR/ }));
     fireEvent.change(screen.getByLabelText(/Write-back comment/), {
       target: { value: 'LGTM' },
     });
+    fireEvent.click(screen.getByRole('checkbox', { name: /Write decision back to PR/ }));
     fireEvent.click(screen.getByRole('button', { name: /Submit/ }));
 
     await waitFor(() =>
       expect(mocked.decide).toHaveBeenCalledWith('report-abc', {
         decision: 'APPROVE',
-        writeback: true,
+        writeback: false,
         comment: 'LGTM',
       }),
     );
@@ -173,6 +173,6 @@ describe('ReviewReportPage', () => {
       name: /Write decision back to PR/,
     });
     expect(checkbox).toBeDisabled();
-    expect(screen.getByText(/Write-back is not armed on this deployment/)).toBeInTheDocument();
+    expect(screen.getByText(/Write-back is disabled on this deployment/)).toBeInTheDocument();
   });
 });

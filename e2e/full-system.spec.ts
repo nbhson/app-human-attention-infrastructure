@@ -208,11 +208,12 @@ beforeAll(async () => {
   sandboxRoot = mkdtempSync(join(tmpdir(), 'harness-e2e-sandbox-'));
   process.env.SANDBOX_ROOT = sandboxRoot;
 
-  // Force the write-back ceiling OFF so the run is green under safe defaults even
-  // if a developer's shell happens to export the toggle.
+  // Force the write-back ceiling OFF (WRITEBACK_ENABLED=0) so the run is
+  // deterministic under the now-on-by-default gate — only an explicit opt-out
+  // defeats an APPROVE write, regardless of a developer's shell.
   savedWritebackEnabled = process.env.WRITEBACK_ENABLED;
   savedWritebackGithub = process.env.WRITEBACK_GITHUB;
-  delete process.env.WRITEBACK_ENABLED;
+  process.env.WRITEBACK_ENABLED = '0';
   delete process.env.WRITEBACK_GITHUB;
 
   container = buildContainer();
@@ -419,11 +420,13 @@ describe('full-system E2E (day-37)', () => {
     expect(markdown).toContain('**Review required before any write-back.**');
   });
 
-  it('write-back OFF at rest: an APPROVE (writeback:true) writes nothing external', async () => {
+  it('write-back disabled (WRITEBACK_ENABLED=0): an APPROVE (writeback:true) writes nothing external', async () => {
     const db = container.resolve<DrizzleDB>(TOKENS.Db);
 
-    // The three-layer gate is disarmed before any decision (unit level).
-    expect(writebackEnabled(true)).toBe(false);
+    // The gate now defaults ON, so an explicit `0` is the only opt-out; the rest
+    // of the three-layer contract is unchanged.
+    expect(writebackEnabled(true)).toBe(false); // process.env has WRITEBACK_ENABLED='0'
+    expect(writebackEnabled(true, {})).toBe(true); // unset ⇒ ON by default
     expect(writebackEnabled(true, { WRITEBACK_ENABLED: '1' })).toBe(true);
     expect(writebackEnabled(true, { WRITEBACK_ENABLED: 'true' })).toBe(true);
     expect(writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' })).toBe(false);

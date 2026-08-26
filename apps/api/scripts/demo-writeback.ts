@@ -223,7 +223,7 @@ async function main(): Promise<void> {
   console.log();
 
   // --- 1. The three-layer toggle (request flag ∧ global ceiling, then per-provider) ----
-  console.log('=== 1. the three-layer toggle (fail-safe: any layer OFF = silent) ===');
+  console.log('=== 1. the three-layer toggle (request flag ∧ global ceiling; per-provider) ===');
   console.log(
     `  global ceiling:  writebackEnabled(true, {})                     → ${writebackEnabled(true, {})}`,
   );
@@ -231,20 +231,28 @@ async function main(): Promise<void> {
     `  global ceiling:  writebackEnabled(true, { WRITEBACK_ENABLED:'1' }) → ${writebackEnabled(true, { WRITEBACK_ENABLED: '1' })}`,
   );
   console.log(
+    `  global ceiling:  writebackEnabled(true, { WRITEBACK_ENABLED:'0' }) → ${writebackEnabled(true, { WRITEBACK_ENABLED: '0' })}`,
+  );
+  console.log(
     `  request flag:    writebackEnabled(undefined, { WRITEBACK_ENABLED:'1' }) → ${writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' })}`,
   );
-  assert(writebackEnabled(true, {}) === false, 'OFF at rest (no WRITEBACK_ENABLED)');
+  assert(writebackEnabled(true, {}) === true, 'ON by default (no WRITEBACK_ENABLED)');
   assert(
     writebackEnabled(true, { WRITEBACK_ENABLED: '1' }) === true,
     'global ceiling + request flag both ON',
+  );
+  assert(
+    writebackEnabled(true, { WRITEBACK_ENABLED: '0' }) === false,
+    'an explicit WRITEBACK_ENABLED=0 defeats a request-level ON',
   );
   assert(
     writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' }) === false,
     'a missing request flag defeats an ON ceiling',
   );
 
-  // The per-provider layer: a default service (no `enabled` override → `envEnabled`
-  // reads `WRITEBACK_GITHUB`) is OFF because the env is unset in this run.
+  // The per-provider layer, **on by default**: a default service (no `enabled`
+  // override → `envEnabled` reads `WRITEBACK_GITHUB`, unset ⇒ ON) writes one tool
+  // call. Explicit OFF is the injected `enabled: () => false` below.
   const defaultClient = new RecordingClient();
   const defaultStore = new MemoryWritebackLogStore();
   const defaultService = new MCPWriteBack(
@@ -253,13 +261,31 @@ async function main(): Promise<void> {
     new StaticTicketToolMap(),
     defaultStore,
   );
-  const [offComment] = gitDecision('dec-off', GitProviderType.GitHub, 'github.com/acme/api', '42');
-  const offResult = await defaultService.write(offComment);
-  assert(offResult.ok === true, 'per-provider OFF still returns ok (lazy no-op)');
-  assert(defaultClient.calls.length === 0, 'per-provider OFF: zero tool calls');
-  assert(defaultStore.rows.length === 0, 'per-provider OFF: zero audit rows');
+  const [onComment] = gitDecision('dec-on', GitProviderType.GitHub, 'github.com/acme/api', '42');
+  const onResult = await defaultService.write(onComment);
+  assert(onResult.ok === true, 'per-provider default ON writes ok');
+  assert(defaultClient.calls.length === 1, 'per-provider default ON: one tool call');
+  assert(defaultStore.rows.length === 1, 'per-provider default ON: one audit row');
   console.log(
-    `  per-provider:    WRITEBACK_GITHUB unset → write() calls ${defaultClient.calls.length} tools, ${defaultStore.rows.length} audit rows ✓`,
+    `  per-provider:    WRITEBACK_GITHUB unset → write() calls ${defaultClient.calls.length} tool, ${defaultStore.rows.length} audit row ✓`,
+  );
+
+  const offClient = new RecordingClient();
+  const offStore = new MemoryWritebackLogStore();
+  const offService = new MCPWriteBack(
+    registryOf(offClient),
+    new StaticGitToolMap(),
+    new StaticTicketToolMap(),
+    offStore,
+    { enabled: () => false },
+  );
+  const [offComment] = gitDecision('dec-off', GitProviderType.GitHub, 'github.com/acme/api', '42');
+  const offResult = await offService.write(offComment);
+  assert(offResult.ok === true, 'per-provider OFF still returns ok (lazy no-op)');
+  assert(offClient.calls.length === 0, 'per-provider OFF: zero tool calls');
+  assert(offStore.rows.length === 0, 'per-provider OFF: zero audit rows');
+  console.log(
+    `  per-provider:    enabled=()=>false → write() calls ${offClient.calls.length} tools, ${offStore.rows.length} audit rows ✓`,
   );
   console.log();
 

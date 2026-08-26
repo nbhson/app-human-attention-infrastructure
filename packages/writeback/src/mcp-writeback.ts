@@ -49,22 +49,23 @@ import type { WriteBackService } from './writeback-service.js';
 export interface MCPWriteBackOptions {
   /**
    * Whether write-back is enabled for a provider, defaulting to the env check
-   * (`WRITEBACK_<PROVIDER>=1|true`). Returning false is a successful no-op with
-   * no audit row.
+   * (`WRITEBACK_<PROVIDER>`, ON by default — set `0`/`false` to opt a host out).
+   * Returning false is a successful no-op with no audit row.
    */
   readonly enabled?: (provider: WriteBackProvider) => boolean;
 }
 
 /**
- * The off-by-default toggle: `WRITEBACK_GITHUB=1` (etc.) arms the provider. An
- * unset var means OFF — nothing external is ever written by accident.
+ * The per-provider toggle, **on by default**: `WRITEBACK_GITHUB=0` (etc.) opts a
+ * host out. An unset var means ON — a configured host writes without extra setup,
+ * and disabling is the explicit act.
  */
 function envEnabled(
   provider: WriteBackProvider,
   env: Record<string, string | undefined> = process.env,
 ): boolean {
   const value = env[`WRITEBACK_${provider.toUpperCase()}`];
-  return value === '1' || value === 'true';
+  return value !== '0' && value !== 'false';
 }
 
 /** The first human-readable text out of a tool result's content blocks (may be empty). */

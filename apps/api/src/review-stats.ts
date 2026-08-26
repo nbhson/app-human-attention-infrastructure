@@ -4,9 +4,9 @@
  * The product's whole thesis is "route human attention to only what matters", so
  * the report surface owes the reviewer a one-glance answer to two questions:
  *
- *  - What share of the PR's *source files* carry an actionable finding
- *    (CRITICAL/MAJOR/MINOR — nitpicks/praise don't count, and a
- *    lockfile/README/Dockerfile rewrite isn't source)? That is the product's
+ *  - What share of the PR's *hand-written files* carry an actionable finding
+ *    (CRITICAL/MAJOR/MINOR — nitpicks/praise don't count, and a generated
+ *    lockfile/build artifact isn't a hand-written file)? That is the product's
  *    one-glance "how much of this change needs a human" answer, and it is
  *    directly provable: every flagged file is named in a finding.
  *  - Split the findings across the severity bands (→ how much of the review is
@@ -22,8 +22,13 @@
 import { ReviewSeverity } from '@harness/domain';
 import type { ReviewSeverity as ReviewSeverityType } from '@harness/domain';
 
-import { classifySourceFile, isGeneratedFile, isSourceFile } from './review-file-classify.js';
-import type { SourceCategory } from './review-file-classify.js';
+import {
+  classifyReviewableFile,
+  isGeneratedFile,
+  isReviewableFile,
+  isSourceFile,
+} from './review-file-classify.js';
+import type { ReviewableCategory } from './review-file-classify.js';
 
 /** Severity bands, highest first — the same order the AI reports them in. */
 export const SEVERITY_ORDER = [
@@ -52,26 +57,26 @@ export type SeverityCounts = Record<ReviewSeverityType, number>;
 
 /** The derived, denormalised statistics block surfaced on the report. */
 export interface ReviewStats {
-  /** Source/logic files in the diff (generated, doc, config and infra excluded). */
+  /** Hand-written files in the diff (source + docs/config/infra; generated artifacts excluded). */
   readonly totalFiles: number;
-  /** Lines added across source files. */
+  /** Lines added across hand-written files. */
   readonly addedLines: number;
-  /** Lines removed across source files. */
+  /** Lines removed across hand-written files. */
   readonly removedLines: number;
-  /** `addedLines + removedLines` — the source diff's size. */
+  /** `addedLines + removedLines` — the hand-written diff's size. */
   readonly changedLines: number;
-  /** Added source lines living in files that carry at least one actionable finding. */
+  /** Added lines living in files that carry at least one actionable finding. */
   readonly flaggedAddedLines: number;
-  /** Distinct source files that carry an actionable finding (NIT/INFO excluded). */
+  /** Distinct files that carry an actionable finding (NIT/INFO excluded). */
   readonly flaggedFiles: number;
-  /** The source diff split by what the added lines are (test/style/markup/source). */
+  /** The diff split by what the added lines are (test/style/markup/source/config). */
   readonly composition: readonly {
-    readonly category: SourceCategory;
+    readonly category: ReviewableCategory;
     readonly files: number;
     readonly additions: number;
     readonly deletions: number;
   }[];
-  /** Diff lines rejected as non-source (generated/doc/config/infra) — out of the metric. */
+  /** Generated artifacts (lockfiles/build output) rejected from the metric. */
   readonly excluded: {
     readonly files: number;
     readonly additions: number;
@@ -81,11 +86,9 @@ export interface ReviewStats {
       readonly path: string;
       readonly additions: number;
       readonly deletions: number;
-      /** `generated` = lockfile/build artefact; `non-source` = docs/config/infra. */
-      readonly reason: 'generated' | 'non-source';
     }[];
   };
-  /** Source files carrying an actionable finding — the proof of `attentionShare`. */
+  /** Files carrying an actionable finding — the proof of `attentionShare`. */
   readonly flaggedFilesList: readonly {
     readonly file: string;
     readonly severities: readonly string[];
@@ -95,6 +98,7 @@ export interface ReviewStats {
    * to `attentionShare`: counted at every severity (a NIT "unused function" is
    * still a removal candidate the reviewer may want to see) but never moved the
    * attention percentage — that stays a function of actionable severity alone.
+   * Cleanup is a *source code* signal, so it stays scoped to source files.
    */
   readonly cleanup: {
     /** Distinct source files carrying at least one `cleanup` finding. */
@@ -105,10 +109,10 @@ export interface ReviewStats {
     readonly filesList: readonly { readonly file: string; readonly count: number }[];
   };
   /**
-   * `flaggedFiles / totalFiles`, clamped to [0, 1] (0 when no source files).
-   * File-based, not line-based, so the hero is provable at a glance: "3 of 12
-   * files" maps one-to-one onto the findings listed below (a 600-line file with
-   * one finding is *one* file, not 600 lines of unclear "attention").
+   * `flaggedFiles / totalFiles`, clamped to [0, 1] (0 when no hand-written
+   * files). File-based, not line-based, so the hero is provable at a glance:
+   * "3 of 12 files" maps one-to-one onto the findings listed below (a 600-line
+   * file with one finding is *one* file, not 600 lines of unclear "attention").
    */
   readonly attentionShare: number;
   /** Total number of findings (the denominator for the severity split). */
@@ -160,34 +164,36 @@ export function computeReviewStats(
   const payload =
     typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
   const allFiles = Array.isArray(payload.files) ? payload.files : [];
-  // The attention block is about *code*, not the whole diff. A lockfile that
-  // adds 9k lines, a README rewrite, or a Dockerfile/nginx tweak must not move
-  // "needs human attention" — the metric is meant to answer "how much of the
-  // SOURCE you wrote needs a human to look at it". So the diff-derived numbers
-  // count only hand-written source files; `findingTotal` + `severity` still span
-  // every finding (a CRITICAL on a deleted file still shows in the severity bar).
-  const files = allFiles.filter((file) => isSourceFile(file?.path ?? ''));
+  // The attention block is about the *hand-written* change, not the whole diff.
+  // A lockfile that adds 9k lines must not move "needs human attention" — it was
+  // generated, not written. But a CRITICAL on a Dockerfile, `.env` or YAML
+  // config IS written by a human and IS something the reviewer must act on, so
+  // docs/config/infra count toward attention the same as source. The
+  // diff-derived numbers therefore count every reviewable (non-generated) file;
+  // `findingTotal` + `severity` still span every finding (a CRITICAL on a
+  // deleted file still shows in the severity bar).
+  const files = allFiles.filter((file) => isReviewableFile(file?.path ?? ''));
 
   const addedLines = files.reduce((sum, file) => sum + toNonNegative(file?.additions), 0);
   const removedLines = files.reduce((sum, file) => sum + toNonNegative(file?.deletions), 0);
   const changedLines = addedLines + removedLines;
 
   // The attention share is counted per *file*, not per line: a finding about a
-  // file means "review this file", and "3 of 12 source files" is something the
+  // file means "review this file", and "3 of 12 files" is something the
   // reviewer can prove by counting the `file`s on the findings below. Counting
   // added *lines* is what produced the absurd numbers this pivot walks away
   // from — one finding in a 600-line `toeic.service.ts` inflating the hero to
-  // 25%, or a README rewrite (not even source) to "44%". NIT and INFO are
-  // deliberately excluded: they are nitpicks / praise, not calls for attention.
-  // Group actionable findings per source file so `attentionShare` is provable:
-  // `flaggedFiles.size` is the numerator, and `flaggedFilesList` names each file
-  // with its severities (the proof). The Map also feeds `flaggedAddedLines`.
+  // 25%. NIT and INFO are deliberately excluded: they are nitpicks / praise, not
+  // calls for attention. Group actionable findings per file so `attentionShare`
+  // is provable: `flaggedFiles.size` is the numerator, and `flaggedFilesList`
+  // names each file with its severities (the proof). The Map also feeds
+  // `flaggedAddedLines`.
   const flaggedFiles = new Map<string, string[]>();
   for (const finding of findings) {
     if (
       typeof finding.file === 'string' &&
       finding.file.length > 0 &&
-      isSourceFile(finding.file) &&
+      isReviewableFile(finding.file) &&
       ACTIONABLE_SEVERITIES.has(finding.severity)
     ) {
       const existing = flaggedFiles.get(finding.file);
@@ -205,17 +211,20 @@ export function computeReviewStats(
       : sum;
   }, 0);
 
-  // The source diff, split by what the added lines actually are (test specs /
-  // styles / markup / the remaining source) so "2395 added lines" is not read as
-  // "2395 lines of dense logic". Only source files are in this breakdown.
+  // The diff, split by what the added lines actually are (test specs / styles /
+  // markup / the remaining source / docs+config+infra) so "2395 added lines" is
+  // not read as "2395 lines of dense logic".
   const COMPOSITION_ORDER = [
     'test',
     'style',
     'markup',
     'source',
-  ] as const satisfies readonly SourceCategory[];
+    'config',
+  ] as const satisfies readonly ReviewableCategory[];
   const composition = COMPOSITION_ORDER.map((category) => {
-    const inCategory = files.filter((file) => classifySourceFile(file?.path ?? '') === category);
+    const inCategory = files.filter(
+      (file) => classifyReviewableFile(file?.path ?? '') === category,
+    );
     return {
       category,
       files: inCategory.length,
@@ -224,15 +233,14 @@ export function computeReviewStats(
     };
   }).filter((row) => row.files > 0);
 
-  // The part of the diff we deliberately throw away: lockfiles, docs, config and
-  // infra. Surfacing it — by name, not just count — shows the attention
-  // denominator is small *for a reason*: it is verifiable that "9,140 excluded
-  // lines" means "package-lock.json", not hidden logic. `generated` (lockfile /
-  // build artefact) is split from `non-source` (docs/config/infra) so the reader
-  // sees which are which instead of one undifferentiated blob.
+  // The part of the diff we deliberately throw away: generated artifacts only
+  // (lockfiles, node_modules/dist/build, source maps, minified bundles).
+  // Surfacing them — by name, not just count — shows the attention denominator
+  // is small *for a reason*: it is verifiable that "9,140 excluded lines" means
+  // "package-lock.json", not hidden logic.
   const allAdded = allFiles.reduce((sum, file) => sum + toNonNegative(file?.additions), 0);
   const allRemoved = allFiles.reduce((sum, file) => sum + toNonNegative(file?.deletions), 0);
-  const excludedFiles = allFiles.filter((file) => !isSourceFile(file?.path ?? ''));
+  const excludedFiles = allFiles.filter((file) => isGeneratedFile(file?.path ?? ''));
   const excluded: ReviewStats['excluded'] = {
     files: excludedFiles.length,
     additions: allAdded - addedLines,
@@ -244,15 +252,9 @@ export function computeReviewStats(
           path,
           additions: toNonNegative(file?.additions),
           deletions: toNonNegative(file?.deletions),
-          reason: (isGeneratedFile(path) ? 'generated' : 'non-source') as
-            'generated' | 'non-source',
         };
       })
-      .sort((a, b) => {
-        // Generated first (most obviously out of scope), then largest lines first.
-        if (a.reason !== b.reason) return a.reason === 'generated' ? -1 : 1;
-        return b.additions - a.additions || a.path.localeCompare(b.path);
-      }),
+      .sort((a, b) => b.additions - a.additions || a.path.localeCompare(b.path)),
   };
 
   const flaggedFilesList: ReviewStats['flaggedFilesList'] = [...flaggedFiles.entries()]
@@ -269,6 +271,9 @@ export function computeReviewStats(
   // findings per source file. This selects on the *kind* axis, orthogonal to the
   // `flaggedFiles` severity selection above, so a NIT "unused function" surfaces
   // here as a removal candidate without inflating `flaggedFiles`/`attentionShare`.
+  // Cleanup is a source-code concept (dead code in a README makes no sense), so
+  // it stays scoped to source files, unlike `flaggedFiles` which now spans every
+  // reviewable file.
   const cleanupTally = new Map<string, number>();
   for (const finding of findings) {
     if (

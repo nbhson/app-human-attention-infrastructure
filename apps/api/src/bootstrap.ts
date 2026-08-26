@@ -80,7 +80,7 @@ import type { Embedder } from '@harness/embeddings';
 import { MetricsComputer } from '@harness/evaluation';
 import { buildEventBus, resolveEventTransport } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import { MemoryRetriever, MemoryStore } from '@harness/memory';
+import { MemoryDistiller, MemoryIngestor, MemoryRetriever, MemoryStore } from '@harness/memory';
 import { MemoryLifecycle } from '@harness/memory';
 import { TaskService, TaskStateMachine } from '@harness/orchestrator';
 import type { ContentStore } from '@harness/object-store';
@@ -92,11 +92,15 @@ import {
 import { ReviewService } from '@harness/review';
 import { Judge } from '@harness/judge';
 import { DockerSandbox } from '@harness/sandbox';
-import type { Sandbox } from '@harness/sandbox';
+import type { Sandbox, SandboxLimits } from '@harness/sandbox';
 import {
+  CloneCompileCheck,
+  CloneTestCheck,
+  CloneVerifier,
   CompileCheck,
   EvidenceStore,
   SandboxedCheck,
+  SandboxRunner,
   TestCheck,
   VerificationEngine,
 } from '@harness/verification-engine';
@@ -111,6 +115,7 @@ import { MCPWriteBack } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestService } from './services/review-ingest.js';
+import { ReviewVerificationService } from './services/review-verification.js';
 import { JudgeShadow } from './services/judge-shadow.js';
 
 /** Default session lifetime (7 days), overridable via `SESSION_TTL_MS` (day-01 §2.2). */
@@ -655,6 +660,43 @@ export function buildContainer(): Container {
     });
   });
 
+  // Review-reorient Phase 3 (wedge #1): the "run the real code" verifier. A
+  // `CloneVerifier` runs the PR clone's own `build` then `test` in the Docker
+  // sandbox (never the harness process); `ReviewVerificationService` subscribes to
+  // `review.report_created` and drives it fire-and-forget after the report is
+  // stored. On by default (opt out via `VERIFY_REVIEW_ENABLED=0`), sandbox-only, never a gate.
+  c.register(TOKENS.ReviewVerifier, (container) => {
+    const image = process.env.VERIFY_SANDBOX_IMAGE ?? 'harness-verify:node20';
+    const limits: SandboxLimits = {
+      cpu: process.env.VERIFY_SANDBOX_CPU ?? '1.0',
+      memory: process.env.VERIFY_SANDBOX_MEMORY ?? '512m',
+      timeoutSeconds: Number(process.env.VERIFY_CLONE_TIMEOUT_S ?? '600'),
+    };
+    const runner = new SandboxRunner({
+      sandbox: container.resolve<Sandbox>(TOKENS.Sandbox),
+      image,
+      limits,
+    });
+    return new CloneVerifier({
+      compile: new CloneCompileCheck(runner),
+      test: new CloneTestCheck(runner),
+    });
+  });
+
+  c.register(TOKENS.ReviewVerificationService, (container) => {
+    const service = new ReviewVerificationService({
+      db: container.resolve<DrizzleDB>(TOKENS.Db),
+      bus: container.resolve<IEventBus>(TOKENS.EventBus),
+      gitProvider: container.resolve<GitProvider | null>(TOKENS.GitProvider),
+      verifier: container.resolve<CloneVerifier>(TOKENS.ReviewVerifier),
+      enabled:
+        process.env.VERIFY_REVIEW_ENABLED !== '0' && process.env.VERIFY_REVIEW_ENABLED !== 'false',
+      logger: container.resolve<Logger>(TOKENS.Logger),
+    });
+    service.subscribe();
+    return service;
+  });
+
   // Review-reorient Phase 3 (day-21): the review-quality judge, shadow-only.
   // `Judge` calls the LLMProvider seam and records every run through the Drizzle
   // port (`judge_runs`); nothing reads the scores yet — day-22 wires the
@@ -692,6 +734,23 @@ export function buildContainer(): Container {
       container.resolve<IEventBus>(TOKENS.EventBus),
       container.resolve<Logger>(TOKENS.Logger),
     );
+  });
+
+  // Review-reorient Phase 3 (wedge #2): the memory *write* half. `MemoryIngestor`
+  // subscribes to `review.report_created` / `review.report_decision_submitted` and
+  // distills each into a REVIEW/FINDING/DECISION entry grounded in an evidence
+  // row. Previously the read side was wired and the write half was left idle; this
+  // registration + eager boot closes that gap.
+  c.register(TOKENS.MemoryIngestor, (container) => {
+    const ingestor = new MemoryIngestor(
+      container.resolve<DrizzleDB>(TOKENS.Db),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<MemoryStore>(TOKENS.MemoryStore),
+      new MemoryDistiller(),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+    ingestor.subscribe();
+    return ingestor;
   });
 
   // Review-reorient Phase 3 (day-18): the memory *read* seam. `MemoryRetriever`
@@ -786,4 +845,6 @@ export function bootContainer(container: Container): void {
   container.resolve(TOKENS.ReembedListener);
   container.resolve(TOKENS.ReviewService);
   container.resolve(TOKENS.JudgeShadow);
+  container.resolve(TOKENS.ReviewVerificationService);
+  container.resolve(TOKENS.MemoryIngestor);
 }
