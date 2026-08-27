@@ -70,6 +70,8 @@ export const TOKENS = {
   // Review-reorient Phase 3: the review-quality judge (day-21, shadow-only).
   Judge: 'Judge',
   JudgeShadow: 'JudgeShadow',
+  // Phase 4: background review worker (async AI processing).
+  ReviewWorkerSubscriber: 'ReviewWorkerSubscriber',
 } as const;
 
 /** The string union of every known token. */

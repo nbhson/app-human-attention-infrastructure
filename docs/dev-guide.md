@@ -32,7 +32,7 @@ cd harness-human-attention-infrastructure
 pnpm install             # links the @harness/* workspace packages
 docker compose up -d     # starts postgres:16 (pgvector) — the only docker service
 
-cp .env.example .env     # DATABASE_URL + placeholder provider keys
+cp .env.example .env     # DATABASE_URL + placeholder provider keys + review pipeline config
 
 # optional — connect real Git/Jira tools over MCP (git-ignored; never commit it):
 cp mcp.config.example.json mcp.config.json   # tokenEnv references, no secrets
@@ -41,7 +41,20 @@ pnpm --filter @harness/db migrate   # apply migrations
 
 pnpm test                # unit + integration, ~2 min
 pnpm dev                 # run the API + web UI
-```
+
+### First-time login
+
+The API requires authentication for every protected route (enforced by
+`requireRole`). With `OIDC_MOCK=true` (the default in `.env.example`), the mock
+OIDC provider handles login locally — no external IdP needed.
+
+Open **http://localhost:3000/api/auth/login** in your browser. This triggers
+the mock OIDC flow: it redirects to a self-callback (`/api/auth/callback`),
+creates a user + session row in the database, and sets the `sid` httpOnly
+cookie. After that, the UI at **http://localhost:5173** works without 401s.
+
+Alternatively, set `APP_URL=http://localhost:5173` in `.env` and visit
+**http://localhost:5173/api/auth/login** through the Vite proxy instead.
 
 What each command actually does:
 
@@ -118,6 +131,8 @@ What each command actually does:
 | Add a clone/targeted check | `packages/verification-engine/src/clone-checks/` + `targeted-verifier.ts` |
 | Change review endpoints | `apps/api/src/routes/review.ts` + `packages/review/` |
 | Change the review-slice ingest flow | `apps/api/src/services/review-ingest.ts` + `apps/api/src/routes/reviews.ts` |
+| Change the background review worker | `apps/api/src/services/review-worker.ts` + `apps/api/src/bootstrap.ts` (wiring) |
+| Change review batch splitting / merging | `packages/agent-runtime/src/review/review-batch.ts` |
 | Change write-back behaviour | `packages/writeback/src/writeback-service.ts` + `apps/api/src/writeback-gate.ts` |
 | Change review memory | `packages/memory/src/memory-store.ts` / `memory-distiller.ts` / `lifecycle/` |
 | Change the dependency graph / affected tests | `packages/code-index/src/graph.ts` / `affected.ts` (hand-rolled lexical — no tree-sitter) |
@@ -132,6 +147,8 @@ What each command actually does:
 
 ```sh
 pnpm dev                  # turbo run dev — runs apps/api via tsx watch
+# After starting, log in at http://localhost:3000/api/auth/login
+# (one-time per session, sets the sid cookie).
 pnpm test                 # full suite (unit + integration)
 pnpm test -- packages/orchestrator   # run one package's tests only
 pnpm lint                 # eslint across the repo (boundaries enforced here)
@@ -278,6 +295,38 @@ SEMANTIC_SHADOW_ENABLED=1 pnpm dev
 A real embedder is optional: unset `EMBEDDINGS_BASE_URL` uses the deterministic
 `StubEmbedder`; set it (plus `EMBEDDINGS_API_KEY`/`EMBEDDINGS_MODEL`) for
 OpenAI-compatible embeddings.
+
+**Review pipeline (batch + two-pass + progressive).** Large PRs are split into
+parallel batches so each AI call stays under the provider timeout. The pipeline
+is controlled by three env vars:
+
+```sh
+# Max files per batch (default 5). Lower = smaller AI calls, less timeout risk.
+REVIEW_MAX_BATCH_SIZE=5
+# Max tokens per batch (default 8000). Lower = faster per-batch completion.
+REVIEW_MAX_BATCH_TOKENS=8000
+# Two-pass mode: ON by default. When ON, a lightweight summary pass runs first
+# to identify high/medium risk files, then only those files are deep-reviewed.
+REVIEW_TWO_PASS=true
+```
+
+Without `REVIEW_TWO_PASS`, every file is reviewed in detail. With it, the
+pipeline calls `ReviewAgent.summarizeFiles()` to triage risks first, then
+passes only high/medium files to the full batch review — roughly halving the
+timeout window on a typical PR.
+
+**Background worker (async review).** The review endpoint (`POST /api/reviews`)
+returns 202 immediately with a pending report. A background worker
+(`ReviewWorkerSubscriber`) subscribes to `review.requested` events and processes
+the AI review asynchronously. The report's `review_status` column tracks the
+current stage (`pending` → `fetching` → `recalling` → `reviewing` → `storing` →
+`complete` / `error`), and the frontend polls automatically.
+
+**Progressive findings.** During the `reviewing` stage, findings are inserted
+into the database as each batch completes — the user sees partial results before
+the entire review finishes. The `batch_progress` column (`{ current, total }`)
+tracks how many batches are done. The frontend displays the current stage,
+batch progress, and any findings already available.
 
 ## 8. Configuration stack (env + MCP)
 

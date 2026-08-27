@@ -211,6 +211,19 @@ export interface ReviewReport {
   readonly summary: string;
   readonly overallVerdict: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
   /**
+   * Current stage of the async review pipeline. `'complete'` means the review
+   * has finished processing; any other value means the background worker is
+   * still working.
+   */
+  readonly reviewStatus:
+    'pending' | 'fetching' | 'recalling' | 'reviewing' | 'storing' | 'complete' | 'error';
+  /**
+   * Batch progress within the `reviewing` stage. `current` is the number of
+   * batches completed, `total` is the total number of batches. Only present
+   * when `reviewStatus` is `'reviewing'`.
+   */
+  readonly batchProgress: { readonly current: number; readonly total: number } | null;
+  /**
    * The recommendation after the triage rules are applied. Equals `overallVerdict`
    * unless the security rule downgrades it to REQUEST_CHANGES. The raw AI verdict
    * stays in `overallVerdict` — the override is never a rewrite.
@@ -241,14 +254,12 @@ export interface ReviewReport {
   readonly verification?: ReviewVerification | null;
 }
 
-/** Response of `POST /api/reviews`. */
+/** Response of `POST /api/reviews` (async — starts background processing). */
 export interface ReviewCreatedResult {
   readonly reportId: string;
   readonly taskId: string;
   readonly prUrl: string;
-  readonly overallVerdict: string;
-  readonly findingCount: number;
-  readonly suggestionCount: number;
+  readonly status: 'pending';
 }
 
 /** One of the three human decisions the review report accepts. */

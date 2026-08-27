@@ -19,7 +19,9 @@ import { eq } from 'drizzle-orm';
 import { isReviewableFile } from '../review-file-classify.js';
 import { redactSensitivePatch } from '../review-secret-redact.js';
 
-import type { ReviewAgent } from '@harness/agent-runtime';
+import { OpenAICompatibleError, ReviewParseError } from '@harness/agent-runtime';
+import { batchReview, budgetFiles } from '@harness/agent-runtime';
+import type { BatchReviewOptions, ReviewAgent, ReviewAgentOutput } from '@harness/agent-runtime';
 import {
   brand,
   EventType,
@@ -33,6 +35,7 @@ import {
 import type {
   AiProviderType,
   Issue,
+  MemoryProvider,
   ProjectID,
   PullRequestFile,
   ReviewReportID,
@@ -156,23 +159,29 @@ export interface ReviewIngestDeps {
   readonly aiProvider: AiProviderType;
   readonly model: string;
   readonly logger: Logger;
+  /** Optional memory provider for past review context retrieval. */
+  readonly memoryProvider?: MemoryProvider;
+  /** Max files per batch (default 5). */
+  readonly maxBatchSize?: number;
+  /** Max tokens per batch (default 8000). */
+  readonly maxBatchTokens?: number;
+  /** Enable two-pass review: summarize first, then deep-review only high/medium risk files. */
+  readonly twoPassEnabled?: boolean;
+  /** Max concurrent AI requests (default 3). */
+  readonly maxConcurrency?: number;
 }
 
 export class ReviewIngestService {
   constructor(private readonly deps: ReviewIngestDeps) {}
 
+  /**
+   * Synchronous ingest — create task, fetch PR, call AI, save report.
+   * Used by tests and the legacy path. For async production use, call
+   * {@link createReview} then {@link processReview} separately.
+   */
   async ingest(input: ReviewIngestInput): Promise<ReviewIngestResult> {
-    const {
-      db,
-      bus,
-      taskService,
-      gitProvider,
-      ticketProvider,
-      reviewAgent,
-      aiProvider,
-      model,
-      logger,
-    } = this.deps;
+    const { gitProvider } = this.deps;
+    const { db, bus, taskService, ticketProvider, aiProvider, model, logger } = this.deps;
 
     if (!gitProvider) {
       throw new ReviewIngestError('no Git provider configured (set GITHUB_TOKEN)', 503);
@@ -222,15 +231,44 @@ export class ReviewIngestService {
       bus.publish(createEvent(EventType.IntegrationTicketFetched, correlationId, ticketFetched));
     }
 
-    const agentOutput = await reviewAgent.review(
+    const agentOutput = await this.reviewWithPipeline(
+      pr.files,
       {
         prUrl: pr.url,
         prTitle: pr.title,
         requirement,
-        diff: buildDiff(pr.files),
+        model,
+        correlationId: task.id,
+        maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
       },
-      { model, correlationId: task.id },
-    );
+      correlationId,
+    ).catch((error: unknown) => {
+      // An AI-provider failure (timeout, network drop, or a non-2xx from the
+      // OpenAI-compatible endpoint) is an upstream problem, not a 500. Surface
+      // it as a review-ingest error with a status the create screen can map —
+      // so a hung "deepseek" model reads "timed out", never a bare Internal
+      // Server Error.
+      if (error instanceof OpenAICompatibleError) {
+        const isTimeout = error.kind === 'timeout';
+        throw new ReviewIngestError(
+          isTimeout
+            ? `the AI provider did not respond in time — ${error.message}`
+            : `the AI provider failed — ${error.message}`,
+          isTimeout ? 504 : 502,
+        );
+      }
+      // A reasoning model whose output budget was exhausted returns truncated
+      // JSON; parsing it fails with a ReviewParseError. That is still an
+      // upstream/AI problem (retry-able, not a code defect), so surface it as
+      // a 502 rather than leaking an unhelpful 500.
+      if (error instanceof ReviewParseError) {
+        throw new ReviewIngestError(
+          `the AI returned an unusable review (${error.message}) — try again`,
+          502,
+        );
+      }
+      throw error;
+    });
 
     const reportId = newReviewReportID();
     await db.insert(reviewReports).values({
@@ -293,4 +331,362 @@ export class ReviewIngestService {
       suggestionCount: agentOutput.suggestions.length,
     };
   }
+
+  /**
+   * Create a review report with placeholder data and return immediately.
+   * The actual AI review runs asynchronously via {@link processReview}.
+   *
+   * Returns the report id and task id so the HTTP response can return 202
+   * with a location the frontend can poll.
+   */
+  async createReview(input: ReviewIngestInput): Promise<{
+    reportId: ReviewReportID;
+    taskId: TaskID;
+    prUrl: string;
+  }> {
+    const { db, bus, taskService, gitProvider, aiProvider, model, logger } = this.deps;
+
+    if (!gitProvider) {
+      throw new ReviewIngestError('no Git provider configured (set GITHUB_TOKEN)', 503);
+    }
+
+    const { repo, number } = parseGithubPrUrl(input.prUrl);
+    const pr = await gitProvider.fetchPullRequest({ repo, number });
+
+    const projectId = await getOrCreateProject(db, repo);
+    const task = await taskService.createTask({
+      projectId,
+      title: `Review: ${pr.title}`,
+      description: input.prUrl,
+    });
+    await taskService.transitionTask(task.id, TaskStatus.Cancelled, 'human', {
+      rationale: 'review-only task handled by the review slice (no orchestrator workflow)',
+    });
+    const correlationId = brand(task.id, 'CorrelationID');
+
+    const prFetched: IntegrationPrFetchedPayload = {
+      task_id: task.id,
+      provider: pr.provider,
+      repo,
+      pr_number: pr.number,
+      pr_url: pr.url,
+      file_count: pr.files.length,
+    };
+    bus.publish(createEvent(EventType.IntegrationPrFetched, correlationId, prFetched));
+
+    // Create the report row with placeholder data so the frontend can poll it.
+    const reportId = newReviewReportID();
+    const placeholderSummary = '⏳ Review is being processed...';
+    await db.insert(reviewReports).values({
+      id: reportId,
+      task_id: task.id,
+      correlation_id: task.id,
+      pr_url: pr.url,
+      pr_number: pr.number,
+      repo,
+      pr_title: pr.title,
+      ai_provider: aiProvider,
+      model,
+      summary: placeholderSummary,
+      overall_verdict: 'COMMENT' as const,
+      pr_payload: pr,
+    });
+
+    logger.info('review report created (pending)', {
+      report_id: reportId,
+      pr_url: pr.url,
+      task_id: task.id,
+    });
+
+    return { reportId, taskId: task.id, prUrl: pr.url };
+  }
+
+  /**
+   * Process a review asynchronously — the slow part (AI call) that runs in the
+   * background worker. Fetches the PR, runs the review pipeline, and updates
+   * the report row with findings + suggestions.
+   *
+   * Designed to be called from a background worker (event subscriber).
+   * Updates `review_status` at each stage so the frontend can show progress.
+   */
+  async processReview(
+    reportId: ReviewReportID,
+    input: {
+      prUrl: string;
+      jiraTicket?: string;
+    },
+  ): Promise<void> {
+    const { db, bus, gitProvider, ticketProvider, model, logger } = this.deps;
+
+    if (!gitProvider) {
+      logger.error('review processing failed: no git provider configured', { report_id: reportId });
+      await db
+        .update(reviewReports)
+        .set({ review_status: 'error', summary: '❌ Review failed: no Git provider configured' })
+        .where(eq(reviewReports.id, reportId))
+        .catch(() => {});
+      return;
+    }
+
+    try {
+      // Stage: fetching — retrieve PR from GitHub.
+      await db
+        .update(reviewReports)
+        .set({ review_status: 'fetching' })
+        .where(eq(reviewReports.id, reportId));
+
+      const { repo, number } = parseGithubPrUrl(input.prUrl);
+      const pr = await gitProvider.fetchPullRequest({ repo, number });
+
+      let requirement = '';
+      if (input.jiraTicket !== undefined && ticketProvider) {
+        const issue: Issue = await ticketProvider.fetchIssue({ key: input.jiraTicket });
+        requirement = `${issue.summary}\n${issue.description}`;
+      }
+
+      // Stage: recalling — retrieve past review context.
+      await db
+        .update(reviewReports)
+        .set({ review_status: 'recalling' })
+        .where(eq(reviewReports.id, reportId));
+
+      // Track how many findings have been inserted so far for `order_index`.
+      let findingOffset = 0;
+      let suggestionOffset = 0;
+
+      // Stage: reviewing — run the AI pipeline with a per-batch callback that
+      // inserts findings progressively and updates batch_progress.
+      await db
+        .update(reviewReports)
+        .set({
+          review_status: 'reviewing',
+          batch_progress: { current: 0, total: 0 },
+        })
+        .where(eq(reviewReports.id, reportId));
+
+      const agentOutput = await this.reviewWithPipeline(
+        pr.files,
+        {
+          prUrl: pr.url,
+          prTitle: pr.title,
+          requirement,
+          model,
+          correlationId: reportId,
+          maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
+        },
+        brand(reportId, 'CorrelationID'),
+        // Per-batch callback: insert findings + suggestions immediately, update progress.
+        async (batchIndex: number, batchCount: number, output) => {
+          // Insert this batch's findings.
+          for (const finding of output.findings) {
+            await db.insert(reviewFindings).values({
+              id: newReviewFindingID(),
+              report_id: reportId,
+              severity: finding.severity,
+              kind: finding.kind ?? FindingKind.Correctness,
+              file: finding.file,
+              line: finding.line ?? null,
+              message: finding.message,
+              suggestion: finding.suggestion ?? null,
+              order_index: findingOffset++,
+            });
+          }
+          for (const suggestion of output.suggestions) {
+            await db.insert(fixSuggestions).values({
+              id: newFixSuggestionID(),
+              report_id: reportId,
+              file: suggestion.file,
+              hunk: suggestion.hunk ?? null,
+              proposed: suggestion.proposed,
+              rationale: suggestion.rationale,
+              order_index: suggestionOffset++,
+            });
+          }
+          // Update batch progress.
+          await db
+            .update(reviewReports)
+            .set({
+              batch_progress: { current: batchIndex + 1, total: batchCount },
+            })
+            .where(eq(reviewReports.id, reportId));
+        },
+      );
+
+      // Stage: storing — finalise the report with merged summary + verdict.
+      await db
+        .update(reviewReports)
+        .set({ review_status: 'storing' })
+        .where(eq(reviewReports.id, reportId));
+
+      await db
+        .update(reviewReports)
+        .set({
+          summary: agentOutput.summary,
+          overall_verdict: agentOutput.overallVerdict,
+          review_status: 'complete',
+          batch_progress: null,
+        })
+        .where(eq(reviewReports.id, reportId));
+
+      const reportCreated: ReviewReportCreatedPayload = {
+        task_id: reportId as unknown as TaskID,
+        review_report_id: reportId,
+        pr_url: pr.url,
+        finding_count: findingOffset,
+        suggestion_count: suggestionOffset,
+      };
+      bus.publish(
+        createEvent(EventType.ReviewReportCreated, brand(reportId, 'CorrelationID'), reportCreated),
+      );
+
+      logger.info('review report processed (async)', { report_id: reportId, pr_url: pr.url });
+    } catch (error) {
+      logger.error('review processing failed', { report_id: reportId, error: String(error) });
+      await db
+        .update(reviewReports)
+        .set({
+          review_status: 'error',
+          summary: `❌ Review failed: ${error instanceof Error ? error.message : String(error)}`,
+          overall_verdict: 'COMMENT' as const,
+        })
+        .where(eq(reviewReports.id, reportId))
+        .catch(() => {}); // Swallow DB error on the error-path.
+    }
+  }
+
+  /**
+   * Run the full review pipeline: memory recall → file budgeting → batch review
+   * (optionally two-pass). When `twoPassEnabled` is true, a lightweight summary
+   * pass runs first to identify high/medium risk files, then only those files
+   * are deep-reviewed.
+   *
+   * When `onBatch` is provided, it is called after each batch completes so the
+   * caller can progressively store findings (progressive findings).
+   */
+  private async reviewWithPipeline(
+    files: readonly PullRequestFile[],
+    opts: {
+      prUrl: string;
+      prTitle: string;
+      requirement: string;
+      model: string;
+      correlationId: string;
+      maxAgentTokens?: number;
+    },
+    _correlationId: string,
+    onBatch?: (batchIndex: number, batchCount: number, output: ReviewAgentOutput) => Promise<void>,
+  ) {
+    const {
+      reviewAgent,
+      memoryProvider,
+      twoPassEnabled,
+      maxBatchSize,
+      maxBatchTokens,
+      maxConcurrency,
+    } = this.deps;
+
+    // 1. Memory recall: retrieve past review findings relevant to this PR.
+    const rawMemories = memoryProvider
+      ? await memoryProvider.retrieve({
+          text: `${opts.prTitle} ${opts.requirement}`,
+          limit: 5,
+        })
+      : undefined;
+
+    // Map MemoryRetrievalResult → ReviewPromptInput['relatedMemories'] shape.
+    const relatedMemories = rawMemories
+      ? rawMemories.map((m) => ({
+          kind: m.entry.kind,
+          content: m.entry.content,
+          confidence: m.entry.confidence,
+          metadata: m.entry.metadata,
+        }))
+      : undefined;
+
+    // 2. Filter reviewable files and build the diff for token estimation.
+    const reviewable = files.filter((f) => isReviewableFile(f.path) && f.patch.trim().length > 0);
+    if (reviewable.length === 0) {
+      return { summary: '', overallVerdict: 'COMMENT' as const, findings: [], suggestions: [] };
+    }
+
+    // 3. Two-pass: summarise first, then only deep-review high/medium risk files.
+    //    For large PRs (50+ files) the summary pass would send ALL diff content
+    //    in a single AI call, which is extremely slow with reasoning models. Skip
+    //    two-pass and rely on keyword-based budgeting instead.
+    const TWO_PASS_FILE_LIMIT = 50;
+    const twoPassEffective = twoPassEnabled && reviewable.length <= TWO_PASS_FILE_LIMIT;
+    let targetFiles: readonly PullRequestFile[] = reviewable;
+    if (twoPassEffective) {
+      const summaryDiff = buildDiff(reviewable);
+      const fileSummaries = await reviewAgent.summarizeFiles(
+        {
+          prUrl: opts.prUrl,
+          prTitle: opts.prTitle,
+          requirement: opts.requirement,
+          diff: summaryDiff,
+        },
+        {
+          model: opts.model,
+          correlationId: opts.correlationId,
+          ...(opts.maxAgentTokens !== undefined ? { maxTokens: opts.maxAgentTokens } : {}),
+        } as Parameters<typeof reviewAgent.summarizeFiles>[1],
+      );
+      const highRiskFiles = new Set(
+        fileSummaries.filter((s) => s.risk === 'high' || s.risk === 'medium').map((s) => s.file),
+      );
+      if (highRiskFiles.size > 0) {
+        targetFiles = reviewable.filter((f) => highRiskFiles.has(f.path));
+      }
+      // If two-pass yields nothing high/medium, fall back to the first batch.
+      if (targetFiles.length === 0) {
+        targetFiles = reviewable.slice(0, maxBatchSize ?? 5);
+      }
+    }
+
+    // 4. Context-aware file budgeting: rank by keyword relevance from PR title + requirement.
+    const keywords = [
+      ...opts.prTitle.split(/\s+/).filter((w) => w.length > 2),
+      ...opts.requirement.split(/\s+/).filter((w) => w.length > 2),
+    ];
+    // Remove duplicates while preserving order.
+    const uniqueKeywords = [...new Set(keywords)];
+    const budgeted = budgetFiles(targetFiles, {
+      keywords: uniqueKeywords.length > 0 ? uniqueKeywords : ['review'],
+      maxTokens: maxBatchTokens ?? 8000,
+      maxSources: maxBatchSize ?? 5,
+    });
+
+    // If budgeted primary is empty, use the first batch-worth of files.
+    const filesToReview =
+      budgeted.primary.length > 0 ? budgeted.primary : targetFiles.slice(0, maxBatchSize ?? 5);
+
+    // 5. Batch review (parallel), with progressive callback if provided.
+    return batchReview(
+      reviewAgent,
+      filesToReview,
+      {
+        prUrl: opts.prUrl,
+        prTitle: opts.prTitle,
+        requirement: opts.requirement,
+        model: opts.model,
+        correlationId: opts.correlationId,
+        maxBatchSize: maxBatchSize ?? 5,
+        maxBatchTokens: maxBatchTokens ?? 8000,
+        maxConcurrency: maxConcurrency ?? 10,
+        ...(opts.maxAgentTokens !== undefined ? { maxAgentTokens: opts.maxAgentTokens } : {}),
+        ...(relatedMemories !== undefined && relatedMemories.length > 0 ? { relatedMemories } : {}),
+      } as unknown as BatchReviewOptions,
+      onBatch,
+    );
+  }
+}
+
+/** Parse a positive integer env var, or fall back to `fallback`. */
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim().length === 0) {
+    return fallback;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }

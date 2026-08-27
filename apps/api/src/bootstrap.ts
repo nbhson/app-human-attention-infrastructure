@@ -115,6 +115,7 @@ import { MCPWriteBack } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestService } from './services/review-ingest.js';
+import { ReviewWorkerSubscriber } from './services/review-worker.js';
 import { ReviewVerificationService } from './services/review-verification.js';
 import { JudgeShadow } from './services/judge-shadow.js';
 
@@ -198,9 +199,26 @@ function buildRawLLMProvider(): LLMProvider {
       apiKey: process.env.AI_API_KEY ?? '',
       baseUrl,
       model: process.env.AI_MODEL ?? 'gpt-4.1',
+      // A reasoning-capable model (deepseek/openai-reasoner style) spends output
+      // budget on chain-of-thought *and* the review JSON. With `AI_MAX_TOKENS` at
+      // 32k and this model generating ~65 tok/s, a large review can run ~8 min, so
+      // the timeout must cover the *token budget*, not just the common case. 600s
+      // ≈ the full 32k budget at the measured rate — raise `AI_TIMEOUT_MS` on a
+      // slower endpoint, and `AI_MAX_TOKENS` alongside it for very large PRs.
+      timeoutMs: envInt('AI_TIMEOUT_MS', 600_000),
     });
   }
   return new MockLLM(loadMockScript(process.env.MOCK_LLM_SCRIPT));
+}
+
+/** Parse a positive integer env var, or fall back to `fallback`. */
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim().length === 0) {
+    return fallback;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 /** Build the full container, wiring every token in dependency order. */
@@ -642,7 +660,10 @@ export function buildContainer(): Container {
   });
 
   c.register(TOKENS.ReviewAgent, (container) => {
-    return new ReviewAgent(container.resolve<LLMProvider>(TOKENS.LLMProvider));
+    const llm = container.resolve<LLMProvider>(TOKENS.LLMProvider);
+    // Headroom above the ordinary 8k so a reasoning model's chain-of-thought
+    // plus an exhaustive review JSON don't truncate (see buildRawLLMProvider).
+    return new ReviewAgent(llm, envInt('AI_MAX_TOKENS', 32_000));
   });
 
   c.register(TOKENS.ReviewIngestService, (container) => {
@@ -657,7 +678,24 @@ export function buildContainer(): Container {
       aiProvider: identity.providerType,
       model: identity.model,
       logger: container.resolve<Logger>(TOKENS.Logger),
+      memoryProvider: container.resolve<MemoryProvider>(TOKENS.MemoryProvider),
+      maxBatchSize: envInt('REVIEW_MAX_BATCH_SIZE', 5),
+      maxBatchTokens: envInt('REVIEW_MAX_BATCH_TOKENS', 8000),
+      twoPassEnabled: process.env.REVIEW_TWO_PASS === 'true',
+      maxConcurrency: envInt('REVIEW_MAX_CONCURRENCY', 10),
     });
+  });
+
+  // Phase 4: background review worker — subscribes to `review.requested` and
+  // processes the AI review pipeline asynchronously so the HTTP route returns 202.
+  c.register(TOKENS.ReviewWorkerSubscriber, (container) => {
+    const worker = new ReviewWorkerSubscriber(
+      container.resolve<ReviewIngestService>(TOKENS.ReviewIngestService),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+    worker.subscribe();
+    return worker;
   });
 
   // Review-reorient Phase 3 (wedge #1): the "run the real code" verifier. A
@@ -847,4 +885,5 @@ export function bootContainer(container: Container): void {
   container.resolve(TOKENS.JudgeShadow);
   container.resolve(TOKENS.ReviewVerificationService);
   container.resolve(TOKENS.MemoryIngestor);
+  container.resolve(TOKENS.ReviewWorkerSubscriber);
 }

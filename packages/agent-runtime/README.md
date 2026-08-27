@@ -43,6 +43,48 @@ interface ReviewAgentOutput {
 returns this shape; the caller (`ReviewIngestService`) assigns identity and
 persists it into `review_reports` / `review_findings` / `fix_suggestions`.
 
+### Batch review
+
+For large PRs, `batchReview()` splits files into parallel batches and merges
+findings/suggestions. Each batch is reviewed independently by the AI model, and
+results are merged by severity (findings) and file (suggestions). An optional
+`onBatch` callback fires per-batch as each resolves — this is the mechanism
+behind progressive findings:
+
+```typescript
+batchReview(
+  agent, files,
+  { prUrl, prTitle, requirement, model, correlationId, maxBatchSize, maxBatchTokens },
+  onBatch?, // (batchIndex, batchCount, output) => Promise<void>
+)
+```
+
+### Context-aware file budgeting
+
+`budgetFiles()` ranks files by keyword overlap and trims to a token budget.
+Files within the budget become the `primary` set; the rest are `overflow`:
+
+```typescript
+budgetFiles(files, { keywords, maxTokens, maxSources })
+// => { primary: PullRequestFile[], overflow: PullRequestFile[] }
+```
+
+This is used to prioritise the most relevant files when the PR exceeds the
+AI provider's token limit.
+
+### Two-pass review (optional)
+
+When enabled, the review runs a fast `summarizeFiles()` pass first (risk
+assessment per file), then only reviews `high`/`medium` risk files in detail:
+
+```typescript
+interface FileSummary {
+  file: string;
+  risk: 'high' | 'medium' | 'low';
+  summary: string;
+}
+```
+
 ---
 
 ## Modules
@@ -58,6 +100,8 @@ persists it into `review_reports` / `review_findings` / `fix_suggestions`.
 | `llm/map-openai-response.ts` | OpenAI-compatible response → normalized shape. |
 | `review/review-agent.ts` | `ReviewAgent` — read-only reviewer. |
 | `review/review-output.ts` | `ReviewAgentOutput` / `ReviewFindingOutput` / `FixSuggestionOutput` value objects. |
+| `review/review-batch.ts` | `batchReview()` — split files into parallel batches, merge results, per-batch callback. |
+| `review/review-budget.ts` | `budgetFiles()` — context-aware file prioritisation by keyword overlap. |
 
 ---
 
@@ -107,7 +151,9 @@ src/
 LLMProvider, AnthropicProvider, OpenAICompatibleProvider, MockLLM,
 LoggingLLMProvider, mapAnthropicResponse, mapOpenaiResponse
 // review
-ReviewAgent, ReviewAgentOutput, ReviewFindingOutput, FixSuggestionOutput
+ReviewAgent, ReviewAgentOutput, ReviewFindingOutput, FixSuggestionOutput,
+FileSummary, ReviewPromptInput,
+batchReview, budgetFiles, mergeOutputs
 ```
 
 ## Wiring

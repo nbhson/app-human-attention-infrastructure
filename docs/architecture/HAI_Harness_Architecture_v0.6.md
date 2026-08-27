@@ -143,6 +143,14 @@ remaining packages complete the 25-package inventory, grouped by the same four
 **dependency layers** used across the repo — the authoritative table is the
 [Packages table](../../README.md#packages), mirrored in [`packages/README.md`](../../packages/README.md):
 
+> **Why 11 subsystems but 25 packages?** Each subsystem maps to one *conceptual
+> capability* (e.g. Attention Engine, Verification Engine). The other 14 packages
+> are infrastructure, integration, and tooling — not subsystems in their own right:
+> `event-bus`, `di`, `db`, `observability` (foundation); `git-provider`,
+> `ticket-provider`, `writeback`, `mcp` (integration seams); `object-store`,
+> `sandbox`, `code-index`, `benchmark` (tooling/leaf). The layer inventory below
+> covers all 25.
+
 - **Foundation** — `domain`, `event-bus`, `di`, `db`, `observability` — shared, inward-only core.
 - **Engines** — `orchestrator`, `agent-runtime`, `artifact-tracker`, `verification-engine`, `attention-engine`, `context-engine`, `review`, `auth`, `embeddings`, `evaluation` — read/write the foundation, never import a sibling engine.
 - **Review slice** — `git-provider`, `ticket-provider`, `writeback`, `memory`, `judge`, `benchmark` — the review product path.
@@ -159,6 +167,7 @@ These rules hold regardless of subsystem; each is documented where it is enforce
 - **Engine boundary rule.** An engine imports only shared packages (`domain`, `event-bus`, `db`, `di`) — never another engine. Enforced by `eslint.config.mjs` + `architecture.test.ts`; the full object graph is in [`docs/architecture/wiring-map.md`](../architecture/wiring-map.md).
 - **Human decisions are a closed set.** `HumanDecisionType` (7 values, the seventh `AUTO_APPROVED` — the one decision the system may make itself, under the gated auto-approve path with sampling audit). See [`packages/domain/README.md`](../../packages/domain/README.md).
 - **Shadow-then-default.** A new signal (semantic retrieval, fitted attention weights) stays behind a measured A/B comparison and only becomes the default by winning — never by being newer. See [`packages/attention-engine/README.md`](../../packages/attention-engine/README.md) and [`packages/evaluation/README.md`](../../packages/evaluation/README.md).
+- **Async review pipeline with progressive findings.** `POST /api/reviews` returns `202 Accepted` immediately; the actual review runs in a background worker (`ReviewWorkerSubscriber`) subscribed to the `review.requested` event. The `review_reports` table tracks pipeline stage via `review_status` (`pending` → `fetching` → `recalling` → `reviewing` → `storing` → `complete` / `error`) and batch progress via `batch_progress` (`{ current, total }`). Findings are inserted per-batch as each AI call completes — the frontend polls and shows partial results before the full review finishes. See [`apps/api/src/services/review-ingest.ts`](../../apps/api/src/services/review-ingest.ts) and [`docs/dev-guide.md`](../dev-guide.md#background-worker--progressive-findings).
 
 ---
 
@@ -191,44 +200,6 @@ Full per-package source trees are in each package's `README.md`; the clone-to-gr
 - **Core loop** (`v0.1.0-harness`): Task → Context → Agent → Artifact → Verification → Attention → Review → Decision → Evidence.
 - **Measurement loop** (`v0.2.0-harness`): Evaluation engine, weight calibration, semantic-search infrastructure (shadow), auto-approve behind flag. Exit review: **8 of 9** criteria met; the one caveat (fitted weights 0.316 did not beat the placeholder 0.262) carried forward.
 - **Review control plane** (`v0.3.0-harness`): MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `@harness/mcp` client + `mcp.config.json`), toggle-gated write-back, review memory, LLM-as-judge with inter-judge agreement, and the closed learning loop. Exit review: **8 of 9** criteria met → `EXIT-WITH-CARRYFORWARD`; the one caveat (hybrid ranking not the default — Day-29 A/B HOLD) is carried forward (CF-1 / CF-2) in the [`phase3-exit-review`](../retros/phase3-exit-review.md).
+- **Async review + progressive findings** (`v0.4.0-harness`): Review pipeline is now fully async — `POST /api/reviews` returns `202 Accepted`, `ReviewWorkerSubscriber` processes the review in the background via `review.requested` event. Large PRs are split into parallel batches (`batchReview`); findings are inserted progressively per-batch, and the frontend polls `review_status` + `batch_progress` to show partial results in real time. The `review_reports` table tracks the full pipeline lifecycle (`pending` → `fetching` → `recalling` → `reviewing` → `storing` → `complete` / `error`).
 
 The day-by-day build plan has been retired; the honest build history and exit reviews live in [`docs/retros/`](../retros/).
-
----
-
-## Changelog
-
-### v0.8 (day-34 system-activity audit timeline)
-- §7 — `event_log` now also records the runtime lifecycle (`system.started` /
-  `system.stopped`), so application boot and shutdown are themselves auditable.
-- Added `GET /api/audit` — a `requireRole`-guarded, cursor-paginated read model
-  merging `event_log` + `llm_call_log` + `trajectory_steps` + `agent_runs` into one
-  newest-first timeline — and the `/audit` web tab that renders it with
-  click-through detail. See the [audit cookbook](../runbook/audit-queries.md) and
-  [`packages/db/README.md`](../../packages/db/README.md).
-
-### v0.7 (Phase 3 complete — `v0.3.0-harness`)
-- §6 — added the Phase-3 seams (`mcp`, `memory`, `code-index`, `judge`, `benchmark`, `writeback`) and repointed the review-slice note (Git/ticket connectivity is now **MCP**, not "Phase 3 moves …").
-- §6 — DB table count 41 → 54; §8 — package count 19 → 25.
-- §9 — marked Phase 3 complete with its exit verdict (`EXIT-WITH-CARRYFORWARD`; hybrid default carried forward).
-
-### v0.6 (`review-reorient`)
-- §1–§3 — reframed the Harness from "AI code author" to "PR/MR **review** control plane": the core-loop trigger is an external code change, and the AI box is `Review / Analyze / Explain (read-only)`.
-- §6 — corrected the table count (41), added the review-slice seams (`git-provider`, `ticket-provider`), and dropped the stale `reconcile` note from the layout (§8). Phase 3 re-scoped: Git/ticket connectivity moves from "build per-provider REST adapters" to **MCP** (`@harness/mcp` + one `mcp.config.json`), with the AI model connection (`key`+`baseUrl`+`model`) unchanged.
-- §7 — de-numbered the "35 tables" invariant so it can't drift again.
-
-### v0.5 (Overview restructure)
-- Collapsed the per-subsystem detail sections (former §7–§22: domain objects, agent execution, context, artifact, attention, verification, decision, evidence, memory, event model, physical architecture, dependency direction, end-to-end flow, "what not to build", success criteria) into §6–§7, since that material now lives in each package's `README.md` and the wiring map.
-- Kept the high-level overview only: what the Harness is (§1), the core loop (§2), mental model (§3), layers (§4), principles (§5), subsystem→package index (§6), invariants (§7), and layout (§8).
-
-### v0.4 (Phase 2 complete — Phase 3 not yet started)
-- §13 — added `AUTO_APPROVED` to the human-decision examples and pointed the closed set at `HumanDecisionType` in `@harness/domain`.
-- §19 — replaced the speculative package sketch with the realized 17-package layout.
-- §24 — marked Phase 1 / Phase 2 complete and updated phase-exit-criteria status.
-
-### v0.3 (Phase 2 complete — `v0.2.0-harness`)
-- §5 — replaced the one-spec-per-subsystem model with the package-README model (subsystem→package mapping table).
-- §7.2 — repointed the Task state-machine reference to `@harness/orchestrator` / `@harness/domain`.
-
-### v0.2 (Day 29)
-- Reconciled against the built Phase-1 system; documented the startup reconciler, Ops API, and Operators Runbook.

@@ -33,6 +33,7 @@ import {
   WritebackAction,
 } from '@harness/domain';
 import type { ReviewReportID, WriteBackIntent } from '@harness/domain';
+import type { ReviewRequestedPayload } from '@harness/domain';
 import {
   fixSuggestions,
   judgeRuns,
@@ -120,13 +121,32 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         if (typeof prUrl !== 'string' || prUrl.trim().length === 0) {
           return reply.code(400).send({ error: 'prUrl is required' });
         }
-        const result = await ingest.ingest({
+        // Fast path: create report with placeholder, publish event, return 202.
+        // The actual AI review runs asynchronously via the `review.requested` subscriber.
+        const result = await ingest.createReview({
           prUrl: prUrl.trim(),
           ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0
             ? { jiraTicket: jiraTicket.trim() }
             : {}),
         });
-        return reply.code(201).send(result);
+        // Publish event so the background worker picks it up.
+        const payload: ReviewRequestedPayload = {
+          task_id: result.taskId,
+          review_report_id: result.reportId,
+          pr_url: result.prUrl,
+          ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0
+            ? { jira_ticket: jiraTicket.trim() }
+            : {}),
+        };
+        bus.publish(
+          createEvent(EventType.ReviewRequested, brand(result.reportId, 'CorrelationID'), payload),
+        );
+        return reply.code(202).send({
+          reportId: result.reportId,
+          taskId: result.taskId,
+          prUrl: result.prUrl,
+          status: 'pending',
+        });
       } catch (error) {
         if (error instanceof ReviewIngestError) {
           return reply.code(error.status).send({ error: error.message });
@@ -364,6 +384,8 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         model: report.model,
         summary: report.summary,
         overallVerdict: report.overall_verdict,
+        reviewStatus: report.review_status ?? 'pending',
+        batchProgress: (report.batch_progress as { current: number; total: number } | null) ?? null,
         effectiveVerdict: triage.effectiveVerdict ?? report.overall_verdict,
         triage: {
           securityBlocked: triage.securityBlocked,

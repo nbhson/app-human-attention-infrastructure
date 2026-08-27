@@ -5,6 +5,10 @@
  * external diff plus a requirement, and must return ONLY a JSON object matching
  * the {@link ReviewAgentOutput} shape — a summary, a verdict, findings, and a
  * separate fix-suggestion list (the two distinct sections the UI renders).
+ *
+ * Day-01 (Phase 4 upgrade): `relatedMemories` injects past review findings,
+ * decisions, and project context from the {@link MemoryProvider} seam so the
+ * AI can consider historical patterns and avoid repeating past assessments.
  */
 
 export interface ReviewPromptInput {
@@ -16,6 +20,17 @@ export interface ReviewPromptInput {
   readonly requirement: string;
   /** The unified diff (per-file patches concatenated). */
   readonly diff: string;
+  /**
+   * Past review memories (findings, decisions, project context) retrieved for
+   * this PR. When present, the prompt includes a "Related past reviews" section
+   * so the AI can consider historical patterns.
+   */
+  readonly relatedMemories?: readonly {
+    readonly kind: string;
+    readonly content: string;
+    readonly confidence: number;
+    readonly metadata: Record<string, unknown>;
+  }[];
 }
 
 export interface ReviewPrompt {
@@ -64,16 +79,56 @@ Rules:
 export function buildReviewPrompt(input: ReviewPromptInput): ReviewPrompt {
   const requirement =
     input.requirement.trim().length > 0 ? input.requirement.trim() : '(none provided)';
+
+  const memoriesSection = buildMemoriesSection(input.relatedMemories);
+
   const userMessage = [
     `PULL REQUEST: ${input.prUrl}`,
     `TITLE: ${input.prTitle}`,
     '',
     'REQUIREMENT:',
     requirement,
+    ...(memoriesSection.length > 0 ? ['', memoriesSection] : []),
     '',
     'DIFF:',
     input.diff.trim(),
   ].join('\n');
 
   return { systemPrompt: SYSTEM_PROMPT, userMessage };
+}
+
+/** Format related memories into a "Related past reviews" section for the prompt. */
+function buildMemoriesSection(
+  memories: readonly {
+    readonly kind: string;
+    readonly content: string;
+    readonly confidence: number;
+    readonly metadata: Record<string, unknown>;
+  }[] = [],
+): string {
+  if (memories.length === 0) return '';
+
+  const lines = ['RELATED PAST REVIEWS (for context):'];
+  for (const mem of memories) {
+    const meta = formatMetadata(mem.metadata);
+    lines.push(`  [${mem.kind}] (confidence ${mem.confidence})${meta ? ` ${meta}` : ''}`);
+    // Indent content so the AI can distinguish it from the diff.
+    lines.push(`    ${mem.content.replace(/\n/g, '\n    ')}`);
+  }
+  lines.push('');
+  lines.push(
+    'Consider the past findings above when reviewing this PR. If a past finding is no',
+    'longer relevant (already fixed, superseded, or unrelated), say so. Do not repeat',
+    'a past finding that was already resolved — but do flag it if it has regressed.',
+  );
+  return lines.join('\n');
+}
+
+/** Extract a short metadata tag, e.g. severity or decision verdict. */
+function formatMetadata(metadata: Record<string, unknown>): string {
+  const parts: string[] = [];
+  if (typeof metadata.severity === 'string') parts.push(`severity=${metadata.severity}`);
+  if (typeof metadata.decision === 'string') parts.push(`decision=${metadata.decision}`);
+  if (typeof metadata.file === 'string') parts.push(`file=${metadata.file}`);
+  return parts.length > 0 ? `(${parts.join(', ')})` : '';
 }
