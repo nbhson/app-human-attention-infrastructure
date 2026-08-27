@@ -28,6 +28,8 @@ const report: ReviewReport = {
   model: 'gpt-4.1',
   summary: 'Solid change, one correctness concern.',
   overallVerdict: 'REQUEST_CHANGES',
+  effectiveVerdict: 'REQUEST_CHANGES',
+  triage: { securityBlocked: false, regressionRisk: false, schemaGate: false, matchedRules: [] },
   createdAt: '2026-08-23T00:00:00.000Z',
   stats: {
     totalFiles: 1,
@@ -40,6 +42,7 @@ const report: ReviewReport = {
     findingTotal: 1,
     severity: { CRITICAL: 0, MAJOR: 1, MINOR: 0, NIT: 0, INFO: 0 },
     composition: [{ category: 'source', files: 1, additions: 40, deletions: 10 }],
+    languages: [{ language: 'TypeScript', files: 1, additions: 40, deletions: 10, share: 1 }],
     excluded: { files: 0, additions: 0, deletions: 0, filesList: [] },
     flaggedFilesList: [{ file: 'src/limit.ts', severities: ['MAJOR'] }],
     cleanup: { files: 0, findings: 0, filesList: [] },
@@ -119,9 +122,10 @@ describe('ReviewReportPage', () => {
 
     expect(await screen.findByText('Add rate limiting')).toBeInTheDocument();
     expect(screen.getByTestId('verdict-badge')).toHaveTextContent('Request changes');
-    expect(screen.getByText('Findings (1)')).toBeInTheDocument();
-    expect(screen.getByText('Off-by-one in the window check.')).toBeInTheDocument();
-    expect(screen.getByText('Fix suggestions (1)')).toBeInTheDocument();
+    // Findings are grouped by severity; the selected (first) finding's detail panel
+    // shows its suggested fix alongside the scannable list card.
+    expect(screen.getByRole('heading', { name: 'Major (1)' })).toBeInTheDocument();
+    expect(screen.getAllByText('Off-by-one in the window check.').length).toBeGreaterThan(0);
     expect(screen.getByText('if (count > limit) reject();')).toBeInTheDocument();
   });
 

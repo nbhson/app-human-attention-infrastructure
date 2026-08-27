@@ -5,8 +5,10 @@
  * Real internals: the DI container, the in-process event bus, `EventLogWriter`,
  * `ReviewIngestService`, `ReviewAgent`, `Judge` + `JudgeShadow`, `MemoryStore` +
  * `MemoryRetriever`, the verification flag machinery, and a real Postgres (via an
- * isolated schema). The only substitutions are the declared stubs — the LLM, the
- * Git/ticket host seams, and the write-back service — plus the `Db` token repointed
+ * isolated schema). The substitutions are the declared stubs — the LLM, the
+ * Git/ticket host seams, and the write-back service — plus the two fire-and-forget
+ * background *writers* (memory ingest + verification), which are no-ops so they
+ * cannot race the per-test table reset — and the `Db` token repointed
  * at the isolated schema (the same substitution the unit suites use).
  *
  * The LLM is a single `MockLLM` replaying one *dual-valid* JSON document: it
@@ -198,9 +200,19 @@ let sandboxRoot: string;
 let savedSandboxRoot: string | undefined;
 let savedWritebackEnabled: string | undefined;
 let savedWritebackGithub: string | undefined;
+let savedMcpConfig: string | undefined;
 
 beforeAll(async () => {
   testDb = await createTestDb(SCHEMA);
+
+  // The MCP registry resolves `mcp.config.json` (git-ignored, environment-
+  // specific). A developer's local copy can declare servers whose `tokenEnv`
+  // (GITHUB_TOKEN, …) isn't set, which makes the registry throw at resolve
+  // time and fail this suite before a single test runs. Point it at a missing
+  // path so the app-under-test resolves a deterministic, empty registry here,
+  // just as the local CI runner does (no `mcp.config.json` in CI).
+  savedMcpConfig = process.env.MCP_CONFIG_PATH;
+  process.env.MCP_CONFIG_PATH = '/nonexistent/mcp.config.json';
 
   // Point the sandbox root at a throwaway temp dir so the suite can later prove
   // the read-only review slice never writes a file into it (day-37 §3.2).
@@ -234,6 +246,15 @@ beforeAll(async () => {
     TOKENS.OidcProvider,
     () => new MockOidcProvider({ sub: SUB, email: 'reviewer@example.com', name: 'E2E Reviewer' }),
   );
+  // The fire-and-forget background writers (memory ingest + verification) race
+  // `resetReviewTables`, which drops their tables mid-write and surfaces a stray
+  // FK (memory_entry_evidence → evidence, review_verifications → review_reports).
+  // Neither is the subject of this suite — the memory round-trip is tested against
+  // `MemoryStore`/`MemoryRetriever` directly below, and the verification flag math
+  // against `flagReport`/`renderFlag` — so substitute both with no-ops to keep the
+  // reset deterministic.
+  container.register(TOKENS.MemoryIngestor, () => ({ subscribe: () => {} }));
+  container.register(TOKENS.ReviewVerificationService, () => ({ subscribe: () => {} }));
   bootContainer(container);
 
   app = buildApp(container);
@@ -261,6 +282,11 @@ afterAll(async () => {
     delete process.env.WRITEBACK_GITHUB;
   } else {
     process.env.WRITEBACK_GITHUB = savedWritebackGithub;
+  }
+  if (savedMcpConfig === undefined) {
+    delete process.env.MCP_CONFIG_PATH;
+  } else {
+    process.env.MCP_CONFIG_PATH = savedMcpConfig;
   }
 });
 

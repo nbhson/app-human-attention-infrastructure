@@ -276,9 +276,19 @@ let writeback: RecordingWriteBack;
 let authCookie = '';
 let sandboxRoot: string;
 let savedSandboxRoot: string | undefined;
+let savedMcpConfig: string | undefined;
 
 beforeAll(async () => {
   testDb = await createTestDb(SCHEMA);
+
+  // The MCP registry resolves `mcp.config.json` (git-ignored, environment-
+  // specific). A developer's local copy can declare servers whose `tokenEnv`
+  // (GITHUB_TOKEN, …) isn't set, which makes the registry throw at resolve
+  // time and fail this suite before a single test runs. Point it at a missing
+  // path so the app-under-test resolves a deterministic, empty registry here,
+  // just as the local CI runner does (no `mcp.config.json` in CI).
+  savedMcpConfig = process.env.MCP_CONFIG_PATH;
+  process.env.MCP_CONFIG_PATH = '/nonexistent/mcp.config.json';
 
   savedSandboxRoot = process.env.SANDBOX_ROOT;
   sandboxRoot = mkdtempSync(join(tmpdir(), 'harness-e2e-load-sandbox-'));
@@ -299,6 +309,11 @@ beforeAll(async () => {
     TOKENS.OidcProvider,
     () => new MockOidcProvider({ sub: SUB, email: 'reviewer@example.com', name: 'E2E Reviewer' }),
   );
+  // Substitute the fire-and-forget background writers (memory ingest +
+  // verification) with no-ops so they cannot race `resetReviewTables` and leave a
+  // stray FK (memory_entry_evidence → evidence, review_verifications → review_reports).
+  container.register(TOKENS.MemoryIngestor, () => ({ subscribe: () => {} }));
+  container.register(TOKENS.ReviewVerificationService, () => ({ subscribe: () => {} }));
   bootContainer(container);
 
   app = buildApp(container);
@@ -316,6 +331,11 @@ afterAll(async () => {
     delete process.env.SANDBOX_ROOT;
   } else {
     process.env.SANDBOX_ROOT = savedSandboxRoot;
+  }
+  if (savedMcpConfig === undefined) {
+    delete process.env.MCP_CONFIG_PATH;
+  } else {
+    process.env.MCP_CONFIG_PATH = savedMcpConfig;
   }
 });
 

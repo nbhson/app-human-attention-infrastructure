@@ -53,7 +53,7 @@ describe('AuditPage', () => {
     vi.clearAllMocks();
   });
 
-  it('renders a unified timeline with kind labels and click-through detail', async () => {
+  it('renders a unified telemetry feed with kind labels and click-through detail', async () => {
     mocked.list.mockResolvedValue(
       page([
         entry('e1', 'event', '2026-08-25T10:00:00.000Z', 'review.report_created'),
@@ -63,13 +63,17 @@ describe('AuditPage', () => {
 
     renderAudit();
 
-    expect(await screen.findByText(/System activity/)).toBeInTheDocument();
+    expect(await screen.findByText(/System Activity/)).toBeInTheDocument();
     // Every row appears with its headline.
     expect(screen.getByText('review.report_created')).toBeInTheDocument();
     expect(screen.getByText('claude-sonnet-4-6')).toBeInTheDocument();
-    // Kind labels render (each kind appears because both rows are in the list).
-    expect(screen.getAllByText('LLM call').length).toBeGreaterThan(0);
+    // Kind labels render (both a badge per row and a filter tab).
+    expect(screen.getAllByText('LLM').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Event').length).toBeGreaterThan(0);
+
+    // The metric cards are present.
+    expect(screen.getByText('Active Repositories')).toBeInTheDocument();
+    expect(screen.getByText('LLM Tokens')).toBeInTheDocument();
 
     // Click the LLM row → its detail panel shows the model/token grid.
     fireEvent.click(screen.getByText('claude-sonnet-4-6'));
@@ -77,7 +81,7 @@ describe('AuditPage', () => {
     expect(screen.getByText('Model')).toBeInTheDocument();
   });
 
-  it('filters by kind via the All/kinds chips', async () => {
+  it('filters by kind via the tabs', async () => {
     mocked.list
       .mockResolvedValueOnce(
         page([entry('e1', 'event', '2026-08-25T10:00:00.000Z', 'task.created')]),
@@ -88,7 +92,7 @@ describe('AuditPage', () => {
 
     expect(await screen.findByText('task.created')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'LLM call' }));
+    fireEvent.click(screen.getByRole('button', { name: 'LLM' }));
 
     expect(await screen.findByText('model-x')).toBeInTheDocument();
     expect(screen.queryByText('task.created')).not.toBeInTheDocument();

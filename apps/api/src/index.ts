@@ -7,6 +7,7 @@ import { TOKENS } from '@harness/di';
 import { brand, EventType } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
+import { ensureImage } from '@harness/sandbox';
 
 import { buildApp } from './app.js';
 import { bootContainer, buildContainer } from './bootstrap.js';
@@ -53,6 +54,17 @@ bus.publish(
 
 const start = async (): Promise<void> => {
   try {
+    // Make sure the verification sandbox image exists before serving, so a fresh
+    // checkout doesn't silently drop every review verification into SKIPPED
+    // ("sandbox unavailable", Docker exit 125). `ensureImage` inspects first (a
+    // sub-second no-op when already built) and only `docker build`s when missing.
+    // Kept non-fatal: a down daemon or a failed build logs a warning and the
+    // server still boots — verification then reports SKIPPED as before.
+    await ensureImage(process.env.VERIFY_SANDBOX_IMAGE ?? 'harness-verify:node20').catch(
+      (error: unknown) => {
+        app.log.warn(`sandbox verification image not ensured: ${String(error)}`);
+      },
+    );
     await app.listen({ port: 3000, host: '0.0.0.0' });
   } catch (err) {
     app.log.error(err as Error);

@@ -22,6 +22,7 @@ const stats: ReviewStats = {
     { category: 'style', files: 1, additions: 75, deletions: 0 },
     { category: 'markup', files: 1, additions: 9, deletions: 0 },
   ],
+  languages: [{ language: 'TypeScript', files: 4, additions: 1232, deletions: 0, share: 1 }],
   excluded: {
     files: 1,
     additions: 8776,

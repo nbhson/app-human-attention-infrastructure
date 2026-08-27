@@ -1,84 +1,185 @@
-import type { ReviewTrace } from '../api/reviews';
-
-/** Judge scores are stored 0..1; present them as a whole-percent readout. */
-function pct(value: number): string {
-  return `${Math.round(value * 100)}%`;
-}
-
-const callCard = {
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  padding: '8px 12px',
-  marginBottom: 8,
-  background: 'var(--color-surface-2)',
-} as const;
+import type { ReactNode } from 'react';
+import type { ReviewFinding, ReviewStats, ReviewTrace } from '../api/reviews';
 
 /**
- * AI trace tab — the honest "how was this produced" surface. NOTE: `llm_call_log`
- * is metadata-only (no stored prompt/response), so this shows model + token
- * counts + stop reason + request hash, and separately the shadow-judge scores,
- * never a fabricated transcript.
+ * AI trace tab — the honest "what did the AI actually inspect and do?" surface.
+ * A linear execution timeline built only from observable, stored metadata (start
+ * time, diff size, finding count, anchor validation, model-call rows, the
+ * shadow-judge scores, and the final verdict). There is deliberately no
+ * transcript: `llm_call_log` is metadata-only, so this never fabricates hidden
+ * chain-of-thought into prose the reviewer would mistake for a record.
  */
-export function TraceTab({ trace }: { readonly trace: ReviewTrace }): JSX.Element {
+
+type Verdict = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+
+const VERDICT_LABEL: Record<Verdict, string> = {
+  APPROVE: 'Approve',
+  REQUEST_CHANGES: 'Request changes',
+  COMMENT: 'Comment',
+};
+
+function Step({
+  title,
+  meta,
+  done,
+}: {
+  readonly title: string;
+  readonly meta: readonly ReactNode[];
+  readonly done: boolean;
+}): JSX.Element {
   return (
-    <div data-testid="trace-tab">
-      <section style={{ marginBottom: 20 }}>
-        <h3 style={{ marginTop: 0 }}>Model call</h3>
-        {trace.calls.length === 0 && (
-          <p style={{ color: 'var(--color-text-muted)' }}>
-            No model-call metadata recorded for this review.
-          </p>
-        )}
-        {trace.calls.map((call, index) => (
-          <div key={index} style={callCard}>
-            <div>
-              <code>{call.model}</code> · {call.inputTokens} tokens in · {call.outputTokens} tokens
-              out · {call.stopReason ?? 'stop reason unknown'}
-            </div>
+    <li className="trace-step">
+      <span className={`trace-node${done ? ' trace-node-done' : ''}`} aria-hidden="true" />
+      <div className="trace-step-title">{title}</div>
+      {meta.map((line, index) => (
+        <p key={index} className="trace-step-meta">
+          {line}
+        </p>
+      ))}
+    </li>
+  );
+}
+
+function formatTime(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+}
+
+export function TraceTab({
+  trace,
+  createdAt,
+  stats,
+  findings,
+  overallVerdict,
+}: {
+  readonly trace: ReviewTrace;
+  readonly createdAt: string;
+  readonly stats: ReviewStats | undefined;
+  readonly findings: readonly ReviewFinding[];
+  readonly overallVerdict: Verdict;
+}): JSX.Element {
+  const anchored = findings.filter((finding) => finding.anchor.status === 'verified').length;
+  const findingCount = findings.length;
+
+  return (
+    <div data-testid="trace-tab" style={{ marginTop: 16 }}>
+      <ol className="trace-timeline">
+        <Step
+          title="Review started"
+          meta={[
+            <span key="t" className="trace-step-time">
+              {formatTime(createdAt)}
+            </span>,
+          ]}
+          done
+        />
+        <Step
+          title="Repository context loaded"
+          meta={
+            stats !== undefined
+              ? [
+                  `${stats.totalFiles} files changed (+${stats.addedLines} / −${stats.removedLines})`,
+                ]
+              : ['Differential loaded from the stored PR payload']
+          }
+          done
+        />
+        <Step
+          title="Code analysis completed"
+          meta={[`${findingCount} ${findingCount === 1 ? 'finding' : 'findings'} generated`]}
+          done
+        />
+        <Step
+          title="Evidence validation completed"
+          meta={
+            findingCount > 0
+              ? [`${anchored} of ${findingCount} findings anchored in the diff`]
+              : ['No findings to anchor']
+          }
+          done
+        />
+        <Step
+          title="Final verdict generated"
+          meta={[VERDICT_LABEL[overallVerdict] ?? overallVerdict]}
+          done
+        />
+      </ol>
+
+      {trace.calls.length > 0 && (
+        <section style={{ marginTop: 20 }}>
+          <h3 style={{ margin: '0 0 8px' }}>Model calls</h3>
+          {trace.calls.map((call, index) => (
             <div
+              key={index}
               style={{
-                color: 'var(--color-text-faint)',
-                fontSize: '0.8rem',
-                marginTop: 4,
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius)',
+                padding: '8px 12px',
+                marginBottom: 8,
+                background: 'var(--color-surface-2)',
+                fontSize: '0.85rem',
               }}
             >
-              request hash {call.requestHash.slice(0, 12)}… ·{' '}
-              {new Date(call.createdAt).toLocaleString()}
+              <div>
+                <code>{call.model}</code> · {call.inputTokens} tokens in · {call.outputTokens}{' '}
+                tokens out · {call.stopReason ?? 'stop reason unknown'}
+              </div>
+              <div
+                style={{
+                  color: 'var(--color-text-faint)',
+                  fontSize: '0.78rem',
+                  marginTop: 4,
+                }}
+              >
+                request hash {call.requestHash.slice(0, 12)}… · {formatTime(call.createdAt)}
+              </div>
             </div>
-          </div>
-        ))}
-      </section>
+          ))}
+        </section>
+      )}
 
-      <section>
-        <h3>Independent judge</h3>
-        {trace.judge.length === 0 && (
-          <p style={{ color: 'var(--color-text-muted)' }}>
-            No shadow-judge run recorded for this report.
-          </p>
-        )}
-        {trace.judge.map((run, index) => (
-          <div key={index} style={callCard}>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <span>
-                <strong>overall</strong> {pct(run.overall)}
-              </span>
-              <span>
-                <strong>severity</strong> {pct(run.severityAgreement)}
-              </span>
-              <span>
-                <strong>routing</strong> {pct(run.routingAgreement)}
-              </span>
-              <span>
-                <strong>evidence</strong> {pct(run.evidenceSufficiency)}
-              </span>
-              <code>{run.model}</code>
+      {trace.judge.length > 0 && (
+        <section style={{ marginTop: 20 }}>
+          <h3 style={{ margin: '0 0 8px' }}>Independent judge</h3>
+          {trace.judge.map((run, index) => (
+            <div
+              key={index}
+              style={{
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius)',
+                padding: '8px 12px',
+                marginBottom: 8,
+                background: 'var(--color-surface-2)',
+                fontSize: '0.85rem',
+              }}
+            >
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <span>
+                  <strong>overall</strong> {Math.round(run.overall * 100)}%
+                </span>
+                <span>
+                  <strong>severity</strong> {Math.round(run.severityAgreement * 100)}%
+                </span>
+                <span>
+                  <strong>routing</strong> {Math.round(run.routingAgreement * 100)}%
+                </span>
+                <span>
+                  <strong>evidence</strong> {Math.round(run.evidenceSufficiency * 100)}%
+                </span>
+                <code>{run.model}</code>
+              </div>
+              {run.reasoning !== null && run.reasoning.length > 0 && (
+                <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{run.reasoning}</p>
+              )}
             </div>
-            {run.reasoning !== null && run.reasoning.length > 0 && (
-              <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{run.reasoning}</p>
-            )}
-          </div>
-        ))}
-      </section>
+          ))}
+        </section>
+      )}
+
+      <p style={{ margin: '20px 0 0', color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>
+        This shows observable execution metadata only. No prompt or response transcript is stored,
+        so no hidden chain-of-thought is exposed.
+      </p>
     </div>
   );
 }

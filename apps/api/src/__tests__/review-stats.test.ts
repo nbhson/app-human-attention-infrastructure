@@ -202,4 +202,35 @@ describe('computeReviewStats', () => {
     expect(stats.cleanup.findings).toBe(0);
     expect(stats.cleanup.filesList).toEqual([]);
   });
+
+  it('splits the diff by language, weighted by changed lines, and excludes generated files', () => {
+    const stats = computeReviewStats(
+      {
+        files: [
+          { path: 'src/a.ts', additions: 40, deletions: 2 },
+          { path: 'src/b.scss', additions: 10, deletions: 0 },
+          { path: 'src/c.html', additions: 8, deletions: 0 },
+          { path: 'README.md', additions: 20, deletions: 0 },
+          { path: 'mystery.xyz', additions: 4, deletions: 0 },
+          { path: 'package-lock.json', additions: 9000, deletions: 0 }, // generated → excluded
+        ],
+      },
+      [],
+    );
+
+    // Sorted by changed lines: 42 TS, 20 Markdown, 10 SCSS, 8 HTML, 4 Other.
+    expect(stats.languages.map((row) => row.language)).toEqual([
+      'TypeScript',
+      'Markdown',
+      'SCSS',
+      'HTML',
+      'Other',
+    ]);
+    const ts = stats.languages.find((row) => row.language === 'TypeScript');
+    expect(ts).toMatchObject({ files: 1, additions: 40, deletions: 2 });
+    expect(ts?.share).toBeCloseTo(0.5, 4); // 42 / 84 changed lines
+    expect(stats.languages.find((row) => row.language === 'Other')?.share).toBeCloseTo(0.0476, 4);
+    // The 9000-line lockfile never inflates a "JSON" language slice.
+    expect(stats.languages.some((row) => row.language === 'JSON')).toBe(false);
+  });
 });

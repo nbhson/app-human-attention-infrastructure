@@ -3,37 +3,56 @@ import type { ReviewStats } from '../api/reviews';
 import { SEVERITIES, severityColor, severityLabel } from './severity';
 
 /**
- * Report dashboard (review-reorient Phase 3) — the glanceable answer to "did the
- * AI actually save me time?" Three things, top to bottom:
+ * AI review overview (review-reorient Phase 3) — the single glanceable answer to
+ * "how serious is this, and how much of my attention does it need?" Visual
+ * hierarchy is deliberate, strongest first:
  *
- *  1. A verdict badge (APPROVE / REQUEST_CHANGES / COMMENT) in the verdict's
- *     status colour.
- *  2. An attention hero: the share of the PR's *hand-written files* that carry
- *     an actionable finding (CRITICAL/MAJOR/MINOR — the product's whole "route
- *     attention to only what matters" promise as one number, measured over
- *     every file a human wrote — source, docs, config and infra — and provable
- *     file-by-file from the findings list below) — plus the supporting counts.
- *  3. A severity split: a 100%-stacked bar over the findings, with a legend that
- *     names every band, count, and percentage (never colour alone).
+ *   1. Verdict — the AI's recommendation, plus a one-line "so what".
+ *   2. Human attention required — the share of hand-written files carrying an
+ *      actionable finding, stated as load ("N of M files need inspection") with a
+ *      progress bar, never as a bare KPI.
+ *   3. Findings by severity — the Critical / Major / Minor split with a legend.
+ *   4. Supporting statistics — diff size, de-emphasised so it can't crowd the
+ *      headline.
  */
 
 type Verdict = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
 
-const VERDICT_STYLE: Record<Verdict, { color: string; label: string }> = {
-  APPROVE: { color: 'var(--color-success)', label: 'Approve' },
-  REQUEST_CHANGES: { color: 'var(--color-warning)', label: 'Request changes' },
-  COMMENT: { color: 'var(--color-info)', label: 'Comment' },
+const VERDICT_STYLE: Record<Verdict, { color: string; label: string; note: string }> = {
+  APPROVE: {
+    color: 'var(--verdict-approve)',
+    label: 'Approve',
+    note: 'The AI found no blocking issues — nothing needs your attention before merge.',
+  },
+  REQUEST_CHANGES: {
+    color: 'var(--verdict-request-changes)',
+    label: 'Request changes',
+    note: 'The AI found issues that need your attention before this should merge.',
+  },
+  COMMENT: {
+    color: 'var(--verdict-comment)',
+    label: 'Comment',
+    note: 'The AI left comments but did not block the change.',
+  },
 };
 
 function pct(count: number, total: number): string {
   return total > 0 ? `${Math.round((count / total) * 100)}%` : '0%';
 }
 
+const EYEBROW: CSSProperties = {
+  color: 'var(--color-text-faint)',
+  fontSize: '0.72rem',
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+};
+
 const TILE_STYLE: CSSProperties = {
   background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius)',
-  padding: '8px 12px',
+  padding: '6px 12px',
   minWidth: 0,
 };
 
@@ -48,17 +67,15 @@ function Tile({
 }): JSX.Element {
   return (
     <div style={TILE_STYLE}>
+      <div style={{ color: 'var(--color-text-faint)', fontSize: '0.72rem' }}>{label}</div>
       <div
         style={{
-          color: 'var(--color-text-faint)',
-          fontSize: '0.75rem',
-          textTransform: 'uppercase',
-          letterSpacing: '0.03em',
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          color: tone ?? 'var(--color-text)',
+          fontVariantNumeric: 'tabular-nums',
         }}
       >
-        {label}
-      </div>
-      <div style={{ fontSize: '1.25rem', fontWeight: 600, color: tone ?? 'var(--color-text)' }}>
         {value}
       </div>
     </div>
@@ -108,6 +125,7 @@ export function ReportStats({
       data-testid="report-stats"
       style={{
         border: '1px solid var(--color-border)',
+        borderTop: `3px solid ${verdict.color}`,
         borderRadius: 'var(--radius-lg)',
         padding: 'var(--space-4)',
         background: 'var(--color-surface-2)',
@@ -116,70 +134,65 @@ export function ReportStats({
         marginTop: 'var(--space-3)',
       }}
     >
-      {/* Row 1 — verdict + attention hero */}
+      {/* 1 + 2 — verdict and the attention required hero */}
       <div
         style={{
-          display: 'flex',
-          flexWrap: 'wrap',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
           gap: 'var(--space-4)',
-          alignItems: 'flex-start',
         }}
       >
-        <div style={{ flex: '1 1 220px' }}>
-          <div
-            style={{
-              color: 'var(--color-text-faint)',
-              fontSize: '0.75rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.03em',
-            }}
-          >
-            Verdict
-          </div>
+        <div>
+          <div style={EYEBROW}>Verdict</div>
           <span
             data-testid="verdict-badge"
             style={{
-              display: 'inline-block',
+              display: 'inline-flex',
+              alignItems: 'center',
               marginTop: 'var(--space-2)',
-              padding: '4px 12px',
-              borderRadius: '999px',
+              padding: '5px 14px',
+              borderRadius: 'var(--radius)',
               background: verdict.color,
               color: '#ffffff',
-              fontWeight: 600,
-              fontSize: '0.85rem',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              letterSpacing: '0.01em',
             }}
           >
             {verdict.label}
           </span>
+          <p style={{ margin: 'var(--space-2) 0 0', color: 'var(--color-text-muted)' }}>
+            {verdict.note}
+          </p>
         </div>
 
-        <div style={{ flex: '1 1 320px' }}>
-          <div
-            style={{
-              color: 'var(--color-text-faint)',
-              fontSize: '0.75rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.03em',
-            }}
-          >
-            Needs human attention
-          </div>
+        <div>
+          <div style={EYEBROW}>Human attention required</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)' }}>
             <span
               data-testid="attention-pct"
-              style={{ fontSize: '2rem', fontWeight: 700, color: verdict.color, lineHeight: 1.1 }}
+              style={{
+                fontSize: '1.9rem',
+                fontWeight: 700,
+                color: 'var(--attention)',
+                lineHeight: 1.1,
+                fontFamily: 'var(--font-mono)',
+              }}
             >
               {attentionPct}%
             </span>
             <span style={{ color: 'var(--color-text-muted)' }}>
-              {stats.flaggedFiles} of {stats.totalFiles} files
+              <strong style={{ color: 'var(--color-text)' }}>
+                {stats.flaggedFiles} of {stats.totalFiles} files
+              </strong>{' '}
+              need inspection
             </span>
           </div>
           <div
             role="img"
             aria-label={`${attentionPct}% of hand-written files have actionable findings`}
             style={{
-              marginTop: 'var(--space-2)',
+              marginTop: 'var(--space-3)',
               height: 8,
               borderRadius: '999px',
               background: 'var(--color-border)',
@@ -190,7 +203,7 @@ export function ReportStats({
               style={{
                 width: `${attentionPct}%`,
                 height: '100%',
-                background: verdict.color,
+                background: 'var(--attention)',
                 borderRadius: '999px',
               }}
             />
@@ -199,48 +212,24 @@ export function ReportStats({
             style={{
               marginTop: 'var(--space-1)',
               color: 'var(--color-text-faint)',
-              fontSize: '0.8rem',
+              fontSize: '0.78rem',
             }}
           >
-            CRITICAL · MAJOR · MINOR findings only — NIT and INFO don't count
+            CRITICAL · MAJOR · MINOR findings only — NIT and INFO don&apos;t count
           </div>
         </div>
       </div>
 
-      {/* Row 2 — KPI tiles for the diff size */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
-          gap: 'var(--space-2)',
-        }}
-      >
-        <Tile label="Files" value={String(stats.totalFiles)} />
-        <Tile label="Added" value={`+${stats.addedLines}`} tone="var(--color-success)" />
-        <Tile label="Removed" value={`−${stats.removedLines}`} tone="var(--color-danger)" />
-        <Tile label="Changed" value={String(stats.changedLines)} />
-      </div>
-
-      {/* Row 3 — severity split */}
+      {/* 3 — findings by severity */}
       <div>
-        <div
-          style={{
-            color: 'var(--color-text-faint)',
-            fontSize: '0.75rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.03em',
-            marginBottom: 'var(--space-2)',
-          }}
-        >
-          Findings by severity
-        </div>
+        <div style={{ ...EYEBROW, marginBottom: 'var(--space-2)' }}>Findings by severity</div>
 
         <div
           data-testid="severity-bar"
           style={{
             display: 'flex',
             gap: 2,
-            height: 14,
+            height: 12,
             borderRadius: 'var(--radius)',
             overflow: 'hidden',
             background: 'var(--color-border)',
@@ -269,7 +258,7 @@ export function ReportStats({
             margin: 'var(--space-2) 0 0',
             display: 'flex',
             flexWrap: 'wrap',
-            gap: '4px 16px',
+            gap: '4px 18px',
           }}
         >
           {severityRows.map((row) => (
@@ -280,26 +269,45 @@ export function ReportStats({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                fontSize: '0.85rem',
+                fontSize: '0.82rem',
                 opacity: row.count > 0 ? 1 : 0.45,
               }}
             >
               <span
                 style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 3,
+                  width: 9,
+                  height: 9,
+                  borderRadius: 2,
                   background: severityColor(row.band),
                   flexShrink: 0,
                 }}
               />
               <span style={{ color: 'var(--color-text)' }}>{severityLabel(row.band)}</span>
-              <span style={{ color: 'var(--color-text-muted)' }}>
+              <span
+                style={{
+                  color: 'var(--color-text-muted)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
                 {row.count} ({pct(row.count, stats.findingTotal)})
               </span>
             </li>
           ))}
         </ul>
+      </div>
+
+      {/* 4 — supporting statistics, de-emphasised */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))',
+          gap: 'var(--space-2)',
+        }}
+      >
+        <Tile label="Files" value={String(stats.totalFiles)} />
+        <Tile label="Added" value={`+${stats.addedLines}`} tone="var(--color-success)" />
+        <Tile label="Removed" value={`−${stats.removedLines}`} tone="var(--color-danger)" />
+        <Tile label="Changed" value={String(stats.changedLines)} />
       </div>
     </section>
   );

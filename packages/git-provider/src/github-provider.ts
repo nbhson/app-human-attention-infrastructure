@@ -22,6 +22,38 @@ import { cloneAndCheckout } from './clone.js';
 import { mapGithubPullRequest } from './github-mapper.js';
 import type { GithubPullPayload, GithubPrFilePayload } from './github-mapper.js';
 
+/**
+ * GitHub's "list pull request files" endpoint returns **at most** this many files,
+ * whatever `per_page`/pagination is used — an external ceiling, not a harness choice.
+ * PRs beyond it must widen to the compare endpoint (see {@link GitHubProvider}).
+ */
+const GITHUB_PR_FILES_HARD_CAP = 300;
+
+/**
+ * Return the relative path of the next page from a GitHub `Link` response header,
+ * or `null` when there is no further page. A page's `rel="next"` link is absolute
+ * (e.g. `https://api.github.com/repos/o/r/pulls/1/files?page=2&per_page=100`); it is
+ * reduced to `pathname + search` so the next `fetch` goes back through `baseUrl`.
+ */
+export function nextPagePath(linkHeader: string | null): string | null {
+  if (!linkHeader) {
+    return null;
+  }
+  for (const part of linkHeader.split(',')) {
+    const relMatch = /rel="([^"]+)"/.exec(part);
+    if (relMatch === null || relMatch[1] !== 'next') {
+      continue;
+    }
+    const urlMatch = /<([^>]+)>/.exec(part);
+    if (urlMatch === null) {
+      continue;
+    }
+    const next = new URL(urlMatch[1]!);
+    return next.pathname + next.search;
+  }
+  return null;
+}
+
 export class GitHubProvider implements GitProvider {
   readonly type = GitProviderType.GitHub;
 
@@ -33,16 +65,30 @@ export class GitHubProvider implements GitProvider {
   async fetchPullRequest(input: FetchPullRequestInput): Promise<PullRequest> {
     const { owner, name } = parseRepoPath(input.repo);
     const prPath = `/repos/${owner}/${name}/pulls/${input.number}`;
-    const [meta, files] = await Promise.all([
-      this.request(prPath, 'GET'),
-      this.request(`${prPath}/files`, 'GET'),
-    ]);
-    return mapGithubPullRequest(
-      this.type,
-      input.repo,
-      meta as GithubPullPayload,
-      files as GithubPrFilePayload[],
-    );
+    const meta = (await this.request(prPath, 'GET')) as GithubPullPayload;
+
+    // The PR-files endpoint is GitHub's canonical "Files changed" view, but it
+    // pages at 30 by default and caps at GITHUB_PR_FILES_HARD_CAP total. Paginate
+    // the whole chain (per_page=100) so every changed file is fetched; only when
+    // the endpoint hits its hard cap are we forced to widen to the compare
+    // endpoint (which reports up to 3000 files). No self-imposed limit anywhere.
+    const pagedFiles = (await this.requestAllArrayPages(
+      `${prPath}/files`,
+    )) as GithubPrFilePayload[];
+    let files = pagedFiles;
+    if (pagedFiles.length >= GITHUB_PR_FILES_HARD_CAP) {
+      const compareFiles = await this.fetchCompareFiles(
+        owner,
+        name,
+        meta.base.sha,
+        meta.head.sha,
+        pagedFiles,
+      );
+      // Keep whichever list is larger: a successful compare should exceed the
+      // capped page; a merge-base divergence must never under-count the cap.
+      files = compareFiles.length >= pagedFiles.length ? compareFiles : pagedFiles;
+    }
+    return mapGithubPullRequest(this.type, input.repo, meta, files);
   }
 
   async postComment(input: FetchPullRequestInput, body: string): Promise<void> {
@@ -73,7 +119,7 @@ export class GitHubProvider implements GitProvider {
     return cloneAndCheckout(input, workdir);
   }
 
-  private async request(path: string, method: string, body?: unknown): Promise<unknown> {
+  private baseHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'harness-review',
@@ -81,6 +127,11 @@ export class GitHubProvider implements GitProvider {
     if (this.token.length > 0) {
       headers.Authorization = `Bearer ${this.token}`;
     }
+    return headers;
+  }
+
+  private async request(path: string, method: string, body?: unknown): Promise<unknown> {
+    const headers = this.baseHeaders();
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';
     }
@@ -96,5 +147,66 @@ export class GitHubProvider implements GitProvider {
       );
     }
     return response.json();
+  }
+
+  /** GET one page, returning its parsed JSON plus the relative path of the next page. */
+  private async requestPage(path: string): Promise<{ data: unknown; next: string | null }> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'GET',
+      headers: this.baseHeaders(),
+    });
+    if (!response.ok) {
+      throw new GitProviderError(
+        `github GET ${path} failed: ${response.status} ${response.statusText}`,
+        response.status,
+      );
+    }
+    return { data: await response.json(), next: nextPagePath(response.headers.get('link')) };
+  }
+
+  /** Follow GitHub's `rel="next"` chain and flatten an array-typed endpoint's pages. */
+  private async requestAllArrayPages(path: string): Promise<unknown[]> {
+    const out: unknown[] = [];
+    const separator = path.includes('?') ? '&' : '?';
+    let current: string | null = `${path}${separator}per_page=100`;
+    while (current) {
+      const { data, next } = await this.requestPage(current);
+      if (Array.isArray(data)) {
+        out.push(...data);
+      }
+      current = next;
+    }
+    return out;
+  }
+
+  /**
+   * Get the full changed-file list via the compare endpoint (`/compare/{base}...{head}`),
+   * which escapes the PR-files endpoint's 300-file cap (compare reports up to 3000).
+   * Accumulates each page's `files` array. On any failure, returns the already-fetched
+   * PR-files list so a review still yields a non-empty file set rather than nothing.
+   */
+  private async fetchCompareFiles(
+    owner: string,
+    name: string,
+    baseSha: string,
+    headSha: string,
+    fallback: GithubPrFilePayload[],
+  ): Promise<GithubPrFilePayload[]> {
+    try {
+      const basePath = `/repos/${owner}/${name}/compare/${baseSha}...${headSha}`;
+      const files: GithubPrFilePayload[] = [];
+      let current: string | null = `${basePath}?per_page=100`;
+      while (current) {
+        const { data, next } = await this.requestPage(current);
+        const page = (data as { readonly files?: unknown }).files;
+        if (Array.isArray(page)) {
+          files.push(...(page as GithubPrFilePayload[]));
+        }
+        current = next;
+      }
+      return files;
+    } catch {
+      return fallback; // compare unavailable (e.g. divergent history) — keep the capped list
+    }
   }
 }

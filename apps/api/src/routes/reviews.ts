@@ -46,7 +46,7 @@ import {
 import type { DrizzleDB } from '@harness/db';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
-import { parseRepoPath, StaticGitToolMap } from '@harness/git-provider';
+import { GitProviderError, parseRepoPath, StaticGitToolMap } from '@harness/git-provider';
 import { WriteBackError } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
@@ -55,6 +55,14 @@ import { computeFindingAnchor } from '../finding-anchor.js';
 import { computeReviewStats } from '../review-stats.js';
 import { writebackEnabled } from '../writeback-gate.js';
 import { normalizePrFiles } from '../pr-files.js';
+import {
+  priorityFromRiskScore,
+  prFilePathsFromPayload,
+  riskScoreFromSeverities,
+  summaryFromPayload,
+} from '../list-summary.js';
+import { computeTriage } from '../triage-rules.js';
+import { loadTriageRuleState } from '../triage-rules-store.js';
 
 /** The per-host tool map, reused to resolve a report's repo slug to a write-back host. */
 const GIT_TOOL_MAP = new StaticGitToolMap();
@@ -88,6 +96,15 @@ interface StoredVerificationFlag {
   }[];
 }
 
+/** One finding in the list's per-review expandable summary (no anchor/suggestion). */
+interface ListFindingSummary {
+  readonly severity: string;
+  readonly kind: string;
+  readonly file: string;
+  readonly line: number | null;
+  readonly message: string;
+}
+
 /** Register the review endpoints under `/api/reviews`. */
 export function registerReviewIngestRoutes(app: FastifyInstance, container: Container): void {
   const ingest = container.resolve<ReviewIngestService>(TOKENS.ReviewIngestService);
@@ -114,6 +131,24 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         if (error instanceof ReviewIngestError) {
           return reply.code(error.status).send({ error: error.message });
         }
+        if (error instanceof GitProviderError) {
+          // A git-host read failed (not-found / auth / rate-limit / network):
+          // surface the useful status instead of a bare 500 so the create screen
+          // can tell "inaccessible pull request" from an internal failure.
+          if (error.status === 404) {
+            return reply
+              .code(404)
+              .send({ error: 'That pull request could not be found or is not accessible.' });
+          }
+          if (error.status === 401 || error.status === 403) {
+            return reply.code(422).send({
+              error: 'That repository is not accessible — check the GITHUB_TOKEN permissions.',
+            });
+          }
+          return reply
+            .code(502)
+            .send({ error: 'The Git host could not be reached. Try again in a moment.' });
+        }
         throw error;
       }
     },
@@ -125,27 +160,128 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
     async (request) => {
       const rows = await db.select().from(reviewReports).orderBy(desc(reviewReports.created_at));
       const ids = rows.map((row) => row.id);
+      // Decided reports + their *latest* decision (asc so a later row overwrites an
+      // earlier one). The latest decision is the effective state for the archive.
       const decidedRows =
         ids.length === 0
           ? []
           : await db
-              .select({ reportId: reviewDecisions.report_id })
+              .select({
+                reportId: reviewDecisions.report_id,
+                decision: reviewDecisions.decision,
+              })
               .from(reviewDecisions)
-              .where(inArray(reviewDecisions.report_id, ids));
-      const decidedIds = new Set(decidedRows.map((row) => row.reportId));
+              .where(inArray(reviewDecisions.report_id, ids))
+              .orderBy(asc(reviewDecisions.created_at));
+      const decidedIds = new Set<string>();
+      const decisionByReport = new Map<string, string>();
+      for (const row of decidedRows) {
+        decidedIds.add(row.reportId);
+        decisionByReport.set(row.reportId, row.decision);
+      }
+      // One pass over the findings gives each row its severity/message preview (the
+      // expandable card summary) without an N+1 per-report read.
+      const findingRows =
+        ids.length === 0
+          ? []
+          : await db
+              .select({
+                reportId: reviewFindings.report_id,
+                severity: reviewFindings.severity,
+                kind: reviewFindings.kind,
+                file: reviewFindings.file,
+                line: reviewFindings.line,
+                message: reviewFindings.message,
+              })
+              .from(reviewFindings)
+              .where(inArray(reviewFindings.report_id, ids))
+              .orderBy(asc(reviewFindings.order_index));
+      const findingsByReport = new Map<string, ListFindingSummary[]>();
+      for (const row of findingRows) {
+        const list = findingsByReport.get(row.reportId) ?? [];
+        list.push({
+          severity: row.severity,
+          kind: row.kind,
+          file: row.file,
+          line: row.line,
+          message: row.message,
+        });
+        findingsByReport.set(row.reportId, list);
+      }
       const pendingOnly = request.query.pending === '1' || request.query.pending === 'true';
+      const ruleState = await loadTriageRuleState(db);
       return rows
         .filter((row) => (pendingOnly ? !decidedIds.has(row.id) : true))
-        .map((row) => ({
-          id: row.id,
-          prUrl: row.pr_url,
-          prNumber: row.pr_number,
-          repo: row.repo,
-          prTitle: row.pr_title,
-          overallVerdict: row.overall_verdict,
-          createdAt: row.created_at,
-          decided: decidedIds.has(row.id),
-        }));
+        .map((row) => {
+          const payload = summaryFromPayload(row.pr_payload);
+          const findings = findingsByReport.get(row.id) ?? [];
+          const riskScore = riskScoreFromSeverities(findings.map((finding) => finding.severity));
+          const triage = computeTriage({
+            rules: ruleState,
+            findings,
+            prFilePaths: prFilePathsFromPayload(row.pr_payload),
+          });
+          return {
+            id: row.id,
+            prUrl: row.pr_url,
+            prNumber: row.pr_number,
+            repo: row.repo,
+            prTitle: row.pr_title,
+            overallVerdict: row.overall_verdict,
+            createdAt: row.created_at,
+            decided: decidedIds.has(row.id),
+            decision: decisionByReport.get(row.id) ?? null,
+            findingCount: findings.length,
+            author: payload.author,
+            branch: { source: payload.sourceBranch, target: payload.targetBranch },
+            additions: payload.additions,
+            deletions: payload.deletions,
+            filesChanged: payload.filesChanged,
+            riskScore,
+            priority: priorityFromRiskScore(riskScore),
+            criticalFindings: findings.filter((finding) => finding.severity === 'CRITICAL').length,
+            findings,
+            triage: {
+              securityBlocked: triage.securityBlocked,
+              schemaGate: triage.schemaGate,
+              matchedRules: triage.matchedRules,
+            },
+            effectiveVerdict: triage.effectiveVerdict ?? row.overall_verdict,
+          };
+        });
+    },
+  );
+
+  app.get(
+    '/api/reviews/summary',
+    { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
+    async () => {
+      const reportRows = await db.select({ reportId: reviewReports.id }).from(reviewReports);
+      const ids = reportRows.map((row) => row.reportId);
+      const decidedRows =
+        ids.length === 0
+          ? []
+          : await db
+              .select({
+                reportId: reviewDecisions.report_id,
+                decision: reviewDecisions.decision,
+              })
+              .from(reviewDecisions)
+              .where(inArray(reviewDecisions.report_id, ids))
+              .orderBy(asc(reviewDecisions.created_at));
+      const decisionByReport = new Map<string, string>();
+      for (const row of decidedRows) {
+        decisionByReport.set(row.reportId, row.decision);
+      }
+      const decidedCount = decisionByReport.size;
+      const approvedCount = [...decisionByReport.values()].filter(
+        (decision) => decision === 'APPROVE',
+      ).length;
+      return {
+        pendingCount: reportRows.length - decidedCount,
+        decidedCount,
+        approvedCount,
+      };
     },
   );
 
@@ -210,6 +346,14 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
       const verificationRow = verificationRows[0] ?? null;
       const verificationFlag = (verificationRow?.flag ?? null) as StoredVerificationFlag | null;
 
+      const ruleState = await loadTriageRuleState(db);
+      const triage = computeTriage({
+        rules: ruleState,
+        findings: findingsRows,
+        prFilePaths: prFilePathsFromPayload(report.pr_payload),
+        judgeRuns: judgeRows.map((row) => ({ overall: row.overall })),
+      });
+
       return {
         id: report.id,
         prUrl: report.pr_url,
@@ -220,6 +364,13 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         model: report.model,
         summary: report.summary,
         overallVerdict: report.overall_verdict,
+        effectiveVerdict: triage.effectiveVerdict ?? report.overall_verdict,
+        triage: {
+          securityBlocked: triage.securityBlocked,
+          regressionRisk: triage.regressionRisk,
+          schemaGate: triage.schemaGate,
+          matchedRules: triage.matchedRules,
+        },
         createdAt: report.created_at,
         // The server's *current* write-back arming (the WRITEBACK_ENABLED ceiling).
         // The UI uses this to disable + explain the "write back" checkbox rather

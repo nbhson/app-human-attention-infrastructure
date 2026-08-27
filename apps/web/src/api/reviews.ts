@@ -158,6 +158,18 @@ export interface ReviewStats {
     readonly additions: number;
     readonly deletions: number;
   }[];
+  /**
+   * The diff split by **language** (GitHub-linguist names), weighted by changed
+   * lines. `share` is each language's share of the whole reviewable diff in
+   * `[0, 1]`; unrecognised paths pool under `'Other'`.
+   */
+  readonly languages: readonly {
+    readonly language: string;
+    readonly files: number;
+    readonly additions: number;
+    readonly deletions: number;
+    readonly share: number;
+  }[];
   /** Generated artifacts (lockfiles/build output) rejected from the metric. */
   readonly excluded: {
     readonly files: number;
@@ -198,6 +210,14 @@ export interface ReviewReport {
   readonly model: string;
   readonly summary: string;
   readonly overallVerdict: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+  /**
+   * The recommendation after the triage rules are applied. Equals `overallVerdict`
+   * unless the security rule downgrades it to REQUEST_CHANGES. The raw AI verdict
+   * stays in `overallVerdict` — the override is never a rewrite.
+   */
+  readonly effectiveVerdict: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+  /** Which triage rules fired, and why. */
+  readonly triage: TriageSummary;
   readonly createdAt: string;
   /** Derived statistics; absent when the backend serves a report without them. */
   readonly stats?: ReviewStats;
@@ -234,6 +254,47 @@ export interface ReviewCreatedResult {
 /** One of the three human decisions the review report accepts. */
 export type ReviewDecision = 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT';
 
+/** The queue's urgency axis, derived server-side from the report's risk score. */
+export type PriorityLevel = 'high' | 'medium' | 'low';
+
+/** A PR's source → target branch, as stored on the pull-request payload. */
+export interface ReviewBranch {
+  readonly source: string | null;
+  readonly target: string | null;
+}
+
+/** Short ids of the triage rules that actually fired (mapped to labels in the UI). */
+export type TriageRuleId = 'security-block' | 'performance-regression' | 'schema-integrity';
+
+/**
+ * The rule-derived triage block attached to a list row or report. Derived
+ * server-side from the report's findings + PR paths + (on the report) the shadow
+ * judge — never invented. `regressionRisk` is only present where the judge run
+ * is actually loaded (the report), because that claim needs a judge signal.
+ */
+export interface TriageSummary {
+  readonly securityBlocked: boolean;
+  readonly regressionRisk?: boolean;
+  readonly schemaGate: boolean;
+  readonly matchedRules: readonly TriageRuleId[];
+}
+
+/** One finding in the list's per-review expandable summary. */
+export interface ReviewListFinding {
+  readonly severity: string;
+  readonly kind: string;
+  readonly file: string;
+  readonly line: number | null;
+  readonly message: string;
+}
+
+/** Counts from `GET /api/reviews/summary` for the sidebar badges + header KPIs. */
+export interface ReviewListSummary {
+  readonly pendingCount: number;
+  readonly decidedCount: number;
+  readonly approvedCount: number;
+}
+
 /** One row in the AI-review list (`GET /api/reviews`). */
 export interface ReviewsListItem {
   readonly id: string;
@@ -245,6 +306,26 @@ export interface ReviewsListItem {
   readonly createdAt: string;
   /** Whether a human decision has already been recorded for this report. */
   readonly decided: boolean;
+  /** The latest human decision, or `null` while undecided. */
+  readonly decision: ReviewDecision | null;
+  /** How many findings the report carries (shown in the queue without a full read). */
+  readonly findingCount: number;
+  /** PR author's host username (no display name/avatar is stored). */
+  readonly author: string | null;
+  readonly branch: ReviewBranch;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly filesChanged: number;
+  /** Deterministic 0-100 risk derived from the findings' severity. */
+  readonly riskScore: number;
+  readonly priority: PriorityLevel;
+  /** Count of CRITICAL findings (the "Critical AST Issues" header metric). */
+  readonly criticalFindings: number;
+  readonly findings: readonly ReviewListFinding[];
+  /** Rule-derived override; equals `overallVerdict` unless the security rule fires. */
+  readonly effectiveVerdict: ReviewReport['overallVerdict'];
+  /** Which triage rules fired at list level (security + schema; no judge here). */
+  readonly triage: Pick<TriageSummary, 'securityBlocked' | 'schemaGate' | 'matchedRules'>;
 }
 
 /** An API failure with a status code, so the UI can branch on 400/503/… */
@@ -290,6 +371,10 @@ export const reviewsApi = {
   /** List reports; `pending=true` keeps only ones still awaiting a decision. */
   list(pending?: boolean): Promise<ReviewsListItem[]> {
     return json<ReviewsListItem[]>(fetch(`${BASE}${pending ? '?pending=1' : ''}`));
+  },
+  /** Lightweight pending/decided/approved counts for the sidebar + header KPIs. */
+  summary(): Promise<ReviewListSummary> {
+    return json<ReviewListSummary>(fetch(`${BASE}/summary`));
   },
   /** Read back the stored report, findings, and fix suggestions. */
   getReport(id: string): Promise<ReviewReport> {
