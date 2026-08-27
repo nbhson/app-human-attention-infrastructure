@@ -45,6 +45,14 @@ function sandboxRoot(): string {
   return process.env.SANDBOX_ROOT ?? './sandbox';
 }
 
+/** Markdown for an all-SKIPPED run — nothing ran, so it must never read as PASSED. */
+function renderSkippedMarkdown(): string {
+  return (
+    '## Verification — SKIPPED\n\n' +
+    '_No build/test checks ran (script not declared or sandbox unavailable) — nothing was verified._\n'
+  );
+}
+
 export class ReviewVerificationService {
   constructor(private readonly deps: ReviewVerificationDeps) {}
 
@@ -120,7 +128,6 @@ export class ReviewVerificationService {
     try {
       const result = await verifier.verify(clone);
       const flag = flagReport(result.checks);
-      const rendered = renderFlag(flag);
       // An honest distinction the flag alone collapses: "nothing failed" is not
       // necessarily "passed". If every check was SKIPPED (no declared build/test
       // script, or the sandbox was unavailable), nothing was actually verified.
@@ -129,6 +136,10 @@ export class ReviewVerificationService {
       // Nothing ran on an all-SKIPPED run, so "no overall verdict" — the honest read
       // is "skipped", never "passed by default".
       const overall = allSkipped ? null : flag.verdict;
+      // `renderFlag` only serialises PASSED/FAILED, so an all-SKIPPED run would
+      // otherwise render as "PASSED" while `status` says SKIPPED. Emit the honest
+      // SKIPPED markdown instead.
+      const rendered = allSkipped ? renderSkippedMarkdown() : renderFlag(flag);
 
       await db
         .update(reviewVerifications)

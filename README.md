@@ -15,7 +15,7 @@ queryable, and auditable.
 | | |
 | --- | --- |
 | **Status** | Feature-complete · tagged `v0.3.0-harness` · review-only control plane (`review-reorient`) |
-| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 975 unit tests ✅ · 9 e2e ✅ |
+| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 1072 unit tests ✅ · 9 e2e ✅ |
 | **Stack** | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker |
 | **Boundary model** | 25 `@harness/*` packages; engines never import another engine |
 
@@ -65,8 +65,9 @@ Two endpoints carry the slice today (`apps/api/src/routes/reviews.ts`):
   composition + excluded lines), ready for the UI.
 
 On top of that retained-but-not-yet-wired-into-this-slice machinery sits the
-wider pipeline — the canonical task state machine, independent verification
-(clone → test in the Docker sandbox), and attention routing:
+wider pipeline — the canonical task state machine and attention routing.
+(Independent verification — clone → test in the Docker sandbox — is now wired
+into the slice by default, not merely retained; see the Capabilities table.):
 
 ```text
  PENDING ─▶ QUEUED ─▶ EXECUTING ─▶ VERIFYING ─▶ AWAITING_REVIEW ─▶ APPROVED ─▶ COMPLETED
@@ -122,7 +123,7 @@ nitpicks like a missing trailing newline.
 | **Review** | The configured AI (Anthropic or OpenAI-compatible, `key`+`baseUrl`+`model`) reviews the diff **read-only** → report + findings + fix suggestions |
 | **Verify** | Clone into the Docker sandbox and run build/test; dependency-graph targeted verification; a FAILED run *flags* the report, never authors a fix |
 | **Attention & decision** | Score + route every review; a human APPROVES / REJECTS; `AUTO_APPROVABLE` stays the only auto-path — gated + sampling-audited |
-| **Write-back** | Optional, fail-safe, 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; OFF = nothing external |
+| **Write-back** | On by default (opt-out), fail-safe 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; `WRITEBACK_ENABLED=0` = nothing external |
 | **Memory** | Review / finding / decision memory tiers, distilled + relevance-scored, with consolidation / decay / archive |
 | **Quality & learning** | LLM-as-judge (rubric-scored) + inter-judge agreement, a versioned gold corpus, and a closed learning loop feeding decisions + judge signals back into calibration/routing |
 | **Observability** | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id` |

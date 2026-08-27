@@ -1,27 +1,49 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { reviewsApi, type ReviewDecision } from '../api/reviews';
-import { AnchorBadge } from '../components/AnchorBadge';
+import {
+  reviewsApi,
+  type ReviewDecision,
+  type ReviewFinding,
+  type TriageRuleId,
+} from '../api/reviews';
 import { BreakdownTab } from '../components/BreakdownTab';
 import { DiffTab } from '../components/DiffTab';
 import { ReportStats } from '../components/ReportStats';
+import { ReviewTab } from '../components/ReviewTab';
 import { Skeleton, SkeletonLines } from '../components/Skeleton';
+import { SummaryMetricsPanel } from '../components/SummaryMetricsPanel';
 import { TraceTab } from '../components/TraceTab';
 import { VerificationTab } from '../components/VerificationTab';
-import { severityColor, severityLabel, sortFindingsBySeverity } from '../components/severity';
+import { sortFindingsBySeverity } from '../components/severity';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ExternalLink,
+  RefreshCw,
+  ShieldAlert,
+  Sliders,
+  Zap,
+} from '../components/Icons';
 
 /**
- * AI review report page (review-reorient Phase 3) — the pivot's read surface.
- * A glanceable dashboard (verdict + attention share + severity split) above a
- * tabbed detail area (Review / Diff / AI trace / Verification) and a sticky
- * human-decision bar — so a reviewer sees the claims, the exact changed code they
- * point at, how they were produced, and everything we can prove about it.
+ * AI review report page (review-reorient Phase 3) — the human-in-the-loop read
+ * surface. A focused workspace in four parts, top to bottom:
+ *
+ *   1. Review context — the PR title / repo / provider, compact.
+ *   2. AI review overview — verdict + "how much attention?" hero + severity split.
+ *   3. Five investigation tabs (Review / Breakdown / Diff / AI trace /
+ *      Verification), each a different lens on the same review.
+ *   4. A sticky human-decision bar — the workflow's final, and only, gate.
+ *
+ * The selected finding is lifted here and shared across tabs, so the question
+ * "which finding am I investigating?" stays answered as the reviewer moves from
+ * findings → diff → trace → verification → decision.
  */
 
-type ReviewTab = 'review' | 'breakdown' | 'diff' | 'trace' | 'verification';
+type ReviewTabKey = 'review' | 'breakdown' | 'diff' | 'trace' | 'verification';
 
-const TABS: readonly { key: ReviewTab; label: string }[] = [
+const TABS: readonly { key: ReviewTabKey; label: string }[] = [
   { key: 'review', label: 'Review' },
   { key: 'breakdown', label: 'Breakdown' },
   { key: 'diff', label: 'Diff' },
@@ -43,6 +65,34 @@ const DECISION_TONE: Record<ReviewDecision, string> = {
   REJECT: 'var(--color-danger)',
 };
 
+/** Per-rule copy for the triage banner; `{verdict}` is filled with the raw AI verdict. */
+const TRIAGE_META: Record<
+  TriageRuleId,
+  { icon: typeof ShieldAlert; color: string; message: string }
+> = {
+  'security-block': {
+    icon: ShieldAlert,
+    color: 'var(--color-danger)',
+    message:
+      'Security rule fired — a CRITICAL finding in an auth/secrets path downgrades the ' +
+      'recommendation to Request changes (the AI’s own verdict was {verdict}).',
+  },
+  'performance-regression': {
+    icon: Zap,
+    color: 'var(--color-warning)',
+    message:
+      'Performance rule fired — possible regression risk: MAJOR+ findings in production code ' +
+      'with a low-confidence shadow-judge run.',
+  },
+  'schema-integrity': {
+    icon: Sliders,
+    color: 'var(--color-info)',
+    message:
+      'Schema rule fired — this PR touches migration/schema files; write-back will post only on ' +
+      'an explicit APPROVE.',
+  },
+};
+
 const visuallyHidden = {
   position: 'absolute',
   width: 1,
@@ -56,21 +106,54 @@ const visuallyHidden = {
 } as const;
 
 function reviewSkeleton(): JSX.Element {
+  const block = { borderRadius: 12 } as const;
+  const twoCol = {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 16,
+    marginTop: 16,
+  } as const;
   return (
-    <main style={{ maxWidth: 1040, margin: '0 auto', padding: 16 }}>
-      <Skeleton width={120} height={14} />
-      <div style={{ marginTop: 16 }}>
-        <Skeleton width="70%" height={28} />
-        <div style={{ marginTop: 8 }}>
-          <Skeleton width="55%" height={14} />
+    <main
+      role="status"
+      aria-label="Loading review report"
+      style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 112px' }}
+    >
+      {/* back link */}
+      <Skeleton width={116} height={30} style={{ borderRadius: 8 }} />
+
+      {/* PR title + meta line */}
+      <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <Skeleton width="62%" height={26} />
+        <Skeleton width="38%" height={13} />
+      </div>
+
+      {/* verdict / attention hero */}
+      <Skeleton height={180} style={{ ...block, marginTop: 18 }} />
+
+      {/* summary + metrics visualization */}
+      <div style={twoCol}>
+        <Skeleton height={144} style={block} />
+        <Skeleton height={144} style={block} />
+      </div>
+
+      {/* investigation tabs */}
+      <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
+        {['Review', 'Breakdown', 'Diff', 'AI trace', 'Verification'].map((label, index) => (
+          <Skeleton
+            key={label}
+            height={32}
+            style={{ borderRadius: 8, width: [72, 98, 64, 82, 104][index] }}
+          />
+        ))}
+      </div>
+
+      {/* findings list + detail pane */}
+      <div style={twoCol}>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <SkeletonLines count={5} />
         </div>
-      </div>
-      <div style={{ marginTop: 16 }}>
-        <Skeleton height={200} />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 16 }}>
-        <SkeletonLines count={4} />
-        <SkeletonLines count={4} />
+        <Skeleton height={180} style={block} />
       </div>
     </main>
   );
@@ -83,9 +166,10 @@ export default function ReviewReportPage(): JSX.Element {
   const [writeback, setWriteback] = useState(true);
   const [comment, setComment] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ReviewTab>('review');
+  const [activeTab, setActiveTab] = useState<ReviewTabKey>('review');
+  const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['reviewReport', id],
     queryFn: () => reviewsApi.getReport(id),
     enabled: id !== '',
@@ -103,10 +187,38 @@ export default function ReviewReportPage(): JSX.Element {
     return reviewSkeleton();
   }
   if (isError || !data) {
-    return <p>Could not load this review report.</p>;
+    return (
+      <main style={{ maxWidth: 1120, margin: '0 auto', padding: 16 }}>
+        <div className="rq-empty" role="alert">
+          <div className="rq-empty-icon">
+            <AlertTriangle />
+          </div>
+          <h3 className="rq-empty-title">Couldn&rsquo;t load this review report</h3>
+          <p className="rq-empty-text">
+            {error instanceof Error
+              ? error.message
+              : 'The report failed to load — it may have been deleted, or the review service is unreachable.'}
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <Link to="/review" className="rq-empty-reset">
+              <ArrowLeft size={13} />
+              Back to Queue
+            </Link>
+            <button type="button" className="rq-empty-reset" onClick={() => void refetch()}>
+              <RefreshCw size={13} />
+              Retry
+            </button>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   const findings = sortFindingsBySeverity(data.findings);
+  // Default the "currently investigating" focus to the worst finding until the
+  // reviewer selects one explicitly; the selection then survives tab switches.
+  const activeFindingId = selectedFindingId ?? findings[0]?.id ?? null;
+  const selectedFinding = findings.find((finding) => finding.id === activeFindingId) ?? null;
 
   // The server decides whether the "write back" checkbox is even meaningful: a
   // write-back-disabled deployment (WRITEBACK_ENABLED=0) records the toggle as OFF
@@ -116,52 +228,238 @@ export default function ReviewReportPage(): JSX.Element {
   const requestChanges = decision === 'REQUEST_CHANGES';
   const writebackAllowed = writebackArmed && !requestChanges;
 
+  const selectFinding = (findingId: string): void => setSelectedFindingId(findingId);
+  const openInDiff = (finding: ReviewFinding): void => {
+    setSelectedFindingId(finding.id);
+    setActiveTab('diff');
+  };
+  const openInVerification = (finding: ReviewFinding): void => {
+    setSelectedFindingId(finding.id);
+    setActiveTab('verification');
+  };
+  const openInReview = (findingId: string): void => {
+    setSelectedFindingId(findingId);
+    setActiveTab('review');
+  };
+
+  const tabBadge = (tab: ReviewTabKey): string | number | undefined => {
+    switch (tab) {
+      case 'review':
+        return data.findings.length;
+      case 'diff':
+        return data.diff.length;
+      case 'trace':
+        return data.trace.calls.length;
+      case 'verification': {
+        const v = data.verification;
+        if (v === null || v === undefined) {
+          return undefined;
+        }
+        if (v.status === 'PASSED') {
+          return '✓';
+        }
+        if (v.status === 'FAILED' || v.status === 'ERROR') {
+          return '✕';
+        }
+        return '·';
+      }
+      default:
+        return undefined;
+    }
+  };
+
   return (
-    <main style={{ maxWidth: 1040, margin: '0 auto', padding: 16, paddingBottom: 96 }}>
-      <p style={{ margin: 0 }}>
-        <Link to="/reviews/new">← New review</Link>
-      </p>
-
-      <h2 style={{ marginBottom: 4 }}>{data.prTitle}</h2>
-      <p style={{ color: 'var(--color-text-muted)', marginTop: 0 }}>
-        <a href={data.prUrl} target="_blank" rel="noreferrer">
-          {data.prUrl}
-        </a>{' '}
-        · {data.aiProvider}/{data.model}
-      </p>
-
-      <ReportStats stats={data.stats} overallVerdict={data.overallVerdict} />
-
-      <section
-        style={{
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
-          padding: 12,
-          background: 'var(--color-surface)',
-          marginTop: 16,
-        }}
-      >
-        <p
+    <main style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 112px' }}>
+      {/* 1 — review context */}
+      <header style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+        <div
           style={{
-            margin: 0,
-            color: 'var(--color-text-faint)',
-            fontSize: '0.75rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.03em',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
           }}
         >
-          Summary
-        </p>
-        <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{data.summary}</p>
-      </section>
+          <Link
+            to="/review"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              color: 'var(--color-text-muted)',
+              textDecoration: 'none',
+              fontSize: '0.78rem',
+              fontWeight: 500,
+              padding: '6px 10px',
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+            }}
+          >
+            <ArrowLeft size={13} />
+            Back to Queue
+          </Link>
 
+          {selectedFinding !== null && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '4px 12px',
+                borderRadius: '999px',
+                background: '#160d11',
+                border: '1px solid rgba(239,68,68,0.3)',
+                fontSize: '0.76rem',
+                fontFamily: 'var(--font-mono)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'relative',
+                  display: 'inline-flex',
+                  width: 8,
+                  height: 8,
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: '50%',
+                    background: '#f87171',
+                    opacity: 0.6,
+                    animation: 'hai-ping 1.4s cubic-bezier(0,0,0.2,1) infinite',
+                  }}
+                />
+                <span
+                  style={{
+                    position: 'relative',
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: '#ef4444',
+                  }}
+                />
+              </span>
+              <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>
+                Investigating
+              </span>
+              <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>
+                {selectedFinding.file}
+                {selectedFinding.line !== null ? `:${selectedFinding.line}` : ''}
+              </span>
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: '1.4rem',
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
+              lineHeight: 1.25,
+            }}
+          >
+            {data.prTitle}
+          </h1>
+          <p
+            style={{
+              margin: 0,
+              color: 'var(--color-text-muted)',
+              fontSize: '0.83rem',
+              fontFamily: 'var(--font-mono)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}
+          >
+            <a
+              href={data.prUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                color: 'var(--color-info)',
+                textDecoration: 'none',
+              }}
+            >
+              <span>
+                {data.repo} · PR #{data.prNumber}
+              </span>
+              <ExternalLink size={12} />
+            </a>
+            <span style={{ color: 'var(--color-text-faint)' }}>·</span>
+            <span>
+              {data.aiProvider}/{data.model}
+            </span>
+          </p>
+        </div>
+      </header>
+
+      {/* 1b — triage rule flags, if any fired */}
+      {data.triage.matchedRules.length > 0 && (
+        <section
+          role="note"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            margin: '0 0 12px',
+            padding: '10px 14px',
+            borderRadius: 10,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+          }}
+        >
+          {data.triage.matchedRules.map((rule) => {
+            const meta = TRIAGE_META[rule];
+            const Icon = meta.icon;
+            return (
+              <div
+                key={rule}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                  color: 'var(--color-text-muted)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.4,
+                }}
+              >
+                <span style={{ color: meta.color, display: 'inline-flex', marginTop: 1 }}>
+                  <Icon size={15} />
+                </span>
+                <span>{meta.message.replace('{verdict}', data.overallVerdict)}</span>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
+      {/* 2 — AI review overview */}
+      <ReportStats stats={data.stats} overallVerdict={data.overallVerdict} />
+
+      {/* 2b — summary & architectural impact + metrics visualization */}
+      <SummaryMetricsPanel summary={data.summary} stats={data.stats} findings={findings} />
+
+      {/* 3 — investigation tabs */}
       <nav
         role="tablist"
         aria-label="Review detail"
-        style={{ display: 'flex', gap: 8, marginTop: 16 }}
+        className="review-tabs"
+        style={{ marginTop: 20 }}
       >
         {TABS.map((tab) => {
           const selected = activeTab === tab.key;
+          const badge = tabBadge(tab.key);
           return (
             <button
               key={tab.key}
@@ -169,193 +467,66 @@ export default function ReviewReportPage(): JSX.Element {
               role="tab"
               aria-selected={selected}
               onClick={() => setActiveTab(tab.key)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '999px',
-                border: `1px solid ${selected ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                background: selected ? 'var(--color-accent)' : 'var(--color-surface)',
-                color: selected ? '#ffffff' : 'var(--color-text)',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-              }}
+              className={`review-tab${selected ? ' review-tab-active' : ''}`}
             >
               {tab.label}
+              {badge !== undefined && <span className="review-tab-badge">{badge}</span>}
             </button>
           );
         })}
       </nav>
 
-      {activeTab === 'review' && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-            gap: 24,
-            marginTop: 16,
-          }}
-        >
-          <section>
-            <h3 style={{ marginTop: 0 }}>Findings ({data.findings.length})</h3>
-            {data.findings.length > 0 && (
-              <p
-                style={{
-                  margin: '-4px 0 12px',
-                  color: 'var(--color-text-faint)',
-                  fontSize: '0.75rem',
-                }}
-              >
-                Anchored means the cited <code>file:line</code> falls inside this PR&apos;s diff; a
-                warning means it did not. This is evidence anchoring, not a test run.
-              </p>
-            )}
-            {data.findings.length === 0 && <p>No findings.</p>}
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {findings.map((finding) => (
-                <li
-                  key={finding.id}
-                  style={{
-                    border: '1px solid var(--color-border)',
-                    borderLeft: `4px solid ${severityColor(finding.severity)}`,
-                    borderRadius: 'var(--radius)',
-                    padding: '8px 12px',
-                    marginBottom: 8,
-                    background: 'var(--color-surface-2)',
-                  }}
-                >
-                  <div
-                    style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}
-                  >
-                    <span
-                      style={{
-                        color: severityColor(finding.severity),
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {severityLabel(finding.severity)}
-                    </span>
-                    {finding.kind === 'cleanup' && (
-                      <span
-                        style={{
-                          color: 'var(--color-text-faint)',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: '999px',
-                          padding: '0 8px',
-                          fontSize: '0.72rem',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.03em',
-                        }}
-                      >
-                        Cleanup
-                      </span>
-                    )}
-                    <code>
-                      {finding.file}
-                      {finding.line !== null ? `:${finding.line}` : ''}
-                    </code>
-                    <AnchorBadge anchor={finding.anchor} />
-                  </div>
-                  <p
-                    style={{
-                      margin: '4px 0 0',
-                      color: 'var(--color-text-muted)',
-                      fontSize: '0.8rem',
-                    }}
-                  >
-                    {finding.anchor.detail}
-                  </p>
-                  <p style={{ margin: '8px 0 0' }}>{finding.message}</p>
-                  {finding.suggestion !== null && (
-                    <p style={{ margin: '8px 0 0', color: 'var(--color-text-muted)' }}>
-                      {finding.suggestion}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
+      <div className="review-tab-panel" key={activeTab}>
+        {activeTab === 'review' && (
+          <ReviewTab
+            findings={findings}
+            suggestions={data.suggestions}
+            selectedFindingId={activeFindingId}
+            onSelect={selectFinding}
+            onOpenInDiff={openInDiff}
+            onOpenVerification={openInVerification}
+          />
+        )}
 
-          <section>
-            <h3 style={{ marginTop: 0 }}>Fix suggestions ({data.suggestions.length})</h3>
-            {data.suggestions.length === 0 && <p>No fix suggestions.</p>}
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {data.suggestions.map((suggestion) => (
-                <li
-                  key={suggestion.id}
-                  style={{
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius)',
-                    padding: '8px 12px',
-                    marginBottom: 8,
-                    background: 'var(--color-surface-2)',
-                  }}
-                >
-                  <code>{suggestion.file}</code>
-                  {suggestion.hunk !== null && (
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
-                      {suggestion.hunk}
-                    </div>
-                  )}
-                  <pre
-                    style={{
-                      background: 'var(--color-surface)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius)',
-                      padding: 8,
-                      maxWidth: '100%',
-                      overflowX: 'auto',
-                      whiteSpace: 'pre',
-                    }}
-                  >
-                    {suggestion.proposed}
-                  </pre>
-                  <p style={{ margin: '8px 0 0', color: 'var(--color-text-muted)' }}>
-                    {suggestion.rationale}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-      )}
+        {activeTab === 'breakdown' && (
+          <div style={{ marginTop: 16 }}>
+            <BreakdownTab stats={data.stats} />
+          </div>
+        )}
 
-      {activeTab === 'breakdown' && (
-        <div style={{ marginTop: 16 }}>
-          <BreakdownTab stats={data.stats} />
-        </div>
-      )}
+        {activeTab === 'diff' && (
+          <DiffTab
+            diff={data.diff}
+            findings={findings}
+            selectedFindingId={activeFindingId}
+            onSelectFinding={selectFinding}
+          />
+        )}
 
-      {activeTab === 'diff' && (
-        <div style={{ marginTop: 16 }}>
-          <DiffTab diff={data.diff} findings={findings} />
-        </div>
-      )}
+        {activeTab === 'trace' && (
+          <TraceTab
+            trace={data.trace}
+            createdAt={data.createdAt}
+            stats={data.stats}
+            findings={findings}
+            overallVerdict={data.overallVerdict}
+          />
+        )}
 
-      {activeTab === 'trace' && (
-        <div style={{ marginTop: 16 }}>
-          <TraceTab trace={data.trace} />
-        </div>
-      )}
+        {activeTab === 'verification' && (
+          <VerificationTab
+            verification={data.verification}
+            findings={findings}
+            selectedFindingId={activeFindingId}
+            onSelectFinding={selectFinding}
+            onOpenReview={openInReview}
+          />
+        )}
+      </div>
 
-      {activeTab === 'verification' && (
-        <div style={{ marginTop: 16 }}>
-          <VerificationTab verification={data.verification} />
-        </div>
-      )}
-
-      <section
-        style={{
-          position: 'sticky',
-          bottom: 0,
-          zIndex: 1,
-          background: 'var(--color-bg)',
-          borderTop: '1px solid var(--color-border)',
-          paddingTop: 12,
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Your decision</h3>
+      {/* 4 — human decision */}
+      <section className="decision-bar">
+        <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem' }}>Your decision</h3>
         {submitError && (
           <div
             role="alert"
@@ -378,25 +549,15 @@ export default function ReviewReportPage(): JSX.Element {
             }
           }}
         >
-          <div role="radiogroup" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div role="radiogroup" aria-label="Decision" className="decision-options">
             {(Object.keys(DECISION_LABEL) as ReviewDecision[]).map((choice) => {
               const selected = decision === choice;
               const tone = DECISION_TONE[choice];
               return (
                 <label
                   key={choice}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '6px 14px',
-                    borderRadius: '999px',
-                    border: `1px solid ${selected ? tone : 'var(--color-border)'}`,
-                    background: selected ? tone : 'var(--color-surface)',
-                    color: selected ? '#ffffff' : 'var(--color-text)',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                  }}
+                  className={`decision-option${selected ? ' decision-option-selected' : ''}`}
+                  style={selected ? { background: tone, borderColor: tone } : undefined}
                 >
                   <input
                     type="radio"
@@ -414,17 +575,10 @@ export default function ReviewReportPage(): JSX.Element {
             <button
               type="submit"
               disabled={decision === null || decide.isPending}
-              style={{
-                padding: '6px 16px',
-                borderRadius: '999px',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-surface)',
-                color: 'var(--color-text)',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              className={decision === null ? 'btn btn-ghost' : 'btn btn-primary'}
+              style={{ marginLeft: 'auto' }}
             >
-              {decide.isPending ? 'Submitting…' : 'Submit'}
+              {decide.isPending ? 'Submitting…' : 'Submit decision'}
             </button>
           </div>
 
@@ -463,6 +617,7 @@ export default function ReviewReportPage(): JSX.Element {
                   color: 'var(--color-text)',
                   font: 'inherit',
                   resize: 'vertical',
+                  boxSizing: 'border-box',
                 }}
               />
             )}

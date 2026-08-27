@@ -1,10 +1,10 @@
+import { useEffect, useRef } from 'react';
 import type { PrFile, ReviewFinding } from '../api/reviews';
 import type { ReviewFileDiff } from '../api/review';
-import { AnchorBadge } from './AnchorBadge';
 import { severityColor, severityLabel } from './severity';
 import { DiffViewer } from './DiffViewer';
 
-/** Map a normalised PR file to the shape the existing diff renderer expects. */
+/** Map a normalised PR file to the shape the diff renderer expects. */
 function toViewerDiff(file: PrFile): ReviewFileDiff {
   return {
     path: file.path,
@@ -16,17 +16,34 @@ function toViewerDiff(file: PrFile): ReviewFileDiff {
 }
 
 /**
- * Diff tab (trust-loop slice 2) — the actual changed code, per file, colour-coded,
- * with the findings that point at that file listed above their diff so a reviewer
- * sees the claim next to the code instead of trusting a floating line number.
+ * Diff tab (evidence layer) — the changed code per file, with a line-number
+ * gutter so a finding's `file:line` maps to a concrete row. A findings strip up
+ * top and per-file finding chips let the reviewer jump to any finding; the
+ * selected finding's line is highlighted and the view auto-scrolls to its file.
  */
 export function DiffTab({
   diff,
   findings,
+  selectedFindingId,
+  onSelectFinding,
 }: {
   readonly diff: readonly PrFile[];
   readonly findings: readonly ReviewFinding[];
+  readonly selectedFindingId: string | null;
+  readonly onSelectFinding: (id: string) => void;
 }): JSX.Element {
+  const sectionRefs = useRef(new Map<string, HTMLElement>());
+  const selected = findings.find((finding) => finding.id === selectedFindingId) ?? null;
+
+  // When the selected finding changes (e.g. "Open in Diff" from the Review tab),
+  // bring its file into view.
+  useEffect(() => {
+    if (selected !== null) {
+      const el = sectionRefs.current.get(selected.file);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selectedFindingId]);
+
   if (diff.length === 0) {
     return (
       <p data-testid="diff-tab-empty" style={{ color: 'var(--color-text-muted)' }}>
@@ -36,45 +53,94 @@ export function DiffTab({
   }
 
   return (
-    <div data-testid="diff-tab">
+    <div data-testid="diff-tab" style={{ marginTop: 16 }}>
+      {findings.length > 0 && (
+        <div className="diff-jump-strip">
+          <span className="detail-label">Jump to finding</span>
+          {findings.map((finding) => {
+            const active = selected?.id === finding.id;
+            return (
+              <button
+                key={finding.id}
+                type="button"
+                className={`pill${active ? ' pill-active' : ''}`}
+                onClick={() => onSelectFinding(finding.id)}
+              >
+                {severityLabel(finding.severity)}{' '}
+                <span style={{ fontFamily: 'var(--font-mono)' }}>
+                  {finding.file}
+                  {finding.line !== null ? `:${finding.line}` : ''}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {diff.map((file) => {
         const fileFindings = findings.filter((finding) => finding.file === file.path);
+        const highlightLines =
+          selected !== null && selected.file === file.path && selected.line !== null
+            ? [selected.line]
+            : [];
         return (
-          <section key={file.path} style={{ marginBottom: 24 }}>
+          <section
+            key={file.path}
+            className="diff-file"
+            ref={(el) => {
+              if (el !== null) {
+                sectionRefs.current.set(file.path, el);
+              } else {
+                sectionRefs.current.delete(file.path);
+              }
+            }}
+          >
+            <div className="diff-file-head">
+              <strong>{file.path}</strong>
+              <span style={{ color: 'var(--color-text-muted)' }}>
+                <span style={{ color: 'var(--color-success)' }}>+{file.additions}</span>{' '}
+                <span style={{ color: 'var(--color-danger)' }}>−{file.deletions}</span>
+              </span>
+              {file.status === 'added' && <em>(new file)</em>}
+            </div>
+
             {fileFindings.length > 0 && (
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 8px' }}>
-                {fileFindings.map((finding) => (
-                  <li
-                    key={finding.id}
-                    style={{
-                      display: 'flex',
-                      gap: 8,
-                      alignItems: 'baseline',
-                      flexWrap: 'wrap',
-                      marginBottom: 4,
-                      fontSize: '0.85rem',
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: severityColor(finding.severity),
-                        fontWeight: 700,
-                        fontSize: '0.75rem',
-                        textTransform: 'uppercase',
-                      }}
+              <div style={{ padding: '8px 12px 0' }}>
+                {fileFindings.map((finding) => {
+                  const active = selected?.id === finding.id;
+                  return (
+                    <button
+                      key={finding.id}
+                      type="button"
+                      className={active ? 'finding-card finding-card-selected' : 'finding-card'}
+                      style={{ borderLeftColor: severityColor(finding.severity) }}
+                      onClick={() => onSelectFinding(finding.id)}
                     >
-                      {severityLabel(finding.severity)}
-                    </span>
-                    <AnchorBadge anchor={finding.anchor} />
-                    <span>
-                      {finding.message}
-                      {finding.line !== null ? ` (line ${finding.line})` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                      <div className="finding-card-head">
+                        <span
+                          className="finding-card-severity"
+                          style={{ color: severityColor(finding.severity) }}
+                        >
+                          {severityLabel(finding.severity)}
+                        </span>
+                        <span className="finding-card-location">
+                          {finding.line !== null ? `line ${finding.line}` : finding.file}
+                        </span>
+                      </div>
+                      <p className="finding-card-message">{finding.message}</p>
+                    </button>
+                  );
+                })}
+              </div>
             )}
-            <DiffViewer diffs={[toViewerDiff(file)]} />
+
+            <div style={{ padding: '4px 8px 8px' }}>
+              <DiffViewer
+                diffs={[toViewerDiff(file)]}
+                showLineNumbers
+                highlightLines={highlightLines}
+              />
+            </div>
           </section>
         );
       })}

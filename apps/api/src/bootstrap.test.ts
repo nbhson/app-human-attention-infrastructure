@@ -11,6 +11,7 @@ const DATABASE_URL = 'postgres://harness:harness@localhost:5432/harness';
 
 afterEach(() => {
   delete process.env.DATABASE_URL;
+  delete process.env.MCP_CONFIG_PATH;
 });
 
 describe('buildContainer', () => {
@@ -20,6 +21,12 @@ describe('buildContainer', () => {
     // neither mock nor a real IdP is configured (mock OIDC is deliberately
     // opt-in — it trusts any code). Day-01 auth added it to the graph.
     process.env.OIDC_MOCK = 'true';
+    // The MCP registry loads `mcp.config.json` (git-ignored, environment-
+    // specific). A developer's local copy can declare servers whose `tokenEnv`
+    // isn't set (GITHUB_TOKEN, …), which makes the registry throw at resolve
+    // time. Point it at a missing path so this graph-completeness test resolves
+    // a deterministic, empty registry in every environment.
+    process.env.MCP_CONFIG_PATH = '/nonexistent/mcp.config.json';
     const container = buildContainer();
 
     // Resolving every token proves the graph is complete. postgres.js opens no

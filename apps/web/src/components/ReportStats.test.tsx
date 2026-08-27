@@ -20,6 +20,10 @@ const stats: ReviewStats = {
     { category: 'source', files: 3, additions: 60, deletions: 15 },
     { category: 'test', files: 1, additions: 20, deletions: 5 },
   ],
+  languages: [
+    { language: 'TypeScript', files: 3, additions: 60, deletions: 15, share: 0.75 },
+    { language: 'JavaScript', files: 1, additions: 20, deletions: 5, share: 0.25 },
+  ],
   excluded: { files: 1, additions: 9000, deletions: 0, filesList: [] },
   flaggedFilesList: [
     { file: 'src/a.ts', severities: ['CRITICAL', 'MAJOR'] },

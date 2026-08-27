@@ -29,6 +29,7 @@ import {
   isSourceFile,
 } from './review-file-classify.js';
 import type { ReviewableCategory } from './review-file-classify.js';
+import { languageOfFile } from './file-language.js';
 
 /** Severity bands, highest first — the same order the AI reports them in. */
 export const SEVERITY_ORDER = [
@@ -75,6 +76,21 @@ export interface ReviewStats {
     readonly files: number;
     readonly additions: number;
     readonly deletions: number;
+  }[];
+  /**
+   * The diff split by **language** (GitHub-linguist names), weighted by changed
+   * lines — the "Languages" bar on the report. Derived from the changed files'
+   * paths, so it is as honest as the extension can be; unrecognised paths pool
+   * under `'Other'`. `share` is each language's share of the whole reviewable
+   * diff, in `[0, 1]` (sums to 1 up to rounding).
+   */
+  readonly languages: readonly {
+    readonly language: string;
+    readonly files: number;
+    readonly additions: number;
+    readonly deletions: number;
+    /** Changed-lines share of the reviewable diff, [0, 1]. */
+    readonly share: number;
   }[];
   /** Generated artifacts (lockfiles/build output) rejected from the metric. */
   readonly excluded: {
@@ -233,6 +249,34 @@ export function computeReviewStats(
     };
   }).filter((row) => row.files > 0);
 
+  // The diff, split by language (GitHub-linguist names), weighted by changed
+  // lines — the same denominator as `changedLines`, so the shares are provable
+  // against the bar. No byte-level linguist scan: the stored `files[].path` is
+  // the only signal, so this is an extension heuristic summed over reviewable
+  // files. Unrecognised paths pool under `'Other'`.
+  const languageTally = new Map<string, { files: number; additions: number; deletions: number }>();
+  for (const file of files) {
+    const language = languageOfFile(file?.path ?? '');
+    const entry = languageTally.get(language) ?? { files: 0, additions: 0, deletions: 0 };
+    entry.files += 1;
+    entry.additions += toNonNegative(file?.additions);
+    entry.deletions += toNonNegative(file?.deletions);
+    languageTally.set(language, entry);
+  }
+  const languages: ReviewStats['languages'] = [...languageTally.entries()]
+    .map(([language, entry]) => ({
+      language,
+      files: entry.files,
+      additions: entry.additions,
+      deletions: entry.deletions,
+      share: share(entry.additions + entry.deletions, changedLines),
+    }))
+    .sort(
+      (a, b) =>
+        b.additions + b.deletions - (a.additions + a.deletions) ||
+        a.language.localeCompare(b.language),
+    );
+
   // The part of the diff we deliberately throw away: generated artifacts only
   // (lockfiles, node_modules/dist/build, source maps, minified bundles).
   // Surfacing them — by name, not just count — shows the attention denominator
@@ -306,6 +350,7 @@ export function computeReviewStats(
     findingTotal: findings.length,
     severity,
     composition,
+    languages,
     excluded,
     flaggedFilesList,
     cleanup: {
