@@ -19,6 +19,7 @@ import { eq } from 'drizzle-orm';
 import { isReviewableFile } from '../review-file-classify.js';
 import { redactSensitivePatch } from '../review-secret-redact.js';
 
+import { OpenAICompatibleError } from '@harness/agent-runtime';
 import type { ReviewAgent } from '@harness/agent-runtime';
 import {
   brand,
@@ -222,15 +223,33 @@ export class ReviewIngestService {
       bus.publish(createEvent(EventType.IntegrationTicketFetched, correlationId, ticketFetched));
     }
 
-    const agentOutput = await reviewAgent.review(
-      {
-        prUrl: pr.url,
-        prTitle: pr.title,
-        requirement,
-        diff: buildDiff(pr.files),
-      },
-      { model, correlationId: task.id },
-    );
+    const agentOutput = await reviewAgent
+      .review(
+        {
+          prUrl: pr.url,
+          prTitle: pr.title,
+          requirement,
+          diff: buildDiff(pr.files),
+        },
+        { model, correlationId: task.id },
+      )
+      .catch((error: unknown) => {
+        // An AI-provider failure (timeout, network drop, or a non-2xx from the
+        // OpenAI-compatible endpoint) is an upstream problem, not a 500. Surface
+        // it as a review-ingest error with a status the create screen can map —
+        // so a hung "deepseek" model reads "timed out", never a bare Internal
+        // Server Error. Parse errors (ReviewParseError) pass through unchanged.
+        if (error instanceof OpenAICompatibleError) {
+          const isTimeout = error.kind === 'timeout';
+          throw new ReviewIngestError(
+            isTimeout
+              ? `the AI provider did not respond in time — ${error.message}`
+              : `the AI provider failed — ${error.message}`,
+            isTimeout ? 504 : 502,
+          );
+        }
+        throw error;
+      });
 
     const reportId = newReviewReportID();
     await db.insert(reviewReports).values({
