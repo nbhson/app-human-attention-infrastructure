@@ -198,9 +198,26 @@ function buildRawLLMProvider(): LLMProvider {
       apiKey: process.env.AI_API_KEY ?? '',
       baseUrl,
       model: process.env.AI_MODEL ?? 'gpt-4.1',
+      // A reasoning-capable model (deepseek/openai-reasoner style) spends output
+      // budget on chain-of-thought *and* the review JSON. With `AI_MAX_TOKENS` at
+      // 32k and this model generating ~65 tok/s, a large review can run ~8 min, so
+      // the timeout must cover the *token budget*, not just the common case. 600s
+      // ≈ the full 32k budget at the measured rate — raise `AI_TIMEOUT_MS` on a
+      // slower endpoint, and `AI_MAX_TOKENS` alongside it for very large PRs.
+      timeoutMs: envInt('AI_TIMEOUT_MS', 600_000),
     });
   }
   return new MockLLM(loadMockScript(process.env.MOCK_LLM_SCRIPT));
+}
+
+/** Parse a positive integer env var, or fall back to `fallback`. */
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim().length === 0) {
+    return fallback;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 /** Build the full container, wiring every token in dependency order. */
@@ -642,7 +659,10 @@ export function buildContainer(): Container {
   });
 
   c.register(TOKENS.ReviewAgent, (container) => {
-    return new ReviewAgent(container.resolve<LLMProvider>(TOKENS.LLMProvider));
+    const llm = container.resolve<LLMProvider>(TOKENS.LLMProvider);
+    // Headroom above the ordinary 8k so a reasoning model's chain-of-thought
+    // plus an exhaustive review JSON don't truncate (see buildRawLLMProvider).
+    return new ReviewAgent(llm, envInt('AI_MAX_TOKENS', 32_000));
   });
 
   c.register(TOKENS.ReviewIngestService, (container) => {

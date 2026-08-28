@@ -8,3 +8,4 @@ export * from './llm/openai-compatible-provider.js';
 
 export * from './review/review-agent.js';
 export * from './review/review-output.js';
+export * from './review/parse-review.js';

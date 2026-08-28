@@ -19,7 +19,7 @@ import { eq } from 'drizzle-orm';
 import { isReviewableFile } from '../review-file-classify.js';
 import { redactSensitivePatch } from '../review-secret-redact.js';
 
-import { OpenAICompatibleError } from '@harness/agent-runtime';
+import { OpenAICompatibleError, ReviewParseError } from '@harness/agent-runtime';
 import type { ReviewAgent } from '@harness/agent-runtime';
 import {
   brand,
@@ -238,7 +238,7 @@ export class ReviewIngestService {
         // OpenAI-compatible endpoint) is an upstream problem, not a 500. Surface
         // it as a review-ingest error with a status the create screen can map —
         // so a hung "deepseek" model reads "timed out", never a bare Internal
-        // Server Error. Parse errors (ReviewParseError) pass through unchanged.
+        // Server Error.
         if (error instanceof OpenAICompatibleError) {
           const isTimeout = error.kind === 'timeout';
           throw new ReviewIngestError(
@@ -246,6 +246,16 @@ export class ReviewIngestService {
               ? `the AI provider did not respond in time — ${error.message}`
               : `the AI provider failed — ${error.message}`,
             isTimeout ? 504 : 502,
+          );
+        }
+        // A reasoning model whose output budget was exhausted returns truncated
+        // JSON; parsing it fails with a ReviewParseError. That is still an
+        // upstream/AI problem (retry-able, not a code defect), so surface it as
+        // a 502 rather than leaking an unhelpful 500.
+        if (error instanceof ReviewParseError) {
+          throw new ReviewIngestError(
+            `the AI returned an unusable review (${error.message}) — try again`,
+            502,
           );
         }
         throw error;

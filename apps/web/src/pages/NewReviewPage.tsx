@@ -122,6 +122,9 @@ function classifyError(error: unknown): { title: string; detail: string } {
     if (error.status === 502 || error.status === 503) {
       return { title: 'The review service is unavailable.', detail: error.message };
     }
+    if (error.status === 504) {
+      return { title: 'The review timed out.', detail: error.message };
+    }
     return { title: "The review couldn't be created.", detail: error.message };
   }
   return {

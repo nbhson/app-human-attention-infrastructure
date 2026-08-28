@@ -27,14 +27,20 @@ export interface ReviewAgentOptions {
 }
 
 export class ReviewAgent {
-  constructor(private readonly llm: LLMProvider) {}
+  constructor(
+    private readonly llm: LLMProvider,
+    /** Default `maxTokens` when a request doesn't supply its own. A reasoning-capable
+     *  model spends output budget on both its chain-of-thought and the review JSON, so
+     *  this needs headroom over the ~8k an ordinary model would use (see `AI_MAX_TOKENS`). */
+    private readonly defaultMaxTokens = 8000,
+  ) {}
 
   async review(input: ReviewPromptInput, opts: ReviewAgentOptions): Promise<ReviewAgentOutput> {
     const prompt = buildReviewPrompt(input);
     const response = await this.llm.complete({
       model: opts.model,
       messages: [{ role: 'user', content: prompt.userMessage }],
-      maxTokens: opts.maxTokens ?? 8000,
+      maxTokens: opts.maxTokens ?? this.defaultMaxTokens,
       systemPrompt: prompt.systemPrompt,
       ...(opts.correlationId !== undefined ? { correlation_id: opts.correlationId } : {}),
     });
