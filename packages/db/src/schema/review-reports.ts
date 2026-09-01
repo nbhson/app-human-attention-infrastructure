@@ -33,6 +33,10 @@ export const reviewReports = pgTable(
     summary: text('summary').notNull(),
     overall_verdict: text('overall_verdict').notNull(),
     pr_payload: jsonb('pr_payload').notNull(),
+    /** Current stage of the async review pipeline. */
+    review_status: text('review_status').notNull().default('pending'),
+    /** Batch progress within the `reviewing` stage: `{ current, total }` or null. */
+    batch_progress: jsonb('batch_progress'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

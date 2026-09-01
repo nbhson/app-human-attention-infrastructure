@@ -28,6 +28,8 @@ const report: ReviewReport = {
   model: 'gpt-4.1',
   summary: 'Solid change, one correctness concern.',
   overallVerdict: 'REQUEST_CHANGES',
+  reviewStatus: 'complete',
+  batchProgress: null,
   effectiveVerdict: 'REQUEST_CHANGES',
   triage: { securityBlocked: false, regressionRisk: false, schemaGate: false, matchedRules: [] },
   createdAt: '2026-08-23T00:00:00.000Z',

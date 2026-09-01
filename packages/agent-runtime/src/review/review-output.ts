@@ -35,3 +35,13 @@ export interface ReviewAgentOutput {
   readonly findings: ReviewFindingOutput[];
   readonly suggestions: FixSuggestionOutput[];
 }
+
+/**
+ * Phase-4 two-pass: one file's risk assessment from the summary pass.
+ * Returned by {@link import('./review-agent.js').ReviewAgent.summarizeFiles}.
+ */
+export interface FileSummary {
+  readonly file: string;
+  readonly risk: 'high' | 'medium' | 'low';
+  readonly summary: string;
+}

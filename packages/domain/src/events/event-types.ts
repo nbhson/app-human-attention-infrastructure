@@ -46,6 +46,9 @@ export const EventType = {
   IntegrationTicketFetched: 'integration.ticket_fetched',
   ReviewReportCreated: 'review.report_created',
   ReviewFixSuggestionCreated: 'review.fix_suggestion_created',
+  // Phase 4: background review worker — emitted when a review request is queued
+  // for async processing so the HTTP request can return 202 immediately.
+  ReviewRequested: 'review.requested',
   IntegrationWritebackCompleted: 'integration.writeback_completed',
   // Review-reorient Phase 3 day-16: review memory. `memory.entry_created` proves
   // a curated entry was distilled and stored with its evidence links — the anchor

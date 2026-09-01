@@ -115,6 +115,7 @@ import { MCPWriteBack } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
 import { ReviewIngestService } from './services/review-ingest.js';
+import { ReviewWorkerSubscriber } from './services/review-worker.js';
 import { ReviewVerificationService } from './services/review-verification.js';
 import { JudgeShadow } from './services/judge-shadow.js';
 
@@ -677,7 +678,24 @@ export function buildContainer(): Container {
       aiProvider: identity.providerType,
       model: identity.model,
       logger: container.resolve<Logger>(TOKENS.Logger),
+      memoryProvider: container.resolve<MemoryProvider>(TOKENS.MemoryProvider),
+      maxBatchSize: envInt('REVIEW_MAX_BATCH_SIZE', 5),
+      maxBatchTokens: envInt('REVIEW_MAX_BATCH_TOKENS', 8000),
+      twoPassEnabled: process.env.REVIEW_TWO_PASS === 'true',
+      maxConcurrency: envInt('REVIEW_MAX_CONCURRENCY', 10),
     });
+  });
+
+  // Phase 4: background review worker — subscribes to `review.requested` and
+  // processes the AI review pipeline asynchronously so the HTTP route returns 202.
+  c.register(TOKENS.ReviewWorkerSubscriber, (container) => {
+    const worker = new ReviewWorkerSubscriber(
+      container.resolve<ReviewIngestService>(TOKENS.ReviewIngestService),
+      container.resolve<IEventBus>(TOKENS.EventBus),
+      container.resolve<Logger>(TOKENS.Logger),
+    );
+    worker.subscribe();
+    return worker;
   });
 
   // Review-reorient Phase 3 (wedge #1): the "run the real code" verifier. A
@@ -867,4 +885,5 @@ export function bootContainer(container: Container): void {
   container.resolve(TOKENS.JudgeShadow);
   container.resolve(TOKENS.ReviewVerificationService);
   container.resolve(TOKENS.MemoryIngestor);
+  container.resolve(TOKENS.ReviewWorkerSubscriber);
 }

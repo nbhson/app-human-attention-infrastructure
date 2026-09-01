@@ -42,9 +42,7 @@ const created: ReviewCreatedResult = {
   reportId: 'report-abc',
   taskId: 'task-abc',
   prUrl: 'https://github.com/acme/app/pull/123',
-  overallVerdict: 'REQUEST_CHANGES',
-  findingCount: 3,
-  suggestionCount: 2,
+  status: 'pending',
 };
 
 const VALID_URL = 'https://github.com/acme/app/pull/123';
@@ -116,7 +114,7 @@ describe('NewReviewPage', () => {
 
     resolveCreate(created);
 
-    expect(await screen.findByText('Review ready')).toBeInTheDocument();
+    expect(await screen.findByText('Review submitted')).toBeInTheDocument();
     expect(mocked.create).toHaveBeenCalledWith({ prUrl: VALID_URL });
     const viewLink = screen.getByRole('link', { name: /View Review/ });
     expect(viewLink).toHaveAttribute('href', '/reviews/report-abc');
@@ -130,7 +128,7 @@ describe('NewReviewPage', () => {
     fillValidUrl();
     fireEvent.click(screen.getByRole('button', { name: /Start Review/ }));
 
-    expect(await screen.findByText('Review ready')).toBeInTheDocument();
+    expect(await screen.findByText('Review submitted')).toBeInTheDocument();
     expect(await screen.findByText('Sandbox verification')).toBeInTheDocument();
     expect(screen.getByTestId('sandbox-status')).toHaveTextContent('passed');
     expect(mocked.getReport).toHaveBeenCalledWith('report-abc');
@@ -144,7 +142,7 @@ describe('NewReviewPage', () => {
     fireEvent.change(screen.getByLabelText(/Jira ticket/), { target: { value: 'ACME-42' } });
     fireEvent.click(screen.getByRole('button', { name: /Start Review/ }));
 
-    expect(await screen.findByText('Review ready')).toBeInTheDocument();
+    expect(await screen.findByText('Review submitted')).toBeInTheDocument();
     expect(mocked.create).toHaveBeenCalledWith({ prUrl: VALID_URL, jiraTicket: 'ACME-42' });
   });
 

@@ -12,25 +12,18 @@ import {
 
 /**
  * New AI Code Review (review-reorient Phase 3, redesigned) — the entry point of
- * the review workflow: enter the PR → start the AI review → track it → open.
+ * the review workflow: enter the PR → submit the review → track it → open.
  *
- * The backend `POST /api/reviews` is a single long-running request (fetch the PR,
- * build the diff, run the AI review, store the report) with **no** per-stage
- * status stream. So the processing screen shows an honest *indeterminate* progress
- * — one in-flight request — instead of a fabricated per-stage checklist advancing
- * on a timer. After the report lands, this page polls the real report (bounded) to
- * surface the machine-side sandbox verification (clone → build → test in Docker)
- * as it moves PENDING → RUNNING → a terminal state. That run is fire-and-forget
- * and only *flags*, never gates — the report page stays authoritative for detail.
+ * The backend `POST /api/reviews` returns 202 immediately and processes the
+ * review in a background worker. The report starts with a placeholder summary
+ * ("⏳ Review is being processed...") and the report page polls until it's done.
+ * This page shows the submission result and then polls the real report for the
+ * sandbox verification (clone → build → test in Docker) as it moves PENDING →
+ * RUNNING → a terminal state. That run is fire-and-forget and only *flags*,
+ * never gates — the report page stays authoritative for detail.
  */
 
 type Phase = 'form' | 'processing' | 'success' | 'error';
-
-const VERDICT_LABEL: Record<string, string> = {
-  APPROVE: 'Approve',
-  REQUEST_CHANGES: 'Request changes',
-  COMMENT: 'Comment',
-};
 
 /** Sandbox-verification status → glanceable label + tone (mirrors VerificationTab). */
 const VERIFICATION_TONE: Record<
@@ -336,11 +329,10 @@ export default function NewReviewPage(): JSX.Element {
           <span className="result-icon">
             <CheckIcon />
           </span>
-          <h2 className="result-title">Review ready</h2>
+          <h2 className="result-title">Review submitted</h2>
           <p className="result-summary">
-            {VERDICT_LABEL[result.overallVerdict] ?? result.overallVerdict} · {result.findingCount}{' '}
-            {result.findingCount === 1 ? 'finding' : 'findings'} · {result.suggestionCount}{' '}
-            {result.suggestionCount === 1 ? 'suggestion' : 'suggestions'}
+            HAI is reviewing your pull request in the background — this can take a few minutes. Open
+            the report page to track progress.
           </p>
 
           <div className="verification-block">

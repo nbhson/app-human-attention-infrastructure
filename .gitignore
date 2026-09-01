@@ -9,4 +9,5 @@ coverage/
 .vitest-out.json
 /sandbox/
 working-repo/
+.claude/
 mcp.config.json

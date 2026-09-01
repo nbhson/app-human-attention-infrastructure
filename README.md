@@ -197,7 +197,19 @@ cp .env.example .env                # DATABASE_URL + placeholder provider keys
 pnpm --filter @harness/db migrate   # apply migrations
 pnpm test                           # unit + integration (~2 min)
 pnpm dev                            # run the API + web UI
+	# Open http://localhost:3000/api/auth/login in your browser first
+	# to complete the OIDC mock login — this sets the session cookie
+	# so the UI (http://localhost:5173) can talk to the API without 401s.
 ```
+
+> **First-time login:** the API requires authentication for every route
+> (driven by `requireRole`). When `OIDC_MOCK=true` (the local dev default), open
+> [`http://localhost:3000/api/auth/login`](http://localhost:3000/api/auth/login) in your browser. This triggers the mock OIDC
+> flow: it redirects to a self-callback, creates a user + session in the database,
+> and sets the `sid` httpOnly cookie. After that, the UI at
+> [`http://localhost:5173`](http://localhost:5173) works without 401s. Alternatively, set
+> `APP_URL=http://localhost:5173` in `.env` and visit
+> [`http://localhost:5173/api/auth/login`](http://localhost:5173/api/auth/login) through the Vite proxy instead.
 
 **Requirements:** Node.js ≥ 20, pnpm ≥ 9 (pinned `9.15.4`), Docker. Full walkthrough
 in the [Developer Guide](docs/dev-guide.md).

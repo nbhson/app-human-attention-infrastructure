@@ -182,12 +182,23 @@ The review slice (`POST /api/reviews`) lands its output in three tables. A
 report has N findings (severity + file + line) and M fix suggestions (file +
 hunk + proposed change). Join on `review_reports.id`.
 
+The `review_status` column tracks the async pipeline stage (`pending` →
+`fetching` → `recalling` → `reviewing` → `storing` → `complete` / `error`).
+The `batch_progress` column (`{ current, total }`) shows how many batches
+are done during the `reviewing` stage.
+
 ```sql
--- latest reports
-SELECT id, repo_path, pr_number, overall_verdict, summary, created_at
+-- latest reports with status
+SELECT id, repo, pr_number, overall_verdict, review_status, batch_progress, summary, created_at
 FROM review_reports
 ORDER BY created_at DESC
 LIMIT 20;
+
+-- reports still being processed (stuck or slow)
+SELECT id, repo, pr_number, review_status, batch_progress, created_at
+FROM review_reports
+WHERE review_status NOT IN ('complete', 'error')
+  AND created_at < now() - interval '5 minutes';
 
 -- findings per report (most severe first)
 SELECT report_id, severity, file, line, message

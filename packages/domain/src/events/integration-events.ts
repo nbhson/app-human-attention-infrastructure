@@ -48,6 +48,18 @@ export interface ReviewReportCreatedPayload {
   readonly suggestion_count: number;
 }
 
+/** Payload for {@link import('./event-types.js').EventType.ReviewRequested}. */
+export interface ReviewRequestedPayload {
+  /** The task this review request belongs to. */
+  readonly task_id: TaskID;
+  /** The review report id (pre-created with placeholder data). */
+  readonly review_report_id: ReviewReportID;
+  /** The PR URL to review. */
+  readonly pr_url: string;
+  /** Optional Jira ticket key. */
+  readonly jira_ticket?: string;
+}
+
 /** Payload for {@link import('./event-types.js').EventType.ReviewFixSuggestionCreated}. */
 export interface ReviewFixSuggestionCreatedPayload {
   /** The task the suggestion belongs to. */
