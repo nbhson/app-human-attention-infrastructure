@@ -12,6 +12,8 @@ and fix suggestions — so a reviewer sees only what actually matters, never the
 flood. Every step lands in an append-only event log, so the trail is replayable,
 queryable, and auditable.
 
+![HAI Review UI](./HAI.png)
+
 | | |
 | --- | --- |
 | **Status** | Feature-complete · tagged `v0.3.0-harness` · review-only control plane (`review-reorient`) |
