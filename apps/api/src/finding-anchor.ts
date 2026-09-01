@@ -47,7 +47,7 @@ interface StoredPrPayload {
  */
 function newFileHunkRanges(patch: string): ReadonlyArray<readonly [number, number]> {
   const ranges: Array<readonly [number, number]> = [];
-  const header = /@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/g;
+  const header = /@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@(?:\s.*)?/g;
   let match: RegExpExecArray | null;
   while ((match = header.exec(patch)) !== null) {
     const start = Number(match[1]);

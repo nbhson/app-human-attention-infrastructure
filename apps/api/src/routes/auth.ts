@@ -46,6 +46,20 @@ function prunePendingLogins(): void {
   }
 }
 
+/** Periodic sweep so expired entries are reclaimed even during idle periods. */
+let pruneTimer: ReturnType<typeof setInterval> | null = null;
+export function startPendingLoginPruner(intervalMs = 5 * 60_000): void {
+  if (pruneTimer !== null) return;
+  prunePendingLogins();
+  pruneTimer = setInterval(prunePendingLogins, intervalMs);
+}
+export function stopPendingLoginPruner(): void {
+  if (pruneTimer !== null) {
+    clearInterval(pruneTimer);
+    pruneTimer = null;
+  }
+}
+
 /** The absolute callback URL the IdP redirects to. */
 function callbackUrl(): string {
   const base = process.env.APP_URL ?? 'http://localhost:3000';
@@ -63,6 +77,8 @@ function setSessionCookie(reply: FastifyReply, sid: string): void {
 
 /** Register the four auth endpoints. */
 export function registerAuthRoutes(app: FastifyInstance, container: Container): void {
+  startPendingLoginPruner();
+
   const resolve = () => ({
     provider: container.resolve<OidcProvider>(TOKENS.OidcProvider),
     auth: container.resolve<AuthService>(TOKENS.AuthService),
@@ -138,5 +154,10 @@ export function registerAuthRoutes(app: FastifyInstance, container: Container): 
     }
     reply.header('set-cookie', 'sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
     return { ok: true };
+  });
+
+  // Clean up the periodic pruner when the server shuts down.
+  app.addHook('onClose', () => {
+    stopPendingLoginPruner();
   });
 }

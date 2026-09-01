@@ -30,18 +30,19 @@ import {
   ReviewService,
 } from '@harness/review';
 
-/** Raw shapes the routes accept; the service re-brands what it needs. */
-interface DecideBody {
-  readonly decision: 'APPROVE' | 'REJECT';
-  readonly rationale: string;
-  readonly wasUseful: boolean;
-  readonly comment?: string;
-}
-interface DropBody {
-  readonly rationale: string;
-}
-interface EscalateBody {
-  readonly rationale: string;
+import type { QueueDecideBody, RationaleBody } from './shared-types.js';
+
+/** Safely extract the authenticated user; returns 401 when missing. */
+function assertUser(
+  request: import('fastify').FastifyRequest,
+  reply: import('fastify').FastifyReply,
+): NonNullable<typeof request.auth>['user'] | null {
+  const user = request.auth?.user;
+  if (!user) {
+    void reply.code(401).send({ error: 'unauthenticated' });
+    return null;
+  }
+  return user;
 }
 
 /** Map a review failure onto the right HTTP status (day-22 §3.3). */
@@ -104,9 +105,11 @@ export function registerReviewRoutes(app: FastifyInstance, container: Container)
     async (request, reply) => {
       try {
         const { id } = request.params;
+        const user = assertUser(request, reply);
+        if (!user) return reply;
         return await reviewService.claim(
           brand(id, 'ReviewQueueItemID'),
-          brand(request.auth!.user.id, 'ReviewerID'),
+          brand(user.id, 'ReviewerID'),
         );
       } catch (error) {
         return toErrorReply(reply, error);
@@ -114,14 +117,15 @@ export function registerReviewRoutes(app: FastifyInstance, container: Container)
     },
   );
 
-  app.post<{ Params: { id: string }; Body: DecideBody }>(
+  app.post<{ Params: { id: string }; Body: QueueDecideBody }>(
     '/api/review/queue/:id/decide',
     { preHandler: canReview },
     async (request, reply) => {
       try {
         const { id } = request.params;
         const body = request.body;
-        const { user } = request.auth!;
+        const user = assertUser(request, reply);
+        if (!user) return reply;
         return await reviewService.decide(brand(id, 'ReviewQueueItemID'), {
           decision: body.decision,
           rationale: body.rationale,
@@ -137,13 +141,14 @@ export function registerReviewRoutes(app: FastifyInstance, container: Container)
     },
   );
 
-  app.post<{ Params: { id: string }; Body: DropBody }>(
+  app.post<{ Params: { id: string }; Body: RationaleBody }>(
     '/api/review/queue/:id/drop',
     { preHandler: canReview },
     async (request, reply) => {
       try {
         const { id } = request.params;
-        const { user } = request.auth!;
+        const user = assertUser(request, reply);
+        if (!user) return reply;
         await reviewService.drop(brand(id, 'ReviewQueueItemID'), {
           rationale: request.body.rationale,
           reviewerId: brand(user.id, 'ReviewerID'),
@@ -163,7 +168,8 @@ export function registerReviewRoutes(app: FastifyInstance, container: Container)
     async (request, reply) => {
       try {
         const { id } = request.params;
-        const { user } = request.auth!;
+        const user = assertUser(request, reply);
+        if (!user) return reply;
         await reviewService.release(brand(id, 'ReviewQueueItemID'), {
           actorId: user.id,
           actorEmail: user.email,
@@ -175,13 +181,14 @@ export function registerReviewRoutes(app: FastifyInstance, container: Container)
     },
   );
 
-  app.post<{ Params: { id: string }; Body: EscalateBody }>(
+  app.post<{ Params: { id: string }; Body: RationaleBody }>(
     '/api/review/queue/:id/escalate',
     { preHandler: canReview },
     async (request, reply) => {
       try {
         const { id } = request.params;
-        const { user } = request.auth!;
+        const user = assertUser(request, reply);
+        if (!user) return reply;
         return await reviewService.escalate(brand(id, 'ReviewQueueItemID'), {
           rationale: request.body.rationale,
           reviewerId: brand(user.id, 'ReviewerID'),

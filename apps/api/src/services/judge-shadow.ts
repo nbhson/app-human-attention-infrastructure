@@ -46,16 +46,19 @@ async function loadReport(db: DrizzleDB, reportId: ReviewReportID): Promise<Revi
     return null;
   }
 
-  const findingRows = await db
-    .select()
-    .from(reviewFindings)
-    .where(eq(reviewFindings.report_id, reportId))
-    .orderBy(asc(reviewFindings.order_index));
-  const suggestionRows = await db
-    .select()
-    .from(fixSuggestions)
-    .where(eq(fixSuggestions.report_id, reportId))
-    .orderBy(asc(fixSuggestions.order_index));
+  // Findings and suggestions are independent — fetch them in parallel.
+  const [findingRows, suggestionRows] = await Promise.all([
+    db
+      .select()
+      .from(reviewFindings)
+      .where(eq(reviewFindings.report_id, reportId))
+      .orderBy(asc(reviewFindings.order_index)),
+    db
+      .select()
+      .from(fixSuggestions)
+      .where(eq(fixSuggestions.report_id, reportId))
+      .orderBy(asc(fixSuggestions.order_index)),
+  ]);
 
   return createReviewReport({
     id: brand(row.id, 'ReviewReportID'),

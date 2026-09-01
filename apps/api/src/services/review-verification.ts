@@ -112,7 +112,22 @@ export class ReviewVerificationService {
       return;
     }
 
-    const pr = report.pr_payload as PullRequest;
+    // Validate the stored pr_payload shape before using it — the jsonb column
+    // round-trips as `unknown` through Drizzle so we guard against corruption.
+    const rawPayload = report.pr_payload;
+    if (
+      typeof rawPayload !== 'object' ||
+      rawPayload === null ||
+      !('provider' in rawPayload) ||
+      !('number' in rawPayload) ||
+      !('repo' in rawPayload) ||
+      !('url' in rawPayload) ||
+      !('files' in rawPayload)
+    ) {
+      await this.markError(rowId, 'review report has an invalid pr_payload shape');
+      return;
+    }
+    const pr = rawPayload as PullRequest;
     const cloneInput = cloneInputFromPullRequest(pr);
     const workdir = `${sandboxRoot()}/verify-${reportId}`;
 

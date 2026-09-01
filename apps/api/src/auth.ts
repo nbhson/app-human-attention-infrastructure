@@ -67,15 +67,15 @@ export function registerAuthHook(app: FastifyInstance, container: Container): vo
           } catch {
             request.auth = undefined; // an invalid token is treated as absent for this hook
           }
-          return;
-        }
-
-        const sid = readCookie(request.headers.cookie, 'sid');
-        if (sid) {
-          request.auth =
-            (await authService.resolveSessionContext(sid as AuthContext['sid'])) ?? undefined;
+          // fall through to runWithActor below
         } else {
-          request.auth = undefined;
+          const sid = readCookie(request.headers.cookie, 'sid');
+          if (sid) {
+            request.auth =
+              (await authService.resolveSessionContext(sid as AuthContext['sid'])) ?? undefined;
+          } else {
+            request.auth = undefined;
+          }
         }
       } catch (error) {
         done(error as Error);

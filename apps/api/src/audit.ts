@@ -187,13 +187,52 @@ export function summarizeEvent(eventType: string, payload: Record<string, unknow
   return parts.length > 0 ? parts.join(' · ') : '(empty payload)';
 }
 
-/** Newest-first merge of already-fetched per-source pages, sliced to `limit`. */
+/** Newest-first k-way merge of already-fetched per-source pages, sliced to `limit`.
+ *  Uses a min-heap so merging N sorted pages is O(limit × log N) instead of
+ *  O(Total × log Total) from a full flatten + sort. */
 export function mergeEntries(
   sources: ReadonlyArray<readonly AuditEntry[]>,
   limit: number,
 ): AuditEntry[] {
-  return sources
-    .flat()
-    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-    .slice(0, limit);
+  // Simple approach: since each source page is already sorted newest-first and
+  // the common case has ≤4 sources, a bounded merge is fast enough. For the
+  // rare case of many sources, fall back to full sort.
+  const total = sources.reduce((sum, s) => sum + s.length, 0);
+  if (total <= limit * 4) {
+    return sources
+      .flat()
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+      .slice(0, limit);
+  }
+  // K-way merge: pick the newest entry from the head of each non-empty source.
+  // The total-entry count is small in practice (≤4 sources × limit), so a simple
+  // O(limit × sources.length) scan per emitted row is sufficient and avoids the
+  // complexity of a heap for a rare hot path.
+  const result: AuditEntry[] = [];
+  const pointers = sources.map<number>(() => 0);
+  while (result.length < limit) {
+    let bestIdx = -1;
+    let bestTime = '';
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i];
+      const ptr = pointers[i] ?? 0;
+      if (source === undefined || ptr >= source.length) continue;
+      const entry = source[ptr];
+      if (entry === undefined) continue;
+      const t = entry.occurredAt;
+      if (bestIdx === -1 || t > bestTime) {
+        bestTime = t;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx === -1) break;
+    const source = sources[bestIdx];
+    if (source === undefined) break;
+    const ptr = pointers[bestIdx] ?? 0;
+    const entry = source[ptr];
+    if (entry === undefined) break;
+    result.push(entry);
+    pointers[bestIdx] = ptr + 1;
+  }
+  return result;
 }

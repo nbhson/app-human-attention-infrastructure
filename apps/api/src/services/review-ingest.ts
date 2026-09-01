@@ -18,6 +18,7 @@ import { eq } from 'drizzle-orm';
 
 import { isReviewableFile } from '../review-file-classify.js';
 import { redactSensitivePatch } from '../review-secret-redact.js';
+import { envInt } from '../env-utils.js';
 
 import { OpenAICompatibleError, ReviewParseError } from '@harness/agent-runtime';
 import { batchReview, budgetFiles } from '@harness/agent-runtime';
@@ -54,6 +55,44 @@ import type { Logger } from '@harness/di';
 import type { GitProvider } from '@harness/git-provider';
 import type { TicketProvider } from '@harness/ticket-provider';
 import type { TaskService } from '@harness/orchestrator';
+
+/**
+ * Retry a transient operation with exponential back-off (up to `maxAttempts`
+ * tries). DB deadlocks, connection drops, and lock timeouts are considered
+ * transient; business errors (not-found, validation) are not retried.
+ */
+async function retryTransient<T>(
+  label: string,
+  fn: () => Promise<T>,
+  logger: Logger,
+  reportId: string,
+  maxAttempts = 3,
+  baseMs = 200,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const isTransient =
+        error instanceof Error &&
+        /deadlock|lock timeout|connection|ECONNRESET|ETIMEDOUT/i.test(error.message);
+      if (!isTransient || attempt === maxAttempts) {
+        throw error;
+      }
+      const delayMs = baseMs * 2 ** (attempt - 1);
+      logger.warn(`${label} transient failure, retrying`, {
+        report_id: reportId,
+        attempt,
+        maxAttempts,
+        delayMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  // Unreachable — the loop always either returns or throws.
+  throw new Error(`${label} retry exhausted`);
+}
 
 /** A review-request failed for a user-correctable reason (bad URL, missing provider). */
 export class ReviewIngestError extends Error {
@@ -286,29 +325,32 @@ export class ReviewIngestService {
       pr_payload: pr,
     });
 
-    for (const [index, finding] of agentOutput.findings.entries()) {
-      await db.insert(reviewFindings).values({
-        id: newReviewFindingID(),
-        report_id: reportId,
-        severity: finding.severity,
-        kind: finding.kind ?? FindingKind.Correctness,
-        file: finding.file,
-        line: finding.line ?? null,
-        message: finding.message,
-        suggestion: finding.suggestion ?? null,
-        order_index: index,
-      });
+    // Batch insert findings + suggestions in two queries instead of N+1 round-trips.
+    const findingRows = agentOutput.findings.map((finding, index) => ({
+      id: newReviewFindingID(),
+      report_id: reportId,
+      severity: finding.severity,
+      kind: finding.kind ?? FindingKind.Correctness,
+      file: finding.file,
+      line: finding.line ?? null,
+      message: finding.message,
+      suggestion: finding.suggestion ?? null,
+      order_index: index,
+    }));
+    const suggestionRows = agentOutput.suggestions.map((suggestion, index) => ({
+      id: newFixSuggestionID(),
+      report_id: reportId,
+      file: suggestion.file,
+      hunk: suggestion.hunk ?? null,
+      proposed: suggestion.proposed,
+      rationale: suggestion.rationale,
+      order_index: index,
+    }));
+    if (findingRows.length > 0) {
+      await db.insert(reviewFindings).values(findingRows);
     }
-    for (const [index, suggestion] of agentOutput.suggestions.entries()) {
-      await db.insert(fixSuggestions).values({
-        id: newFixSuggestionID(),
-        report_id: reportId,
-        file: suggestion.file,
-        hunk: suggestion.hunk ?? null,
-        proposed: suggestion.proposed,
-        rationale: suggestion.rationale,
-        order_index: index,
-      });
+    if (suggestionRows.length > 0) {
+      await db.insert(fixSuggestions).values(suggestionRows);
     }
 
     const reportCreated: ReviewReportCreatedPayload = {
@@ -420,20 +462,34 @@ export class ReviewIngestService {
 
     if (!gitProvider) {
       logger.error('review processing failed: no git provider configured', { report_id: reportId });
-      await db
-        .update(reviewReports)
-        .set({ review_status: 'error', summary: '❌ Review failed: no Git provider configured' })
-        .where(eq(reviewReports.id, reportId))
-        .catch(() => {});
+      await retryTransient(
+        'status error',
+        () =>
+          db
+            .update(reviewReports)
+            .set({
+              review_status: 'error',
+              summary: '❌ Review failed: no Git provider configured',
+            })
+            .where(eq(reviewReports.id, reportId)),
+        logger,
+        reportId,
+      ).catch(() => {});
       return;
     }
 
     try {
       // Stage: fetching — retrieve PR from GitHub.
-      await db
-        .update(reviewReports)
-        .set({ review_status: 'fetching' })
-        .where(eq(reviewReports.id, reportId));
+      await retryTransient(
+        'status fetching',
+        () =>
+          db
+            .update(reviewReports)
+            .set({ review_status: 'fetching' })
+            .where(eq(reviewReports.id, reportId)),
+        logger,
+        reportId,
+      );
 
       const { repo, number } = parseGithubPrUrl(input.prUrl);
       const pr = await gitProvider.fetchPullRequest({ repo, number });
@@ -445,10 +501,16 @@ export class ReviewIngestService {
       }
 
       // Stage: recalling — retrieve past review context.
-      await db
-        .update(reviewReports)
-        .set({ review_status: 'recalling' })
-        .where(eq(reviewReports.id, reportId));
+      await retryTransient(
+        'status recalling',
+        () =>
+          db
+            .update(reviewReports)
+            .set({ review_status: 'recalling' })
+            .where(eq(reviewReports.id, reportId)),
+        logger,
+        reportId,
+      );
 
       // Track how many findings have been inserted so far for `order_index`.
       let findingOffset = 0;
@@ -456,13 +518,19 @@ export class ReviewIngestService {
 
       // Stage: reviewing — run the AI pipeline with a per-batch callback that
       // inserts findings progressively and updates batch_progress.
-      await db
-        .update(reviewReports)
-        .set({
-          review_status: 'reviewing',
-          batch_progress: { current: 0, total: 0 },
-        })
-        .where(eq(reviewReports.id, reportId));
+      await retryTransient(
+        'status reviewing',
+        () =>
+          db
+            .update(reviewReports)
+            .set({
+              review_status: 'reviewing',
+              batch_progress: { current: 0, total: 0 },
+            })
+            .where(eq(reviewReports.id, reportId)),
+        logger,
+        reportId,
+      );
 
       const agentOutput = await this.reviewWithPipeline(
         pr.files,
@@ -477,30 +545,32 @@ export class ReviewIngestService {
         brand(reportId, 'CorrelationID'),
         // Per-batch callback: insert findings + suggestions immediately, update progress.
         async (batchIndex: number, batchCount: number, output) => {
-          // Insert this batch's findings.
-          for (const finding of output.findings) {
-            await db.insert(reviewFindings).values({
-              id: newReviewFindingID(),
-              report_id: reportId,
-              severity: finding.severity,
-              kind: finding.kind ?? FindingKind.Correctness,
-              file: finding.file,
-              line: finding.line ?? null,
-              message: finding.message,
-              suggestion: finding.suggestion ?? null,
-              order_index: findingOffset++,
-            });
+          // Batch insert this batch's findings + suggestions.
+          const batchFindings = output.findings.map((finding) => ({
+            id: newReviewFindingID(),
+            report_id: reportId,
+            severity: finding.severity,
+            kind: finding.kind ?? FindingKind.Correctness,
+            file: finding.file,
+            line: finding.line ?? null,
+            message: finding.message,
+            suggestion: finding.suggestion ?? null,
+            order_index: findingOffset++,
+          }));
+          const batchSuggestions = output.suggestions.map((suggestion) => ({
+            id: newFixSuggestionID(),
+            report_id: reportId,
+            file: suggestion.file,
+            hunk: suggestion.hunk ?? null,
+            proposed: suggestion.proposed,
+            rationale: suggestion.rationale,
+            order_index: suggestionOffset++,
+          }));
+          if (batchFindings.length > 0) {
+            await db.insert(reviewFindings).values(batchFindings);
           }
-          for (const suggestion of output.suggestions) {
-            await db.insert(fixSuggestions).values({
-              id: newFixSuggestionID(),
-              report_id: reportId,
-              file: suggestion.file,
-              hunk: suggestion.hunk ?? null,
-              proposed: suggestion.proposed,
-              rationale: suggestion.rationale,
-              order_index: suggestionOffset++,
-            });
+          if (batchSuggestions.length > 0) {
+            await db.insert(fixSuggestions).values(batchSuggestions);
           }
           // Update batch progress.
           await db
@@ -513,23 +583,35 @@ export class ReviewIngestService {
       );
 
       // Stage: storing — finalise the report with merged summary + verdict.
-      await db
-        .update(reviewReports)
-        .set({ review_status: 'storing' })
-        .where(eq(reviewReports.id, reportId));
+      await retryTransient(
+        'status storing',
+        () =>
+          db
+            .update(reviewReports)
+            .set({ review_status: 'storing' })
+            .where(eq(reviewReports.id, reportId)),
+        logger,
+        reportId,
+      );
 
-      await db
-        .update(reviewReports)
-        .set({
-          summary: agentOutput.summary,
-          overall_verdict: agentOutput.overallVerdict,
-          review_status: 'complete',
-          batch_progress: null,
-        })
-        .where(eq(reviewReports.id, reportId));
+      await retryTransient(
+        'status complete',
+        () =>
+          db
+            .update(reviewReports)
+            .set({
+              summary: agentOutput.summary,
+              overall_verdict: agentOutput.overallVerdict,
+              review_status: 'complete',
+              batch_progress: null,
+            })
+            .where(eq(reviewReports.id, reportId)),
+        logger,
+        reportId,
+      );
 
       const reportCreated: ReviewReportCreatedPayload = {
-        task_id: reportId as unknown as TaskID,
+        task_id: brand(reportId, 'TaskID'),
         review_report_id: reportId,
         pr_url: pr.url,
         finding_count: findingOffset,
@@ -542,15 +624,20 @@ export class ReviewIngestService {
       logger.info('review report processed (async)', { report_id: reportId, pr_url: pr.url });
     } catch (error) {
       logger.error('review processing failed', { report_id: reportId, error: String(error) });
-      await db
-        .update(reviewReports)
-        .set({
-          review_status: 'error',
-          summary: `❌ Review failed: ${error instanceof Error ? error.message : String(error)}`,
-          overall_verdict: 'COMMENT' as const,
-        })
-        .where(eq(reviewReports.id, reportId))
-        .catch(() => {}); // Swallow DB error on the error-path.
+      await retryTransient(
+        'status error fallback',
+        () =>
+          db
+            .update(reviewReports)
+            .set({
+              review_status: 'error',
+              summary: `❌ Review failed: ${error instanceof Error ? error.message : String(error)}`,
+              overall_verdict: 'COMMENT' as const,
+            })
+            .where(eq(reviewReports.id, reportId)),
+        logger,
+        reportId,
+      ).catch(() => {}); // Swallow DB error on the error-path.
     }
   }
 
@@ -679,14 +766,4 @@ export class ReviewIngestService {
       onBatch,
     );
   }
-}
-
-/** Parse a positive integer env var, or fall back to `fallback`. */
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw.trim().length === 0) {
-    return fallback;
-  }
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }

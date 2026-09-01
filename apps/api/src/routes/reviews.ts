@@ -18,7 +18,7 @@
 
 import type { FastifyInstance } from 'fastify';
 
-import { asc, desc, eq, inArray } from 'drizzle-orm';
+import { asc, count, desc, eq, inArray } from 'drizzle-orm';
 
 import { requireRole } from '@harness/auth';
 import { TOKENS } from '@harness/di';
@@ -64,6 +64,7 @@ import {
 } from '../list-summary.js';
 import { computeTriage } from '../triage-rules.js';
 import { loadTriageRuleState } from '../triage-rules-store.js';
+import type { ReviewDecideBody } from './shared-types.js';
 
 /** The per-host tool map, reused to resolve a report's repo slug to a write-back host. */
 const GIT_TOOL_MAP = new StaticGitToolMap();
@@ -71,15 +72,6 @@ const GIT_TOOL_MAP = new StaticGitToolMap();
 interface CreateReviewBody {
   readonly prUrl?: string;
   readonly jiraTicket?: string;
-}
-
-interface DecideBody {
-  readonly decision?: string;
-  readonly rationale?: string;
-  /** When true, write a review comment back to the PR (behind the write-back toggle). */
-  readonly writeback?: boolean;
-  /** Optional comment text for the write-back; defaults to a decision summary. */
-  readonly comment?: string;
 }
 
 const DECISIONS = new Set<string>(Object.values(ReviewDecisionType));
@@ -107,7 +99,11 @@ interface ListFindingSummary {
 }
 
 /** Register the review endpoints under `/api/reviews`. */
-export function registerReviewIngestRoutes(app: FastifyInstance, container: Container): void {
+export function registerReviewIngestRoutes(
+  app: FastifyInstance,
+  container: Container,
+  rateLimit?: (ip: string) => boolean,
+): void {
   const ingest = container.resolve<ReviewIngestService>(TOKENS.ReviewIngestService);
   const db = container.resolve<DrizzleDB>(TOKENS.Db);
   const bus = container.resolve<IEventBus>(TOKENS.EventBus);
@@ -116,6 +112,14 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
     '/api/reviews',
     { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
     async (request, reply) => {
+      // Rate-limit the AI-backed ingest so a misconfigured client can't exhaust
+      // the provider quota. Only checked when a limiter is wired in (app.ts).
+      if (rateLimit !== undefined) {
+        const ip = request.ip;
+        if (!rateLimit(ip)) {
+          return reply.code(429).send({ error: 'rate limit exceeded — slow down and try again' });
+        }
+      }
       try {
         const { prUrl, jiraTicket } = request.body ?? {};
         if (typeof prUrl !== 'string' || prUrl.trim().length === 0) {
@@ -174,48 +178,64 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
     },
   );
 
-  app.get<{ Querystring: { pending?: string } }>(
+  app.get<{ Querystring: { pending?: string; limit?: string; offset?: string } }>(
     '/api/reviews',
     { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
     async (request) => {
-      const rows = await db.select().from(reviewReports).orderBy(desc(reviewReports.created_at));
+      const limit = (() => {
+        const n = Number.parseInt(request.query.limit ?? '', 10);
+        return Number.isFinite(n) && n > 0 ? Math.min(n, 100) : 20;
+      })();
+      const offset = (() => {
+        const n = Number.parseInt(request.query.offset ?? '', 10);
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+      })();
+
+      // Fetch reports + rule state in parallel — rule state is independent of pagination.
+      const [rows, ruleState] = await Promise.all([
+        db
+          .select()
+          .from(reviewReports)
+          .orderBy(desc(reviewReports.created_at))
+          .limit(limit)
+          .offset(offset),
+        loadTriageRuleState(db),
+      ]);
+
       const ids = rows.map((row) => row.id);
-      // Decided reports + their *latest* decision (asc so a later row overwrites an
-      // earlier one). The latest decision is the effective state for the archive.
-      const decidedRows =
+      // Fetch decisions and findings in parallel — both depend only on `ids`.
+      const [decidedRows, findingRows] =
         ids.length === 0
-          ? []
-          : await db
-              .select({
-                reportId: reviewDecisions.report_id,
-                decision: reviewDecisions.decision,
-              })
-              .from(reviewDecisions)
-              .where(inArray(reviewDecisions.report_id, ids))
-              .orderBy(asc(reviewDecisions.created_at));
+          ? [[], []]
+          : await Promise.all([
+              db
+                .select({
+                  reportId: reviewDecisions.report_id,
+                  decision: reviewDecisions.decision,
+                })
+                .from(reviewDecisions)
+                .where(inArray(reviewDecisions.report_id, ids))
+                .orderBy(asc(reviewDecisions.created_at)),
+              db
+                .select({
+                  reportId: reviewFindings.report_id,
+                  severity: reviewFindings.severity,
+                  kind: reviewFindings.kind,
+                  file: reviewFindings.file,
+                  line: reviewFindings.line,
+                  message: reviewFindings.message,
+                })
+                .from(reviewFindings)
+                .where(inArray(reviewFindings.report_id, ids))
+                .orderBy(asc(reviewFindings.order_index)),
+            ]);
+
       const decidedIds = new Set<string>();
       const decisionByReport = new Map<string, string>();
       for (const row of decidedRows) {
         decidedIds.add(row.reportId);
         decisionByReport.set(row.reportId, row.decision);
       }
-      // One pass over the findings gives each row its severity/message preview (the
-      // expandable card summary) without an N+1 per-report read.
-      const findingRows =
-        ids.length === 0
-          ? []
-          : await db
-              .select({
-                reportId: reviewFindings.report_id,
-                severity: reviewFindings.severity,
-                kind: reviewFindings.kind,
-                file: reviewFindings.file,
-                line: reviewFindings.line,
-                message: reviewFindings.message,
-              })
-              .from(reviewFindings)
-              .where(inArray(reviewFindings.report_id, ids))
-              .orderBy(asc(reviewFindings.order_index));
       const findingsByReport = new Map<string, ListFindingSummary[]>();
       for (const row of findingRows) {
         const list = findingsByReport.get(row.reportId) ?? [];
@@ -229,7 +249,6 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         findingsByReport.set(row.reportId, list);
       }
       const pendingOnly = request.query.pending === '1' || request.query.pending === 'true';
-      const ruleState = await loadTriageRuleState(db);
       return rows
         .filter((row) => (pendingOnly ? !decidedIds.has(row.id) : true))
         .map((row) => {
@@ -276,19 +295,14 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
     '/api/reviews/summary',
     { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
     async () => {
-      const reportRows = await db.select({ reportId: reviewReports.id }).from(reviewReports);
-      const ids = reportRows.map((row) => row.reportId);
-      const decidedRows =
-        ids.length === 0
-          ? []
-          : await db
-              .select({
-                reportId: reviewDecisions.report_id,
-                decision: reviewDecisions.decision,
-              })
-              .from(reviewDecisions)
-              .where(inArray(reviewDecisions.report_id, ids))
-              .orderBy(asc(reviewDecisions.created_at));
+      // Two lightweight aggregate queries instead of loading all rows into memory.
+      const totalRow = await db.select({ total: count() }).from(reviewReports);
+      const total = totalRow[0]?.total ?? 0;
+      const decidedRows = await db
+        .select({ reportId: reviewDecisions.report_id, decision: reviewDecisions.decision })
+        .from(reviewDecisions)
+        .groupBy(reviewDecisions.report_id)
+        .orderBy(desc(reviewDecisions.created_at));
       const decisionByReport = new Map<string, string>();
       for (const row of decidedRows) {
         decisionByReport.set(row.reportId, row.decision);
@@ -298,7 +312,7 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         (decision) => decision === 'APPROVE',
       ).length;
       return {
-        pendingCount: reportRows.length - decidedCount,
+        pendingCount: total - decidedCount,
         decidedCount,
         approvedCount,
       };
@@ -319,35 +333,48 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
       if (!report) {
         return reply.code(404).send({ error: 'review report not found' });
       }
-      const findingsRows = await db
-        .select()
-        .from(reviewFindings)
-        .where(eq(reviewFindings.report_id, id))
-        .orderBy(asc(reviewFindings.order_index));
-      const suggestionsRows = await db
-        .select()
-        .from(fixSuggestions)
-        .where(eq(fixSuggestions.report_id, id))
-        .orderBy(asc(fixSuggestions.order_index));
 
-      const llmRows =
+      // All subsidiary queries are independent — run them in parallel.
+      const [
+        findingsRows,
+        suggestionsRows,
+        llmRows,
+        judgeRows,
+        decisionRows,
+        verificationRows,
+        ruleState,
+      ] = await Promise.all([
+        db
+          .select()
+          .from(reviewFindings)
+          .where(eq(reviewFindings.report_id, id))
+          .orderBy(asc(reviewFindings.order_index)),
+        db
+          .select()
+          .from(fixSuggestions)
+          .where(eq(fixSuggestions.report_id, id))
+          .orderBy(asc(fixSuggestions.order_index)),
         report.correlation_id !== null && report.correlation_id !== undefined
-          ? await db
+          ? db
               .select()
               .from(llmCallLog)
               .where(eq(llmCallLog.correlation_id, report.correlation_id))
               .orderBy(asc(llmCallLog.created_at))
-          : [];
-      const judgeRows = await db
-        .select()
-        .from(judgeRuns)
-        .where(eq(judgeRuns.report_id, id))
-        .orderBy(asc(judgeRuns.created_at));
-      const decisionRows = await db
-        .select()
-        .from(reviewDecisions)
-        .where(eq(reviewDecisions.report_id, id))
-        .orderBy(asc(reviewDecisions.created_at));
+          : [],
+        db
+          .select()
+          .from(judgeRuns)
+          .where(eq(judgeRuns.report_id, id))
+          .orderBy(asc(judgeRuns.created_at)),
+        db
+          .select()
+          .from(reviewDecisions)
+          .where(eq(reviewDecisions.report_id, id))
+          .orderBy(asc(reviewDecisions.created_at)),
+        db.select().from(reviewVerifications).where(eq(reviewVerifications.report_id, id)).limit(1),
+        loadTriageRuleState(db),
+      ]);
+
       const decisionIds = decisionRows.map((row) => row.id);
       const writebackRows =
         decisionIds.length === 0
@@ -358,15 +385,9 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
               .where(inArray(writebackLog.decision_id, decisionIds))
               .orderBy(asc(writebackLog.created_at));
 
-      const verificationRows = await db
-        .select()
-        .from(reviewVerifications)
-        .where(eq(reviewVerifications.report_id, id))
-        .limit(1);
       const verificationRow = verificationRows[0] ?? null;
       const verificationFlag = (verificationRow?.flag ?? null) as StoredVerificationFlag | null;
 
-      const ruleState = await loadTriageRuleState(db);
       const triage = computeTriage({
         rules: ruleState,
         findings: findingsRows,
@@ -399,7 +420,7 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
         // than letting an operator tick it and silently record OFF. The
         // per-provider WRITEBACK_<PROVIDER> arm is a further, host-level gate
         // still enforced at decision time.
-        writeback: { enabled: writebackEnabled(true) },
+        writeback: { enabled: writebackEnabled(true, process.env) },
         stats: computeReviewStats(report.pr_payload, findingsRows),
         findings: findingsRows.map((f) => ({
           id: f.id,
@@ -488,7 +509,7 @@ export function registerReviewIngestRoutes(app: FastifyInstance, container: Cont
     },
   );
 
-  app.post<{ Params: { id: string }; Body: DecideBody }>(
+  app.post<{ Params: { id: string }; Body: ReviewDecideBody }>(
     '/api/reviews/:id/decision',
     { preHandler: requireRole(container, Role.Reviewer, Role.Admin) },
     async (request, reply) => {

@@ -153,7 +153,7 @@ async function build(roles: readonly Role[] = [Role.Operate, Role.Reviewer]): Pr
   const app = Fastify({ logger: false });
   registerAuthHook(app, container);
   registerAuthRoutes(app, container);
-  registerReviewIngestRoutes(app, container);
+  registerReviewIngestRoutes(app, container, undefined);
 
   const cookie = await loginCookie(app);
   return { app, intents, cookie, bus };

@@ -7,6 +7,8 @@
  * tests seed — yields a well-typed result.
  */
 
+import { nonNegativeInt } from './env-utils.js';
+
 /** The subset of `pr_payload` this module reads (see the `PullRequest` domain type). */
 interface StoredPrFile {
   readonly path?: unknown;
@@ -19,10 +21,6 @@ interface StoredPrPayload {
   readonly sourceBranch?: unknown;
   readonly targetBranch?: unknown;
   readonly files?: readonly StoredPrFile[];
-}
-
-function nonNegativeInt(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 function toNullableString(value: unknown): string | null {

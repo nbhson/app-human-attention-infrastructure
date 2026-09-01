@@ -16,7 +16,7 @@ const COMPOSE_FILE = /(^|\/)(docker-)?compose[^/]*\.ya?ml$/i;
 
 /** Key names whose value is a secret — the value is masked, the key is kept. */
 const SECRET_KEY =
-  /(pass(word)?|secret|token|api[_-]?key|private[_-]?key|credential|auth|cookie|salt|access[_-]?key)/i;
+  /(?:^|[_\s])(?:pass(word)?|secret|token|api[_-]?key|private[_-]?key|credential|auth|cookie|salt|access[_-]?key)[_\w]*/i;
 
 /** A `scheme://user:password@host` URL whose in-value password must be masked even on a benign key. */
 const URL_PASSWORD = /^([a-z][a-z0-9+.-]*:\/\/[^/@\s]*:)[^/@\s]+(@.*)$/i;

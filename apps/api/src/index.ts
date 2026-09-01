@@ -72,16 +72,26 @@ const start = async (): Promise<void> => {
   }
 };
 
-// A graceful stop is itself an auditable fact, not just a missing process.
+// A graceful stop waits for in-flight requests to finish before exiting, so the
+// audit log captures the `system.stopped` event with an accurate duration and
+// downstream load-balancers stop routing to us before we tear down.
+async function gracefulShutdown(signal: string): Promise<void> {
+  const bus = container.resolve<IEventBus>(TOKENS.EventBus);
+  bus.publish(
+    createEvent(EventType.SystemStopped, brand('bootstrap', 'CorrelationID'), {
+      service: 'harness-api',
+      reason: signal,
+    }),
+  );
+  await app.close().catch((err: unknown) => {
+    app.log.warn(`graceful shutdown close failed: ${String(err)}`);
+  });
+  process.exit(0);
+}
+
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    bus.publish(
-      createEvent(EventType.SystemStopped, brand('bootstrap', 'CorrelationID'), {
-        service: 'harness-api',
-        reason: signal,
-      }),
-    );
-    process.exit(0);
+    void gracefulShutdown(signal);
   });
 }
 

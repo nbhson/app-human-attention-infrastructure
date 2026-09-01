@@ -118,6 +118,7 @@ import { ReviewIngestService } from './services/review-ingest.js';
 import { ReviewWorkerSubscriber } from './services/review-worker.js';
 import { ReviewVerificationService } from './services/review-verification.js';
 import { JudgeShadow } from './services/judge-shadow.js';
+import { envInt } from './env-utils.js';
 
 /** Default session lifetime (7 days), overridable via `SESSION_TTL_MS` (day-01 §2.2). */
 const SECRET_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -209,16 +210,6 @@ function buildRawLLMProvider(): LLMProvider {
     });
   }
   return new MockLLM(loadMockScript(process.env.MOCK_LLM_SCRIPT));
-}
-
-/** Parse a positive integer env var, or fall back to `fallback`. */
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw.trim().length === 0) {
-    return fallback;
-  }
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 /** Build the full container, wiring every token in dependency order. */
