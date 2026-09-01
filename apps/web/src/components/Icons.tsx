@@ -309,3 +309,21 @@ export function ArrowLeft({ size = 16, className }: IconProps): JSX.Element {
     <path key="b" d="M19 12H5" />,
   ]);
 }
+
+export function Moon({ size = 16, className }: IconProps): JSX.Element {
+  return glyph(size, className, [<path key="a" d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />]);
+}
+
+export function Sun({ size = 16, className }: IconProps): JSX.Element {
+  return glyph(size, className, [
+    <circle key="a" cx="12" cy="12" r="4" />,
+    <path key="b" d="M12 2v2" />,
+    <path key="c" d="M12 20v2" />,
+    <path key="d" d="m4.93 4.93 1.41 1.41" />,
+    <path key="e" d="m17.66 17.66 1.41 1.41" />,
+    <path key="f" d="M2 12h2" />,
+    <path key="g" d="M20 12h2" />,
+    <path key="h" d="m6.34 17.66-1.41 1.41" />,
+    <path key="i" d="m19.07 4.93-1.41 1.41" />,
+  ]);
+}

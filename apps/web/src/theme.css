@@ -62,9 +62,90 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+/* Manual theme toggle — `[data-theme]` overrides `prefers-color-scheme`. */
+[data-theme='dark'] {
+  --color-bg: #070a0f;
+  --color-surface: #090d13;
+  --color-surface-2: #0e131b;
+  --color-border: #27272a;
+  --color-text: #f4f4f5;
+  --color-text-muted: #a1a1aa;
+  --color-text-faint: #71717a;
+
+  --color-danger: #f87171;
+  --color-danger-bg: rgba(239, 68, 68, 0.12);
+  --color-warning: #fbbf24;
+  --color-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-success: #34d399;
+  --color-info: #60a5fa;
+  --color-on-accent: #ffffff;
+
+  --accent: #2563eb;
+  --field: #0c1017;
+
+  --sev-critical: #ef4444;
+  --sev-major: #f97316;
+  --sev-minor: #eab308;
+  --sev-nit: #9ca3af;
+  --sev-info: #3b82f6;
+
+  --verdict-approve: #10b981;
+  --verdict-request-changes: #c25425;
+  --verdict-comment: #3b82f6;
+  --attention: #f97316;
+
+  --prio-critical: #f87171;
+  --prio-high: #fbbf24;
+  --prio-medium: #60a5fa;
+  --prio-low: #71717a;
+
+  --skeleton-base: #1c2128;
+  --skeleton-shine: #232a34;
+}
+
+[data-theme='light'] {
+  --color-bg: #ffffff;
+  --color-surface: #f6f8fa;
+  --color-surface-2: #ffffff;
+  --color-border: #d0d7de;
+  --color-text: #1f2328;
+  --color-text-muted: #57606a;
+  --color-text-faint: #6e7781;
+
+  --color-danger: #cf222e;
+  --color-danger-bg: #ffebe9;
+  --color-warning: #bc4c00;
+  --color-warning-bg: #fff8c5;
+  --color-success: #1a7f37;
+  --color-info: #0969da;
+  --color-on-accent: #ffffff;
+
+  --accent: #2563eb;
+  --field: #f6f8fa;
+
+  --sev-critical: #cf222e;
+  --sev-major: #bc4c00;
+  --sev-minor: #9a6700;
+  --sev-nit: #6e7781;
+  --sev-info: #0969da;
+
+  --verdict-approve: #1a7f37;
+  --verdict-request-changes: #bc4c00;
+  --verdict-comment: #0969da;
+  --attention: #bc4c00;
+
+  --prio-critical: #dc2626;
+  --prio-high: #ea580c;
+  --prio-medium: #ca8a04;
+  --prio-low: #6b7280;
+
+  --skeleton-base: #eaeef2;
+  --skeleton-shine: #f6f8fa;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
-    /* Reference mockup palette — matched to the Tailwind zinc/blue/amber/etc. */
+  :root:not([data-theme]) {
+    /* When no manual override is set, respects the OS preference. */
     --color-bg: #070a0f;
     --color-surface: #090d13;
     --color-surface-2: #0e131b;
@@ -90,7 +171,6 @@
     --sev-nit: #9ca3af;
     --sev-info: #3b82f6;
 
-    /* Verdict badge fills — mirror the reference workspace's verdict chips. */
     --verdict-approve: #10b981;
     --verdict-request-changes: #c25425;
     --verdict-comment: #3b82f6;
@@ -1792,6 +1872,34 @@ button {
 .sidebar-shortcuts:hover {
   color: #e4e4e7;
   border-color: #3f3f46;
+}
+
+/* Theme toggle button in sidebar footer. */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.theme-toggle:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.theme-toggle svg {
+  flex-shrink: 0;
 }
 
 .sidebar-profile {

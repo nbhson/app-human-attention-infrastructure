@@ -4,12 +4,13 @@ import { Link, NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { reviewsApi } from '../api/reviews';
-import { Activity, Command, Inbox, Plus, Sliders, X } from './Icons';
+import { Activity, Command, Inbox, Plus, Sliders, X, Sun, Moon } from './Icons';
 import {
   ActivityPanelProvider,
   SystemActivitySidebar,
   useActivityPanel,
 } from './SystemActivitySidebar';
+import { useTheme } from '../context/ThemeContext';
 
 /**
  * Application shell — the persistent left sidebar, the internally-scrolling
@@ -51,6 +52,7 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
     queryKey: ['reviewsSummary'],
     queryFn: () => reviewsApi.summary(),
   });
+  const { theme, toggleTheme } = useTheme();
 
   const pendingCount = summary?.pendingCount ?? 0;
 
@@ -148,6 +150,16 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
             </span>
             <span className="sidebar-status-sub">AI reviews waiting for human attention</span>
           </div>
+
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          >
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
         </div>
       </aside>
 
