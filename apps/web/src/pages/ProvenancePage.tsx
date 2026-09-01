@@ -33,7 +33,7 @@ export default function ProvenancePage(): JSX.Element {
       </p>
 
       <h2 style={{ marginBottom: 4 }}>{task.title}</h2>
-      <p style={{ color: '#6e7781', marginTop: 0 }}>
+      <p style={{ color: 'var(--color-text-faint)', marginTop: 0 }}>
         Task <code>{task.id}</code> · State: <strong>{task.state}</strong>
         {agentRun && ` · attempt ${agentRun.attemptNumber}`}
       </p>
@@ -68,7 +68,7 @@ export default function ProvenancePage(): JSX.Element {
         <ol>
           {trajectory.map((step) => (
             <li key={step.id}>
-              <span style={{ color: '#6e7781' }}>#{step.stepNumber}</span>{' '}
+              <span style={{ color: 'var(--color-text-faint)' }}>#{step.stepNumber}</span>{' '}
               {step.toolName ?? '(no tool)'}
             </li>
           ))}
@@ -82,7 +82,13 @@ export default function ProvenancePage(): JSX.Element {
           {artifacts.map((artifact) => (
             <li key={artifact.id}>
               <code>{artifact.filePath}</code>{' '}
-              <span style={{ color: '#6e7781', fontFamily: 'monospace', fontSize: '0.8rem' }}>
+              <span
+                style={{
+                  color: 'var(--color-text-faint)',
+                  fontFamily: 'monospace',
+                  fontSize: '0.8rem',
+                }}
+              >
                 sha256:{artifact.contentHash.slice(0, 8)}…
               </span>
             </li>
@@ -108,7 +114,7 @@ export default function ProvenancePage(): JSX.Element {
             ))}
           </ul>
         )}
-        <p style={{ color: '#6e7781', fontSize: '0.85rem' }}>
+        <p style={{ color: 'var(--color-text-faint)', fontSize: '0.85rem' }}>
           Evidence ({verification.evidenceIds.length}):{' '}
           {verification.evidenceIds.map((evidenceId) => (
             <code key={evidenceId} style={{ marginRight: 6 }}>

@@ -29,33 +29,33 @@ const PILLS: readonly Pill[] = [
     key: 'all',
     label: 'All',
     dot: null,
-    activeBg: '#2563eb',
-    activeCountBg: '#1d4ed8',
-    activeCountColor: '#dbeafe',
+    activeBg: 'var(--accent)',
+    activeCountBg: 'var(--color-bg)',
+    activeCountColor: 'var(--color-text)',
   },
   {
     key: 'REQUEST_CHANGES',
     label: 'Request changes',
-    dot: '#fbbf24',
-    activeBg: '#d97706',
-    activeCountBg: '#b45309',
-    activeCountColor: '#fef3c7',
+    dot: 'var(--verdict-request-changes)',
+    activeBg: 'var(--verdict-request-changes)',
+    activeCountBg: 'var(--color-surface)',
+    activeCountColor: 'var(--color-text)',
   },
   {
     key: 'COMMENT',
     label: 'Comment',
-    dot: '#60a5fa',
-    activeBg: '#3b82f6',
-    activeCountBg: '#2563eb',
-    activeCountColor: '#dbeafe',
+    dot: 'var(--verdict-comment)',
+    activeBg: 'var(--verdict-comment)',
+    activeCountBg: 'var(--color-surface)',
+    activeCountColor: 'var(--color-text)',
   },
   {
     key: 'APPROVE',
     label: 'Approve',
-    dot: '#34d399',
-    activeBg: '#059669',
-    activeCountBg: '#047857',
-    activeCountColor: '#d1fae5',
+    dot: 'var(--verdict-approve)',
+    activeBg: 'var(--verdict-approve)',
+    activeCountBg: 'var(--color-bg)',
+    activeCountColor: 'var(--color-text)',
   },
 ];
 
@@ -146,7 +146,11 @@ export function ReviewQueueFilters(props: ReviewQueueFiltersProps): JSX.Element 
                 className={`rq-pill ${active ? 'rq-pill--active' : 'rq-pill--idle'}`}
                 aria-label={pill.label}
                 aria-pressed={active}
-                style={active ? { background: pill.activeBg } : undefined}
+                style={
+                  active
+                    ? { background: pill.activeBg, color: 'var(--color-on-accent)' }
+                    : undefined
+                }
                 onClick={() => onStatusFilter(pill.key)}
               >
                 {pill.dot && (
@@ -213,13 +217,13 @@ export function ReviewQueueFilters(props: ReviewQueueFiltersProps): JSX.Element 
               aria-label="Filter by priority"
             >
               <option value="all">All</option>
-              <option value="high" style={{ color: '#fcd34d' }}>
+              <option value="high" style={{ color: 'var(--prio-high)' }}>
                 High
               </option>
-              <option value="medium" style={{ color: '#93c5fd' }}>
+              <option value="medium" style={{ color: 'var(--prio-medium)' }}>
                 Medium
               </option>
-              <option value="low" style={{ color: '#a1a1aa' }}>
+              <option value="low" style={{ color: 'var(--prio-low)' }}>
                 Low
               </option>
             </select>

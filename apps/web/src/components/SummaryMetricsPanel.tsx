@@ -151,16 +151,20 @@ function InsightCard({
         alignItems: 'flex-start',
         padding: 8,
         borderRadius: 8,
-        background: '#0c1018',
-        border: '1px solid rgba(39,39,42,0.6)',
+        background: 'var(--color-surface-muted)',
+        border: '1px solid var(--color-border)',
       }}
     >
       <span style={{ color, display: 'inline-flex', flexShrink: 0, marginTop: 1 }}>
         <Icon size={14} />
       </span>
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#e4e4e7' }}>{title}</span>
-        <span style={{ fontSize: '0.62rem', color: '#a1a1aa', lineHeight: 1.4 }}>{detail}</span>
+        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--color-text)' }}>
+          {title}
+        </span>
+        <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+          {detail}
+        </span>
       </div>
     </div>
   );
@@ -211,9 +215,9 @@ export function SummaryMetricsPanel({
         style={{
           padding: '20px 24px',
           borderRadius: 16,
-          background: '#090d14',
-          border: '1px solid rgba(39,39,42,0.9)',
-          boxShadow: '0 4px 6px -2px rgba(0,0,0,0.4)',
+          background: 'var(--color-surface-alt)',
+          border: '1px solid var(--color-border)',
+          boxShadow: 'var(--shadow-card)',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -235,7 +239,7 @@ export function SummaryMetricsPanel({
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
-                color: '#a1a1aa',
+                color: 'var(--color-text-muted)',
                 fontFamily: 'var(--font-mono)',
               }}
             >
@@ -249,7 +253,7 @@ export function SummaryMetricsPanel({
                 borderRadius: 999,
                 background: 'rgba(59,130,246,0.1)',
                 border: '1px solid rgba(59,130,246,0.3)',
-                color: '#60a5fa',
+                color: 'var(--color-blue)',
                 whiteSpace: 'nowrap',
               }}
             >
@@ -261,7 +265,7 @@ export function SummaryMetricsPanel({
             style={{
               margin: 0,
               fontSize: '0.82rem',
-              color: '#d4d4d8',
+              color: 'var(--color-text-subtlest)',
               lineHeight: 1.6,
               whiteSpace: 'pre-wrap',
             }}
@@ -277,7 +281,7 @@ export function SummaryMetricsPanel({
             gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
             gap: 8,
             paddingTop: 12,
-            borderTop: '1px solid rgba(39,39,42,0.7)',
+            borderTop: '1px solid var(--color-border)',
           }}
         >
           <InsightCard
@@ -308,9 +312,9 @@ export function SummaryMetricsPanel({
         style={{
           padding: '20px 24px',
           borderRadius: 16,
-          background: '#090d14',
-          border: '1px solid rgba(39,39,42,0.9)',
-          boxShadow: '0 4px 6px -2px rgba(0,0,0,0.4)',
+          background: 'var(--color-surface-alt)',
+          border: '1px solid var(--color-border)',
+          boxShadow: 'var(--shadow-card)',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -324,7 +328,7 @@ export function SummaryMetricsPanel({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 8,
-            borderBottom: '1px solid rgba(39,39,42,0.8)',
+            borderBottom: '1px solid var(--color-border)',
             paddingBottom: 10,
             flexWrap: 'wrap',
           }}
@@ -337,7 +341,7 @@ export function SummaryMetricsPanel({
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
-                color: '#a1a1aa',
+                color: 'var(--color-text-muted)',
                 fontFamily: 'var(--font-mono)',
               }}
             >
@@ -349,10 +353,10 @@ export function SummaryMetricsPanel({
               display: 'flex',
               alignItems: 'center',
               gap: 4,
-              background: '#0c1018',
+              background: 'var(--color-surface-muted)',
               padding: 2,
               borderRadius: 8,
-              border: '1px solid #27272a',
+              border: '1px solid var(--color-border)',
             }}
           >
             <button
@@ -369,8 +373,8 @@ export function SummaryMetricsPanel({
                 fontSize: '0.68rem',
                 fontWeight: 500,
                 cursor: 'pointer',
-                background: mode === 'donut' ? '#27272a' : 'transparent',
-                color: mode === 'donut' ? '#ffffff' : '#a1a1aa',
+                background: mode === 'donut' ? 'var(--color-border)' : 'transparent',
+                color: mode === 'donut' ? 'var(--color-on-accent)' : 'var(--color-text-muted)',
               }}
               aria-pressed={mode === 'donut'}
             >
@@ -391,8 +395,8 @@ export function SummaryMetricsPanel({
                 fontSize: '0.68rem',
                 fontWeight: 500,
                 cursor: 'pointer',
-                background: mode === 'bars' ? '#27272a' : 'transparent',
-                color: mode === 'bars' ? '#ffffff' : '#a1a1aa',
+                background: mode === 'bars' ? 'var(--color-border)' : 'transparent',
+                color: mode === 'bars' ? 'var(--color-on-accent)' : 'var(--color-text-muted)',
               }}
               aria-pressed={mode === 'bars'}
             >
@@ -412,7 +416,7 @@ export function SummaryMetricsPanel({
                 gap: 6,
                 fontSize: '0.66rem',
                 fontWeight: 600,
-                color: '#e4e4e7',
+                color: 'var(--color-text-subdued)',
                 marginBottom: 10,
               }}
             >
@@ -441,14 +445,16 @@ export function SummaryMetricsPanel({
                     style={{
                       fontSize: '1.5rem',
                       fontWeight: 700,
-                      color: '#e4e4e7',
+                      color: 'var(--color-text-subdued)',
                       lineHeight: 1,
                       fontFamily: 'var(--font-mono)',
                     }}
                   >
                     {findingTotal}
                   </span>
-                  <span style={{ fontSize: '0.6rem', color: '#71717a', marginTop: 2 }}>
+                  <span
+                    style={{ fontSize: '0.6rem', color: 'var(--color-text-faint)', marginTop: 2 }}
+                  >
                     {findingTotal === 1 ? 'finding' : 'findings'}
                   </span>
                 </div>
@@ -490,13 +496,13 @@ export function SummaryMetricsPanel({
                           flexShrink: 0,
                         }}
                       />
-                      <span style={{ color: '#d4d4d8', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
                         {severityLabel(row.band)}
                       </span>
                     </span>
                     <span
                       style={{
-                        color: '#a1a1aa',
+                        color: 'var(--color-text-muted)',
                         fontFamily: 'var(--font-mono)',
                         whiteSpace: 'nowrap',
                         display: 'flex',
@@ -505,7 +511,9 @@ export function SummaryMetricsPanel({
                       }}
                     >
                       {row.count}
-                      <span style={{ color: '#71717a', width: 32, textAlign: 'right' }}>
+                      <span
+                        style={{ color: 'var(--color-text-faint)', width: 32, textAlign: 'right' }}
+                      >
                         {countPct(row.count, findingTotal)}
                       </span>
                     </span>
@@ -562,7 +570,7 @@ export function SummaryMetricsPanel({
                 <span
                   style={{
                     fontSize: '0.6rem',
-                    color: '#a1a1aa',
+                    color: 'var(--color-text-muted)',
                     fontFamily: 'var(--font-mono)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em',
@@ -579,7 +587,7 @@ export function SummaryMetricsPanel({
         {/* Languages divider */}
         <div
           style={{
-            borderTop: '1px solid rgba(39,39,42,0.7)',
+            borderTop: '1px solid var(--color-border)',
             paddingTop: 14,
             display: 'flex',
             flexDirection: 'column',
@@ -594,7 +602,7 @@ export function SummaryMetricsPanel({
               gap: 6,
               fontSize: '0.66rem',
               fontWeight: 600,
-              color: '#e4e4e7',
+              color: 'var(--color-text-subdued)',
             }}
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -605,7 +613,7 @@ export function SummaryMetricsPanel({
               style={{
                 fontSize: '0.62rem',
                 fontFamily: 'var(--font-mono)',
-                color: '#71717a',
+                color: 'var(--color-text-faint)',
               }}
             >
               changed lines
@@ -613,7 +621,7 @@ export function SummaryMetricsPanel({
           </div>
 
           {languages.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '0.78rem', color: '#a1a1aa' }}>
+            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
               No changed files to break down by language.
             </p>
           ) : (
@@ -626,7 +634,7 @@ export function SummaryMetricsPanel({
                   borderRadius: 6,
                   overflow: 'hidden',
                   gap: 2,
-                  background: '#1b1f27',
+                  background: 'var(--color-surface-deep)',
                 }}
                 role="img"
                 aria-label="Changed lines by language"
@@ -676,8 +684,8 @@ export function SummaryMetricsPanel({
                         flexShrink: 0,
                       }}
                     />
-                    <span style={{ color: '#d4d4d8' }}>{row.language}</span>
-                    <span style={{ color: '#a1a1aa' }}>{sharePct(row.share)}</span>
+                    <span style={{ color: 'var(--color-text)' }}>{row.language}</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>{sharePct(row.share)}</span>
                   </span>
                 ))}
               </div>
@@ -692,14 +700,14 @@ export function SummaryMetricsPanel({
               justifyContent: 'space-between',
               gap: 8,
               fontSize: '0.62rem',
-              color: '#71717a',
+              color: 'var(--color-text-faint)',
               fontFamily: 'var(--font-mono)',
               paddingTop: 10,
-              borderTop: '1px solid rgba(39,39,42,0.6)',
+              borderTop: '1px solid var(--color-border)',
             }}
           >
             <span>Changed lines: {changedLines.toLocaleString()}</span>
-            <span style={{ color: '#10b981' }}>{totalFiles} files</span>
+            <span style={{ color: 'var(--color-success)' }}>{totalFiles} files</span>
           </div>
         </div>
       </section>

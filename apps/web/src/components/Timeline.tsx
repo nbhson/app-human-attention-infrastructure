@@ -28,11 +28,17 @@ export function Timeline({ events }: { readonly events: readonly ProvenanceEvent
             display: 'flex',
             gap: 12,
             padding: '6px 0',
-            borderBottom: '1px solid #d0d7de',
+            borderBottom: '1px solid var(--color-border)',
             fontSize: '0.85rem',
           }}
         >
-          <span style={{ color: '#6e7781', minWidth: 88, fontVariantNumeric: 'tabular-nums' }}>
+          <span
+            style={{
+              color: 'var(--color-text-faint)',
+              minWidth: 88,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
             +{offsetMs(event, first)}
           </span>
           <code data-testid="event-type">{event.eventType}</code>

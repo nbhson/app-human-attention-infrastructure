@@ -93,8 +93,8 @@ export default function ReviewDetailPage(): JSX.Element {
         <div
           role="alert"
           style={{
-            background: '#fff3cd',
-            color: '#7a5b00',
+            background: 'var(--color-warning-bg)',
+            color: 'var(--color-warning)',
             padding: 8,
             borderRadius: 6,
             marginBottom: 8,
@@ -146,7 +146,9 @@ export default function ReviewDetailPage(): JSX.Element {
         <DiffViewer diffs={data.diffs} />
       </section>
 
-      <section style={{ borderTop: '1px solid #d0d7de', marginTop: 16, paddingTop: 16 }}>
+      <section
+        style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 16 }}
+      >
         {!claimed ? (
           <button type="button" onClick={() => claim.mutate()} disabled={claim.isPending}>
             Claim

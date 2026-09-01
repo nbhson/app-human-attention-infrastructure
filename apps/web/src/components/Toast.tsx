@@ -47,9 +47,9 @@ const TOAST_ICON: Record<ToastType, (props: IconProps) => JSX.Element> = {
 };
 
 const TOAST_COLOR: Record<ToastType, string> = {
-  success: '#34d399',
-  warning: '#fbbf24',
-  info: '#60a5fa',
+  success: 'var(--color-success)',
+  warning: 'var(--color-warning)',
+  info: 'var(--color-info)',
 };
 
 export function Toast({

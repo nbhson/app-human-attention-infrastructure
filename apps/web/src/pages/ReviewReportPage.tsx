@@ -720,7 +720,7 @@ export default function ReviewReportPage(): JSX.Element {
                 gap: 8,
                 padding: '4px 12px',
                 borderRadius: '999px',
-                background: '#160d11',
+                background: 'var(--color-danger-bg)',
                 border: '1px solid rgba(239,68,68,0.3)',
                 fontSize: '0.76rem',
                 fontFamily: 'var(--font-mono)',
@@ -741,7 +741,7 @@ export default function ReviewReportPage(): JSX.Element {
                     position: 'absolute',
                     inset: 0,
                     borderRadius: '50%',
-                    background: '#f87171',
+                    background: 'var(--color-danger)',
                     opacity: 0.6,
                     animation: 'hai-ping 1.4s cubic-bezier(0,0,0.2,1) infinite',
                   }}
@@ -752,7 +752,7 @@ export default function ReviewReportPage(): JSX.Element {
                     width: 8,
                     height: 8,
                     borderRadius: '50%',
-                    background: '#ef4444',
+                    background: 'var(--color-danger)',
                   }}
                 />
               </span>

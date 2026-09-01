@@ -44,9 +44,13 @@ const VERDICT: Record<
   ReviewsListItem['overallVerdict'],
   { tone: Tone; label: string; color: string }
 > = {
-  REQUEST_CHANGES: { tone: 'amber', label: 'Request changes', color: '#fbbf24' },
-  COMMENT: { tone: 'blue', label: 'Comment', color: '#60a5fa' },
-  APPROVE: { tone: 'emerald', label: 'Approve', color: '#34d399' },
+  REQUEST_CHANGES: {
+    tone: 'amber',
+    label: 'Request changes',
+    color: 'var(--verdict-request-changes)',
+  },
+  COMMENT: { tone: 'blue', label: 'Comment', color: 'var(--verdict-comment)' },
+  APPROVE: { tone: 'emerald', label: 'Approve', color: 'var(--verdict-approve)' },
 };
 
 const PRIORITY: Record<PriorityLevel, { label: string; cls: string }> = {
@@ -79,7 +83,7 @@ function initials(name: string | null): string {
 const AVATAR_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2'];
 
 function avatarColor(name: string | null): string {
-  if (!name) return '#52525b';
+  if (!name) return 'var(--color-text-faint)';
   let hash = 0;
   for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];

@@ -27,7 +27,7 @@ export function EvidenceModal({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.4)',
+        background: 'rgba(0,0,0,0.5)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -36,8 +36,8 @@ export function EvidenceModal({
     >
       <div
         style={{
-          background: '#ffffff',
-          color: '#1f2328',
+          background: 'var(--color-surface-2)',
+          color: 'var(--color-text)',
           padding: 16,
           borderRadius: 8,
           maxWidth: 720,
@@ -57,12 +57,14 @@ export function EvidenceModal({
           {isError && <p>Could not load evidence {evidenceId}.</p>}
           {data && (
             <>
-              <p style={{ color: '#6e7781', fontSize: '0.85rem' }}>kind: {data.kind}</p>
+              <p style={{ color: 'var(--color-text-faint)', fontSize: '0.85rem' }}>
+                kind: {data.kind}
+              </p>
               <pre
                 data-testid="evidence-body"
                 style={{
                   whiteSpace: 'pre-wrap',
-                  background: '#f6f8fa',
+                  background: 'var(--color-surface)',
                   padding: 8,
                   borderRadius: 6,
                   fontSize: '0.8rem',
