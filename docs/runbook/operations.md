@@ -1,6 +1,6 @@
 # Operations procedures
 
-> **Status:** v1.0-candidate (as-built) — Day 40 exit review complete (`v0.3.0-harness`, EXIT-WITH-CARRYFORWARD).
+> **Status:** v1.0-candidate (as-built) — Day 40 exit review complete (`v0.4.0-harness`, EXIT-WITH-CARRYFORWARD).
 > Companion to [README.md](README.md) (incident-oriented) and
 > [audit-queries.md](audit-queries.md) (copy-paste SQL). These are the *planned*
 > procedures for the current stack: provider-token rotation, write-back audit,
