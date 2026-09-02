@@ -2,7 +2,7 @@
 
 > **Incident-oriented, not component-oriented.** Each entry is
 > _Symptom → Diagnose (exact command) → Resolve (exact command) → Escalate when._
-> Every command here was executed against the real stack on Day 29. If a command
+> Every command here was executed against the real stack. If a command
 > doesn't work as written, that's a runbook bug — fix it, don't improvise in an
 > incident.
 
@@ -11,13 +11,15 @@
 > (`apps/api/src/reconcile.ts`) — was retired. The live path is **review-only**:
 > `POST /api/reviews` fetches an external PR + Jira ticket, the AI reviews it
 > (report + findings + fix suggestions), and a `Task` is created then immediately
-> `CANCELLED`. This changes three entries:
+> `CANCELLED`. Three entries below are **historical only** and kept for provenance:
 >
-> - **R1** is historical — no live code path puts a task in `EXECUTING`/`VERIFYING`,
->   and the `agent_runs` / `trajectory_steps` tables it queries are orphaned. Kept
->   for provenance only.
-> - **R4** — keep the `llm_call_log` half; the `retry_log` / `agent_runs`
->   diagnostics query orphaned tables.
+> - **R1** — orphan detector for `EXECUTING`/`VERIFYING` tasks; no live code path
+>   reaches those states today. `agent_runs` / `trajectory_steps` are orphaned
+>   tables. Kept for historical query reference only.
+> - **R3** — verification timeout diagnostics; the `VERIFYING` state is retired,
+>   but the `verification_check_results` query remains valid for sandbox timeouts.
+> - **R4** — LLM cost diagnosis; the `retry_log` / `agent_runs` sub-queries are
+>   retired, but the `llm_call_log` query (Q6) is live.
 > - **R8** — the "startup reconciler recovers" claim is retired along with
 >   `reconcile.ts`; nothing re-runs orphan recovery at boot.
 
@@ -41,12 +43,17 @@ docker compose exec -T postgres psql -U harness -d harness
 
 ---
 
-## R1 — Task stuck in `EXECUTING` / `VERIFYING`
+## R1 — Task stuck in `EXECUTING` / `VERIFYING` ⚠️ HISTORICAL
 
-**Symptom:** a task sits in an in-flight state for > 10 minutes; the review queue
-never sees it.
+> **RETIRED in `review-reorient`.** No live code path puts a task in `EXECUTING`
+> or `VERIFYING`. The orphan detector and startup reconciler (`reconcile.ts`)
+> were removed. This entry is preserved for historical reference and for querying
+> old data in `task_state_history`.
 
-**Diagnose:**
+**Symptom (historical):** a task sat in an in-flight state for > 10 minutes; the
+review queue never saw it.
+
+**Diagnose (historical):**
 
 ```bash
 pnpm audit:orphans        # exit-code alarm over the same window (Q8)
@@ -56,43 +63,11 @@ docker compose exec -T postgres psql -U harness -d harness \
       WHERE state IN ('EXECUTING','VERIFYING') AND updated_at < now() - interval '10 minutes';"
 ```
 
-Then split on _who died_:
+If you see rows today, they are **historical artifacts from pre-`review-reorient`
+runs**. No action needed — they are read-only historical data.
 
-```bash
-# Is the API process even alive?
-curl -s localhost:3000/api/ops/health
-```
-
-**Resolve:**
-
-- **Process died (healthcheck unreachable):** restart it — `pnpm dev` (or the
-  deploy's start command). The **startup reconciler** (`apps/api/src/reconcile.ts`)
-  runs once at boot, before any loop starts, and escorts each orphan to
-  `AWAITING_HUMAN_INTERVENTION` (`reason = PROCESS_DIED`), publishing
-  `task.orphan_recovered`. Verify with audit-query Q9. You're done.
-- **Process is alive:** the agent is genuinely stuck inside a run. Pull its
-  trail and decide:
-
-  ```bash
-  docker compose exec -T postgres psql -U harness -d harness \
-    -c "SELECT * FROM agent_runs WHERE task_id = '<TASK_ID>' ORDER BY started_at DESC LIMIT 1;"
-
-  # its step-by-step trajectory (substitute the run id):
-  docker compose exec -T postgres psql -U harness -d harness \
-    -c "SELECT step_number, thought, tool_name, observation FROM trajectory_steps \
-        WHERE agent_run_id = '<RUN_ID>' ORDER BY step_number;"
-  ```
-
-  If the model is looping / out of budget, follow R6 to move it to
-  `AWAITING_HUMAN_INTERVENTION`.
-
-**Escalate when:** the reconciler recovered a task you did not expect to be stuck
-(Q9 shows a recovery right after a restart that _shouldn't_ have crashed), or the
-same task gets stranded repeatedly. That's a product bug, not an ops fix.
-
-> **Never "repair" an `EXECUTING`/`VERIFYING` row from a cron.** The orphan
-> detector is a smoke alarm, not a fixer; only the startup reconciler may act
-> (limitations.md §3).
+**Escalate when:** you see new `EXECUTING`/`VERIFYING` rows appearing after
+`review-reorient` — that would indicate a regression, not expected behavior.
 
 ---
 
@@ -136,7 +111,7 @@ with a healthy API and available reviewers — that's a routing/rectification bu
 
 ## R3 — Verification always times out
 
-**Symptom:** tasks stall in `VERIFYING`; the dwell query shows them lingering.
+**Symptom:** verification checks take longer than their budget.
 
 **Diagnose:**
 
@@ -163,7 +138,10 @@ timeout bump — file it as a **targeted/incremental verification** item
 
 ---
 
-## R4 — LLM cost spiking
+## R4 — LLM cost spiking ⚠️ PARTIALLY RETIRED
+
+> The `retry_log` and `agent_runs` sub-queries below are **retired** — those
+> tables have no live writer. Keep only the `llm_call_log` query (Q6).
 
 **Symptom:** token usage / cost climbs without a matching increase in completed work.
 
@@ -175,31 +153,17 @@ docker compose exec -T postgres psql -U harness -d harness \
   -c "SELECT correlation_id, count(*) AS calls, sum(input_tokens), sum(output_tokens) \
       FROM llm_call_log WHERE correlation_id IS NOT NULL \
       GROUP BY 1 ORDER BY 4 DESC LIMIT 20;"
-
-# retry storms:
-docker compose exec -T postgres psql -U harness -d harness \
-  -c "SELECT failure_class, count(*) FROM retry_log GROUP BY 1;"
-
-# max-steps / budget escalations (a runaway loop bills every step):
-docker compose exec -T postgres psql -U harness -d harness \
-  -c "SELECT escalation_reason, count(*) FROM agent_runs \
-      WHERE escalation_reason IS NOT NULL GROUP BY 1;"
 ```
 
 **Resolve:**
 
-- Retry storm (`TRANSIENT`/`RESOURCE` dominating `retry_log`) → the dependency is
-  flaky or a quota is exhausted; the retry backoff is doing its job but each
-  retry bills. Address the dependency (rate-limit headroom, quota) rather than
-  the retry count.
-- `MAX_STEPS_EXCEEDED` / `TOKEN_BUDGET_EXCEEDED` climbing → tasks are over-scoped
-  or the model is spinning. Lower `AGENT_MAX_STEPS` / the token budget (they're
-  env-configurable) only with the escalation evidence; the real fix is prompt or
-  task decomposition.
+- Calls flat but cost growing → token-per-call rising. Check the prompt size
+  (context-engine budget, memory injection) or model upgrade.
+- Calls growing without corresponding reviews → double-review or retry loop.
+  Check `review_reports.review_status` for stuck batches.
 
-**Escalate when:** calls are flat but cost grows (token per call rising) — that's
-a prompt/context-bloat problem for the **exact tokenizer + context cache**
-work, not an ops knob.
+**Escalate when:** cost growth correlates with a prompt change — that's a prompt
+engineering issue, not an ops knob.
 
 ---
 
@@ -244,8 +208,8 @@ only after the calibration path exists.
 
 ## R6 — Manual DB state fix (LAST RESORT)
 
-**Symptom:** a task is in a state no code path can recover from a human can accept;
-you've exhausted R1–R5 and must move it by hand.
+**Symptom:** a task is in a state no code path can recover from; a human can
+accept; you've exhausted R2–R5 and must move it by hand.
 
 > **This is the last resort.** It bypasses the state machine's validators, so it is
 > _your_ job to pick a valid transition (`packages/orchestrator/README.md`) and
@@ -255,7 +219,7 @@ you've exhausted R1–R5 and must move it by hand.
 **Procedure:**
 
 1. **Stop the API** so no loop races the row (`Ctrl-C` on `pnpm dev`, or the
-   deploy's stop command). The reconciler does _not_ run here.
+   deploy's stop command).
 2. Open a transaction and make **all three writes**:
 
 ```sql
@@ -316,7 +280,7 @@ pnpm build && pnpm --filter @harness/api start
 
 | Signal               | Behaviour                                                                                                                                                                                    |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SIGTERM` / `Ctrl-C` | Graceful: both poll loops halt, then in-flight ticks drain. Do this when you can.                                                                                                            |
+| `SIGTERM` / `Ctrl-C` | Graceful: review ingest subscribers drain in-flight work, then the process exits. Do this when you can.                                                                                      |
 | `SIGKILL`            | Not graceful. _(Post-`review-reorient`: there is no poll loop or startup reconciler — an in-flight review ingest request is simply lost; its `task.created` may or may not have committed.)_ |
 
 Read [limitations.md](limitations.md) §1–§3 before running more than one process,

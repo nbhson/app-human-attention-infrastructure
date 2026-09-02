@@ -38,8 +38,7 @@ Drizzle tables):
 Replays the ordered event trail for a task, with the failure `reason` (if any)
 pulled out of the envelope. In the review-only slice, the typical flow is
 `task.created → task.state_changed(CANCELLED)` — the task is created purely to
-anchor provenance, then immediately cancelled (the retired dispatcher used to
-pull it into `EXECUTING`).
+anchor provenance, then immediately cancelled.
 
 ```sql
 SELECT occurred_at, event_type, payload->>'reason' AS reason
