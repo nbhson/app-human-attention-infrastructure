@@ -1,6 +1,6 @@
 # Phase 3 · Week 4 Retro — Review memory checkpoint
 
-*Day-20 checkpoint (Phase 3, Week 4). Weeks 1–3 built the external-PR review slice,
+_Day-20 checkpoint (Phase 3, Week 4). Weeks 1–3 built the external-PR review slice,
 verification, and the write-back seam; Week 4 asked whether the harness can **remember**.
 The week delivered the four review-shaped memory tiers (`memory_entries` + the ≥1-evidence
 provenance invariant, day-16), deterministic distillation (`MemoryDistiller`, day-17),
@@ -11,7 +11,7 @@ archive lifecycle (`MemoryLifecycle`, day-19). The checkpoint wires them into on
 end-to-end demo and closes the loop — **write a review outcome into memory, read it back
 relevance-scored into the next review's context, then fold/fade/archive it.** Same rule
 as every prior retro: honest by design, numbers-first, blameless, and green before
-committed.*
+committed._
 
 ---
 
@@ -30,12 +30,12 @@ committed.*
   signals behind it — lexical token coverage (`n/10`), `confidence` (the day-17 recurrence
   bump), age in days (recency), and `retrievedCount` (popularity). The top row is the
   CRITICAL finding (confidence 90, relevant tokens) beating the REVIEW and MAJOR entries
-  on a query about *the same subject* — and the resolver's second `retrieve` nudges that
+  on a query about _the same subject_ — and the resolver's second `retrieve` nudges that
   same entry's score up as its popularity term ticks, visibly closing the feedback loop.
 - **Every ingested entry cites ≥1 evidence.** Ingestion materializes one content-hashed
   `evidence` row (`LLM_TRANSCRIPT`) and links it to all three distilled entries; the demo
   asserts `sourceEvidence.length ≥ 1` on each, so the day-16 provenance invariant holds on
-  the way *out*, not just on the way in.
+  the way _out_, not just on the way in.
 - **The lifecycle is demonstrated live, and archived rows are actually excluded.** Re-ingesting
   the same report chains each subject onto itself; `consolidateChains` folds 3 chains
   (archiving 3 superseded rows, merging 3 evidence links). `applyDecay` drops a 30-day-stale
@@ -102,8 +102,8 @@ retrieval; every ingested entry cites ≥1 evidence; `pnpm test && pnpm lint` gr
   registered in `buildContainer()`, but `MemoryIngestor.subscribe()` (the event → memory
   write path) is wired only by the demo and the `@harness/memory` suite, so a real
   `POST /api/reviews` does not yet distill into memory. This is the day-20 §6 "does top-K
-  actually influence the reviewer?" gap surfacing one layer earlier: the *domain* is closed,
-  the *server binding* is not. Called out in the wiring map (not silently skipped); binding
+  actually influence the reviewer?" gap surfacing one layer earlier: the _domain_ is closed,
+  the _server binding_ is not. Called out in the wiring map (not silently skipped); binding
   that subscription is a later integration step.
 - **The relevance rank needs no semantic shadow to be useful.** The lexical term alone
   already separates the CRITICAL finding (6/10 tokens, confidence 90) from the MAJOR (4/10,
@@ -111,7 +111,7 @@ retrieval; every ingested entry cites ≥1 evidence; `pnpm test && pnpm lint` gr
   semantic-shadow path (`SemanticRanker`) stays off the default resolve path until Day 21+
   calibration shows the keyword rank can be beaten.
 - **Evidence is merged, never dropped, across a consolidate.** The head-of-chain fold uses
-  the `memory_entry_evidence` UNIQUE index (`onConflictDoNothing`) and only *adds* links, so
+  the `memory_entry_evidence` UNIQUE index (`onConflictDoNothing`) and only _adds_ links, so
   consolidation can't strip a head below the ≥1 invariant — the same rule that held on write
   holds across the lifecycle.
 
@@ -126,10 +126,10 @@ retrieval; every ingested entry cites ≥1 evidence; `pnpm test && pnpm lint` gr
 
 ---
 
-*Checkpoint rule applied: `pnpm typecheck` (**48/48**), `pnpm lint`, and `pnpm test`
+_Checkpoint rule applied: `pnpm typecheck` (**48/48**), `pnpm lint`, and `pnpm test`
 (**821** tests / **145** files) are all green before this note is committed. The demo runs
 hermetically against an isolated Postgres schema, dropped on exit — no live API key, no
-network, no shared database mutation.*
+network, no shared database mutation._
 
-*Next: Day 21 — LLM-as-judge on Review Reports: Severity/Routing Rubric.
-Memory is now stable — do not refactor it mid-phase; Week 5 pivots to review-quality calibration.*
+_Next: Day 21 — LLM-as-judge on Review Reports: Severity/Routing Rubric.
+Memory is now stable — do not refactor it mid-phase; Week 5 pivots to review-quality calibration._

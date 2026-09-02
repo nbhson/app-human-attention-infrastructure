@@ -13,9 +13,7 @@ const ROW: ReviewExampleRow = {
   report: {
     verdict: 'REQUEST_CHANGES',
     summary: 'Needs a null guard before dereference.',
-    findings: [
-      { severity: 'CRITICAL', file: 'src/service.ts', line: 41, message: 'Missing null check.' },
-    ],
+    findings: [{ severity: 'CRITICAL', file: 'src/service.ts', line: 41, message: 'Missing null check.' }],
   },
   goldSeverity: 0.9,
   goldRouting: 0.8,

@@ -96,11 +96,7 @@ export const PLACEHOLDER_WEIGHTS: WeightsVector = {
 };
 
 /** Objectives warrant human attention (day-12 §2.1). */
-const ATTENTION_WARRANTED: ReadonlySet<string> = new Set([
-  'REJECTED',
-  'REWORKED',
-  'DEFECTED_LATER',
-]);
+const ATTENTION_WARRANTED: ReadonlySet<string> = new Set(['REJECTED', 'REWORKED', 'DEFECTED_LATER']);
 
 /** Float-noise tolerances for the improvement gate (day-12 §2.4). */
 export const RANKING_EPS = 1e-6;
@@ -165,9 +161,7 @@ export function stratifiedSplit(samples: readonly FitSample[], config: FitConfig
     const shuffled = shuffle(indices, rng);
     const length = indices.length;
     const validationCount =
-      length >= 2
-        ? Math.min(length - 1, Math.max(1, Math.floor(length * config.validationShare)))
-        : 0;
+      length >= 2 ? Math.min(length - 1, Math.max(1, Math.floor(length * config.validationShare))) : 0;
     validationIndices.push(...shuffled.slice(0, validationCount));
     trainIndices.push(...shuffled.slice(validationCount));
   }

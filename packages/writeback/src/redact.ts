@@ -37,9 +37,7 @@ export function redactSensitive(message: string, secrets: readonly string[] = []
 }
 
 /** The env values that could be live credentials (for the `secrets` scrub list). */
-export function credentialEnvValues(
-  env: Record<string, string | undefined> = process.env,
-): string[] {
+export function credentialEnvValues(env: Record<string, string | undefined> = process.env): string[] {
   const out: string[] = [];
   for (const [key, value] of Object.entries(env)) {
     if (value && value.length > 4 && /token|key|secret|password|credential/i.test(key)) {

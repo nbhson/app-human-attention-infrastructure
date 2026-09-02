@@ -29,10 +29,7 @@ async function request<T>(res: Promise<Response>): Promise<T> {
   const response = await res;
   const body = (await response.json()) as { error?: string };
   if (!response.ok) {
-    throw new TriageRulesError(
-      response.status,
-      body.error ?? `request failed (${response.status})`,
-    );
+    throw new TriageRulesError(response.status, body.error ?? `request failed (${response.status})`);
   }
   return body as T;
 }

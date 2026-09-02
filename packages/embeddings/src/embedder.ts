@@ -42,13 +42,11 @@ export class EmbeddingUnavailableError extends Error {
  * per input in the input's own order (callers rely on index alignment);
  * failure carries a typed error instead of a rejection. */
 export type EmbedResult =
-  | { readonly ok: true; readonly vectors: readonly number[][] }
-  | { readonly ok: false; readonly error: EmbedError };
+  { readonly ok: true; readonly vectors: readonly number[][] } | { readonly ok: false; readonly error: EmbedError };
 
 /** The result of a single {@link Embedder.embedQuery}. */
 export type EmbedQueryResult =
-  | { readonly ok: true; readonly vector: readonly number[] }
-  | { readonly ok: false; readonly error: EmbedError };
+  { readonly ok: true; readonly vector: readonly number[] } | { readonly ok: false; readonly error: EmbedError };
 
 /**
  * A text-embedding provider.

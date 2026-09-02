@@ -11,7 +11,7 @@ surfaces, replacing the earlier `X-Reviewer-Id` header placeholder.
 ## Purpose
 
 1. **Establish identity** keyed on the provider-stable OIDC `sub` (never email — emails get reassigned).
-2. **Mint sessions** — a signed JWT proves *who*, a live `sessions` row proves *still allowed*.
+2. **Mint sessions** — a signed JWT proves _who_, a live `sessions` row proves _still allowed_.
 3. **Revoke** sessions so a leaked token dies the moment its session is revoked.
 4. **Enforce roles** with `requireRole`, additive: `ADMIN ⊇ REVIEWER ⊇ OPERATOR` (default `['OPERATOR']`).
 5. **Emit denial evidence** — `authz.decision_denied` instead of a silent 403.
@@ -42,15 +42,15 @@ surfaces, replacing the earlier `X-Reviewer-Id` header placeholder.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `auth-service.ts` | Login/logout orchestration: OIDC exchange → session + minted JWT. |
-| `session-service.ts` | Session lifecycle — create, validate (`revoked_at IS NULL`), revoke (kills every token under it). |
-| `require-role.ts` | Endpoint guard — asserts `roles`, emits `authz.decision_denied` on refusal. |
-| `oidc/provider.ts` | The `OidcProvider` seam. |
-| `oidc/openid-provider.ts` | Real OpenID-Connect provider adapter. |
-| `oidc/mock-provider.ts` | Deterministic mock for tests/CI without a live IdP. |
-| `errors.ts` | Auth/authorization error types. |
+| Module                    | What it provides                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `auth-service.ts`         | Login/logout orchestration: OIDC exchange → session + minted JWT.                                 |
+| `session-service.ts`      | Session lifecycle — create, validate (`revoked_at IS NULL`), revoke (kills every token under it). |
+| `require-role.ts`         | Endpoint guard — asserts `roles`, emits `authz.decision_denied` on refusal.                       |
+| `oidc/provider.ts`        | The `OidcProvider` seam.                                                                          |
+| `oidc/openid-provider.ts` | Real OpenID-Connect provider adapter.                                                             |
+| `oidc/mock-provider.ts`   | Deterministic mock for tests/CI without a live IdP.                                               |
+| `errors.ts`               | Auth/authorization error types.                                                                   |
 
 ---
 

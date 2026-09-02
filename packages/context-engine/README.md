@@ -73,7 +73,7 @@ what the model will count.
 `DEFAULT_RANK_METHOD` is **held at `keyword`** by the A/B gate: the hybrid
 arm reproduced the keyword order exactly over the replay corpus (no measured WIN),
 so the default does not flip on a non-result. `hybrid` and `rag_fusion` remain
-*selectable* per request; the semantic shadow (`retrieval/shadow.ts`) scores and
+_selectable_ per request; the semantic shadow (`retrieval/shadow.ts`) scores and
 records `shadow_rank_comparisons` without affecting the hot path.
 
 ## Memory injection
@@ -89,26 +89,26 @@ rendering never fails on an absent seam.
 
 ## Cache
 
-| Component | What it does |
-| --- | --- |
-| `cache/context-cache.ts` | `ContextCache` — reuse an assembled context while its sources are unchanged. |
-| `cache/cache-invalidating-listener.ts` | Drops cache entries on `artifact.changed`. |
+| Component                              | What it does                                                                 |
+| -------------------------------------- | ---------------------------------------------------------------------------- |
+| `cache/context-cache.ts`               | `ContextCache` — reuse an assembled context while its sources are unchanged. |
+| `cache/cache-invalidating-listener.ts` | Drops cache entries on `artifact.changed`.                                   |
 
 A hit is served only while the underlying artifacts are unchanged — invalidate-on-
 change, never time-decayed.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `types.ts` | `Context`, `ContextChunk`, `TokenCount`, request/policy types. |
-| `collect.ts` / `rank.ts` / `trim.ts` / `freshness.ts` / `render.ts` / `engine.ts` | the collect→rank→trim→render pipeline + `resolveContext` / `resolveFresh`. |
-| `tiktoken-tokenizer.ts` / `tokenizer-registry.ts` / `tokenizer.ts` | exact tokenizer + model→tokenizer resolution + keyword tokenize. |
-| `resolve-safe.ts` | safe path resolution. |
-| `cache/*` | context cache + invalidation listener. |
-| `retrieval/*` | semantic retriever/ranker/shadow, `Retriever` seam, RRF, lexical/semantic-doc/hybrid, `RetrieverFactory`, query-rewriter, RAG Fusion. |
-| `ranking/*` | re-ranker + dependency/recency/usage signals + `UsageLearner` (learned usefulness). |
-| `memory-resolver.ts` | inject top-K review memory into a snapshot. |
+| Module                                                                            | What it provides                                                                                                                      |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                                                                        | `Context`, `ContextChunk`, `TokenCount`, request/policy types.                                                                        |
+| `collect.ts` / `rank.ts` / `trim.ts` / `freshness.ts` / `render.ts` / `engine.ts` | the collect→rank→trim→render pipeline + `resolveContext` / `resolveFresh`.                                                            |
+| `tiktoken-tokenizer.ts` / `tokenizer-registry.ts` / `tokenizer.ts`                | exact tokenizer + model→tokenizer resolution + keyword tokenize.                                                                      |
+| `resolve-safe.ts`                                                                 | safe path resolution.                                                                                                                 |
+| `cache/*`                                                                         | context cache + invalidation listener.                                                                                                |
+| `retrieval/*`                                                                     | semantic retriever/ranker/shadow, `Retriever` seam, RRF, lexical/semantic-doc/hybrid, `RetrieverFactory`, query-rewriter, RAG Fusion. |
+| `ranking/*`                                                                       | re-ranker + dependency/recency/usage signals + `UsageLearner` (learned usefulness).                                                   |
+| `memory-resolver.ts`                                                              | inject top-K review memory into a snapshot.                                                                                           |
 
 ## Interaction with other packages
 
@@ -127,7 +127,7 @@ retriever/ranker seam and review memory through the domain `MemoryProvider` seam
 - **Exact tokens.** Budget is enforced on `tiktoken` counts, not word counts.
 - **Freshness gating.** A stale source is flagged, never silently served.
 - **Default is held, not inherited.** The keyword ranker stays the default until a
-  measured WIN over a *live, outcome-measuring* comparison flips `DEFAULT_RANK_METHOD`.
+  measured WIN over a _live, outcome-measuring_ comparison flips `DEFAULT_RANK_METHOD`.
 
 ## Directory structure
 

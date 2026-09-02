@@ -22,13 +22,7 @@
 
 import { eq } from 'drizzle-orm';
 
-import {
-  memoryEntries,
-  memoryEntryEvidence,
-  evidence,
-  reviewFindings,
-  reviewReports,
-} from '@harness/db';
+import { memoryEntries, memoryEntryEvidence, evidence, reviewFindings, reviewReports } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 import {
@@ -284,15 +278,12 @@ async function main(): Promise<void> {
     rankMethod: 'keyword',
   });
   const assembled = await resolver.inject(snapshot, { text: QUERY_TEXT });
-  const memorySection = assembled.metadata.memory as
-    readonly ContextMemorySectionEntry[] | undefined;
+  const memorySection = assembled.metadata.memory as readonly ContextMemorySectionEntry[] | undefined;
   if (!Array.isArray(memorySection) || memorySection.length === 0) {
     throw new Error('[demo:memory] assertion failed: memory section is non-empty');
   }
   console.log();
-  console.log(
-    `  assembled context: ${memorySection.length} memory entry/ies injected as \`metadata.memory\` —`,
-  );
+  console.log(`  assembled context: ${memorySection.length} memory entry/ies injected as \`metadata.memory\` —`);
   console.log("  the next review's context is changed, not just the store.");
   for (const m of memorySection) {
     console.log(
@@ -319,9 +310,7 @@ async function main(): Promise<void> {
     `  re-ingest chained ${consolid.mergedChains} version-chains; consolidate archived ` +
       `${consolid.archived} superseded rows, folded ${consolid.foldedLinks} evidence links.`,
   );
-  console.log(
-    '  → retrieval now surfaces only the chain head; the superseded row is audit-retained.',
-  );
+  console.log('  → retrieval now surfaces only the chain head; the superseded row is audit-retained.');
 
   // --- 4. Lifecycle: decay --------------------------------------------------------
   section('4', 'lifecycle·decay — an untouched entry fades to its confidence floor');
@@ -347,13 +336,8 @@ async function main(): Promise<void> {
   assert((await entryRow(forgottenId)).status === 'ARCHIVED', 'below-threshold entry archived');
   const listedIds = (await store.listByKind(MemoryKind.REVIEW)).map((entry) => entry.id);
   assert(!listedIds.includes(forgottenId), 'archived entry excluded from retrieval');
-  assert(
-    (await store.getById(forgottenId))?.status === 'ARCHIVED',
-    'archived entry retained for audit',
-  );
-  console.log(
-    `  archive: confidence 2 < threshold 5 → ARCHIVED; excluded from retrieval, reachable by id.`,
-  );
+  assert((await store.getById(forgottenId))?.status === 'ARCHIVED', 'archived entry retained for audit');
+  console.log(`  archive: confidence 2 < threshold 5 → ARCHIVED; excluded from retrieval, reachable by id.`);
 
   // --- 6. Teardown + summary -------------------------------------------------------
   section('6', 'week-4 milestone — memory is closed (write + read + lifecycle)');

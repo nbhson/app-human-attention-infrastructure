@@ -49,11 +49,7 @@ export class SemanticRanker {
    * and that are not targets — are absent, since semantic ranking has no signal
    * for them.
    */
-  async rank(
-    query: string,
-    targetFiles: readonly string[],
-    files: readonly CollectedFile[],
-  ): Promise<RankedFile[]> {
+  async rank(query: string, targetFiles: readonly string[], files: readonly CollectedFile[]): Promise<RankedFile[]> {
     const fileBySource = new Map(files.map((file) => [file.sourceId, file]));
 
     // Current content hash per source — the only basis for the freshness guard.

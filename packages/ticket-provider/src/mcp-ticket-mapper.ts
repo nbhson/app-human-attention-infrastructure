@@ -69,9 +69,7 @@ function parseIssue(result: ToolResult): JiraIssuePayload {
   const description = fields['description'];
   const issuetype = fields['issuetype'];
   const parsedIssuetype =
-    isRecord(issuetype) && typeof issuetype['name'] === 'string'
-      ? { name: issuetype['name'] }
-      : undefined;
+    isRecord(issuetype) && typeof issuetype['name'] === 'string' ? { name: issuetype['name'] } : undefined;
   return {
     key,
     fields: {
@@ -86,10 +84,6 @@ function parseIssue(result: ToolResult): JiraIssuePayload {
  * Map a get-issue tool result into an {@link Issue}. `baseUrl` is the Jira site
  * root (e.g. `https://acme.atlassian.net`), used to build the human-facing `url`.
  */
-export function mapMcpTicketIssue(
-  provider: TicketProviderType,
-  baseUrl: string,
-  result: ToolResult,
-): Issue {
+export function mapMcpTicketIssue(provider: TicketProviderType, baseUrl: string, result: ToolResult): Issue {
   return mapJiraIssue(provider, baseUrl, parseIssue(result));
 }

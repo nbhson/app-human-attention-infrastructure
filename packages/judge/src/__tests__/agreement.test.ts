@@ -117,9 +117,7 @@ describe('computeAgreement', () => {
 });
 
 describe('canonicalReportHash', () => {
-  function report(
-    overrides: { summary?: string; findings?: ReviewReport['findings'] } = {},
-  ): ReviewReport {
+  function report(overrides: { summary?: string; findings?: ReviewReport['findings'] } = {}): ReviewReport {
     return createReviewReport({
       id: REPORT_ID,
       prUrl: 'https://github.com/acme/api/pull/1',

@@ -117,10 +117,7 @@ describe('QueuePage', () => {
     expect(screen.getByText(/no AI reviews waiting for your attention/)).toBeInTheDocument();
 
     const empty = screen.getByTestId('empty-state');
-    expect(within(empty).getByRole('link', { name: /Create New Review/ })).toHaveAttribute(
-      'href',
-      '/reviews/new',
-    );
+    expect(within(empty).getByRole('link', { name: /Create New Review/ })).toHaveAttribute('href', '/reviews/new');
   });
 
   it('filters by verdict and narrows by search text', async () => {

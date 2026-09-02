@@ -95,9 +95,7 @@ describe('parseReviewOutput', () => {
       }),
     );
 
-    expect(out.findings).toEqual([
-      { severity: 'MAJOR', kind: 'correctness', file: 'x', message: 'ok' },
-    ]);
+    expect(out.findings).toEqual([{ severity: 'MAJOR', kind: 'correctness', file: 'x', message: 'ok' }]);
     expect(out.suggestions).toEqual([]);
   });
 

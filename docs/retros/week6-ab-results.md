@@ -1,22 +1,22 @@
 # Phase 2 · Week 6 — A/B dry-run: keyword vs semantic context ranking
 
-*Day-29 deliverable (Spec 11 §5). The payoff the semantic shadow has been
+_Day-29 deliverable (Spec 11 §5). The payoff the semantic shadow has been
 building toward for three weeks: the two context rankers — A = keyword (Phase-1,
 the control) and B = semantic (the challenger) — are run head-to-head behind the
 Day-9 shadow harness, and the comparison comes out on **outcome signals**, not on
 ranking-adjacent proxies. Same rule as every prior retro: honest by design,
-numbers-first, blameless — and green before committed.*
+numbers-first, blameless — and green before committed._
 
 ## What shipped
 
 - **`ranking-variants.ts`** — the two ranks behind one seam. `ContextRanker` is a
-  pure `corpus → ordering` function; the *only* difference between the arms is
+  pure `corpus → ordering` function; the _only_ difference between the arms is
   that function. Because `@harness/evaluation` must not import an engine
   (boundary R9) or the embedder (R10), both are **self-contained shadow copies**:
   the keyword arm mirrors `context-engine/rank.ts` (0.7 keyword-overlap / 0.3
   dependency-proximity, same tokenizer), and the semantic arm is a deterministic
   term-frequency-cosine stand-in for the production embedder. The harness
-  validates the comparison *plumbing*, not the embedder's absolute quality.
+  validates the comparison _plumbing_, not the embedder's absolute quality.
 - **`outcome-metrics.ts`** — the §2.3 signals as pure functions of
   (ranked order, recorded trajectory): `context_acceptance_rate` (precision),
   `human_minutes_per_accept` (dwell proxy), `rework_rate` (recall-miss), plus
@@ -50,19 +50,19 @@ recommendation: promote semantic ranking to a real A/B
 ```
 
 The honest read is that **the two ranks genuinely disagree and the harness caught
-it**. On both multi-file inputs the orderings are *exact reversals* (`tau = -1`):
+it**. On both multi-file inputs the orderings are _exact reversals_ (`tau = -1`):
 keyword surfaces the dependency-central target even when its content barely
 matches the task, while semantic surfaces the content-rich helper. That is the
-whole hypothesis, confirmed at the *ranking* layer.
+whole hypothesis, confirmed at the _ranking_ layer.
 
-And it is **not** confirmed at the *outcome* layer — which is the correct,
+And it is **not** confirmed at the _outcome_ layer — which is the correct,
 and the whole point of, a dry-run. On a replayed trajectory the consumed files
 are fixed by the record, so every candidate lands inside the top-k either way:
-acceptance is `1.0` and rework is `0.0` for *both* arms. High-ranking-
+acceptance is `1.0` and rework is `0.0` for _both_ arms. High-ranking-
 disagreement + zero-outcome-difference is not a null to dress up; it is exactly
 the signal that the ranking change needs **live outcome data** before any default
-switch. The recommendation — *"promote semantic ranking to a real A/B, collect
-live outcome data first"* — is the honest answer, not a soft confirmation of the
+switch. The recommendation — _"promote semantic ranking to a real A/B, collect
+live outcome data first"_ — is the honest answer, not a soft confirmation of the
 favorite.
 
 The one number that matters next is therefore **not in this table yet**:
@@ -86,7 +86,7 @@ precisely what the recommendation asks Day 30 to set up.
   corpus and both are deterministic.
 - **`rank_correlation` is a distribution, not a scalar.** Reported as `values`,
   `count`, `min`/`max`/`mean`; the canonical single-file fixture contributes no
-  tau (its top-k intersection is one item) and is honestly *skipped*, not padded
+  tau (its top-k intersection is one item) and is honestly _skipped_, not padded
   to `0`.
 - **No boundary was crossed.** `evaluation` imports `domain` + `db` + `di` only
   (the matrix's `SHARED`) — the semantic ranker is a shadow copy, so neither an
@@ -118,8 +118,8 @@ precisely what the recommendation asks Day 30 to set up.
 
 ---
 
-*Checkpoint rule applied: `pnpm lint`, `pnpm typecheck`, and `pnpm test` are
+_Checkpoint rule applied: `pnpm lint`, `pnpm typecheck`, and `pnpm test` are
 green; the `eval:ab-report` run above is reproduced verbatim from the isolated
 `ab_*` tables via `--run`, with the guardrail HELD. The served `rank_method`
 remains `phase1-keyword-dependency`; arm B's `semantic` ranking exists only in
-`ab_runs.report`.*
+`ab_runs.report`._

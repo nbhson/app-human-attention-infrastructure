@@ -8,9 +8,7 @@ describe('keywordOverlap', () => {
   });
 
   it('is hits / keyword-count (Jaccard-lite)', () => {
-    expect(
-      keywordOverlap(new Set(['logging', 'api', 'auth']), 'add logging to the api layer'),
-    ).toBeCloseTo(2 / 3, 6);
+    expect(keywordOverlap(new Set(['logging', 'api', 'auth']), 'add logging to the api layer')).toBeCloseTo(2 / 3, 6);
   });
 
   it('is zero when nothing overlaps', () => {

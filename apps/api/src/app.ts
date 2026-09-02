@@ -70,19 +70,14 @@ function checkReviewRateLimit(ip: string): boolean {
 }
 
 /** Build the Fastify app over an already-wired container. */
-export function buildApp(
-  container: Container,
-  opts?: { readonly logger?: boolean },
-): FastifyInstance {
+export function buildApp(container: Container, opts?: { readonly logger?: boolean }): FastifyInstance {
   const app = Fastify({ logger: opts?.logger ?? false });
 
   // CORS: the API serves a separate frontend; allow credentials so the session
   // cookie is sent across origins during dev. In production operators should
   // pin `APP_CORS_ORIGINS` to their deploy domain. Default to localhost only
   // (never `*`) to avoid leaking credentials to arbitrary origins.
-  const corsOrigins = (process.env.APP_CORS_ORIGINS ?? 'http://localhost:3000')
-    .split(',')
-    .map((s) => s.trim());
+  const corsOrigins = (process.env.APP_CORS_ORIGINS ?? 'http://localhost:3000').split(',').map((s) => s.trim());
   app.addHook('onRequest', async (request, reply) => {
     const origin = request.headers.origin;
     if (origin !== undefined && (corsOrigins.includes('*') || corsOrigins.includes(origin))) {

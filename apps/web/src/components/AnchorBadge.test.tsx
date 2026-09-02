@@ -22,15 +22,9 @@ describe('AnchorBadge', () => {
 
   it('exposes the reason as a tooltip for both verdicts', () => {
     const { rerender } = render(<AnchorBadge anchor={verified} />);
-    expect(screen.getByTestId('anchor-verified')).toHaveAttribute(
-      'title',
-      'line 10 is in this diff',
-    );
+    expect(screen.getByTestId('anchor-verified')).toHaveAttribute('title', 'line 10 is in this diff');
 
     rerender(<AnchorBadge anchor={unverified} />);
-    expect(screen.getByTestId('anchor-unverified')).toHaveAttribute(
-      'title',
-      'file not touched by this PR',
-    );
+    expect(screen.getByTestId('anchor-unverified')).toHaveAttribute('title', 'file not touched by this PR');
   });
 });

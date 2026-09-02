@@ -172,8 +172,6 @@ export type CreateAgentExecutionRequestInput = Omit<AgentExecutionRequest, 'maxS
 /**
  * Build an {@link AgentExecutionRequest}, defaulting `maxSteps` to 10.
  */
-export function createAgentExecutionRequest(
-  input: CreateAgentExecutionRequestInput,
-): AgentExecutionRequest {
+export function createAgentExecutionRequest(input: CreateAgentExecutionRequestInput): AgentExecutionRequest {
   return { maxSteps: DEFAULT_MAX_STEPS, ...input };
 }

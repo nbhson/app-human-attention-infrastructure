@@ -45,14 +45,14 @@ interface TicketProvider {
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `ticket-provider.ts` | `TicketProvider`, `FetchIssueInput`, `TicketProviderError`. |
-| `jira-provider.ts` | `JiraProvider` — bearer-token REST against a configurable `baseUrl`. |
-| `jira-mapper.ts` | `mapJiraIssue`, `adfToPlainText`, and the raw Jira payload subset. |
-| `ticket-tool-map.ts` | `TicketToolMap` / `StaticTicketToolMap` — per-system capability→tool-name + arg-encoding table (read + write). |
-| `mcp-ticket-mapper.ts` | `mapMcpTicketIssue` — `ToolContent[]` → `Issue`. |
-| `mcp-ticket-provider.ts` | `MCPTicketProvider` — fetch via MCP tools; `UnknownTicketSystemError`. |
+| Module                   | What it provides                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `ticket-provider.ts`     | `TicketProvider`, `FetchIssueInput`, `TicketProviderError`.                                                    |
+| `jira-provider.ts`       | `JiraProvider` — bearer-token REST against a configurable `baseUrl`.                                           |
+| `jira-mapper.ts`         | `mapJiraIssue`, `adfToPlainText`, and the raw Jira payload subset.                                             |
+| `ticket-tool-map.ts`     | `TicketToolMap` / `StaticTicketToolMap` — per-system capability→tool-name + arg-encoding table (read + write). |
+| `mcp-ticket-mapper.ts`   | `mapMcpTicketIssue` — `ToolContent[]` → `Issue`.                                                               |
+| `mcp-ticket-provider.ts` | `MCPTicketProvider` — fetch via MCP tools; `UnknownTicketSystemError`.                                         |
 
 ## Test strategy
 
@@ -87,5 +87,5 @@ src/
 packages/ticket-provider → imports only @harness/domain
 ```
 
-Write-back (issue transition / comment) is *not* a second adapter here — it is the
+Write-back (issue transition / comment) is _not_ a second adapter here — it is the
 `@harness/writeback` seam driving the same `TicketToolMap` through `@harness/mcp`.

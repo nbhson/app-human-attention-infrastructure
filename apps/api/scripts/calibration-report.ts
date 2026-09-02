@@ -49,12 +49,7 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-const toJudgeScores = (
-  severity: number,
-  routing: number,
-  evidence: number,
-  overall: number,
-): JudgeScores => ({
+const toJudgeScores = (severity: number, routing: number, evidence: number, overall: number): JudgeScores => ({
   severityAgreement: severity,
   routingAgreement: routing,
   evidenceSufficiency: evidence,
@@ -85,10 +80,7 @@ function factors(severity: number, routing: number, useful: boolean): FactorScor
   };
 }
 
-function buildSamples(
-  examples: ReturnType<typeof loadSeedExamples>,
-  judge: JudgeScores[],
-): JudgeAugmentedSample[] {
+function buildSamples(examples: ReturnType<typeof loadSeedExamples>, judge: JudgeScores[]): JudgeAugmentedSample[] {
   return examples.map((example, index) => {
     const f = factors(example.gold.severity, example.gold.routing, example.gold.useful);
     const judgeScores = judge[index]!;
@@ -120,21 +112,15 @@ async function main(): Promise<void> {
   console.log();
 
   const examples = loadSeedExamples();
-  console.log(
-    `  corpus: ${examples.length} redacted gold-labelled review examples (scale ${SCALE_VERSION})`,
-  );
+  console.log(`  corpus: ${examples.length} redacted gold-labelled review examples (scale ${SCALE_VERSION})`);
   console.log('  judge:  deterministic two-rater demonstration scorer (no live LLM / no API key)');
   console.log();
 
   // Two independent raters for inter-judge agreement, one for judge-vs-gold.
   const raterA = mulberry32(1);
   const raterB = mulberry32(2);
-  const judgeScores = examples.map((e) =>
-    score(e.gold.severity, e.gold.routing, e.gold.useful, raterA),
-  );
-  const secondScores = examples.map((e) =>
-    score(e.gold.severity, e.gold.routing, e.gold.useful, raterB),
-  );
+  const judgeScores = examples.map((e) => score(e.gold.severity, e.gold.routing, e.gold.useful, raterA));
+  const secondScores = examples.map((e) => score(e.gold.severity, e.gold.routing, e.gold.useful, raterB));
 
   // 1 + 2. inter-judge agreement (judge), judge-vs-gold agreement (benchmark).
   const pairs: JudgeScorePair[] = examples.map((_, index) => ({
@@ -167,9 +153,7 @@ async function main(): Promise<void> {
   console.log(renderCalibrationReport(report));
   console.log();
   console.log('  provenance: report recomputed from the seed corpus ids + the two raters above,');
-  console.log(
-    '             and from the judge-augmented samples — nothing is asserted, only measured.',
-  );
+  console.log('             and from the judge-augmented samples — nothing is asserted, only measured.');
   console.log();
 }
 

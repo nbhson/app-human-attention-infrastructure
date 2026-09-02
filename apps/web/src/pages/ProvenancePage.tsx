@@ -42,8 +42,7 @@ export default function ProvenancePage(): JSX.Element {
         <h3>Agent Run</h3>
         {agentRun ? (
           <p>
-            <code>{agentRun.id}</code> — status <strong>{agentRun.status}</strong> · attempt{' '}
-            {agentRun.attemptNumber}
+            <code>{agentRun.id}</code> — status <strong>{agentRun.status}</strong> · attempt {agentRun.attemptNumber}
           </p>
         ) : (
           <p>No agent run recorded.</p>
@@ -108,8 +107,7 @@ export default function ProvenancePage(): JSX.Element {
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {verification.checkResults.map((check) => (
               <li key={check.id}>
-                <span>{check.status === 'PASSED' ? '✓' : '✗'}</span> {check.checkKind}:{' '}
-                {check.status}
+                <span>{check.status === 'PASSED' ? '✓' : '✗'}</span> {check.checkKind}: {check.status}
               </li>
             ))}
           </ul>

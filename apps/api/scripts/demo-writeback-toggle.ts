@@ -17,12 +17,7 @@
  */
 
 import { GitProviderType, WritebackAction } from '@harness/domain';
-import type {
-  WriteBackIntent,
-  WritebackClaim,
-  WritebackFinalize,
-  WritebackLogStore,
-} from '@harness/domain';
+import type { WriteBackIntent, WritebackClaim, WritebackFinalize, WritebackLogStore } from '@harness/domain';
 import type { McpClient, McpServerRegistry, ToolResult } from '@harness/mcp';
 import { StaticGitToolMap } from '@harness/git-provider';
 import { StaticTicketToolMap } from '@harness/ticket-provider';
@@ -102,9 +97,7 @@ async function main(): Promise<void> {
   console.log();
 
   console.log('=== 1. the gate (env ceiling ∧ request flag) ===');
-  console.log(
-    `  writebackEnabled(true, {})                        → ${writebackEnabled(true, {})}`,
-  );
+  console.log(`  writebackEnabled(true, {})                        → ${writebackEnabled(true, {})}`);
   console.log(
     `  writebackEnabled(true, { WRITEBACK_ENABLED: '1' })  → ${writebackEnabled(true, { WRITEBACK_ENABLED: '1' })}`,
   );
@@ -127,13 +120,9 @@ async function main(): Promise<void> {
   // *decision-time* gate from the per-provider one.
   const client = new RecordingClient();
   const store = new MemoryWritebackLogStore();
-  const onService = new MCPWriteBack(
-    registryOf(client),
-    new StaticGitToolMap(),
-    new StaticTicketToolMap(),
-    store,
-    { enabled: () => true },
-  );
+  const onService = new MCPWriteBack(registryOf(client), new StaticGitToolMap(), new StaticTicketToolMap(), store, {
+    enabled: () => true,
+  });
 
   const decisionId = 'dec-on-1';
   const commentIntent: WriteBackIntent = {
@@ -168,9 +157,7 @@ async function main(): Promise<void> {
   console.log();
 
   console.log('week-2 milestone: APPROVE (ON) emits COMMENT + STATUS; OFF emits nothing.');
-  console.log(
-    'write-back is a reversible human choice, and OFF is provable by an empty writeback_log. ✅',
-  );
+  console.log('write-back is a reversible human choice, and OFF is provable by an empty writeback_log. ✅');
 }
 
 void main().then(

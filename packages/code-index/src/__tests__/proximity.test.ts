@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildGraph } from '../graph.js';
 import { indexFiles } from '../indexer.js';
-import {
-  DEP_DIRECT,
-  DEP_TARGET,
-  DEP_TRANSITIVE,
-  DEP_UNRELATED,
-  dependencyProximity,
-} from '../proximity.js';
+import { DEP_DIRECT, DEP_TARGET, DEP_TRANSITIVE, DEP_UNRELATED, dependencyProximity } from '../proximity.js';
 
 /** utils ← feature ← page, plus an unrelated standalone file. */
 function fixtureGraph() {

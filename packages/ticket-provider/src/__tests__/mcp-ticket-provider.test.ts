@@ -71,9 +71,7 @@ class FakeRegistry implements McpServerRegistry {
 
 const OK = { isError: false, content: [{ type: 'text', text: '{}' }] } as ToolResult;
 
-function jiraRegistry(
-  overrides: { issue?: ToolResult; comment?: ToolResult; transition?: ToolResult } = {},
-): {
+function jiraRegistry(overrides: { issue?: ToolResult; comment?: ToolResult; transition?: ToolResult } = {}): {
   registry: FakeRegistry;
   client: FakeMcpClient;
 } {
@@ -113,9 +111,7 @@ describe('MCPTicketProvider', () => {
     const { registry, client } = jiraRegistry();
     await jiraProvider(registry).postComment({ key: 'ACME-42' }, 'looks good');
 
-    expect(client.calls).toEqual([
-      { tool: 'add_comment', args: { issue_id_or_key: 'ACME-42', body: 'looks good' } },
-    ]);
+    expect(client.calls).toEqual([{ tool: 'add_comment', args: { issue_id_or_key: 'ACME-42', body: 'looks good' } }]);
   });
 
   it('transitions through the mapped transition tool by target status', async () => {
@@ -139,16 +135,14 @@ describe('MCPTicketProvider', () => {
 
   it('surfaces a tool error as TicketProviderError, not a raw throw', async () => {
     const { registry } = jiraRegistry({ issue: { isError: true, content: [] } });
-    await expect(jiraProvider(registry).fetchIssue({ key: 'ACME-42' })).rejects.toBeInstanceOf(
-      TicketProviderError,
-    );
+    await expect(jiraProvider(registry).fetchIssue({ key: 'ACME-42' })).rejects.toBeInstanceOf(TicketProviderError);
   });
 
   it('surfaces a comment tool error as TicketProviderError', async () => {
     const { registry } = jiraRegistry({ comment: textError('boom') });
-    await expect(
-      jiraProvider(registry).postComment({ key: 'ACME-42' }, 'hi'),
-    ).rejects.toBeInstanceOf(TicketProviderError);
+    await expect(jiraProvider(registry).postComment({ key: 'ACME-42' }, 'hi')).rejects.toBeInstanceOf(
+      TicketProviderError,
+    );
   });
 
   it('lists available statuses when a transition fails with a no-such-status payload', async () => {

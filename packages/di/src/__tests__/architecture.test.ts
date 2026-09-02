@@ -51,9 +51,7 @@ describe('dependency rules (Spec 1 §5)', () => {
   });
 
   it('R3: @harness/db depends only on @harness/domain and @harness/event-bus', () => {
-    expect(harnessDependencies('db').sort()).toEqual(
-      ['@harness/domain', '@harness/event-bus'].sort(),
-    );
+    expect(harnessDependencies('db').sort()).toEqual(['@harness/domain', '@harness/event-bus'].sort());
   });
 
   it('R4: no engine package depends on another engine package', () => {
@@ -85,12 +83,7 @@ describe('dependency rules (Spec 1 §5)', () => {
     // end-to-end), so each must declare the dependency. `context-engine` and
     // `artifact-tracker` do not yet emit spans (day-03 scope), so they are not
     // on this list.
-    const instrumenting = [
-      'orchestrator',
-      'agent-runtime',
-      'attention-engine',
-      'verification-engine',
-    ] as const;
+    const instrumenting = ['orchestrator', 'agent-runtime', 'attention-engine', 'verification-engine'] as const;
     for (const engine of instrumenting) {
       expect(harnessDependencies(engine)).toContain('@harness/observability');
     }
@@ -138,9 +131,7 @@ describe('dependency rules (Spec 1 §5)', () => {
     // fronts any Git host through MCP — so it reads the MCP protocol leaf for
     // the `McpServerRegistry`/`ToolResult` types. It needs no db (report
     // persistence lives in apps/api), no event-bus, no sibling engine.
-    expect(harnessDependencies('git-provider').sort()).toEqual(
-      ['@harness/domain', '@harness/mcp'].sort(),
-    );
+    expect(harnessDependencies('git-provider').sort()).toEqual(['@harness/domain', '@harness/mcp'].sort());
   });
 
   it('R14: @harness/ticket-provider depends only on @harness/domain and @harness/mcp', () => {
@@ -148,9 +139,7 @@ describe('dependency rules (Spec 1 §5)', () => {
     // (its only domain need, like every provider seam), and it fronts Jira
     // through MCP — so it reads the MCP protocol leaf for the
     // `McpServerRegistry`/`ToolResult` types — mirroring R13.
-    expect(harnessDependencies('ticket-provider').sort()).toEqual(
-      ['@harness/domain', '@harness/mcp'].sort(),
-    );
+    expect(harnessDependencies('ticket-provider').sort()).toEqual(['@harness/domain', '@harness/mcp'].sort());
   });
 
   it('R15: @harness/writeback depends only on domain, mcp, git-provider, ticket-provider', () => {
@@ -160,12 +149,7 @@ describe('dependency rules (Spec 1 §5)', () => {
     // so write + read stay on one transport. It needs no db (audit lands later),
     // no event-bus, no sibling engine.
     expect(harnessDependencies('writeback').sort()).toEqual(
-      [
-        '@harness/domain',
-        '@harness/git-provider',
-        '@harness/mcp',
-        '@harness/ticket-provider',
-      ].sort(),
+      ['@harness/domain', '@harness/git-provider', '@harness/mcp', '@harness/ticket-provider'].sort(),
     );
   });
 
@@ -239,10 +223,7 @@ function walkSource(dir: string): string[] {
  * *excluding* the owning package (the owner may construct its own concrete in a
  * convenience default or factory — that is not a modular-monolith bypass).
  */
-function engineNewSites(
-  className: string,
-  owner: string,
-): Array<{ packageName: string; file: string }> {
+function engineNewSites(className: string, owner: string): Array<{ packageName: string; file: string }> {
   const sites: Array<{ packageName: string; file: string }> = [];
   for (const engine of ENGINE_PACKAGES) {
     if (engine === owner) continue;

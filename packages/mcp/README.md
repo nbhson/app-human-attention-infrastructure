@@ -13,11 +13,11 @@ file, not per-provider REST adapters.
 
 ## Modules
 
-| Module | Purpose |
-|--------|---------|
-| `errors.ts` | `McpClientError` — the single typed failure all callers match on. |
-| `protocol.ts` | JSON-RPC envelope + MCP content model (`ToolContent`, `ToolResult`, `McpTool`, `ServerInfo`) and hand-rolled validators. |
-| `transport.ts` | `McpTransport` seam + `StdioTransport` (subprocess, JSON-lines) + `SseTransport` (HTTP with SSE). |
+| Module          | Purpose                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `errors.ts`     | `McpClientError` — the single typed failure all callers match on.                                                         |
+| `protocol.ts`   | JSON-RPC envelope + MCP content model (`ToolContent`, `ToolResult`, `McpTool`, `ServerInfo`) and hand-rolled validators.  |
+| `transport.ts`  | `McpTransport` seam + `StdioTransport` (subprocess, JSON-lines) + `SseTransport` (HTTP with SSE).                         |
 | `mcp-client.ts` | `McpClient` — `initialize`/`listTools`/`callTool`/`close`, with id-correlated request/response and a per-request timeout. |
 
 ## Invariants
@@ -26,6 +26,6 @@ file, not per-provider REST adapters.
   the abstraction leaked — host mapping belongs in `@harness/git-provider` /
   `@harness/ticket-provider`.
 - **No credentials.** The client never caches or logs a token; credentials are
-  env vars for the *server subprocess* (stdio) or request headers the caller
+  env vars for the _server subprocess_ (stdio) or request headers the caller
   injects (SSE).
 - **Malformed input is a typed error, never a crash or a silent truncation.**

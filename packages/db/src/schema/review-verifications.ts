@@ -46,8 +46,5 @@ export const reviewVerifications = pgTable(
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    reviewVerificationStatusCheck,
-    uniqueIndex('review_verifications_report_id_unique').on(table.report_id),
-  ],
+  (table) => [reviewVerificationStatusCheck, uniqueIndex('review_verifications_report_id_unique').on(table.report_id)],
 );

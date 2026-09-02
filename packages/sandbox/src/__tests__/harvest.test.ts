@@ -88,9 +88,7 @@ describe('DockerSandbox orphan harvest (day-26 §3.3)', () => {
     const { log, sandbox } = stubDocker();
     process.env.FAKE_DOCKER_HANG = '1';
 
-    const result = await sandbox.run(
-      makeRun({ limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 0.2 } }),
-    );
+    const result = await sandbox.run(makeRun({ limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 0.2 } }));
 
     expect(result.timedOut).toBe(true);
     expect(result.exitCode).toBe(137);

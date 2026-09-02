@@ -15,10 +15,7 @@
  */
 
 /** Dependency proximity consumed via this seam — no `@harness/code-index` import. */
-export type DependencyProximityResolver = (
-  changedFiles: readonly string[],
-  candidate: string,
-) => number | null;
+export type DependencyProximityResolver = (changedFiles: readonly string[], candidate: string) => number | null;
 
 /** A "missing signal" value — half the `[0,1]` range, demoting nothing. */
 export const NEUTRAL_SIGNAL = 0.5;

@@ -21,14 +21,7 @@ import { and, desc, eq } from 'drizzle-orm';
 
 import { assessments, calibrationWeights, decisions, reviewQueue } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import {
-  brand,
-  EventType,
-  HumanDecisionType,
-  newDecisionID,
-  ReviewQueueStatus,
-  TaskStatus,
-} from '@harness/domain';
+import { brand, EventType, HumanDecisionType, newDecisionID, ReviewQueueStatus, TaskStatus } from '@harness/domain';
 import type {
   AttentionItemRoutedPayload,
   DecisionID,
@@ -231,12 +224,10 @@ export class AutoApproveExecutor {
 
     // Drive AWAITING_REVIEW → APPROVED under a machine trigger. The dance stops
     // here: MergeService closes APPROVED → COMPLETED, as it does for humans.
-    await this.deps.taskTransition.transitionTask(
-      brand(row.task_id, 'TaskID'),
-      TaskStatus.Approved,
-      'auto_approve',
-      { rationale, expectedFrom: TaskStatus.AwaitingReview },
-    );
+    await this.deps.taskTransition.transitionTask(brand(row.task_id, 'TaskID'), TaskStatus.Approved, 'auto_approve', {
+      rationale,
+      expectedFrom: TaskStatus.AwaitingReview,
+    });
 
     if (sampled) {
       await this.deps.sampler.routeToHuman({

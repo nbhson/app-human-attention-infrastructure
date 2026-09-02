@@ -1,12 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import {
-  reviewsApi,
-  type ReviewDecision,
-  type ReviewFinding,
-  type TriageRuleId,
-} from '../api/reviews';
+import { reviewsApi, type ReviewDecision, type ReviewFinding, type TriageRuleId } from '../api/reviews';
 import { BreakdownTab } from '../components/BreakdownTab';
 import { DiffTab } from '../components/DiffTab';
 import { ReportStats } from '../components/ReportStats';
@@ -16,15 +11,7 @@ import { SummaryMetricsPanel } from '../components/SummaryMetricsPanel';
 import { TraceTab } from '../components/TraceTab';
 import { VerificationTab } from '../components/VerificationTab';
 import { severityColor, sortFindingsBySeverity } from '../components/severity';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ExternalLink,
-  RefreshCw,
-  ShieldAlert,
-  Sliders,
-  Zap,
-} from '../components/Icons';
+import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldAlert, Sliders, Zap } from '../components/Icons';
 
 /**
  * AI review report page (review-reorient Phase 3) — the human-in-the-loop read
@@ -66,10 +53,7 @@ const DECISION_TONE: Record<ReviewDecision, string> = {
 };
 
 /** Per-rule copy for the triage banner; `{verdict}` is filled with the raw AI verdict. */
-const TRIAGE_META: Record<
-  TriageRuleId,
-  { icon: typeof ShieldAlert; color: string; message: string }
-> = {
+const TRIAGE_META: Record<TriageRuleId, { icon: typeof ShieldAlert; color: string; message: string }> = {
   'security-block': {
     icon: ShieldAlert,
     color: 'var(--color-danger)',
@@ -140,11 +124,7 @@ function reviewSkeleton(): JSX.Element {
       {/* investigation tabs */}
       <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
         {['Review', 'Breakdown', 'Diff', 'AI trace', 'Verification'].map((label, index) => (
-          <Skeleton
-            key={label}
-            height={32}
-            style={{ borderRadius: 8, width: [72, 98, 64, 82, 104][index] }}
-          />
+          <Skeleton key={label} height={32} style={{ borderRadius: 8, width: [72, 98, 64, 82, 104][index] }} />
         ))}
       </div>
 
@@ -187,11 +167,9 @@ export default function ReviewReportPage(): JSX.Element {
   });
 
   const decide = useMutation({
-    mutationFn: () =>
-      reviewsApi.decide(id, { decision: decision as ReviewDecision, writeback, comment }),
+    mutationFn: () => reviewsApi.decide(id, { decision: decision as ReviewDecision, writeback, comment }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviewReport', id] }),
-    onError: (error: unknown) =>
-      setSubmitError(error instanceof Error ? error.message : 'Decision failed.'),
+    onError: (error: unknown) => setSubmitError(error instanceof Error ? error.message : 'Decision failed.'),
   });
 
   if (isLoading) {
@@ -318,9 +296,7 @@ export default function ReviewReportPage(): JSX.Element {
             <ArrowLeft size={13} />
             Back to Queue
           </Link>
-          <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
-            {data.prTitle}
-          </h1>
+          <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.01em' }}>{data.prTitle}</h1>
           <p
             style={{
               margin: 0,
@@ -500,9 +476,7 @@ export default function ReviewReportPage(): JSX.Element {
               }}
             >
               {/* Status text */}
-              <div
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-              >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   {data.reviewStatus !== 'storing' ? (
                     <span className="spinner" aria-hidden="true" />
@@ -756,9 +730,7 @@ export default function ReviewReportPage(): JSX.Element {
                   }}
                 />
               </span>
-              <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>
-                Investigating
-              </span>
+              <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>Investigating</span>
               <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>
                 {selectedFinding.file}
                 {selectedFinding.line !== null ? `:${selectedFinding.line}` : ''}
@@ -863,12 +835,7 @@ export default function ReviewReportPage(): JSX.Element {
       <SummaryMetricsPanel summary={data.summary} stats={data.stats} findings={findings} />
 
       {/* 3 — investigation tabs */}
-      <nav
-        role="tablist"
-        aria-label="Review detail"
-        className="review-tabs"
-        style={{ marginTop: 20 }}
-      >
+      <nav role="tablist" aria-label="Review detail" className="review-tabs" style={{ marginTop: 20 }}>
         {TABS.map((tab) => {
           const selected = activeTab === tab.key;
           const badge = tabBadge(tab.key);

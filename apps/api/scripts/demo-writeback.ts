@@ -22,12 +22,7 @@
  */
 
 import { GitProviderType, TicketProviderType, WritebackAction } from '@harness/domain';
-import type {
-  WriteBackIntent,
-  WritebackClaim,
-  WritebackFinalize,
-  WritebackLogStore,
-} from '@harness/domain';
+import type { WriteBackIntent, WritebackClaim, WritebackFinalize, WritebackLogStore } from '@harness/domain';
 import type { McpClient, McpServerRegistry, ToolResult } from '@harness/mcp';
 import { StaticGitToolMap } from '@harness/git-provider';
 import { StaticTicketToolMap } from '@harness/ticket-provider';
@@ -99,9 +94,7 @@ class MemoryWritebackLogStore implements WritebackLogStore {
   readonly rows: Row[] = [];
 
   async claim(input: WritebackClaim): Promise<'claimed' | 'duplicate'> {
-    const duplicate = this.rows.some(
-      (row) => row.dedupKey === input.dedupKey && row.status === 'SUCCEEDED',
-    );
+    const duplicate = this.rows.some((row) => row.dedupKey === input.dedupKey && row.status === 'SUCCEEDED');
     this.rows.push({
       intentId: input.intentId,
       dedupKey: input.dedupKey,
@@ -207,13 +200,9 @@ function onService(): {
   const client = new RecordingClient();
   const store = new MemoryWritebackLogStore();
   const registry = registryOf(client);
-  const service = new MCPWriteBack(
-    registry,
-    new StaticGitToolMap(),
-    new StaticTicketToolMap(),
-    store,
-    { enabled: () => true },
-  );
+  const service = new MCPWriteBack(registry, new StaticGitToolMap(), new StaticTicketToolMap(), store, {
+    enabled: () => true,
+  });
   return { service, client, store, registry };
 }
 
@@ -224,9 +213,7 @@ async function main(): Promise<void> {
 
   // --- 1. The three-layer toggle (request flag ∧ global ceiling, then per-provider) ----
   console.log('=== 1. the three-layer toggle (request flag ∧ global ceiling; per-provider) ===');
-  console.log(
-    `  global ceiling:  writebackEnabled(true, {})                     → ${writebackEnabled(true, {})}`,
-  );
+  console.log(`  global ceiling:  writebackEnabled(true, {})                     → ${writebackEnabled(true, {})}`);
   console.log(
     `  global ceiling:  writebackEnabled(true, { WRITEBACK_ENABLED:'1' }) → ${writebackEnabled(true, { WRITEBACK_ENABLED: '1' })}`,
   );
@@ -237,10 +224,7 @@ async function main(): Promise<void> {
     `  request flag:    writebackEnabled(undefined, { WRITEBACK_ENABLED:'1' }) → ${writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' })}`,
   );
   assert(writebackEnabled(true, {}) === true, 'ON by default (no WRITEBACK_ENABLED)');
-  assert(
-    writebackEnabled(true, { WRITEBACK_ENABLED: '1' }) === true,
-    'global ceiling + request flag both ON',
-  );
+  assert(writebackEnabled(true, { WRITEBACK_ENABLED: '1' }) === true, 'global ceiling + request flag both ON');
   assert(
     writebackEnabled(true, { WRITEBACK_ENABLED: '0' }) === false,
     'an explicit WRITEBACK_ENABLED=0 defeats a request-level ON',
@@ -327,12 +311,7 @@ async function main(): Promise<void> {
 
   for (const host of matrix) {
     const { service, client, store, registry } = onService();
-    const [comment, status] = gitDecision(
-      `dec-${host.host}`,
-      host.provider,
-      host.repo,
-      host.number,
-    );
+    const [comment, status] = gitDecision(`dec-${host.host}`, host.provider, host.repo, host.number);
     const commentResult = await service.write(comment);
     const statusResult = await service.write(status);
 
@@ -362,12 +341,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const {
-    service: jiraService,
-    client: jiraClient,
-    store: jiraStore,
-    registry: jiraRegistry,
-  } = onService();
+  const { service: jiraService, client: jiraClient, store: jiraStore, registry: jiraRegistry } = onService();
   const [jiraComment, jiraTransition] = jiraDecision('dec-jira');
   const jiraCommentResult = await jiraService.write(jiraComment);
   const jiraTransitionResult = await jiraService.write(jiraTransition);
@@ -382,13 +356,8 @@ async function main(): Promise<void> {
     jiraRegistry.gets.every((g) => g === 'jira'),
     'Jira resolved as jira',
   );
-  assert(
-    jiraStore.rows.filter((r) => r.status === 'SUCCEEDED').length === 2,
-    'Jira recorded two SUCCEEDED rows',
-  );
-  console.log(
-    `  ${'jira'.padEnd(13)} COMMENT+TRANSITION → ${jiraClient.calls.map((c) => c.name).join(', ')} ✓`,
-  );
+  assert(jiraStore.rows.filter((r) => r.status === 'SUCCEEDED').length === 2, 'Jira recorded two SUCCEEDED rows');
+  console.log(`  ${'jira'.padEnd(13)} COMMENT+TRANSITION → ${jiraClient.calls.map((c) => c.name).join(', ')} ✓`);
   console.log();
 
   // --- 3. Idempotency: a retried decision is DUPLICATE, one external write ------------
@@ -407,9 +376,7 @@ async function main(): Promise<void> {
     JSON.stringify(statuses) === JSON.stringify(['DUPLICATE', 'SUCCEEDED']),
     'retried decision: one SUCCEEDED + one DUPLICATE audit row',
   );
-  console.log(
-    `  external writes: ${idemClient.calls.length} · audit rows: ${statuses.join(', ')} ✓`,
-  );
+  console.log(`  external writes: ${idemClient.calls.length} · audit rows: ${statuses.join(', ')} ✓`);
   console.log();
 
   // --- 4. Redaction: a forced 401 never leaks token bytes -----------------------------
@@ -437,9 +404,7 @@ async function main(): Promise<void> {
   console.log();
 
   console.log('week-2 milestone: APPROVE (ON) lands COMMENT + STATUS / COMMENT + TRANSITION;');
-  console.log(
-    'OFF is provably silent (zero calls, zero rows), retries dedup, and errors are redacted. ✅',
-  );
+  console.log('OFF is provably silent (zero calls, zero rows), retries dedup, and errors are redacted. ✅');
 }
 
 void main().then(

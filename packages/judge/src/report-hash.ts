@@ -12,11 +12,7 @@
 import { createHash } from 'node:crypto';
 
 import { ReviewSeverity } from '@harness/domain';
-import type {
-  ReviewFinding,
-  ReviewReport,
-  ReviewSeverity as ReviewSeverityType,
-} from '@harness/domain';
+import type { ReviewFinding, ReviewReport, ReviewSeverity as ReviewSeverityType } from '@harness/domain';
 
 /** Severity band → sort rank (highest first). Unknown bands sort last. */
 const SEVERITY_RANK: Record<ReviewSeverityType, number> = {

@@ -55,11 +55,7 @@ export const EXCLUDED_SUFFIXES: readonly string[] = [
 ];
 
 /** Whole-file names that are never source (lockfiles, day-20 §6). */
-const LOCKFILE_NAMES: ReadonlySet<string> = new Set([
-  'package-lock.json',
-  'yarn.lock',
-  'pnpm-lock.yaml',
-]);
+const LOCKFILE_NAMES: ReadonlySet<string> = new Set(['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /** Maximum source size before a file is dropped outright (day-20 §2.2). */
 export const MAX_FILE_SIZE_BYTES = 256 * 1024;
@@ -173,8 +169,7 @@ export class FileCollector {
   }
 
   private async walk(relDir: string, out: CollectedFile[]): Promise<void> {
-    const absDir =
-      relDir === '' ? resolveSafe(this.rootDir, '.') : resolveSafe(this.rootDir, relDir);
+    const absDir = relDir === '' ? resolveSafe(this.rootDir, '.') : resolveSafe(this.rootDir, relDir);
     const entries = await readdir(absDir, { withFileTypes: true });
     entries.sort((a, b) => a.name.localeCompare(b.name));
 

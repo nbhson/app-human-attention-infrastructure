@@ -22,12 +22,7 @@
 import { ReviewSeverity } from '@harness/domain';
 import type { ReviewSeverity as ReviewSeverityType } from '@harness/domain';
 
-import {
-  classifyReviewableFile,
-  isGeneratedFile,
-  isReviewableFile,
-  isSourceFile,
-} from './review-file-classify.js';
+import { classifyReviewableFile, isGeneratedFile, isReviewableFile, isSourceFile } from './review-file-classify.js';
 import type { ReviewableCategory } from './review-file-classify.js';
 import { languageOfFile } from './file-language.js';
 
@@ -47,11 +42,7 @@ export const SEVERITY_ORDER = [
  * hero to 100% on a one-line NIT, or 46% on a README whose only finding is a
  * compliment.
  */
-const ACTIONABLE_SEVERITIES = new Set<string>([
-  ReviewSeverity.Critical,
-  ReviewSeverity.Major,
-  ReviewSeverity.Minor,
-]);
+const ACTIONABLE_SEVERITIES = new Set<string>([ReviewSeverity.Critical, ReviewSeverity.Major, ReviewSeverity.Minor]);
 
 /** A severity-band count keyed by band name. */
 export type SeverityCounts = Record<ReviewSeverityType, number>;
@@ -173,12 +164,8 @@ function share(flagged: number, total: number): number {
  * {@link ReviewStats}. Purely functional; safe against the empty `{}` payload the
  * decision-route tests seed and against findings whose `line` is null.
  */
-export function computeReviewStats(
-  prPayload: unknown,
-  findings: readonly FindingRef[],
-): ReviewStats {
-  const payload =
-    typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
+export function computeReviewStats(prPayload: unknown, findings: readonly FindingRef[]): ReviewStats {
+  const payload = typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
   const allFiles = Array.isArray(payload.files) ? payload.files : [];
   // The attention block is about the *hand-written* change, not the whole diff.
   // A lockfile that adds 9k lines must not move "needs human attention" — it was
@@ -222,9 +209,7 @@ export function computeReviewStats(
   }
   const flaggedAddedLines = files.reduce((sum, file) => {
     const path = file?.path;
-    return typeof path === 'string' && flaggedFiles.has(path)
-      ? sum + toNonNegative(file?.additions)
-      : sum;
+    return typeof path === 'string' && flaggedFiles.has(path) ? sum + toNonNegative(file?.additions) : sum;
   }, 0);
 
   // The diff, split by what the added lines actually are (test specs / styles /
@@ -238,9 +223,7 @@ export function computeReviewStats(
     'config',
   ] as const satisfies readonly ReviewableCategory[];
   const composition = COMPOSITION_ORDER.map((category) => {
-    const inCategory = files.filter(
-      (file) => classifyReviewableFile(file?.path ?? '') === category,
-    );
+    const inCategory = files.filter((file) => classifyReviewableFile(file?.path ?? '') === category);
     return {
       category,
       files: inCategory.length,
@@ -271,11 +254,7 @@ export function computeReviewStats(
       deletions: entry.deletions,
       share: share(entry.additions + entry.deletions, changedLines),
     }))
-    .sort(
-      (a, b) =>
-        b.additions + b.deletions - (a.additions + a.deletions) ||
-        a.language.localeCompare(b.language),
-    );
+    .sort((a, b) => b.additions + b.deletions - (a.additions + a.deletions) || a.language.localeCompare(b.language));
 
   // The part of the diff we deliberately throw away: generated artifacts only
   // (lockfiles, node_modules/dist/build, source maps, minified bundles).
@@ -305,9 +284,7 @@ export function computeReviewStats(
     .map(([file, severities]) => ({ file, severities: [...severities] }))
     .sort((a, b) => {
       const worst = (severities: readonly string[]): number =>
-        Math.min(
-          ...severities.map((severity) => (SEVERITY_ORDER as readonly string[]).indexOf(severity)),
-        );
+        Math.min(...severities.map((severity) => (SEVERITY_ORDER as readonly string[]).indexOf(severity)));
       return worst(a.severities) - worst(b.severities) || a.file.localeCompare(b.file);
     });
 
@@ -320,11 +297,7 @@ export function computeReviewStats(
   // reviewable file.
   const cleanupTally = new Map<string, number>();
   for (const finding of findings) {
-    if (
-      finding.kind === 'cleanup' &&
-      typeof finding.file === 'string' &&
-      isSourceFile(finding.file)
-    ) {
+    if (finding.kind === 'cleanup' && typeof finding.file === 'string' && isSourceFile(finding.file)) {
       cleanupTally.set(finding.file, (cleanupTally.get(finding.file) ?? 0) + 1);
     }
   }

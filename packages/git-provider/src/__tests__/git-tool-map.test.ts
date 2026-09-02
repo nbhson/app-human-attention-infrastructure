@@ -43,15 +43,20 @@ describe('StaticGitToolMap', () => {
   });
 
   it('encodes per-host read argument shapes', () => {
-    expect(
-      map.buildArgs(GitProviderType.GitHub, { owner: 'acme', name: 'api', number: 1 }),
-    ).toEqual({ owner: 'acme', repo: 'api', pull_number: 1 });
-    expect(
-      map.buildArgs(GitProviderType.GitLab, { owner: 'acme/sub', name: 'api', number: 7 }),
-    ).toEqual({ project: 'acme/sub/api', merge_request_iid: 7 });
-    expect(
-      map.buildArgs(GitProviderType.Bitbucket, { owner: 'acme', name: 'api', number: 3 }),
-    ).toEqual({ workspace: 'acme', repo_slug: 'api', pull_request_id: 3 });
+    expect(map.buildArgs(GitProviderType.GitHub, { owner: 'acme', name: 'api', number: 1 })).toEqual({
+      owner: 'acme',
+      repo: 'api',
+      pull_number: 1,
+    });
+    expect(map.buildArgs(GitProviderType.GitLab, { owner: 'acme/sub', name: 'api', number: 7 })).toEqual({
+      project: 'acme/sub/api',
+      merge_request_iid: 7,
+    });
+    expect(map.buildArgs(GitProviderType.Bitbucket, { owner: 'acme', name: 'api', number: 3 })).toEqual({
+      workspace: 'acme',
+      repo_slug: 'api',
+      pull_request_id: 3,
+    });
   });
 
   it('encodes per-host comment argument shapes', () => {

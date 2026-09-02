@@ -68,11 +68,7 @@ export class SnapshotStore {
    * snapshot already holds these bytes, return it without inserting a copy —
    * the content-addressed object store never sees a duplicate `put` either.
    */
-  async save<T extends SnapshotExecutor>(
-    executor: T,
-    changeId: ChangeID,
-    content: string,
-  ): Promise<SnapshotResult> {
+  async save<T extends SnapshotExecutor>(executor: T, changeId: ChangeID, content: string): Promise<SnapshotResult> {
     const hash = sha256(content);
 
     const existing = await executor

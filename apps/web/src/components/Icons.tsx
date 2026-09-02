@@ -48,10 +48,7 @@ export function Plus({ size = 16, className }: IconProps): JSX.Element {
 }
 
 export function CheckCircle2({ size = 16, className }: IconProps): JSX.Element {
-  return glyph(size, className, [
-    <circle key="a" cx="12" cy="12" r="10" />,
-    <path key="b" d="m9 12 2 2 4-4" />,
-  ]);
+  return glyph(size, className, [<circle key="a" cx="12" cy="12" r="10" />, <path key="b" d="m9 12 2 2 4-4" />]);
 }
 
 export function Sliders({ size = 16, className }: IconProps): JSX.Element {
@@ -78,9 +75,7 @@ export function Sparkles({ size = 16, className }: IconProps): JSX.Element {
 }
 
 export function Zap({ size = 16, className }: IconProps): JSX.Element {
-  return glyph(size, className, [
-    <polygon key="a" points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />,
-  ]);
+  return glyph(size, className, [<polygon key="a" points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />]);
 }
 
 export function Clock({ size = 16, className }: IconProps): JSX.Element {
@@ -127,9 +122,7 @@ export function Star({ size = 16, className }: IconProps): JSX.Element {
 
 /** Bookmark (outline) — star variant used for the card's save-later toggle. */
 export function Bookmark({ size = 16, className }: IconProps): JSX.Element {
-  return glyph(size, className, [
-    <path key="a" d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />,
-  ]);
+  return glyph(size, className, [<path key="a" d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />]);
 }
 
 export function Check({ size = 16, className }: IconProps): JSX.Element {
@@ -145,16 +138,11 @@ export function AlertTriangle({ size = 16, className }: IconProps): JSX.Element 
 }
 
 export function MessageSquare({ size = 16, className }: IconProps): JSX.Element {
-  return glyph(size, className, [
-    <path key="a" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
-  ]);
+  return glyph(size, className, [<path key="a" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />]);
 }
 
 export function Search({ size = 16, className }: IconProps): JSX.Element {
-  return glyph(size, className, [
-    <circle key="a" cx="11" cy="11" r="8" />,
-    <path key="b" d="m21 21-4.3-4.3" />,
-  ]);
+  return glyph(size, className, [<circle key="a" cx="11" cy="11" r="8" />, <path key="b" d="m21 21-4.3-4.3" />]);
 }
 
 export function X({ size = 16, className }: IconProps): JSX.Element {
@@ -170,10 +158,7 @@ export function ChevronUp({ size = 16, className }: IconProps): JSX.Element {
 }
 
 export function ArrowRight({ size = 16, className }: IconProps): JSX.Element {
-  return glyph(size, className, [
-    <path key="a" d="M5 12h14" />,
-    <path key="b" d="m12 5 7 7-7 7" />,
-  ]);
+  return glyph(size, className, [<path key="a" d="M5 12h14" />, <path key="b" d="m12 5 7 7-7 7" />]);
 }
 
 export function Layers({ size = 16, className }: IconProps): JSX.Element {
@@ -304,10 +289,7 @@ export function ChevronRight({ size = 16, className }: IconProps): JSX.Element {
 }
 
 export function ArrowLeft({ size = 16, className }: IconProps): JSX.Element {
-  return glyph(size, className, [
-    <path key="a" d="m12 19-7-7 7-7" />,
-    <path key="b" d="M19 12H5" />,
-  ]);
+  return glyph(size, className, [<path key="a" d="m12 19-7-7 7-7" />, <path key="b" d="M19 12H5" />]);
 }
 
 export function Moon({ size = 16, className }: IconProps): JSX.Element {

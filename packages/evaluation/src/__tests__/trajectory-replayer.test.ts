@@ -82,13 +82,7 @@ describe('TrajectoryReplayer', () => {
 
     expect(result.steps).toHaveLength(5);
     expect(result.steps.every((s) => s.replayed && s.matched)).toBe(true);
-    expect(result.steps.map((s) => s.type)).toEqual([
-      'THOUGHT',
-      'TOOL_CALL',
-      'TOOL_CALL',
-      'OBSERVATION',
-      'THOUGHT',
-    ]);
+    expect(result.steps.map((s) => s.type)).toEqual(['THOUGHT', 'TOOL_CALL', 'TOOL_CALL', 'OBSERVATION', 'THOUGHT']);
     expect(result.unmatched).toBe(0);
     expect(result.resolvedToolCalls).toBe(2);
     // Phase-1 records tokens at the run level only; "would-have-spent" asserts
@@ -108,18 +102,18 @@ describe('TrajectoryReplayer', () => {
   it('throws ReplayDivergenceError on a dropped step (non-contiguous index)', () => {
     const steps = makeTrajectory().steps.filter((s) => s.stepIndex !== 2);
 
-    expect(() =>
-      new TrajectoryReplayer().replay({ runId: RUN_ID, trajectory: makeTrajectory(steps) }),
-    ).toThrow(ReplayDivergenceError);
+    expect(() => new TrajectoryReplayer().replay({ runId: RUN_ID, trajectory: makeTrajectory(steps) })).toThrow(
+      ReplayDivergenceError,
+    );
   });
 
   it('throws ReplayDivergenceError on a re-ordered step', () => {
     const original = makeTrajectory().steps;
     const swapped = [original[1]!, original[0]!, original[2]!, original[3]!, original[4]!];
 
-    expect(() =>
-      new TrajectoryReplayer().replay({ runId: RUN_ID, trajectory: makeTrajectory(swapped) }),
-    ).toThrow(ReplayDivergenceError);
+    expect(() => new TrajectoryReplayer().replay({ runId: RUN_ID, trajectory: makeTrajectory(swapped) })).toThrow(
+      ReplayDivergenceError,
+    );
   });
 
   it('throws TrajectoryHashMismatchError when content mutates under a recorded hash', () => {
@@ -165,17 +159,13 @@ describe('StubToolExecutor', () => {
     expect(executor.execute('read_file', { path: 'src/utils/validators.ts' })).toBe('');
     expect(executor.resolvedToolCalls).toBe(1);
 
-    expect(() => executor.execute('read_file', { path: 'other.ts' })).toThrow(
-      ReplayDivergenceError,
-    );
+    expect(() => executor.execute('read_file', { path: 'other.ts' })).toThrow(ReplayDivergenceError);
   });
 });
 
 describe('loadTrajectory', () => {
   it('loads the sealed fixture and re-derives its recorded hash from the steps', async () => {
-    const path = fileURLToPath(
-      new URL('../../../../fixtures/trajectories/coding-run.json', import.meta.url),
-    );
+    const path = fileURLToPath(new URL('../../../../fixtures/trajectories/coding-run.json', import.meta.url));
     const loaded = await loadTrajectory(path);
 
     expect(loaded.runId).toBe('run-coding-add-email-validation');

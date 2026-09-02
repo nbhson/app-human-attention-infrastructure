@@ -15,11 +15,7 @@ import {
   rankCorrelationDistribution,
   recommend,
 } from '../ab/outcome-metrics.js';
-import type {
-  EvidenceVerdict,
-  OutcomeSignals,
-  RankCorrelationDistribution,
-} from '../ab/outcome-metrics.js';
+import type { EvidenceVerdict, OutcomeSignals, RankCorrelationDistribution } from '../ab/outcome-metrics.js';
 
 describe('kendallTau', () => {
   it('is 1 for identical orders, -1 for reversed, null under 2 shared items', () => {

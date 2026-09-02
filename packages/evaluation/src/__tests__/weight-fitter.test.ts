@@ -61,16 +61,9 @@ describe('binaryLabel', () => {
 describe('normalizeWeights', () => {
   it('maps coefficients to a convex combination (≥0, sums to 1) even when negative', () => {
     const weights = normalizeWeights([-2, 1, 0, 0.5, -0.5]);
-    const sum =
-      weights.risk + weights.impact + weights.novelty + weights.complexity + weights.confidence;
+    const sum = weights.risk + weights.impact + weights.novelty + weights.complexity + weights.confidence;
     expect(sum).toBeCloseTo(1, 6);
-    for (const value of [
-      weights.risk,
-      weights.impact,
-      weights.novelty,
-      weights.complexity,
-      weights.confidence,
-    ]) {
+    for (const value of [weights.risk, weights.impact, weights.novelty, weights.complexity, weights.confidence]) {
       expect(value).toBeGreaterThanOrEqual(0);
     }
   });

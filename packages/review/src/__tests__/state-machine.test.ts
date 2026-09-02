@@ -7,12 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ReviewQueueStatus } from '@harness/domain';
-import {
-  ALLOWED_FROM,
-  IllegalTransitionError,
-  assertTransition,
-  canTransition,
-} from '../state-machine.js';
+import { ALLOWED_FROM, IllegalTransitionError, assertTransition, canTransition } from '../state-machine.js';
 
 describe('review state machine (Spec 8 §2.2)', () => {
   describe('canTransition / assertTransition', () => {

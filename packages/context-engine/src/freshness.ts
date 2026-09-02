@@ -46,10 +46,7 @@ export async function hashFile(projectRoot: string, sourceId: string): Promise<s
  * Compare every snapshot source against its current on-disk content. Returns
  * `FRESH` only when nothing changed; otherwise `STALE` with the offending paths.
  */
-export async function checkFreshness(
-  snapshot: ContextSnapshot,
-  projectRoot: string,
-): Promise<FreshnessResult> {
+export async function checkFreshness(snapshot: ContextSnapshot, projectRoot: string): Promise<FreshnessResult> {
   const staleSources: string[] = [];
   for (const source of snapshot.sources) {
     const current = await hashFile(projectRoot, source.sourceId);

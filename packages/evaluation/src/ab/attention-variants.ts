@@ -40,22 +40,17 @@ export interface AttentionVariantPair {
 }
 
 /** Build the two attention-weight variants (incumbent unchanged, candidate refit). */
-export function attentionWeightVariants(
-  incumbent: WeightsVector,
-  candidate: WeightsVector,
-): AttentionVariantPair {
+export function attentionWeightVariants(incumbent: WeightsVector, candidate: WeightsVector): AttentionVariantPair {
   return {
     incumbent: {
       variantId: INCUMBENT_ATTENTION_VARIANT_ID,
-      description:
-        'incumbent attention weights — risk/impact/novelty/complexity/confidence (unrefitted)',
+      description: 'incumbent attention weights — risk/impact/novelty/complexity/confidence (unrefitted)',
       contextRanker: 'keyword',
       attentionWeights: toAttentionWeights(incumbent),
     },
     candidate: {
       variantId: CANDIDATE_ATTENTION_VARIANT_ID,
-      description:
-        'judge-signal-refitted attention weights — confidence column carries judge disagreement',
+      description: 'judge-signal-refitted attention weights — confidence column carries judge disagreement',
       contextRanker: 'keyword',
       attentionWeights: toAttentionWeights(candidate),
     },

@@ -9,12 +9,7 @@
 
 import { contexts } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import {
-  ContextSourceType,
-  createContextSnapshot,
-  createContextSource,
-  newContextID,
-} from '@harness/domain';
+import { ContextSourceType, createContextSnapshot, createContextSource, newContextID } from '@harness/domain';
 import type { ContextSnapshot } from '@harness/domain';
 import type { Embedder } from '@harness/embeddings';
 
@@ -161,9 +156,7 @@ export class ContextEngine {
       });
     });
 
-    const previousEvents = Array.isArray(previous.metadata.freshness_events)
-      ? previous.metadata.freshness_events
-      : [];
+    const previousEvents = Array.isArray(previous.metadata.freshness_events) ? previous.metadata.freshness_events : [];
     const snapshot = createContextSnapshot({
       id: previous.id,
       taskId: previous.taskId,
@@ -172,10 +165,7 @@ export class ContextEngine {
       rankMethod: previous.rankMethod,
       metadata: {
         ...previous.metadata,
-        freshness_events: [
-          ...previousEvents,
-          { at: new Date().toISOString(), stale: freshness.staleSources },
-        ],
+        freshness_events: [...previousEvents, { at: new Date().toISOString(), stale: freshness.staleSources }],
       },
     });
 

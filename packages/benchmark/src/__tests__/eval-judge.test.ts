@@ -3,11 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { JudgeScores } from '@harness/domain';
 
 import type { ReviewExample } from '../review-example.js';
-import {
-  computeGoldAgreement,
-  evaluateJudgeAgainstGold,
-  reportFromExample,
-} from '../eval-judge.js';
+import { computeGoldAgreement, evaluateJudgeAgainstGold, reportFromExample } from '../eval-judge.js';
 import type { JudgeScorer } from '../eval-judge.js';
 
 function example(overrides: Partial<ReviewExample> = {}): ReviewExample {
@@ -120,10 +116,7 @@ describe('computeGoldAgreement', () => {
 describe('evaluateJudgeAgainstGold', () => {
   it('runs the scorer over every example and returns agreement plus results', async () => {
     const scorer: JudgeScorer = async () => scores();
-    const examples = [
-      example(),
-      example({ id: 'eg-2', gold: { severity: 0.9, routing: 0.8, useful: true } }),
-    ];
+    const examples = [example(), example({ id: 'eg-2', gold: { severity: 0.9, routing: 0.8, useful: true } })];
 
     const result = await evaluateJudgeAgainstGold(examples, scorer);
 

@@ -49,10 +49,7 @@ function providerId(kind: 'git' | 'ticket', providerType: string): string {
  * joined with the enabled flag from the `provider_configs` mirror (default `true`
  * until a row is written). Only redacted hints leave the function.
  */
-async function readProviders(
-  db: DrizzleDB,
-  registry: McpServerRegistry,
-): Promise<{ providers: unknown[] }> {
+async function readProviders(db: DrizzleDB, registry: McpServerRegistry): Promise<{ providers: unknown[] }> {
   const rows = await db.select().from(providerConfigs);
   const enabledByKey = new Map(rows.map((r) => [`${r.kind}:${r.provider_type}`, r.enabled]));
   const providers = registry.entries().map((entry) => {
@@ -78,46 +75,42 @@ export function registerSettingsRoutes(app: FastifyInstance, container: Containe
 
   app.get('/api/settings/providers', { preHandler: canAdmin }, () => readProviders(db, registry));
 
-  app.put<{ Body: ProvidersBody }>(
-    '/api/settings/providers',
-    { preHandler: canAdmin },
-    async (request, reply) => {
-      const body = request.body?.providers ?? {};
-      const known = new Set(registry.list());
-      const unknown = Object.keys(body).filter((name) => !known.has(name));
-      if (unknown.length > 0) {
-        return reply.code(400).send({ error: `unknown provider(s): ${unknown.join(', ')}` });
-      }
+  app.put<{ Body: ProvidersBody }>('/api/settings/providers', { preHandler: canAdmin }, async (request, reply) => {
+    const body = request.body?.providers ?? {};
+    const known = new Set(registry.list());
+    const unknown = Object.keys(body).filter((name) => !known.has(name));
+    if (unknown.length > 0) {
+      return reply.code(400).send({ error: `unknown provider(s): ${unknown.join(', ')}` });
+    }
 
-      for (const entry of registry.entries()) {
-        const enabled = body[entry.name];
-        if (typeof enabled !== 'boolean') {
-          continue; // absent from the payload → leave the stored state unchanged
-        }
-        const kind = kindFor(entry.name);
-        const tokenRedacted = entry.tokenHint;
-        const baseUrl = entry.url;
-        await db
-          .insert(providerConfigs)
-          .values({
-            id: providerId(kind, entry.name),
-            kind,
-            provider_type: entry.name,
+    for (const entry of registry.entries()) {
+      const enabled = body[entry.name];
+      if (typeof enabled !== 'boolean') {
+        continue; // absent from the payload → leave the stored state unchanged
+      }
+      const kind = kindFor(entry.name);
+      const tokenRedacted = entry.tokenHint;
+      const baseUrl = entry.url;
+      await db
+        .insert(providerConfigs)
+        .values({
+          id: providerId(kind, entry.name),
+          kind,
+          provider_type: entry.name,
+          enabled,
+          ...(tokenRedacted !== undefined ? { token_redacted: tokenRedacted } : {}),
+          ...(baseUrl !== undefined ? { base_url: baseUrl } : {}),
+        })
+        .onConflictDoUpdate({
+          target: providerConfigs.id,
+          set: {
             enabled,
             ...(tokenRedacted !== undefined ? { token_redacted: tokenRedacted } : {}),
             ...(baseUrl !== undefined ? { base_url: baseUrl } : {}),
-          })
-          .onConflictDoUpdate({
-            target: providerConfigs.id,
-            set: {
-              enabled,
-              ...(tokenRedacted !== undefined ? { token_redacted: tokenRedacted } : {}),
-              ...(baseUrl !== undefined ? { base_url: baseUrl } : {}),
-            },
-          });
-      }
+          },
+        });
+    }
 
-      return readProviders(db, registry);
-    },
-  );
+    return readProviders(db, registry);
+  });
 }

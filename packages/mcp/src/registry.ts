@@ -66,10 +66,7 @@ export class McpServerRegistryImpl implements McpServerRegistry {
   }
 }
 
-function buildTransport(
-  entry: McpServerEntry,
-  env: Record<string, string | undefined>,
-): McpTransport {
+function buildTransport(entry: McpServerEntry, env: Record<string, string | undefined>): McpTransport {
   if (entry.transport === 'stdio') {
     return new StdioTransport({
       command: entry.command!,
@@ -90,12 +87,7 @@ function buildSseHeaders(
   const headers: Record<string, string> = { ...(entry.headers ?? {}) };
   if (entry.tokenEnv) {
     const value = env[entry.tokenEnv];
-    if (
-      value !== undefined &&
-      value.length > 0 &&
-      !('authorization' in headers) &&
-      !('Authorization' in headers)
-    ) {
+    if (value !== undefined && value.length > 0 && !('authorization' in headers) && !('Authorization' in headers)) {
       // The only legitimate place a token value is read: injected into the
       // Authorization header at connect time, never cached, never logged.
       headers['authorization'] = `Bearer ${value}`;

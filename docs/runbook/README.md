@@ -1,17 +1,18 @@
 # Operations Runbook
 
 > **Incident-oriented, not component-oriented.** Each entry is
-> *Symptom → Diagnose (exact command) → Resolve (exact command) → Escalate when.*
+> _Symptom → Diagnose (exact command) → Resolve (exact command) → Escalate when._
 > Every command here was executed against the real stack on Day 29. If a command
 > doesn't work as written, that's a runbook bug — fix it, don't improvise in an
 > incident.
 
 > **`review-reorient` (v0.6) — scope note.** The code-generation path — the
-> dispatcher loop, the runtime loop, *and* the startup reconciler
+> dispatcher loop, the runtime loop, _and_ the startup reconciler
 > (`apps/api/src/reconcile.ts`) — was retired. The live path is **review-only**:
 > `POST /api/reviews` fetches an external PR + Jira ticket, the AI reviews it
 > (report + findings + fix suggestions), and a `Task` is created then immediately
 > `CANCELLED`. This changes three entries:
+>
 > - **R1** is historical — no live code path puts a task in `EXECUTING`/`VERIFYING`,
 >   and the `agent_runs` / `trajectory_steps` tables it queries are orphaned. Kept
 >   for provenance only.
@@ -22,7 +23,7 @@
 
 The most useful sources of truth live next door:
 
-- **[operations.md](operations.md)** — the *as-built* procedures
+- **[operations.md](operations.md)** — the _as-built_ procedures
   (v1.0-candidate): provider-token rotation (OP-1), write-back audit (OP-2),
   learning-loop HOLD (OP-3), the `rank_method` kill-switch (OP-4), and the
   durable-queue `EVENT_TRANSPORT` flag (OP-5).
@@ -55,7 +56,7 @@ docker compose exec -T postgres psql -U harness -d harness \
       WHERE state IN ('EXECUTING','VERIFYING') AND updated_at < now() - interval '10 minutes';"
 ```
 
-Then split on *who died*:
+Then split on _who died_:
 
 ```bash
 # Is the API process even alive?
@@ -86,7 +87,7 @@ curl -s localhost:3000/api/ops/health
   `AWAITING_HUMAN_INTERVENTION`.
 
 **Escalate when:** the reconciler recovered a task you did not expect to be stuck
-(Q9 shows a recovery right after a restart that *shouldn't* have crashed), or the
+(Q9 shows a recovery right after a restart that _shouldn't_ have crashed), or the
 same task gets stranded repeatedly. That's a product bug, not an ops fix.
 
 > **Never "repair" an `EXECUTING`/`VERIFYING` row from a cron.** The orphan
@@ -118,10 +119,10 @@ docker compose exec -T postgres psql -U harness -d harness \
   stuck, it's **deferred by the daily review budget** (Day 19): once today's
   `DECIDED`+`CLAIMED` count reaches `fatigue.dailyReviewBudget` (20), low-severity
   items stay `QUEUED` (flagged) instead of surfacing. `ESCALATE`/`REVIEW_REQUIRED`
-  are *never* deferred. Wait for the next UTC day, or raise the budget — but read
+  are _never_ deferred. Wait for the next UTC day, or raise the budget — but read
   R5 before you do.
 - Rows are `DROPPED` → a reviewer explicitly dropped them. The budget only
-  *defers* (stays `QUEUED`), it never drops — so `DROPPED` is a routing/signal
+  _defers_ (stays `QUEUED`), it never drops — so `DROPPED` is a routing/signal
   problem to investigate, not a mechanical fix.
 - `QUEUED` rows exist but nobody can claim → the reviewer identity is missing.
   The identity is the `reviewerId` field on every `claim`/`decide` body (the
@@ -228,7 +229,7 @@ docker compose exec -T postgres psql -U harness -d harness \
 
 - `attention.inflation_detected` recurring → the adaptive-threshold machinery is
   **working as designed** (it bounds the HIGH share to the configured ceiling).
-  No action; the signal *is* the healthy response.
+  No action; the signal _is_ the healthy response.
 - `attention.threshold_adjusted` firing with usefulness still falling → the
   nudge is self-correcting but the band is noisy; let it run.
 - **Usefulness < 50% on `HIGH` for ~2 weeks** → the weights are untuned (they're
@@ -236,7 +237,7 @@ docker compose exec -T postgres psql -U harness -d harness \
   decision for weight calibration, not a code fix in production**. Escalate
   to the owner, don't hand-tune `PRIORITY_WEIGHTS`.
 
-**Escalate when:** any of the above *except* the "running as designed" case, and
+**Escalate when:** any of the above _except_ the "running as designed" case, and
 only after the calibration path exists.
 
 ---
@@ -247,14 +248,14 @@ only after the calibration path exists.
 you've exhausted R1–R5 and must move it by hand.
 
 > **This is the last resort.** It bypasses the state machine's validators, so it is
-> *your* job to pick a valid transition (`packages/orchestrator/README.md`) and
+> _your_ job to pick a valid transition (`packages/orchestrator/README.md`) and
 > to leave a complete audit trail. Skipping the history row is forbidden — it makes
 > the timeline un-replayable (audit-query Q2).
 
 **Procedure:**
 
 1. **Stop the API** so no loop races the row (`Ctrl-C` on `pnpm dev`, or the
-   deploy's stop command). The reconciler does *not* run here.
+   deploy's stop command). The reconciler does _not_ run here.
 2. Open a transaction and make **all three writes**:
 
 ```sql
@@ -313,10 +314,10 @@ pnpm dev                  # Fastify API on :3000 (+ hot reload)
 pnpm build && pnpm --filter @harness/api start
 ```
 
-| Signal | Behaviour |
-| --- | --- |
-| `SIGTERM` / `Ctrl-C` | Graceful: both poll loops halt, then in-flight ticks drain. Do this when you can. |
-| `SIGKILL` | Not graceful. *(Post-`review-reorient`: there is no poll loop or startup reconciler — an in-flight review ingest request is simply lost; its `task.created` may or may not have committed.)* |
+| Signal               | Behaviour                                                                                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SIGTERM` / `Ctrl-C` | Graceful: both poll loops halt, then in-flight ticks drain. Do this when you can.                                                                                                            |
+| `SIGKILL`            | Not graceful. _(Post-`review-reorient`: there is no poll loop or startup reconciler — an in-flight review ingest request is simply lost; its `task.created` may or may not have committed.)_ |
 
 Read [limitations.md](limitations.md) §1–§3 before running more than one process,
 before expecting a message broker, or before "fixing" the nonexistent worker pool.
@@ -336,13 +337,13 @@ curl -s localhost:3000/metrics \
   | grep -E 'harness_(context_semantic_fallback|object_store_(fallback|error|integrity_error)|sandbox_fallback)_total'
 ```
 
-| Alert | Meaning (the fallback) | Diagnose | Response |
-| --- | --- | --- | --- |
-| `SemanticFallbackSustained` | semantic shadow → keyword (`rank_method = keyword`) | `curl -s localhost:3000/metrics \| grep harness_context_semantic_fallback_total` | The keyword path is serving **correctly** — this is fail-open. Check the embedder: is `EMBEDDINGS_BASE_URL` reachable (`curl -s $EMBEDDINGS_BASE_URL`)? Without it the shadow stops *measuring*, which silently unvalidated the Day-18 invariant. |
-| `ObjectStoreFallbackSustained` | oversize content inlined to db | `curl -s localhost:3000/metrics \| grep harness_object_store_fallback_total` | The S3-compatible endpoint is down: check `OBJECT_STORE_ENDPOINT` reachability, then bucket/creds. The repo no longer provisions MinIO — you supply it. Bring it back before Postgres grows past sizing. |
-| `ObjectStoreErrorSustained` | writes fail-closed (caller rejected, never silent byte loss) | `grep harness_object_store_error_total` | Same object-store triage, but *worse*: content at/over the inline ceiling is being **rejected**, not inlined. Check bucket/creds/disk. |
-| `ObjectStoreIntegrityDrift` | SHA-256 read-back mismatch | `grep harness_object_store_integrity_error_total` | **Data-integrity incident, not availability.** A stored object's bytes no longer hash to its address — tampering or silent corruption. Open an incident immediately; do not just restart the object store. |
-| `SandboxFallbackSustained` | verification → in-process (no isolation) | `grep harness_sandbox_fallback_total` | Docker daemon or the pinned image is unavailable: `docker images harness-verify:node20`; rebuild if missing (`docker build -t harness-verify:node20 packages/sandbox`). Fail-open, but isolation is the point (see `packages/sandbox/README.md`) — triage it. |
+| Alert                          | Meaning (the fallback)                                       | Diagnose                                                                         | Response                                                                                                                                                                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SemanticFallbackSustained`    | semantic shadow → keyword (`rank_method = keyword`)          | `curl -s localhost:3000/metrics \| grep harness_context_semantic_fallback_total` | The keyword path is serving **correctly** — this is fail-open. Check the embedder: is `EMBEDDINGS_BASE_URL` reachable (`curl -s $EMBEDDINGS_BASE_URL`)? Without it the shadow stops _measuring_, which silently unvalidated the Day-18 invariant.             |
+| `ObjectStoreFallbackSustained` | oversize content inlined to db                               | `curl -s localhost:3000/metrics \| grep harness_object_store_fallback_total`     | The S3-compatible endpoint is down: check `OBJECT_STORE_ENDPOINT` reachability, then bucket/creds. The repo no longer provisions MinIO — you supply it. Bring it back before Postgres grows past sizing.                                                      |
+| `ObjectStoreErrorSustained`    | writes fail-closed (caller rejected, never silent byte loss) | `grep harness_object_store_error_total`                                          | Same object-store triage, but _worse_: content at/over the inline ceiling is being **rejected**, not inlined. Check bucket/creds/disk.                                                                                                                        |
+| `ObjectStoreIntegrityDrift`    | SHA-256 read-back mismatch                                   | `grep harness_object_store_integrity_error_total`                                | **Data-integrity incident, not availability.** A stored object's bytes no longer hash to its address — tampering or silent corruption. Open an incident immediately; do not just restart the object store.                                                    |
+| `SandboxFallbackSustained`     | verification → in-process (no isolation)                     | `grep harness_sandbox_fallback_total`                                            | Docker daemon or the pinned image is unavailable: `docker images harness-verify:node20`; rebuild if missing (`docker build -t harness-verify:node20 packages/sandbox`). Fail-open, but isolation is the point (see `packages/sandbox/README.md`) — triage it. |
 
 The degradation contract and exact counter are covered by each subsystem's
 failure-injection tests (see `packages/object-store/src/__tests__/failure-injection.test.ts`
@@ -367,7 +368,7 @@ curl -s -X POST localhost:3000/api/admin/auto-approve/enabled \
   -d '{"enabled": false}'
 ```
 
-**Trip the kill-switch** (disable auto-approve *and* requeue every in-flight
+**Trip the kill-switch** (disable auto-approve _and_ requeue every in-flight
 `AUTO_APPROVABLE` item to human review in one go):
 
 ```bash

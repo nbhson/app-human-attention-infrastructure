@@ -267,10 +267,7 @@ describe('AttentionRouter §4.1 daily budget', () => {
     const outcome = await router.route(second.assessmentId);
     expect(outcome).toMatchObject({ action: 'REVIEW_RECOMMENDED', deferred: true });
 
-    const row = await db
-      .select()
-      .from(reviewQueue)
-      .where(eq(reviewQueue.assessment_id, second.assessmentId));
+    const row = await db.select().from(reviewQueue).where(eq(reviewQueue.assessment_id, second.assessmentId));
     expect(row[0]?.status).toBe('QUEUED');
     expect(row[0]?.deferred_until).not.toBeNull();
 

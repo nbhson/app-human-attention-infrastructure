@@ -38,29 +38,21 @@ export function registerAdminRoutes(app: FastifyInstance, container: Container):
   // per-request is unnecessary and makes unit-testing the handler harder.
   const killSwitch = container.resolve<AutoApproveKillSwitch>(TOKENS.AutoApproveKillSwitch);
 
-  app.post<{ Body: EnabledBody }>(
-    '/api/admin/auto-approve/enabled',
-    { preHandler: canAdmin },
-    async (request) => {
-      await killSwitch.setFlagEnabled(request.body.enabled);
-      return { autoApproveEnabled: request.body.enabled };
-    },
-  );
+  app.post<{ Body: EnabledBody }>('/api/admin/auto-approve/enabled', { preHandler: canAdmin }, async (request) => {
+    await killSwitch.setFlagEnabled(request.body.enabled);
+    return { autoApproveEnabled: request.body.enabled };
+  });
 
-  app.post<{ Body: KillBody }>(
-    '/api/admin/auto-approve/kill',
-    { preHandler: canAdmin },
-    async (request, reply) => {
-      // requireRole preHandler guarantees request.auth is set for Admin route;
-      // guard here for type safety — the `!` asserts suppress the TS error but
-      // the runtime path is covered by the hook above.
-      const user = request.auth?.user;
-      if (!user) {
-        return reply.code(401).send({ error: 'unauthenticated' });
-      }
-      const actorId = user.id;
-      await killSwitch.kill(actorId, request.body.reason);
-      return { ok: true, killed: true };
-    },
-  );
+  app.post<{ Body: KillBody }>('/api/admin/auto-approve/kill', { preHandler: canAdmin }, async (request, reply) => {
+    // requireRole preHandler guarantees request.auth is set for Admin route;
+    // guard here for type safety — the `!` asserts suppress the TS error but
+    // the runtime path is covered by the hook above.
+    const user = request.auth?.user;
+    if (!user) {
+      return reply.code(401).send({ error: 'unauthenticated' });
+    }
+    const actorId = user.id;
+    await killSwitch.kill(actorId, request.body.reason);
+    return { ok: true, killed: true };
+  });
 }

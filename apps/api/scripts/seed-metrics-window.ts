@@ -131,9 +131,7 @@ async function seedItem(db: DrizzleDB, item: SeedItem, index: number): Promise<v
   const assessmentId = uuidv7();
   const queueId = uuidv7();
 
-  await db
-    .insert(projects)
-    .values({ id: projectId, name: `ckpt-${index}`, repo_path: '/tmp/ckpt' });
+  await db.insert(projects).values({ id: projectId, name: `ckpt-${index}`, repo_path: '/tmp/ckpt' });
   await db.insert(tasks).values({
     id: taskId,
     project_id: projectId,
@@ -141,9 +139,7 @@ async function seedItem(db: DrizzleDB, item: SeedItem, index: number): Promise<v
     state: 'AWAITING_REVIEW',
     idempotency_key: `ckpt-ik-${item.id}`,
   });
-  await db
-    .insert(agentRuns)
-    .values({ id: agentRunId, task_id: taskId, status: 'COMPLETED', max_steps: 10 });
+  await db.insert(agentRuns).values({ id: agentRunId, task_id: taskId, status: 'COMPLETED', max_steps: 10 });
   await db.insert(artifacts).values({
     id: artifactId,
     project_id: projectId,

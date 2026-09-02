@@ -1,6 +1,6 @@
 # @harness/agent-runtime — LLM seam + reviewer
 
-The AI *review* runtime: the LLM-provider seam (Anthropic + any OpenAI-compatible
+The AI _review_ runtime: the LLM-provider seam (Anthropic + any OpenAI-compatible
 endpoint, plus a deterministic mock), response mapping, prompt/response logging
 for provenance, and `ReviewAgent` — the read-only reviewer that turns a PR diff +
 requirement into a structured report.
@@ -16,7 +16,7 @@ tools, trajectory recorder, Code-Mode tier stack) is **retired**. ·
 1. **Provide an LLM seam** — a single `LLMProvider` interface behind which sit
    `AnthropicProvider` and `OpenAICompatibleProvider` (`key` + `baseUrl` + `model`,
    `/chat/completions` — the "any provider" escape hatch).
-2. **Review a PR** — `ReviewAgent.review()` asks the model to act as *reviewer*
+2. **Review a PR** — `ReviewAgent.review()` asks the model to act as _reviewer_
    (never author): read the diff + requirement, return `ReviewAgentOutput`
    (`summary` + `overallVerdict` + `findings[]` + `suggestions[]`).
 3. **Record LLM calls** — `LoggingLLMProvider` captures every prompt/response to
@@ -32,8 +32,8 @@ tools, trajectory recorder, Code-Mode tier stack) is **retired**. ·
 
 ```typescript
 interface ReviewAgentOutput {
-  summary: string;                 // plain-English summary of the PR
-  overallVerdict: ReviewVerdict;   // APPROVE | REQUEST_CHANGES | REJECT
+  summary: string; // plain-English summary of the PR
+  overallVerdict: ReviewVerdict; // APPROVE | REQUEST_CHANGES | REJECT
   findings: ReviewFindingOutput[]; // severity · file · line? · message · suggestion?
   suggestions: FixSuggestionOutput[]; // file · hunk? · proposed · rationale
 }
@@ -65,7 +65,7 @@ batchReview(
 Files within the budget become the `primary` set; the rest are `overflow`:
 
 ```typescript
-budgetFiles(files, { keywords, maxTokens, maxSources })
+budgetFiles(files, { keywords, maxTokens, maxSources });
 // => { primary: PullRequestFile[], overflow: PullRequestFile[] }
 ```
 
@@ -89,19 +89,19 @@ interface FileSummary {
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `llm/llm-provider.ts` | The provider seam (`LLMProvider`). |
-| `llm/anthropic-provider.ts` | Real Anthropic provider (compile-tested; no live keys in-repo). |
-| `llm/openai-compatible-provider.ts` | Generic `key`+`baseUrl`+`model` provider via `/chat/completions`. |
-| `llm/mock-llm.ts` | Deterministic scripted mock — the DI default. |
-| `llm/logging-provider.ts` | Wraps a provider to log calls to evidence. |
-| `llm/map-anthropic-response.ts` | Anthropic response → normalized shape. |
-| `llm/map-openai-response.ts` | OpenAI-compatible response → normalized shape. |
-| `review/review-agent.ts` | `ReviewAgent` — read-only reviewer. |
-| `review/review-output.ts` | `ReviewAgentOutput` / `ReviewFindingOutput` / `FixSuggestionOutput` value objects. |
-| `review/review-batch.ts` | `batchReview()` — split files into parallel batches, merge results, per-batch callback. |
-| `review/review-budget.ts` | `budgetFiles()` — context-aware file prioritisation by keyword overlap. |
+| Module                              | What it provides                                                                        |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| `llm/llm-provider.ts`               | The provider seam (`LLMProvider`).                                                      |
+| `llm/anthropic-provider.ts`         | Real Anthropic provider (compile-tested; no live keys in-repo).                         |
+| `llm/openai-compatible-provider.ts` | Generic `key`+`baseUrl`+`model` provider via `/chat/completions`.                       |
+| `llm/mock-llm.ts`                   | Deterministic scripted mock — the DI default.                                           |
+| `llm/logging-provider.ts`           | Wraps a provider to log calls to evidence.                                              |
+| `llm/map-anthropic-response.ts`     | Anthropic response → normalized shape.                                                  |
+| `llm/map-openai-response.ts`        | OpenAI-compatible response → normalized shape.                                          |
+| `review/review-agent.ts`            | `ReviewAgent` — read-only reviewer.                                                     |
+| `review/review-output.ts`           | `ReviewAgentOutput` / `ReviewFindingOutput` / `FixSuggestionOutput` value objects.      |
+| `review/review-batch.ts`            | `batchReview()` — split files into parallel batches, merge results, per-batch callback. |
+| `review/review-budget.ts`           | `budgetFiles()` — context-aware file prioritisation by keyword overlap.                 |
 
 ---
 
@@ -148,12 +148,23 @@ src/
 
 ```typescript
 // llm seam
-LLMProvider, AnthropicProvider, OpenAICompatibleProvider, MockLLM,
-LoggingLLMProvider, mapAnthropicResponse, mapOpenaiResponse
+(LLMProvider,
+  AnthropicProvider,
+  OpenAICompatibleProvider,
+  MockLLM,
+  LoggingLLMProvider,
+  mapAnthropicResponse,
+  mapOpenaiResponse);
 // review
-ReviewAgent, ReviewAgentOutput, ReviewFindingOutput, FixSuggestionOutput,
-FileSummary, ReviewPromptInput,
-batchReview, budgetFiles, mergeOutputs
+(ReviewAgent,
+  ReviewAgentOutput,
+  ReviewFindingOutput,
+  FixSuggestionOutput,
+  FileSummary,
+  ReviewPromptInput,
+  batchReview,
+  budgetFiles,
+  mergeOutputs);
 ```
 
 ## Wiring

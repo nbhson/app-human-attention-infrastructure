@@ -122,16 +122,10 @@ describe('ReportGenerator (day-07 §2.1–2.2)', () => {
 
   it('flags human cost only as a sharp rise vs the prior window (×1.5)', () => {
     const previous = [previousLine('efficiency.humanMinutesPerAccept', 10)];
-    const surged = generator.generate(
-      currentReport({ ...BASE, humanMinutesPerAccept: 16 }),
-      previous,
-    );
+    const surged = generator.generate(currentReport({ ...BASE, humanMinutesPerAccept: 16 }), previous);
     expect(lineByKey(surged.lines, 'efficiency.humanMinutesPerAccept').guardrail).toBeDefined();
 
-    const steady = generator.generate(
-      currentReport({ ...BASE, humanMinutesPerAccept: 14 }),
-      previous,
-    );
+    const steady = generator.generate(currentReport({ ...BASE, humanMinutesPerAccept: 14 }), previous);
     expect(lineByKey(steady.lines, 'efficiency.humanMinutesPerAccept').guardrail).toBeUndefined();
   });
 

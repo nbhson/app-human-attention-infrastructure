@@ -62,10 +62,7 @@ export class ShadowRankWriter {
   constructor(private readonly db: DrizzleDB) {}
 
   async write(input: ShadowComparisonInput): Promise<void> {
-    const tau = kendallTau(
-      input.keywordOrder.slice(0, input.topK),
-      input.semanticOrder.slice(0, input.topK),
-    );
+    const tau = kendallTau(input.keywordOrder.slice(0, input.topK), input.semanticOrder.slice(0, input.topK));
     await this.db.insert(shadowRankComparisons).values({
       id: uuidv7(),
       task_id: input.taskId,

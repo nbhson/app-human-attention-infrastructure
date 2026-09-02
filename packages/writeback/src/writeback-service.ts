@@ -9,12 +9,7 @@
  * Day-08 audit + idempotency layer plugs in at a single call site.
  */
 
-import type {
-  WriteBackIntent,
-  WriteBackProvider,
-  WriteBackResult,
-  WritebackAction,
-} from '@harness/domain';
+import type { WriteBackIntent, WriteBackProvider, WriteBackResult, WritebackAction } from '@harness/domain';
 
 /** Turn one write-back request into an outcome. */
 export interface WriteBackService {

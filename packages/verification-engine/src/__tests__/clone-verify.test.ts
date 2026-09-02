@@ -162,10 +162,7 @@ describe('SandboxRunner script resolution (day-12 §3.2)', () => {
 
   it('resolves the clone package.json from disk', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'clone-verify-'));
-    writeFileSync(
-      join(dir, 'package.json'),
-      JSON.stringify({ scripts: { build: 'tsc -p .', test: 'vitest run' } }),
-    );
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { build: 'tsc -p .', test: 'vitest run' } }));
 
     expect(await resolvePackageScripts(dir)).toEqual({ build: 'tsc -p .', test: 'vitest run' });
   });
@@ -173,9 +170,10 @@ describe('SandboxRunner script resolution (day-12 §3.2)', () => {
 
 describe('parsePackageScripts', () => {
   it('extracts build/test script names', () => {
-    expect(
-      parsePackageScripts(JSON.stringify({ scripts: { build: 'tsc -p .', test: 'vitest' } })),
-    ).toEqual({ build: 'tsc -p .', test: 'vitest' });
+    expect(parsePackageScripts(JSON.stringify({ scripts: { build: 'tsc -p .', test: 'vitest' } }))).toEqual({
+      build: 'tsc -p .',
+      test: 'vitest',
+    });
   });
 
   it('degrades to {} for malformed JSON, missing scripts, or non-string values', () => {

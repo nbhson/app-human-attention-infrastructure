@@ -5,11 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { reviewsApi } from '../api/reviews';
 import { Activity, Command, Inbox, Plus, Sliders, X, Sun, Moon } from './Icons';
-import {
-  ActivityPanelProvider,
-  SystemActivitySidebar,
-  useActivityPanel,
-} from './SystemActivitySidebar';
+import { ActivityPanelProvider, SystemActivitySidebar, useActivityPanel } from './SystemActivitySidebar';
 import { useTheme } from '../context/ThemeContext';
 
 /**
@@ -99,9 +95,7 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
                 <Inbox className="nav-item-icon" />
                 <span>Review Queue</span>
               </span>
-              {pendingCount > 0 && (
-                <span className="nav-badge nav-badge--blue">{pendingCount}</span>
-              )}
+              {pendingCount > 0 && <span className="nav-badge nav-badge--blue">{pendingCount}</span>}
             </NavLink>
 
             <button
@@ -131,11 +125,7 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
         </div>
 
         <div className="sidebar-foot">
-          <button
-            type="button"
-            className="sidebar-shortcuts"
-            onClick={() => setShortcutsOpen(true)}
-          >
+          <button type="button" className="sidebar-shortcuts" onClick={() => setShortcutsOpen(true)}>
             <span className="sidebar-shortcuts-left">
               <Command size={14} />
               Shortcuts

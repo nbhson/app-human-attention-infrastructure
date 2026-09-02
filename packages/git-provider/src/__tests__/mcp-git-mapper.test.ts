@@ -96,9 +96,9 @@ describe('mapMcpGitPullRequest', () => {
 
   it('throws on malformed content (no JSON payload)', () => {
     const result: ToolResult = { isError: false, content: [{ type: 'text', text: 'not json' }] };
-    expect(() =>
-      mapMcpGitPullRequest(GitProviderType.GitHub, 'github.com/acme/api', result, textResult([])),
-    ).toThrow(/no JSON payload/);
+    expect(() => mapMcpGitPullRequest(GitProviderType.GitHub, 'github.com/acme/api', result, textResult([]))).toThrow(
+      /no JSON payload/,
+    );
   });
 
   it('throws on a missing required PR field', () => {

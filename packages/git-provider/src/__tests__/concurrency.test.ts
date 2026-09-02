@@ -97,10 +97,7 @@ function githubClient(number: number, title: string): FakeMcpClient {
   return new FakeMcpClient(
     new Map([
       ['get_pull_request', textResult(prJson(number, title))],
-      [
-        'list_pull_request_files',
-        textResult([{ path: 'a.ts', status: 'modified', additions: 1, deletions: 0 }]),
-      ],
+      ['list_pull_request_files', textResult([{ path: 'a.ts', status: 'modified', additions: 1, deletions: 0 }])],
     ]),
   );
 }
@@ -109,10 +106,7 @@ function gitlabClient(number: number, title: string): FakeMcpClient {
   return new FakeMcpClient(
     new Map([
       ['get_merge_request', textResult(prJson(number, title))],
-      [
-        'list_merge_request_diffs',
-        textResult([{ path: 'b.ts', status: 'modified', additions: 2, deletions: 1 }]),
-      ],
+      ['list_merge_request_diffs', textResult([{ path: 'b.ts', status: 'modified', additions: 2, deletions: 1 }])],
     ]),
   );
 }
@@ -148,14 +142,8 @@ describe('multi-provider concurrency (day-36)', () => {
 
     // The tripwire: neither client was ever asked a tool it does not own. A
     // "wrong token used" bug would surface here as an out-of-scope tool name.
-    expect(github.calls.map((c) => c.tool).sort()).toEqual([
-      'get_pull_request',
-      'list_pull_request_files',
-    ]);
-    expect(gitlab.calls.map((c) => c.tool).sort()).toEqual([
-      'get_merge_request',
-      'list_merge_request_diffs',
-    ]);
+    expect(github.calls.map((c) => c.tool).sort()).toEqual(['get_pull_request', 'list_pull_request_files']);
+    expect(gitlab.calls.map((c) => c.tool).sort()).toEqual(['get_merge_request', 'list_merge_request_diffs']);
     // And the argument shapes stayed host-local (pull_number vs merge_request_iid).
     expect(github.calls[0]?.args).toEqual({ owner: 'acme', repo: 'api', pull_number: 42 });
     expect(gitlab.calls[0]?.args).toEqual({
@@ -178,9 +166,9 @@ describe('multi-provider concurrency (day-36)', () => {
     const registry = new RecordingRegistry(new Map([['github', githubClient(1, 'x')]]));
     const provider = new MCPGitProvider(registry, new StaticGitToolMap());
 
-    await expect(
-      provider.fetchPullRequest({ repo: 'gitlab.com/acme/api', number: 1 }),
-    ).rejects.toThrow(/no Git MCP provider|no MCP server configured/);
+    await expect(provider.fetchPullRequest({ repo: 'gitlab.com/acme/api', number: 1 })).rejects.toThrow(
+      /no Git MCP provider|no MCP server configured/,
+    );
     // The failed lookup asked for *gitlab* (its own, missing host) — it never
     // fell through to the configured github client.
     expect(registry.getRequests).toEqual(['gitlab']);

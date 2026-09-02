@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MockLLM, mockTextResponse } from '../llm/mock-llm.js';
 import { ReviewAgent } from '../review/review-agent.js';
+import { REVIEW_PROMPT_VERSION } from '../review/review-prompt.js';
 
 const INPUT = {
   prUrl: 'https://github.com/acme/app/pull/7',
@@ -34,6 +35,80 @@ describe('ReviewAgent', () => {
     expect(call?.messages[0]?.content).toContain('https://github.com/acme/app/pull/7');
     expect(call?.messages[0]?.content).toContain('The retry loop must not spin forever.');
     expect(call?.messages[0]?.content).toContain('--- a/src/loop.ts');
+  });
+
+  it('exposes a versioned prompt for provenance', () => {
+    expect(REVIEW_PROMPT_VERSION).toMatch(/^reviewer-v\d+$/);
+  });
+
+  it('prompt includes the safety guardrail sections', async () => {
+    const llm = new MockLLM([mockTextResponse(REVIEW_JSON)]);
+    const agent = new ReviewAgent(llm);
+
+    await agent.review(INPUT, { model: 'm' });
+
+    const sys = llm.calls[0]?.systemPrompt ?? '';
+    expect(sys).toContain('SAFETY GUARDRAIL');
+    expect(sys).toContain('PROMPT INJECTION');
+    expect(sys).toContain('EXPOSED SECRETS');
+    expect(sys).toContain('SUSPECTED MALWARE');
+    expect(sys).toContain('PII');
+  });
+
+  it('prompt includes the chain-of-thought instruction', async () => {
+    const llm = new MockLLM([mockTextResponse(REVIEW_JSON)]);
+    const agent = new ReviewAgent(llm);
+
+    await agent.review(INPUT, { model: 'm' });
+
+    expect(llm.calls[0]?.systemPrompt).toContain('CHAIN OF THOUGHT');
+  });
+
+  it('prompt includes few-shot examples', async () => {
+    const llm = new MockLLM([mockTextResponse(REVIEW_JSON)]);
+    const agent = new ReviewAgent(llm);
+
+    await agent.review(INPUT, { model: 'm' });
+
+    const sys = llm.calls[0]?.systemPrompt ?? '';
+    expect(sys).toContain('Example 1 — CRITICAL security');
+    expect(sys).toContain('Example 2 — MAJOR contract');
+  });
+
+  it('injects related memories into the user message when provided', async () => {
+    const llm = new MockLLM([mockTextResponse(REVIEW_JSON)]);
+    const agent = new ReviewAgent(llm);
+
+    await agent.review(
+      {
+        ...INPUT,
+        relatedMemories: [
+          {
+            kind: 'FINDING',
+            content: 'past: null deref in retry.ts',
+            confidence: 0.9,
+            metadata: { severity: 'MAJOR' },
+          },
+        ],
+      },
+      { model: 'm' },
+    );
+
+    const user = llm.calls[0]?.messages[0]?.content ?? '';
+    expect(user).toContain('RELATED PAST REVIEWS');
+    expect(user).toContain('past: null deref in retry.ts');
+    expect(user).toContain('severity=MAJOR');
+  });
+
+  it('falls back to (none provided) when requirement is empty', async () => {
+    const llm = new MockLLM([
+      mockTextResponse('{"summary":"x","overallVerdict":"APPROVE","findings":[],"suggestions":[]}'),
+    ]);
+    const agent = new ReviewAgent(llm);
+
+    await agent.review({ ...INPUT, requirement: '' }, { model: 'm' });
+
+    expect(llm.calls[0]?.messages[0]?.content).toContain('(none provided)');
   });
 
   it('forwards correlation_id to the LLM for provenance', async () => {

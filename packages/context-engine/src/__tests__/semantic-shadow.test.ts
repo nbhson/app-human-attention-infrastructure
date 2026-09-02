@@ -6,13 +6,7 @@ import { eq } from 'drizzle-orm';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  contextSourceEmbeddings,
-  contexts,
-  projects,
-  shadowRankComparisons,
-  tasks,
-} from '@harness/db';
+import { contextSourceEmbeddings, contexts, projects, shadowRankComparisons, tasks } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 import { ContextSourceType, newProjectID, newTaskID } from '@harness/domain';
@@ -21,13 +15,7 @@ import { EmbeddingIndexer, StubEmbedder } from '@harness/embeddings';
 import { FileCollector } from '../collect.js';
 import type { CollectedFile } from '../collect.js';
 import { ContextEngine } from '../engine.js';
-import {
-  KeywordDependencyRanker,
-  SemanticRanker,
-  TiktokenTokenizer,
-  kendallTau,
-  sha256,
-} from '../index.js';
+import { KeywordDependencyRanker, SemanticRanker, TiktokenTokenizer, kendallTau, sha256 } from '../index.js';
 
 const SCHEMA = 'harness_test_semantic_shadow';
 
@@ -47,14 +35,8 @@ beforeAll(async () => {
     join(tmpRoot, 'src', 'PaymentService.ts'),
     "export class PaymentService {\n  process() {\n    return 'payment processed';\n  }\n}\n",
   );
-  writeFileSync(
-    join(tmpRoot, 'src', 'UnrelatedUtil.ts'),
-    "export const util = () => 'nothing relevant';\n",
-  );
-  writeFileSync(
-    join(tmpRoot, 'src', 'logging.ts'),
-    'export function log(msg: string) {\n  console.log(msg);\n}\n',
-  );
+  writeFileSync(join(tmpRoot, 'src', 'UnrelatedUtil.ts'), "export const util = () => 'nothing relevant';\n");
+  writeFileSync(join(tmpRoot, 'src', 'logging.ts'), 'export function log(msg: string) {\n  console.log(msg);\n}\n');
   writeFileSync(join(tmpRoot, 'node_modules', 'some-lib', 'index.js'), 'module.exports = {};\n');
 });
 
@@ -103,10 +85,7 @@ async function populateIndex(
 }
 
 async function shadowRows(contextId: string) {
-  return db
-    .select()
-    .from(shadowRankComparisons)
-    .where(eq(shadowRankComparisons.context_id, contextId));
+  return db.select().from(shadowRankComparisons).where(eq(shadowRankComparisons.context_id, contextId));
 }
 
 describe('kendallTau (day-18 §2.4)', () => {

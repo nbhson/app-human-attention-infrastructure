@@ -2,15 +2,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  EventType,
-  newAgentRunID,
-  newArtifactID,
-  newChangeID,
-  newProjectID,
-  newTaskID,
-  uuidv7,
-} from '@harness/domain';
+import { EventType, newAgentRunID, newArtifactID, newChangeID, newProjectID, newTaskID, uuidv7 } from '@harness/domain';
 import type { ChangeID, VerificationCompletedPayload } from '@harness/domain';
 import { InProcessEventBus } from '@harness/event-bus';
 import { computeWorkdirManifest } from '@harness/sandbox';
@@ -124,12 +116,7 @@ function hangingCheck(kind: CheckKind, timeoutMs: number): VerificationCheck {
 describe('VerificationEngine', () => {
   it('persists a PASSED report and publishes verification.completed', async () => {
     const changeId = await seedChange(`${FIXTURES}/compile-pass`);
-    const engine = new VerificationEngine(
-      db,
-      bus,
-      { checks: [new CompileCheck(60_000)] },
-      new EvidenceStore(),
-    );
+    const engine = new VerificationEngine(db, bus, { checks: [new CompileCheck(60_000)] }, new EvidenceStore());
 
     const report = await engine.verify(changeId);
 
@@ -147,9 +134,7 @@ describe('VerificationEngine', () => {
     // worktree, matching the manifest computed over those exact bytes.
     expect(report.contentHash).toMatch(/^[0-9a-f]{64}$/);
     expect(reportRows[0]?.content_hash).toBe(report.contentHash);
-    expect(report.contentHash).toBe(
-      (await computeWorkdirManifest(`${FIXTURES}/compile-pass`)).contentHash,
-    );
+    expect(report.contentHash).toBe((await computeWorkdirManifest(`${FIXTURES}/compile-pass`)).contentHash);
 
     const checkRows = await db.select().from(verificationCheckResults);
     expect(checkRows).toHaveLength(1);
@@ -170,12 +155,7 @@ describe('VerificationEngine', () => {
 
   it('fails a broken change and lists failedChecks in the report and event', async () => {
     const changeId = await seedChange(`${FIXTURES}/compile-fail`);
-    const engine = new VerificationEngine(
-      db,
-      bus,
-      { checks: [new CompileCheck(60_000)] },
-      new EvidenceStore(),
-    );
+    const engine = new VerificationEngine(db, bus, { checks: [new CompileCheck(60_000)] }, new EvidenceStore());
 
     const report = await engine.verify(changeId);
 
@@ -310,12 +290,7 @@ describe('VerificationEngine', () => {
 
   it('persists CHECK_OUTPUT evidence linked to every check result', async () => {
     const changeId = await seedChange(`${FIXTURES}/compile-pass`);
-    const engine = new VerificationEngine(
-      db,
-      bus,
-      { checks: [new CompileCheck(60_000)] },
-      new EvidenceStore(),
-    );
+    const engine = new VerificationEngine(db, bus, { checks: [new CompileCheck(60_000)] }, new EvidenceStore());
 
     const report = await engine.verify(changeId);
     expect(report.overall).toBe('PASSED');
@@ -376,9 +351,7 @@ describe('VerificationEngine', () => {
         status: CheckStatus.PASSED,
         durationMs: 5,
         output: '1 passed',
-        testResults: [
-          { testFile: 'a.test.ts', testName: 'a > ok', status: 'PASSED', durationMs: 1 },
-        ],
+        testResults: [{ testFile: 'a.test.ts', testName: 'a > ok', status: 'PASSED', durationMs: 1 }],
       }),
     };
     const engine = new VerificationEngine(db, bus, { checks: [testCheck] }, new EvidenceStore());

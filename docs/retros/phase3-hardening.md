@@ -1,13 +1,13 @@
 # Phase 3 · Hardening Retro — Secrets never touch a log, and a write-back fires exactly once
 
-*Day-36 checkpoint (Phase 3, Week 8). Hardening is the pass that stops trusting the
+_Day-36 checkpoint (Phase 3, Week 8). Hardening is the pass that stops trusting the
 seams Day 08 and Day 03 built and starts attacking them. Three invariants carry the
 day, each stated in the negative the acceptance criteria use: **no duplicate external
 write** under fault injection, **no token byte** on any surface a failure reaches, and
 **no cross-host bleed** when two providers interleave. The audit closed one real gap —
 a concurrent-double-write window in the write-back idempotency index — rather than
 documenting it. Green before committed: 969 tests / 166 files, lint clean, and a
-`git grep` for live keys that returns only deliberate placeholders.*
+`git grep` for live keys that returns only deliberate placeholders._
 
 ## What hardened this pass
 
@@ -17,7 +17,7 @@ documenting it. Green before committed: 969 tests / 166 files, lint clean, and a
   claims** for the same intent could both proceed to the external host — a second
   comment. The fix widens the index to `IN ('PENDING','SUCCEEDED')` and rewrites
   `claim` on `ON CONFLICT DO NOTHING`, so a racing or crashed identical claim resolves
-  to `duplicate` *before any external call*. A `FAILED` row leaves the index, so a
+  to `duplicate` _before any external call_. A `FAILED` row leaves the index, so a
   retry after a genuine failure still reaches the host (retry-after-failure is safe:
   no write happened).
 - **Token redaction, made a tested invariant.** The redaction sweep makes a write-back
@@ -27,7 +27,7 @@ documenting it. Green before committed: 969 tests / 166 files, lint clean, and a
   byte survives. Crucially it seeds one secret that matches **no** regex (an arbitrary
   env value), so the literal env-value scrub (`credentialEnvValues`) is proven, not
   just the Bearer/token/`ghp_`/`xox`/`AKIA` patterns. The mask (`[redacted]`) is
-  asserted present, so the sweep proves the *mask*, not the absence of a string that
+  asserted present, so the sweep proves the _mask_, not the absence of a string that
   was never there.
 - **Multi-provider concurrency, proven as routing isolation.** Two interleaved reviews
   (GitHub + GitLab) resolve their own registry entry, their own tool names, and their
@@ -38,23 +38,23 @@ documenting it. Green before committed: 969 tests / 166 files, lint clean, and a
 
 ## The day-36 bug (§2.1): a gap, closed
 
-The old index `(dedup_key) WHERE status = 'SUCCEEDED'` prevented double-*recording*
-but not double-*calls*: two identical `claim`s racing before either finalized both
+The old index `(dedup_key) WHERE status = 'SUCCEEDED'` prevented double-_recording_
+but not double-_calls_: two identical `claim`s racing before either finalized both
 resolved `claimed` (both PENDING rows are outside the `SUCCEEDED` predicate), so both
-proceeded to post a comment. The plan's own note — *"any path that produces a second
-external comment is a bug to close, not document"* — forbade the easy route of
+proceeded to post a comment. The plan's own note — _"any path that produces a second
+external comment is a bug to close, not document"_ — forbade the easy route of
 papering over it with a test-only "two claims both claimed" assertion.
 
 The fix has three parts, each mirroring the other two:
 
 - **Schema** (`packages/db/src/schema/writeback-log.ts`): the partial unique index is
   now `(dedup_key) WHERE status IN ('PENDING','SUCCEEDED')`, renamed
-  `writeback_log_dedup_inflight_uniq` — the *in-flight* serialization point.
+  `writeback_log_dedup_inflight_uniq` — the _in-flight_ serialization point.
 - **Store** (`packages/db/src/writeback-log-store.ts`): `claim` inserts `PENDING` with
   `ON CONFLICT DO NOTHING` targeting that index; `attempted.length === 0` means a
   racing/prior identical claim holds the key, so it records the audit `DUPLICATE` skip
   and returns `duplicate` — never reaching the host. (A `try/catch` on the unique
-  violation is *not* sufficient: Postgres aborts the transaction on any error, so the
+  violation is _not_ sufficient: Postgres aborts the transaction on any error, so the
   follow-up `DUPLICATE` insert would be ignored — `ON CONFLICT DO NOTHING` is the
   atomic path.)
 - **Proof** (`packages/writeback/src/__tests__/idempotency-fault.test.ts`): a
@@ -94,7 +94,7 @@ remains compile-tested only; no live key has ever been committed.
   proves it at the persistence boundary for both a pattern secret and a non-pattern
   secret, and requires the mask to be present.
 - **Concurrency is config isolation.** Each review resolves its provider from its own
-  registry entry; the isolation test asserts *which host* and *which tools* a request
+  registry entry; the isolation test asserts _which host_ and _which tools_ a request
   hit, and that a missing host fails loudly rather than borrowing a neighbor.
 - **No live key, no sandbox escape.** The audit is clean to deliberate placeholders;
   the real keys and the Docker sandbox path stay compile-tested only.
@@ -121,4 +121,4 @@ remains compile-tested only; no live key has ever been committed.
 
 ---
 
-*Next: Day 37 — E2E Full System under Phase-3 Infra + Load Profile*
+_Next: Day 37 — E2E Full System under Phase-3 Infra + Load Profile_

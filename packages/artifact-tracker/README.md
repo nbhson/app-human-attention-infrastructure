@@ -62,14 +62,14 @@ Change
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `artifact-tracker.ts` | `capture()` — snapshot + diff + provenance on change. |
-| `snapshot-store.ts` | Content-addressed artifact snapshots. |
-| `diff-engine.ts` | Diff computation (the `FileDiff` shape). |
-| `provenance.ts` | The task → run → change provenance chain. |
-| `change-status-subscriber.ts` | Sole writer of `changes.status`. |
-| `capture/artifact-capture-subscriber.ts` | Listens for artifact events and captures. |
+| Module                                   | What it provides                                      |
+| ---------------------------------------- | ----------------------------------------------------- |
+| `artifact-tracker.ts`                    | `capture()` — snapshot + diff + provenance on change. |
+| `snapshot-store.ts`                      | Content-addressed artifact snapshots.                 |
+| `diff-engine.ts`                         | Diff computation (the `FileDiff` shape).              |
+| `provenance.ts`                          | The task → run → change provenance chain.             |
+| `change-status-subscriber.ts`            | Sole writer of `changes.status`.                      |
+| `capture/artifact-capture-subscriber.ts` | Listens for artifact events and captures.             |
 
 ---
 

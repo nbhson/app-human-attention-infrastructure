@@ -8,14 +8,8 @@ import { indexFiles, isTestFile } from '../indexer.js';
 function fixture(): Map<string, string> {
   return new Map<string, string>([
     ['src/utils.ts', 'export function add(a: number, b: number): number { return a + b; }\n'],
-    [
-      'src/feature.ts',
-      "import { add } from './utils';\nexport function feature(): number { return add(1, 2); }\n",
-    ],
-    [
-      'src/feature.test.ts',
-      "import { feature } from './feature';\nimport { add } from './utils';\n",
-    ],
+    ['src/feature.ts', "import { add } from './utils';\nexport function feature(): number { return add(1, 2); }\n"],
+    ['src/feature.test.ts', "import { feature } from './feature';\nimport { add } from './utils';\n"],
     // Nothing imports this file, and it imports nothing.
     ['src/standalone.ts', 'export const unused = 1;\n'],
   ]);

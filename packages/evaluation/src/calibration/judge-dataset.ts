@@ -84,13 +84,7 @@ export function buildJudgeDataset(input: JudgeDatasetInput): JudgeDatasetRow[] {
  * and is directly consumable by `computePriority`.
  */
 export function toJudgeFeatureVector(factors: FactorScores, judge: JudgeScores): number[] {
-  return [
-    factors.risk,
-    factors.impact,
-    factors.novelty,
-    factors.complexity,
-    judgeDisagreement(judge),
-  ];
+  return [factors.risk, factors.impact, factors.novelty, factors.complexity, judgeDisagreement(judge)];
 }
 
 /** The incumbent's factor features; slot 4 is `(1 − confidence)`. */

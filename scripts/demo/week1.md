@@ -1,10 +1,10 @@
 # Week 1 Live Demo — Identity & Observability
 
-*Phase 2 · day-05 checkpoint. A narrated runbook: run the commands on a clean
+_Phase 2 · day-05 checkpoint. A narrated runbook: run the commands on a clean
 stack and the whole Week-1 milestone (SSO login → role enforcement → a traced,
 decision → /metrics) plays out in front of you. Every endpoint, table and metric
 below is the real code path — nothing is faked into a cookie that skips the
-mock OIDC exchange (`day-01 §3.5`).*
+mock OIDC exchange (`day-01 §3.5`)._
 
 > The one non-interactive step is a small SQL **fixture** that primes one
 > decidable review-queue item (task → change → assessment → queue). It mirrors
@@ -27,7 +27,7 @@ pnpm dev                      # API on http://localhost:3000
 ```
 
 Mock identity is enabled in-process (no separate IdP container — the mock OIDC
-provider *is* the exchange, see `packages/auth/src/oidc/mock-provider.ts`):
+provider _is_ the exchange, see `packages/auth/src/oidc/mock-provider.ts`):
 
 ```bash
 OIDC_MOCK=true \
@@ -61,8 +61,8 @@ curl -s -b /tmp/harness.jar http://localhost:3000/api/auth/session | jq .user
 ```
 
 **Beat:** first sight grants `DEFAULT_ROLES = [OPERATOR]` (`domain/src/identity.ts`).
-Roles are additive `ADMIN ⊇ REVIEWER ⊇ OPERATOR` — so this principal *cannot
-review* yet. That is exactly the precondition for beat 2.
+Roles are additive `ADMIN ⊇ REVIEWER ⊇ OPERATOR` — so this principal _cannot
+review_ yet. That is exactly the precondition for beat 2.
 
 ---
 

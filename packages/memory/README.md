@@ -27,12 +27,12 @@ lifecycle (consolidate → decay → archive).
 
 ## Tiers
 
-| Kind | What it is |
-| --- | --- |
-| `REVIEW` | a distilled past review — what changed, what was flagged, the outcome. |
-| `FINDING` | a recurring defect pattern with severity + frequency. |
-| `DECISION` | a human approve/reject + rationale, reusable guidance. |
-| `PROJECT` | durable project context — conventions, risk hotspots, owners. |
+| Kind       | What it is                                                             |
+| ---------- | ---------------------------------------------------------------------- |
+| `REVIEW`   | a distilled past review — what changed, what was flagged, the outcome. |
+| `FINDING`  | a recurring defect pattern with severity + frequency.                  |
+| `DECISION` | a human approve/reject + rationale, reusable guidance.                 |
+| `PROJECT`  | durable project context — conventions, risk hotspots, owners.          |
 
 ## Pipeline
 
@@ -70,11 +70,11 @@ empty query — degrades to recency + confidence.
 
 ## Lifecycle
 
-| Stage | What it does |
-| --- | --- |
-| `consolidate` | fold a supersede chain into one head entry. |
-| `decay` | fade `confidence` toward its per-entry `confidence_floor` with age. |
-| `archive` | mark an entry `ARCHIVED` (soft-delete, retained for audit) below the utility threshold. |
+| Stage         | What it does                                                                            |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `consolidate` | fold a supersede chain into one head entry.                                             |
+| `decay`       | fade `confidence` toward its per-entry `confidence_floor` with age.                     |
+| `archive`     | mark an entry `ARCHIVED` (soft-delete, retained for audit) below the utility threshold. |
 
 `archiveBelowThreshold` writes all stale rows in **one batched** `UPDATE … WHERE id IN
 (…)` (a single round-trip instead of one per row) and still publishes one
@@ -85,16 +85,16 @@ wraps it on a timer (`DEFAULT_LIFECYCLE_INTERVAL_MS` = hourly).
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `types.ts` | `CreateMemoryInput`, `EmptySourceEvidenceError`. |
-| `memory-store.ts` | `MemoryStore` — `create` / `getById` / `listByKind` / `recordAccess`. |
-| `memory-distiller.ts` | deterministic evidence → curated-candidate extraction. |
-| `versioned-append.ts` | dedup-keyed, `supersedes`-chained append + confidence. |
-| `memory-ingestor.ts` | event-bus subscriber grounding each entry in evidence. |
-| `chain-resolve.ts` | `resolveChainHeads` (supersede-chain → head). |
-| `memory-retriever.ts` | lexical + confidence + recency + popularity rank. |
-| `lifecycle/*` | `consolidate`, `decay`, `archive`, `scheduler`. |
+| Module                | What it provides                                                      |
+| --------------------- | --------------------------------------------------------------------- |
+| `types.ts`            | `CreateMemoryInput`, `EmptySourceEvidenceError`.                      |
+| `memory-store.ts`     | `MemoryStore` — `create` / `getById` / `listByKind` / `recordAccess`. |
+| `memory-distiller.ts` | deterministic evidence → curated-candidate extraction.                |
+| `versioned-append.ts` | dedup-keyed, `supersedes`-chained append + confidence.                |
+| `memory-ingestor.ts`  | event-bus subscriber grounding each entry in evidence.                |
+| `chain-resolve.ts`    | `resolveChainHeads` (supersede-chain → head).                         |
+| `memory-retriever.ts` | lexical + confidence + recency + popularity rank.                     |
+| `lifecycle/*`         | `consolidate`, `decay`, `archive`, `scheduler`.                       |
 
 ## Directory structure
 

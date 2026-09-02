@@ -1,12 +1,12 @@
 # Week 4 Live Demo — Semantic Shadow & Context Cache
 
-*Phase 2 · day-20 checkpoint. A narrated runbook: confirm the semantic index
+_Phase 2 · day-20 checkpoint. A narrated runbook: confirm the semantic index
 backfills, watch the cache serve a hit with zero file reads, and re-confirm the
 week's single honest invariant — the **served** context is still keyword-ranked
 (`rank_method = 'keyword'`) while the semantic ordering is recorded in shadow,
 never served. The cache numbers below are the real counters the Day-04 registry
 exposes; the shadow comparison is asserted by the same tests that make the
-invariant mechanical.*
+invariant mechanical._
 
 > Week 4 is the "installed in shadow" week. The deliverable is **not** a switched
 > ranking — it is proof that the semantic path exists, is measured, and does not
@@ -39,7 +39,7 @@ curl -s http://localhost:3000/metrics | grep -E 'harness_context_cache_(hit|miss
 
 ## 1. The semantic index backfills — `pnpm embed:populate`
 
-The Day-17 backfill reads the *existing* persisted `contexts.sources` (already
+The Day-17 backfill reads the _existing_ persisted `contexts.sources` (already
 safety-filtered by the collector) and (re)builds the pgvector index. It is the
 out-of-band population job the shadow ranker reads from:
 

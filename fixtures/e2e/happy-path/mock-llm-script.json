@@ -1,9 +1,7 @@
 [
   {
     "content": "",
-    "toolCalls": [
-      { "id": "c1", "name": "read_file", "input": { "path": "src/greeting.ts" } }
-    ],
+    "toolCalls": [{ "id": "c1", "name": "read_file", "input": { "path": "src/greeting.ts" } }],
     "usage": { "inputTokens": 12, "outputTokens": 8 },
     "stopReason": "tool_use"
   },

@@ -70,9 +70,7 @@ export function parseVitestJson(raw: string): ParsedTestResult[] {
     for (const assertion of assertions) {
       const failures = assertion.failureMessages;
       const error =
-        Array.isArray(failures) && failures.length > 0
-          ? failures.join('\n').slice(0, ERROR_CAP)
-          : undefined;
+        Array.isArray(failures) && failures.length > 0 ? failures.join('\n').slice(0, ERROR_CAP) : undefined;
       results.push({
         testFile: suite.name,
         testName: assertion.fullName,

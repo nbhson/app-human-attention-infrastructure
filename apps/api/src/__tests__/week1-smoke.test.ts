@@ -95,12 +95,7 @@ describe('Week 1 Smoke Test', () => {
       const rows = await db
         .select()
         .from(eventLog)
-        .where(
-          and(
-            eq(eventLog.correlation_id, task.id),
-            eq(eventLog.event_type, EventType.TaskStateChanged),
-          ),
-        );
+        .where(and(eq(eventLog.correlation_id, task.id), eq(eventLog.event_type, EventType.TaskStateChanged)));
       return rows.length;
     };
     await waitForCount(countStateChanged, 6);
@@ -110,9 +105,9 @@ describe('Week 1 Smoke Test', () => {
     const taskService = container.resolve<TaskService>(TOKENS.TaskService);
     const task = await taskService.createTask({ projectId: PROJECT, title: 'Illegal test' });
 
-    await expect(
-      taskService.transitionTask(task.id, TaskStatus.Executing, 'orchestrator'),
-    ).rejects.toBeInstanceOf(IllegalTransitionError);
+    await expect(taskService.transitionTask(task.id, TaskStatus.Executing, 'orchestrator')).rejects.toBeInstanceOf(
+      IllegalTransitionError,
+    );
   });
 
   it('duplicate event_id in event_log is silently ignored (idempotency)', async () => {

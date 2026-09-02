@@ -10,7 +10,7 @@ env:
   # so there is no separate IdP service container to spin up: OIDC_MOCK=true
   # activates the real authorization-code exchange for tests and e2e. The e2e
   # scripts also self-set it; the env default keeps every package's tests honest.
-  OIDC_MOCK: "true"
+  OIDC_MOCK: 'true'
 
 jobs:
   # Per-package test matrix (Phase-2 day-05 §3.3): every package runs its own

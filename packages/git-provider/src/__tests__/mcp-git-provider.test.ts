@@ -126,18 +126,18 @@ describe('MCPGitProvider', () => {
 
   it('throws UnknownProviderHostError on an un-routable domain', async () => {
     const provider = new MCPGitProvider(githubRegistry(), new StaticGitToolMap());
-    await expect(
-      provider.fetchPullRequest({ repo: 'gitea.example/acme/api', number: 1 }),
-    ).rejects.toBeInstanceOf(UnknownProviderHostError);
+    await expect(provider.fetchPullRequest({ repo: 'gitea.example/acme/api', number: 1 })).rejects.toBeInstanceOf(
+      UnknownProviderHostError,
+    );
   });
 
   it('throws UnknownProviderHostError when the host has no config entry', async () => {
     // `gitlab` is known to the tool map but absent from this registry.
     const registry = new FakeRegistry(new Map([['github', new FakeMcpClient(new Map())]]));
     const provider = new MCPGitProvider(registry, new StaticGitToolMap());
-    await expect(
-      provider.fetchPullRequest({ repo: 'gitlab.com/acme/api', number: 1 }),
-    ).rejects.toBeInstanceOf(UnknownProviderHostError);
+    await expect(provider.fetchPullRequest({ repo: 'gitlab.com/acme/api', number: 1 })).rejects.toBeInstanceOf(
+      UnknownProviderHostError,
+    );
   });
 
   it('surfaces a tool error as GitProviderError, not a raw throw', async () => {
@@ -145,16 +145,16 @@ describe('MCPGitProvider', () => {
       pr: { isError: true, content: [] },
     });
     const provider = new MCPGitProvider(registry, new StaticGitToolMap());
-    await expect(
-      provider.fetchPullRequest({ repo: 'github.com/acme/api', number: 42 }),
-    ).rejects.toBeInstanceOf(GitProviderError);
+    await expect(provider.fetchPullRequest({ repo: 'github.com/acme/api', number: 42 })).rejects.toBeInstanceOf(
+      GitProviderError,
+    );
   });
 
   it('write primitives fail loudly until Day 06', async () => {
     const provider = new MCPGitProvider(githubRegistry(), new StaticGitToolMap());
-    await expect(
-      provider.postComment({ repo: 'github.com/acme/api', number: 1 }, 'hi'),
-    ).rejects.toBeInstanceOf(GitProviderError);
+    await expect(provider.postComment({ repo: 'github.com/acme/api', number: 1 }, 'hi')).rejects.toBeInstanceOf(
+      GitProviderError,
+    );
     await expect(
       provider.setStatus({ repo: 'github.com/acme/api', number: 1 }, 'success', 'ok'),
     ).rejects.toBeInstanceOf(GitProviderError);

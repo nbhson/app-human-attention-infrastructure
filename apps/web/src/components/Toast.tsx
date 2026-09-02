@@ -66,12 +66,7 @@ export function Toast({
         <Icon />
       </span>
       <span>{toast.text}</span>
-      <button
-        type="button"
-        className="rq-toast-close"
-        onClick={onDismiss}
-        aria-label="Dismiss notification"
-      >
+      <button type="button" className="rq-toast-close" onClick={onDismiss} aria-label="Dismiss notification">
         <X />
       </button>
     </div>

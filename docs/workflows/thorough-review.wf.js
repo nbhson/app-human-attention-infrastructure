@@ -7,8 +7,7 @@
 
 export const meta = {
   name: 'thorough-review',
-  description:
-    'Multi-pass, multi-lens code review with adversarial verification and cross-run dedup',
+  description: 'Multi-pass, multi-lens code review with adversarial verification and cross-run dedup',
   phases: [
     { title: 'Prepare', detail: 'PR info, CLAUDE.md scan' },
     { title: 'Review', detail: '3 vong review, 8 agents moi vong' },
@@ -135,13 +134,7 @@ if (!prInfo || !prInfo.eligible) {
   };
 }
 
-log(
-  'Reviewing: ' +
-    (prInfo.title || 'PR #' + prInfo.prNumber) +
-    ' (' +
-    prInfo.files.length +
-    ' files)',
-);
+log('Reviewing: ' + (prInfo.title || 'PR #' + prInfo.prNumber) + ' (' + prInfo.files.length + ' files)');
 
 // --- Phase 2: Review Pass (N rounds, loop-until-dry) --------------------
 phase('Review');
@@ -160,13 +153,11 @@ var ROUND_LENSES = [
   [
     {
       role: 'Security',
-      focus:
-        'security vulnerabilities, hardcoded secrets, injection flaws, auth issues, unsafe data handling',
+      focus: 'security vulnerabilities, hardcoded secrets, injection flaws, auth issues, unsafe data handling',
     },
     {
       role: 'Logic Bugs',
-      focus:
-        'logical errors, incorrect conditions, off-by-one, null pointer risks, incorrect algorithms',
+      focus: 'logical errors, incorrect conditions, off-by-one, null pointer risks, incorrect algorithms',
     },
     {
       role: 'Concurrency',
@@ -174,13 +165,11 @@ var ROUND_LENSES = [
     },
     {
       role: 'Error Handling',
-      focus:
-        'missing error handling, swallowed exceptions, incorrect error propagation, missing validation',
+      focus: 'missing error handling, swallowed exceptions, incorrect error propagation, missing validation',
     },
     {
       role: 'Type Safety',
-      focus:
-        'type safety issues, incorrect type assertions, missing type guards, API contract violations',
+      focus: 'type safety issues, incorrect type assertions, missing type guards, API contract violations',
     },
     {
       role: 'Data Flow',
@@ -199,18 +188,15 @@ var ROUND_LENSES = [
   [
     {
       role: 'Architecture',
-      focus:
-        'architectural violations, broken abstractions, tight coupling, separation of concerns',
+      focus: 'architectural violations, broken abstractions, tight coupling, separation of concerns',
     },
     {
       role: 'Performance',
-      focus:
-        'performance issues, unnecessary allocations, N+1 queries, memory leaks, inefficient algorithms',
+      focus: 'performance issues, unnecessary allocations, N+1 queries, memory leaks, inefficient algorithms',
     },
     {
       role: 'Regression',
-      focus:
-        'git blame/history -- check if changes reintroduce old bugs or contradict past PR comments',
+      focus: 'git blame/history -- check if changes reintroduce old bugs or contradict past PR comments',
     },
     {
       role: 'Compliance',
@@ -218,31 +204,26 @@ var ROUND_LENSES = [
     },
     {
       role: 'Testability',
-      focus:
-        'testability concerns -- untestable code paths, missing test hooks, tightly coupled logic',
+      focus: 'testability concerns -- untestable code paths, missing test hooks, tightly coupled logic',
     },
     {
       role: 'Migration',
-      focus:
-        'backward compatibility issues, breaking changes, old-data/new-data transition hazards',
+      focus: 'backward compatibility issues, breaking changes, old-data/new-data transition hazards',
     },
     {
       role: 'Resource Mgmt',
-      focus:
-        'resource leaks (file handles, connections, memory), improper cleanup, missing disposals',
+      focus: 'resource leaks (file handles, connections, memory), improper cleanup, missing disposals',
     },
     {
       role: 'Observability',
-      focus:
-        'insufficient logging, overly verbose logging, logging of sensitive data, missing metrics',
+      focus: 'insufficient logging, overly verbose logging, logging of sensitive data, missing metrics',
     },
   ],
   // Round 3: Code quality, business logic, consistency
   [
     {
       role: 'Code Quality',
-      focus:
-        'code smells, duplication, overly complex logic, readability issues (real problems, not style)',
+      focus: 'code smells, duplication, overly complex logic, readability issues (real problems, not style)',
     },
     {
       role: 'Business Logic',
@@ -250,13 +231,11 @@ var ROUND_LENSES = [
     },
     {
       role: 'State Management',
-      focus:
-        'incorrect state transitions, stale state, race conditions in state updates, missing resets',
+      focus: 'incorrect state transitions, stale state, race conditions in state updates, missing resets',
     },
     {
       role: 'Timing',
-      focus:
-        'timing issues, race windows, incorrect timeout handling, debouncing/throttling problems',
+      focus: 'timing issues, race windows, incorrect timeout handling, debouncing/throttling problems',
     },
     {
       role: 'Configuration',
@@ -272,8 +251,7 @@ var ROUND_LENSES = [
     },
     {
       role: 'Consistency',
-      focus:
-        'inconsistencies with surrounding code, naming convention violations, API style mismatches',
+      focus: 'inconsistencies with surrounding code, naming convention violations, API style mismatches',
     },
   ],
 ];
@@ -549,13 +527,7 @@ for (var vi3 = 0; vi3 < verifiedFindings.length; vi3++) {
   }
 }
 
-log(
-  'Initial verification: ' +
-    confirmedFindings.length +
-    ' confirmed, ' +
-    rejectedFindings.length +
-    ' rejected',
-);
+log('Initial verification: ' + confirmedFindings.length + ' confirmed, ' + rejectedFindings.length + ' rejected');
 
 // --- Critical Findings Safeguard ---
 // Re-verify rejected CRITICAL findings with a more lenient panel.
@@ -572,11 +544,7 @@ for (var vi4 = 0; vi4 < rejectedFindings.length; vi4++) {
 }
 
 if (criticalRejected.length > 0) {
-  log(
-    'CRITICAL SAFEGUARD: Re-verifying ' +
-      criticalRejected.length +
-      ' rejected critical findings...',
-  );
+  log('CRITICAL SAFEGUARD: Re-verifying ' + criticalRejected.length + ' rejected critical findings...');
   var reVerified = await pipeline(
     criticalRejected,
     function (item) {
@@ -668,13 +636,7 @@ if (criticalRejected.length > 0) {
     }
   }
   rejectedFindings = otherRejected;
-  log(
-    'After safeguard: ' +
-      confirmedFindings.length +
-      ' confirmed, ' +
-      rejectedFindings.length +
-      ' rejected',
-  );
+  log('After safeguard: ' + confirmedFindings.length + ' confirmed, ' + rejectedFindings.length + ' rejected');
 }
 
 // --- Phase 4: Synthesize -------------------------------------------------

@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  extractComplexity,
-  extractConfidence,
-  extractImpact,
-  extractNovelty,
-  extractRisk,
-} from '../factors.js';
+import { extractComplexity, extractConfidence, extractImpact, extractNovelty, extractRisk } from '../factors.js';
 
 describe('extractRisk', () => {
   it('maps each verdict to its base score', () => {

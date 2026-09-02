@@ -91,9 +91,7 @@ export class MemoryRetriever implements MemoryProvider {
     const limit = query.limit ?? DEFAULT_LIMIT;
     const now = this.now();
 
-    const heads = resolveChainHeads(
-      (await Promise.all(kinds.map((kind) => this.store.listByKind(kind)))).flat(),
-    );
+    const heads = resolveChainHeads((await Promise.all(kinds.map((kind) => this.store.listByKind(kind)))).flat());
 
     const results = heads.map((entry) => ({
       entry,

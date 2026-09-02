@@ -40,11 +40,7 @@ export class MockOidcProvider implements OidcProvider {
     return this.config;
   }
 
-  async getAuthorizationUrl(
-    state: string,
-    codeVerifier: string,
-    redirectUri: string,
-  ): Promise<string> {
+  async getAuthorizationUrl(state: string, codeVerifier: string, redirectUri: string): Promise<string> {
     void codeVerifier;
     this.counter += 1;
     // A self-callback: following the redirect "completes" the mock login.
@@ -54,11 +50,7 @@ export class MockOidcProvider implements OidcProvider {
     return url.toString();
   }
 
-  async exchangeCode(
-    code: string,
-    codeVerifier: string,
-    redirectUri: string,
-  ): Promise<OidcTokenSet> {
+  async exchangeCode(code: string, codeVerifier: string, redirectUri: string): Promise<OidcTokenSet> {
     void codeVerifier;
     void redirectUri;
     // Any mock code from this provider's login URL is redeemable.

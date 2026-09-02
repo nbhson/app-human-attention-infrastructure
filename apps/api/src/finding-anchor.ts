@@ -69,11 +69,7 @@ function lineInRanges(line: number, ranges: ReadonlyArray<readonly [number, numb
  * total: every input (including an empty `{}` payload and a null line) returns a
  * valid {@link FindingAnchor}, never throws.
  */
-export function computeFindingAnchor(
-  prPayload: unknown,
-  file: string,
-  line: number | null,
-): FindingAnchor {
+export function computeFindingAnchor(prPayload: unknown, file: string, line: number | null): FindingAnchor {
   if (typeof file !== 'string' || file.length === 0) {
     return { status: 'unverified', detail: 'no file anchor' };
   }
@@ -81,8 +77,7 @@ export function computeFindingAnchor(
     return { status: 'unverified', detail: 'finding has no line anchor' };
   }
 
-  const payload =
-    typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
+  const payload = typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
   const files = Array.isArray(payload.files) ? payload.files : [];
 
   const matched = files.find((entry) => entry && entry.path === file);

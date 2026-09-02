@@ -1,7 +1,7 @@
 # Security Policy
 
 The harness handles provider tokens (Git / Jira / AI), human review decisions, and
-third-party pull-request content. A report of a security problem in *that handling*
+third-party pull-request content. A report of a security problem in _that handling_
 is taken seriously, and we fix the latest release rather than every old tag.
 
 ## Reporting a vulnerability
@@ -9,8 +9,8 @@ is taken seriously, and we fix the latest release rather than every old tag.
 **Do not open a public issue** for a security problem. Report it privately so the
 fix lands before the detail is public:
 
-- **Preferred — GitHub private reporting.** Use the repo's *Report a vulnerability*
-  flow (Security → Advisories → *New draft security advisory*). The report stays
+- **Preferred — GitHub private reporting.** Use the repo's _Report a vulnerability_
+  flow (Security → Advisories → _New draft security advisory_). The report stays
   private until we publish an advisory.
 - **No public channel** (issue, discussion, PR comment) — treat "disclose the bug"
   as "release the exploit".
@@ -36,13 +36,13 @@ Anything that could:
   bypass the `writeback_log` audit;
 - corrupt the append-only `event_log` / audit trail, or spoof provenance
   (`correlation_id`, review/judge `report_hash`, run ids);
-- let an untrusted PR's diff, test output, or prompt reach a machine *outside* the
+- let an untrusted PR's diff, test output, or prompt reach a machine _outside_ the
   sandbox, or inject an instruction that changes a decision.
 
 ## Out of scope
 
 - Missing features / "it would be nice if" — open a regular issue.
-- Vulnerabilities in a dependency's *unused* code path — report upstream.
+- Vulnerabilities in a dependency's _unused_ code path — report upstream.
 - Vulnerabilities in a third-party Git / Jira / AI provider outside our code.
 
 ## The security model we ship (so you can verify the claim)

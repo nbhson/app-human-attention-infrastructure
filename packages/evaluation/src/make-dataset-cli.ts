@@ -154,8 +154,7 @@ async function main(): Promise<void> {
   }
 
   const db = createDb(connectionString);
-  const sourceVersion =
-    process.env.SOURCE_VERSION ?? process.env.EVAL_SOURCE_VERSION ?? DEFAULT_SOURCE_VERSION;
+  const sourceVersion = process.env.SOURCE_VERSION ?? process.env.EVAL_SOURCE_VERSION ?? DEFAULT_SOURCE_VERSION;
 
   try {
     const input = await loadCalibrationInput(db);

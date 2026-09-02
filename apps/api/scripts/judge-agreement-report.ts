@@ -32,12 +32,7 @@ import {
 import { createTestDb, destroyTestDb } from '@harness/db/test-utils';
 import { newJudgeRunID } from '@harness/domain';
 import type { JudgeRun, JudgeRunID, JudgeScores, ReviewReportID } from '@harness/domain';
-import {
-  AgreementReport,
-  canonicalReportHash,
-  computeAgreement,
-  RUBRIC_PROMPT_VERSION,
-} from '@harness/judge';
+import { AgreementReport, canonicalReportHash, computeAgreement, RUBRIC_PROMPT_VERSION } from '@harness/judge';
 import type { JudgeRunPair, JudgeScorePair } from '@harness/judge';
 import { computeGoldAgreement, loadSeedExamples, reportFromExample } from '@harness/benchmark';
 
@@ -118,9 +113,7 @@ function fmt3(value: number): string {
 
 async function main(): Promise<void> {
   console.log();
-  console.log(
-    'judge:agreement-report — day-39 §3.4 (recompute inter-judge + judge-vs-gold from audit rows)',
-  );
+  console.log('judge:agreement-report — day-39 §3.4 (recompute inter-judge + judge-vs-gold from audit rows)');
   console.log();
 
   const examples = loadSeedExamples();
@@ -169,18 +162,8 @@ async function main(): Promise<void> {
         },
       });
 
-      const scoresA = score(
-        example.gold.severity,
-        example.gold.routing,
-        example.gold.useful,
-        raterA,
-      );
-      const scoresB = score(
-        example.gold.severity,
-        example.gold.routing,
-        example.gold.useful,
-        raterB,
-      );
+      const scoresA = score(example.gold.severity, example.gold.routing, example.gold.useful, raterA);
+      const scoresB = score(example.gold.severity, example.gold.routing, example.gold.useful, raterB);
 
       runsA.push(
         makeRun(
@@ -220,10 +203,7 @@ async function main(): Promise<void> {
     // Order by report_id first, then model: each report contributes [rater-a, rater-b]
     // as a consecutive pair, so iterating two-at-a-time re-pairs the two raters
     // that judged the *same* report (the only pairs agreement is meaningful over).
-    const runs = await db
-      .select()
-      .from(judgeRuns)
-      .orderBy(asc(judgeRuns.report_id), asc(judgeRuns.model));
+    const runs = await db.select().from(judgeRuns).orderBy(asc(judgeRuns.report_id), asc(judgeRuns.model));
     const agreementRows = await db.select().from(judgeAgreements);
 
     // Re-pair by report_id (model sort puts rater-a before rater-b per report).
@@ -250,9 +230,7 @@ async function main(): Promise<void> {
     // ---- 4. render the report with full provenance ----------------------- //
     console.log('## persisted audit rows');
     console.log();
-    console.log(
-      `  judge_runs:         ${runs.length} rows (${examples.length} reports × 2 raters)`,
-    );
+    console.log(`  judge_runs:         ${runs.length} rows (${examples.length} reports × 2 raters)`);
     console.log(`  judge_agreements:   ${agreementRows.length} row(s)`);
     console.log();
 
@@ -263,8 +241,7 @@ async function main(): Promise<void> {
       const a = runsA[index]!;
       const b = runsB[index]!;
       console.log(
-        `  ${example.id}  hash ${a.reportHash.slice(0, 12)}…  ` +
-          `run-a ${a.id}  run-b ${b.id}  pr ${a.prUrl}`,
+        `  ${example.id}  hash ${a.reportHash.slice(0, 12)}…  ` + `run-a ${a.id}  run-b ${b.id}  pr ${a.prUrl}`,
       );
     }
     console.log();
@@ -317,12 +294,8 @@ async function main(): Promise<void> {
       console.log(`    run_a_ids     [${row.run_a_ids.join(', ')}]`);
       console.log(`    run_b_ids     [${row.run_b_ids.join(', ')}]`);
       console.log(`    report_hashes [${row.report_hashes.slice(0, 3).join(', ')}…]`);
-      console.log(
-        `    severity       ${fmt3(row.severity_agreement)}  κ ${fmt3(row.severity_kappa)}`,
-      );
-      console.log(
-        `    routing        ${fmt3(row.routing_agreement)}  κ ${fmt3(row.routing_kappa)}`,
-      );
+      console.log(`    severity       ${fmt3(row.severity_agreement)}  κ ${fmt3(row.severity_kappa)}`);
+      console.log(`    routing        ${fmt3(row.routing_agreement)}  κ ${fmt3(row.routing_kappa)}`);
       console.log();
     }
 

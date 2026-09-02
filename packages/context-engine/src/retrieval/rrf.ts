@@ -35,10 +35,7 @@ export interface RrfResult {
  * Ties (equal fused score) break by sourceId ascending, so the result is fully
  * deterministic for a fixed input.
  */
-export function reciprocalRankFusion(
-  layers: readonly (readonly string[])[],
-  k = RRF_K,
-): RrfResult[] {
+export function reciprocalRankFusion(layers: readonly (readonly string[])[], k = RRF_K): RrfResult[] {
   const scores = new Map<string, number>();
 
   for (const layer of layers) {

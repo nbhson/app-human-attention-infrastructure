@@ -57,12 +57,7 @@ export function requireRole(
 }
 
 /** Publish `authz.decision_denied` so the refusal is queryable, not silent. */
-function emitDenied(
-  container: Container,
-  actorId: UserID,
-  resource: string,
-  rolesRequired: readonly Role[],
-): void {
+function emitDenied(container: Container, actorId: UserID, resource: string, rolesRequired: readonly Role[]): void {
   const bus = container.resolve<IEventBus>(TOKENS.EventBus);
   bus.publish(
     createEvent(

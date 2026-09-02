@@ -98,8 +98,7 @@ function reorderCorpus(): RankingCorpus {
       { sourceId: 'src/gateway.ts', content: 'export default gateway;' },
       {
         sourceId: 'src/auth/refresh.ts',
-        content:
-          'auth refresh module with several extra helper tokens for padding the vector length considerably',
+        content: 'auth refresh module with several extra helper tokens for padding the vector length considerably',
       },
     ],
   };

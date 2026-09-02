@@ -93,11 +93,7 @@ export interface LearningCandidate {
 
 /** The fit seam — the boundary crossing `evaluation`'s `fitJudgeWeights`. */
 export interface FitSeam {
-  fit(
-    samples: readonly LearningSample[],
-    config: LearningFitConfig,
-    incumbent: AttentionWeights,
-  ): LearningCandidate;
+  fit(samples: readonly LearningSample[], config: LearningFitConfig, incumbent: AttentionWeights): LearningCandidate;
 }
 
 /** The collect seam — reads new review facts (DB in the app; a fake in tests). */

@@ -221,9 +221,7 @@ describe('ReviewService', () => {
   });
 
   it('getDetail throws for an unknown queue id', async () => {
-    await expect(service.getDetail(newReviewQueueItemID())).rejects.toBeInstanceOf(
-      QueueItemNotFoundError,
-    );
+    await expect(service.getDetail(newReviewQueueItemID())).rejects.toBeInstanceOf(QueueItemNotFoundError);
   });
 
   it('claim assigns a reviewer; a second claim conflicts', async () => {
@@ -234,9 +232,7 @@ describe('ReviewService', () => {
     expect(claimed.claimedBy).toBe(reviewer);
     expect(claimed.claimedAt).toBeInstanceOf(Date);
 
-    await expect(service.claim(queueId, newReviewerID())).rejects.toBeInstanceOf(
-      QueueConflictError,
-    );
+    await expect(service.claim(queueId, newReviewerID())).rejects.toBeInstanceOf(QueueConflictError);
   });
 
   it('decide records the decision, drives the seam, publishes, and reports feedback', async () => {

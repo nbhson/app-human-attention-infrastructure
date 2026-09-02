@@ -166,10 +166,7 @@ export class ReviewVerificationService {
           duration_ms: result.durationMs,
           flag,
           rendered,
-          error:
-            allSkipped && !flag.failed
-              ? 'no build/test scripts ran (undeclared or sandbox unavailable)'
-              : null,
+          error: allSkipped && !flag.failed ? 'no build/test scripts ran (undeclared or sandbox unavailable)' : null,
           updated_at: new Date(),
         })
         .where(eq(reviewVerifications.id, rowId));

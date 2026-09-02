@@ -131,8 +131,7 @@ export interface ContextPolicy {
 }
 
 /** Input for {@link createContextSource}. */
-export type CreateContextSourceInput = Omit<ContextSource, 'metadata'> &
-  Partial<Pick<ContextSource, 'metadata'>>;
+export type CreateContextSourceInput = Omit<ContextSource, 'metadata'> & Partial<Pick<ContextSource, 'metadata'>>;
 
 /**
  * Build a {@link ContextSource} defaulting `metadata` to an empty object.

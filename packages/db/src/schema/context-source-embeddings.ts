@@ -44,10 +44,7 @@ export const contextSourceEmbeddings = pgTable(
   },
   (table) => [
     contextSourceTypeCheck,
-    index('context_source_embeddings_embedding_idx').using(
-      'hnsw',
-      table.embedding.op('vector_cosine_ops'),
-    ),
+    index('context_source_embeddings_embedding_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
     uniqueIndex('context_source_embeddings_source_idx').on(table.source_id),
     index('context_source_embeddings_hash_idx').on(table.content_hash),
   ],

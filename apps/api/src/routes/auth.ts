@@ -69,10 +69,7 @@ function callbackUrl(): string {
 /** Set the httpOnly session cookie (manually, to avoid a cookie-plugin dep). */
 function setSessionCookie(reply: FastifyReply, sid: string): void {
   const secure = process.env.COOKIE_SECURE === 'true';
-  reply.header(
-    'set-cookie',
-    `sid=${sid}; HttpOnly; SameSite=Lax; ${secure ? 'Secure; ' : ''}Path=/`,
-  );
+  reply.header('set-cookie', `sid=${sid}; HttpOnly; SameSite=Lax; ${secure ? 'Secure; ' : ''}Path=/`);
 }
 
 /** Register the four auth endpoints. */
@@ -96,38 +93,35 @@ export function registerAuthRoutes(app: FastifyInstance, container: Container): 
     return reply.code(302).header('location', url).send();
   });
 
-  app.get<{ Querystring: { code?: string; state?: string } }>(
-    '/api/auth/callback',
-    async (request, reply) => {
-      const { code, state } = request.query;
-      if (!code || !state) {
-        return reply.code(400).send({ error: 'missing code or state' });
-      }
-      const pending = pendingLogins.get(state);
-      if (!pending) {
-        return reply.code(400).send({ error: 'unknown or expired state' });
-      }
-      pendingLogins.delete(state);
+  app.get<{ Querystring: { code?: string; state?: string } }>('/api/auth/callback', async (request, reply) => {
+    const { code, state } = request.query;
+    if (!code || !state) {
+      return reply.code(400).send({ error: 'missing code or state' });
+    }
+    const pending = pendingLogins.get(state);
+    if (!pending) {
+      return reply.code(400).send({ error: 'unknown or expired state' });
+    }
+    pendingLogins.delete(state);
 
-      const { provider, auth } = resolve();
-      const tokenSet = await provider.exchangeCode(code, pending.codeVerifier, pending.redirectUri);
-      const userInfo = await provider.getUserInfo(tokenSet.accessToken);
+    const { provider, auth } = resolve();
+    const tokenSet = await provider.exchangeCode(code, pending.codeVerifier, pending.redirectUri);
+    const userInfo = await provider.getUserInfo(tokenSet.accessToken);
 
-      const user = await auth.findOrCreateUser({
-        sub: userInfo.sub,
-        email: userInfo.email,
-        ...(userInfo.name ? { name: userInfo.name } : {}),
-      });
-      const session = await auth.createSession(user.id);
-      setSessionCookie(reply, session.id);
-      const token = await auth.issueAccessToken(user, session.id);
+    const user = await auth.findOrCreateUser({
+      sub: userInfo.sub,
+      email: userInfo.email,
+      ...(userInfo.name ? { name: userInfo.name } : {}),
+    });
+    const session = await auth.createSession(user.id);
+    setSessionCookie(reply, session.id);
+    const token = await auth.issueAccessToken(user, session.id);
 
-      return {
-        token,
-        user: { id: user.id, sub: user.oidcSub, email: user.email, roles: user.roles },
-      };
-    },
-  );
+    return {
+      token,
+      user: { id: user.id, sub: user.oidcSub, email: user.email, roles: user.roles },
+    };
+  });
 
   app.get('/api/auth/session', async (request, reply) => {
     if (!request.auth) {

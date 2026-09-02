@@ -106,9 +106,7 @@ const TOOL_RESULTS = {
 const rl = createInterface({ input: process.stdin });
 
 function reply(id, result, error) {
-  process.stdout.write(
-    `${JSON.stringify({ jsonrpc: '2.0', id, ...(error ? { error } : { result }) })}\n`,
-  );
+  process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, ...(error ? { error } : { result }) })}\n`);
 }
 
 rl.on('line', (line) => {

@@ -153,10 +153,7 @@ export interface WithSpanOptions {
  * The span is made the active span for its duration so descendant spans form a
  * correct parent/child lineage, and `harness.correlation_id` is always stamped.
  */
-export async function withSpan<T>(
-  opts: WithSpanOptions,
-  fn: (span: Span) => Promise<T>,
-): Promise<T> {
+export async function withSpan<T>(opts: WithSpanOptions, fn: (span: Span) => Promise<T>): Promise<T> {
   const run = (): Promise<T> => startAndEnd(opts, fn);
   return opts.ctx ? runWithCorrelation(opts.ctx, run) : run();
 }

@@ -5,12 +5,7 @@
  * split used by `map-anthropic-response.ts`.
  */
 
-import type {
-  GitProviderType,
-  PullRequest,
-  PullRequestFile,
-  PullRequestFileStatus,
-} from '@harness/domain';
+import type { GitProviderType, PullRequest, PullRequestFile, PullRequestFileStatus } from '@harness/domain';
 
 /** Subset of the GitHub PR object (`/repos/{owner}/{repo}/pulls/{number}`). */
 export interface GithubPullPayload {

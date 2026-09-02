@@ -51,27 +51,13 @@ export const agentRunStatuses = [
   'ERROR',
 ] as const;
 
-export const artifactStatuses = [
-  'DRAFT',
-  'PENDING_REVIEW',
-  'APPROVED',
-  'REJECTED',
-  'SUPERSEDED',
-  'MERGED',
-] as const;
+export const artifactStatuses = ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUPERSEDED', 'MERGED'] as const;
 
 export const changeStatuses = ['PENDING', 'VERIFIED', 'REVIEWED', 'ROLLED_BACK'] as const;
 
 export const fileChangeTypes = ['CREATED', 'MODIFIED', 'DELETED', 'RENAMED'] as const;
 
-export const verificationStatuses = [
-  'RUNNING',
-  'PASSED',
-  'FAILED',
-  'ERROR',
-  'TIMEOUT',
-  'SKIPPED',
-] as const;
+export const verificationStatuses = ['RUNNING', 'PASSED', 'FAILED', 'ERROR', 'TIMEOUT', 'SKIPPED'] as const;
 
 export const priorityLabels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 
@@ -82,21 +68,10 @@ export const priorityLabels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 export const thresholdBands = ['HIGH', 'CRITICAL'] as const;
 
 /** `review_queue.action` — the routing decision (attention spec §4). */
-export const routingActions = [
-  'REVIEW_REQUIRED',
-  'REVIEW_RECOMMENDED',
-  'AUTO_APPROVABLE',
-  'ESCALATE',
-] as const;
+export const routingActions = ['REVIEW_REQUIRED', 'REVIEW_RECOMMENDED', 'AUTO_APPROVABLE', 'ESCALATE'] as const;
 
 /** `review_queue.status` — the persistence-level queue state (attention spec §4). */
-export const reviewQueueStatuses = [
-  'QUEUED',
-  'CLAIMED',
-  'DECIDED',
-  'DROPPED',
-  'ESCALATED',
-] as const;
+export const reviewQueueStatuses = ['QUEUED', 'CLAIMED', 'DECIDED', 'DROPPED', 'ESCALATED'] as const;
 
 /**
  * Per-check result status (day-15 §2.1, engine-local `CheckStatus`). Distinct
@@ -172,39 +147,19 @@ export const artifactStatusCheck = inList('artifacts_status_check', 'status', ar
 export const changeStatusCheck = inList('changes_status_check', 'status', changeStatuses);
 
 /** `changes.change_type`. */
-export const fileChangeTypeCheck = inList(
-  'changes_change_type_check',
-  'change_type',
-  fileChangeTypes,
-);
+export const fileChangeTypeCheck = inList('changes_change_type_check', 'change_type', fileChangeTypes);
 
 /** `verification_results.status`. */
-export const verificationStatusCheck = inList(
-  'verification_results_status_check',
-  'status',
-  verificationStatuses,
-);
+export const verificationStatusCheck = inList('verification_results_status_check', 'status', verificationStatuses);
 
 /** `verification_check_results.status`. */
-export const checkStatusCheck = inList(
-  'verification_check_results_status_check',
-  'status',
-  checkStatuses,
-);
+export const checkStatusCheck = inList('verification_check_results_status_check', 'status', checkStatuses);
 
 /** `verification_test_results.status`. */
-export const testResultStatusCheck = inList(
-  'verification_test_results_status_check',
-  'status',
-  testResultStatuses,
-);
+export const testResultStatusCheck = inList('verification_test_results_status_check', 'status', testResultStatuses);
 
 /** `verification_reports.overall`. */
-export const reportOverallCheck = inList(
-  'verification_reports_overall_check',
-  'overall',
-  reportOverallStatuses,
-);
+export const reportOverallCheck = inList('verification_reports_overall_check', 'overall', reportOverallStatuses);
 
 /** `assessments.label`. */
 export const priorityLabelCheck = inList('assessments_label_check', 'label', priorityLabels);
@@ -216,18 +171,10 @@ export const thresholdBandCheck = inList('attention_thresholds_band_check', 'ban
 export const routingActionCheck = inList('review_queue_action_check', 'action', routingActions);
 
 /** `review_queue.status`. */
-export const reviewQueueStatusCheck = inList(
-  'review_queue_status_check',
-  'status',
-  reviewQueueStatuses,
-);
+export const reviewQueueStatusCheck = inList('review_queue_status_check', 'status', reviewQueueStatuses);
 
 /** `decisions.decision`. */
-export const humanDecisionTypeCheck = inList(
-  'decisions_decision_check',
-  'decision',
-  humanDecisionTypes,
-);
+export const humanDecisionTypeCheck = inList('decisions_decision_check', 'decision', humanDecisionTypes);
 
 /** `evidence.kind`. */
 export const evidenceKindCheck = inList('evidence_kind_check', 'kind', evidenceKinds);
@@ -276,35 +223,16 @@ export const writebackStatuses = ['PENDING', 'SUCCEEDED', 'FAILED', 'DUPLICATE']
 export const reviewDecisionTypes = ['APPROVE', 'REQUEST_CHANGES', 'REJECT'] as const;
 
 /** `review_verifications.status` — the review-slice verification lifecycle. */
-export const reviewVerificationStatuses = [
-  'PENDING',
-  'RUNNING',
-  'PASSED',
-  'FAILED',
-  'SKIPPED',
-  'ERROR',
-] as const;
+export const reviewVerificationStatuses = ['PENDING', 'RUNNING', 'PASSED', 'FAILED', 'SKIPPED', 'ERROR'] as const;
 
 /** `review_reports.ai_provider`. */
-export const aiProviderCheck = inList(
-  'review_reports_ai_provider_check',
-  'ai_provider',
-  aiProviderTypes,
-);
+export const aiProviderCheck = inList('review_reports_ai_provider_check', 'ai_provider', aiProviderTypes);
 
 /** `review_reports.overall_verdict`. */
-export const reviewVerdictCheck = inList(
-  'review_reports_overall_verdict_check',
-  'overall_verdict',
-  reviewVerdicts,
-);
+export const reviewVerdictCheck = inList('review_reports_overall_verdict_check', 'overall_verdict', reviewVerdicts);
 
 /** `review_findings.severity`. */
-export const reviewSeverityCheck = inList(
-  'review_findings_severity_check',
-  'severity',
-  reviewSeverities,
-);
+export const reviewSeverityCheck = inList('review_findings_severity_check', 'severity', reviewSeverities);
 
 /** `review_findings.kind`. */
 export const findingKindCheck = inList('review_findings_kind_check', 'kind', findingKinds);
@@ -313,25 +241,13 @@ export const findingKindCheck = inList('review_findings_kind_check', 'kind', fin
 export const providerKindCheck = inList('provider_configs_kind_check', 'kind', providerKinds);
 
 /** `writeback_log.action`. */
-export const writebackActionCheck = inList(
-  'writeback_log_action_check',
-  'action',
-  writebackActions,
-);
+export const writebackActionCheck = inList('writeback_log_action_check', 'action', writebackActions);
 
 /** `writeback_log.status`. */
-export const writebackStatusCheck = inList(
-  'writeback_log_status_check',
-  'status',
-  writebackStatuses,
-);
+export const writebackStatusCheck = inList('writeback_log_status_check', 'status', writebackStatuses);
 
 /** `review_decisions.decision`. */
-export const reviewDecisionTypeCheck = inList(
-  'review_decisions_decision_check',
-  'decision',
-  reviewDecisionTypes,
-);
+export const reviewDecisionTypeCheck = inList('review_decisions_decision_check', 'decision', reviewDecisionTypes);
 
 /** `review_verifications.status`. */
 export const reviewVerificationStatusCheck = inList(

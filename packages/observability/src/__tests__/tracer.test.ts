@@ -71,9 +71,7 @@ describe('startSpan correlation stamping', () => {
   it('defaults to the bootstrap correlation when no context is bound', () => {
     const span = startSpan('test.span');
     endSpan(span);
-    expect(finishedSpan('test.span').attributes['harness.correlation_id']).toBe(
-      currentCorrelation().correlationId,
-    );
+    expect(finishedSpan('test.span').attributes['harness.correlation_id']).toBe(currentCorrelation().correlationId);
   });
 });
 

@@ -60,10 +60,7 @@ export interface MCPWriteBackOptions {
  * host out. An unset var means ON — a configured host writes without extra setup,
  * and disabling is the explicit act.
  */
-function envEnabled(
-  provider: WriteBackProvider,
-  env: Record<string, string | undefined> = process.env,
-): boolean {
+function envEnabled(provider: WriteBackProvider, env: Record<string, string | undefined> = process.env): boolean {
   const value = env[`WRITEBACK_${provider.toUpperCase()}`];
   return value !== '0' && value !== 'false';
 }
@@ -155,9 +152,7 @@ export class MCPWriteBack implements WriteBackService {
 
     try {
       const result =
-        intent.provider === TicketProviderType.Jira
-          ? await this.writeTicket(intent)
-          : await this.writeGit(intent);
+        intent.provider === TicketProviderType.Jira ? await this.writeTicket(intent) : await this.writeGit(intent);
       if (result.ok) {
         await this.store.finalize(
           result.externalRef === undefined
@@ -217,10 +212,7 @@ export class MCPWriteBack implements WriteBackService {
     }
     const number = Number(intent.externalId);
     if (!Number.isInteger(number)) {
-      this.invalid(
-        intent,
-        `git write-back externalId must be a PR/MR number, got "${intent.externalId}"`,
-      );
+      this.invalid(intent, `git write-back externalId must be a PR/MR number, got "${intent.externalId}"`);
     }
     switch (intent.action) {
       case WritebackAction.Comment:
@@ -234,10 +226,7 @@ export class MCPWriteBack implements WriteBackService {
         break;
       }
       case WritebackAction.Transition:
-        this.invalid(
-          intent,
-          `TRANSITION is not supported for Git host "${gitHost}"; use the Jira provider`,
-        );
+        this.invalid(intent, `TRANSITION is not supported for Git host "${gitHost}"; use the Jira provider`);
         break;
       default:
         this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);
@@ -257,10 +246,7 @@ export class MCPWriteBack implements WriteBackService {
       }
       case WritebackAction.Status:
       case WritebackAction.Label:
-        this.invalid(
-          intent,
-          `"${intent.action}" is not supported for ticket systems (use TRANSITION)`,
-        );
+        this.invalid(intent, `"${intent.action}" is not supported for ticket systems (use TRANSITION)`);
         break;
       default:
         this.invalid(intent, `unsupported write-back action "${String(intent.action)}"`);

@@ -14,17 +14,10 @@ import {
   createReviewReport,
   newReviewReportID,
 } from '@harness/domain';
-import type {
-  JudgeRun,
-  JudgeRunStore,
-  LLMProvider,
-  LLMRequest,
-  LLMResponse,
-  ReviewReport,
-} from '@harness/domain';
+import type { JudgeRun, JudgeRunStore, LLMProvider, LLMRequest, LLMResponse, ReviewReport } from '@harness/domain';
 
 import { Judge } from '../judge.js';
-import { RUBRIC_PROMPT_VERSION, buildRubricPrompt, parseJudgeOutput } from '../rubric.js';
+import { RUBRIC_PROMPT_VERSION, RUBRIC_SYSTEM_PROMPT, buildRubricPrompt, parseJudgeOutput } from '../rubric.js';
 
 /** A scriptable {@link LLMProvider} that replays canned responses and records requests. */
 class ScriptedLLM implements LLMProvider {
@@ -189,6 +182,13 @@ describe('parseJudgeOutput', () => {
     expect(parsed.scores.routingAgreement).toBe(0);
   });
 
+  it('strips a stray leading markdown fence before parsing', () => {
+    const parsed = parseJudgeOutput(
+      '```json\n{"severityAgreement":0.5,"routingAgreement":0.5,"evidenceSufficiency":0.5,"overall":0.5,"reasoning":"x"}\n```',
+    );
+    expect(parsed.scores.overall).toBe(0.5);
+  });
+
   it('throws when a dimension is missing', () => {
     expect(() => parseJudgeOutput('{"severityAgreement":0.5,"reasoning":"x"}')).toThrow(
       /missing dimension "routingAgreement"/,
@@ -210,29 +210,50 @@ describe('buildRubricPrompt', () => {
     expect(prompt).not.toContain('@@');
     expect(prompt).not.toContain('author');
   });
+
+  it('includes few-shot examples (clean and sloppy)', () => {
+    const prompt = buildRubricPrompt(fixtureReport());
+    expect(prompt).toContain('Example A');
+    expect(prompt).toContain('Example B');
+    expect(prompt).toContain('Expected output');
+  });
+
+  it('forbids markdown fences explicitly in the prompt', () => {
+    const prompt = buildRubricPrompt(fixtureReport());
+    expect(prompt).toMatch(/no markdown/i);
+    expect(prompt).toContain('no markdown');
+  });
+});
+
+describe('RUBRIC_PROMPT_VERSION', () => {
+  it('is a versioned string so a stored run can name which prompt produced it', () => {
+    expect(RUBRIC_PROMPT_VERSION).toMatch(/^judge-rubric-v\d+$/);
+  });
+});
+
+describe('RUBRIC_SYSTEM_PROMPT', () => {
+  it('explicitly forbids markdown fences and proscribes inference of the underlying code', () => {
+    expect(RUBRIC_SYSTEM_PROMPT).toContain('No markdown fences');
+    expect(RUBRIC_SYSTEM_PROMPT).toMatch(/do not infer or guess/i);
+  });
+
+  it('mentions low temperature for determinism', () => {
+    expect(RUBRIC_SYSTEM_PROMPT).toMatch(/temperature/i);
+  });
 });
 
 describe('@harness/judge boundary (day-21 §2.4)', () => {
   it('imports only @harness/domain (+ @harness/di) and nothing else', () => {
     const srcDir = dirname(fileURLToPath(import.meta.url));
     const allowed = ['@harness/domain', '@harness/di'];
-    const files = [
-      'index.ts',
-      'rubric.ts',
-      'judge.ts',
-      'agreement.ts',
-      'report-hash.ts',
-      'agreement-report.ts',
-    ];
+    const files = ['index.ts', 'rubric.ts', 'judge.ts', 'agreement.ts', 'report-hash.ts', 'agreement-report.ts'];
 
     for (const file of files) {
       const source = readFileSync(join(srcDir, '..', file), 'utf8');
       for (const match of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
         const specifier = match[1]!;
         if (specifier.startsWith('@harness/')) {
-          expect(allowed, `${file} imports a forbidden @harness package: ${specifier}`).toContain(
-            specifier,
-          );
+          expect(allowed, `${file} imports a forbidden @harness package: ${specifier}`).toContain(specifier);
         }
       }
     }

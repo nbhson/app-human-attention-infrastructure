@@ -28,10 +28,7 @@ function renderNewReview(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        initialEntries={['/reviews/new']}
-      >
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/reviews/new']}>
         <Routes>
           <Route path="/reviews/new" element={<NewReviewPage />} />
           <Route path="/reviews/:id" element={<p>report-page</p>} />
@@ -159,9 +156,7 @@ describe('NewReviewPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Start Review/ }));
 
     expect(await screen.findByText('Pull request not found.')).toBeInTheDocument();
-    expect(
-      screen.getByText('That pull request could not be found or is not accessible.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('That pull request could not be found or is not accessible.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Try Again/ }));
     await waitFor(() => expect(screen.getByLabelText(/Pull request URL/)).toBeInTheDocument());

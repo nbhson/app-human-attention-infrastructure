@@ -37,11 +37,7 @@ export function mockTextResponse(content: string, inputTokens = 10, outputTokens
 }
 
 /** A tool-use response factory, for wiring single-tool-call scripts. */
-export function mockToolCallResponse(
-  toolName: string,
-  toolId: string,
-  input: Record<string, unknown>,
-): LLMResponse {
+export function mockToolCallResponse(toolName: string, toolId: string, input: Record<string, unknown>): LLMResponse {
   return {
     content: '',
     toolCalls: [{ id: toolId, name: toolName, input }],

@@ -1,6 +1,6 @@
 # Phase 3 · E2E Retro — 9 tests, real internals, stubbed externals, green at rest
 
-*Day-37 exit evidence (Phase 3). Week 8's "everything together" checkpoint is
+_Day-37 exit evidence (Phase 3). Week 8's "everything together" checkpoint is
 written as one recorded golden-path run plus the branches that carry the
 discipline, then a concurrency probe that proves isolation and teardown. The
 discipline is unchanged from every prior milestone: the E2E may stub only the
@@ -8,7 +8,7 @@ external hosts (Git/Ticket/LLM/MCP transports) — the DB, event bus, memory,
 verification, judge and write-back run for real — and it must pass under the
 **safe** at-rest defaults (write-back off, no live keys), not a demo-max config.
 The day ends **green before committed**: `pnpm e2e` 9/9, `pnpm test` 969/969,
-`pnpm lint` clean. Numbers-first, blameless.*
+`pnpm lint` clean. Numbers-first, blameless._
 
 ## What shipped today (Day 37)
 
@@ -22,7 +22,7 @@ The day ends **green before committed**: `pnpm e2e` 9/9, `pnpm test` 969/969,
   GitHub+GitLab ingests resolving their own hosts, and a sandbox-teardown
   assertion.
 - **`e2e/vitest.config.ts`** — a deliberately separate runner (`include:
-  e2e/**/*.spec.ts`), so `pnpm test` (unit) and `pnpm e2e` (full-system) stay
+e2e/**/*.spec.ts`), so `pnpm test` (unit) and `pnpm e2e` (full-system) stay
   independent. Maps each `@harness/*` import straight to its built `dist` entry,
   since the root-level specs have no workspace `node_modules` symlink to follow.
 - **`pnpm e2e` wired into the root `package.json`**, and `e2e/*.ts` added to
@@ -46,7 +46,7 @@ asserted, not assumed:
 
 - **Verification FAILED is non-blocking.** A forced failing check, passed through
   the real `flagReport`/`renderFlag` machinery, yields a `FAILED` flag that is a
-  *report, not authority*: it carries an evidence ref and the "review required
+  _report, not authority_: it carries an evidence ref and the "review required
   before write-back" gate, and holds no `decision` field — a red verify annotates
   rather than auto-rejects.
 - **Write-back OFF produces provably nothing external.** An APPROVE with
@@ -117,4 +117,4 @@ that later flips on by mistake fails the suite rather than nudging a live host.
 
 ---
 
-*Next: Day 38 — Docs: Specs to v1.0 Candidates, Runbook + Dev Guide*
+_Next: Day 38 — Docs: Specs to v1.0 Candidates, Runbook + Dev Guide_

@@ -20,12 +20,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CalibrationJob, DEFAULT_LEARNING_FIT_CONFIG } from '../learning/calibration-job.js';
-import {
-  buildLearningWindow,
-  judgeDisagreement,
-  selectNewSince,
-  toLearningSample,
-} from '../learning/collector.js';
+import { buildLearningWindow, judgeDisagreement, selectNewSince, toLearningSample } from '../learning/collector.js';
 import { decidePromotion } from '../learning/promotion-gate.js';
 import type { CollectSeam, FitSeam, LearningCandidate, ReviewFact } from '../learning/types.js';
 import { PRIORITY_WEIGHTS } from '../types.js';
@@ -112,16 +107,12 @@ describe('promotion gate', () => {
   });
 
   it('HOLDs when the judge signal dominates, even with an improvement', () => {
-    const decision = decidePromotion(
-      makeCandidate({ improvement: true, judgeSignalDominates: true }),
-    );
+    const decision = decidePromotion(makeCandidate({ improvement: true, judgeSignalDominates: true }));
     expect(decision.outcome).toBe('HOLD');
   });
 
   it('PROMOTEs only on a measured WIN with a balanced judge signal', () => {
-    const decision = decidePromotion(
-      makeCandidate({ improvement: true, judgeSignalDominates: false }),
-    );
+    const decision = decidePromotion(makeCandidate({ improvement: true, judgeSignalDominates: false }));
     expect(decision.outcome).toBe('PROMOTE');
     expect(decision.reasons).not.toHaveLength(0);
   });

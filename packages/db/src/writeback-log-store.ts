@@ -24,9 +24,7 @@ function isUniqueViolation(error: unknown): boolean {
     return true;
   }
   const cause = (error as { cause?: unknown }).cause;
-  return (
-    typeof cause === 'object' && cause !== null && (cause as { code?: unknown }).code === '23505'
-  );
+  return typeof cause === 'object' && cause !== null && (cause as { code?: unknown }).code === '23505';
 }
 
 /**
@@ -106,10 +104,7 @@ export class DrizzleWritebackLogStore implements WritebackLogStore {
         if (isUniqueViolation(error)) {
           // A concurrent identical write already holds the SUCCEEDED slot; this
           // attempt is a duplicate, never a second success.
-          await this.db
-            .update(writebackLog)
-            .set({ status: 'DUPLICATE' })
-            .where(eq(writebackLog.id, input.intentId));
+          await this.db.update(writebackLog).set({ status: 'DUPLICATE' }).where(eq(writebackLog.id, input.intentId));
           return;
         }
         throw error;

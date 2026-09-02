@@ -71,10 +71,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
  * non-empty — that is the "fast, loud" guard against a silently-anonymous
  * request. The value is reduced to `tokenHint` and discarded.
  */
-export function parseMcpConfig(
-  text: string,
-  env: Record<string, string | undefined> = process.env,
-): McpConfig {
+export function parseMcpConfig(text: string, env: Record<string, string | undefined> = process.env): McpConfig {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -96,10 +93,7 @@ export function parseMcpConfig(
  * configured" (the app still boots; providers resolve to null the way the
  * Phase-1 `GITHUB_TOKEN` path does). An unreadable or malformed file throws.
  */
-export function loadMcpConfig(
-  path: string,
-  env: Record<string, string | undefined> = process.env,
-): McpConfig {
+export function loadMcpConfig(path: string, env: Record<string, string | undefined> = process.env): McpConfig {
   let text: string;
   try {
     text = readFileSync(path, 'utf8');
@@ -113,11 +107,7 @@ export function loadMcpConfig(
   return parseMcpConfig(text, env);
 }
 
-function parseServerEntry(
-  name: string,
-  raw: unknown,
-  env: Record<string, string | undefined>,
-): McpServerEntry {
+function parseServerEntry(name: string, raw: unknown, env: Record<string, string | undefined>): McpServerEntry {
   if (!isRecord(raw)) {
     throw new McpConfigError(`server "${name}" must be an object`);
   }
@@ -149,11 +139,7 @@ function parseServerEntry(
   return { ...base, url: raw['url'], ...(headers === undefined ? {} : { headers }) };
 }
 
-function resolveTokenHint(
-  name: string,
-  tokenEnv: string,
-  env: Record<string, string | undefined>,
-): string {
+function resolveTokenHint(name: string, tokenEnv: string, env: Record<string, string | undefined>): string {
   const value = env[tokenEnv];
   if (value === undefined || value.length === 0) {
     throw new McpConfigError(`server "${name}": token env var "${tokenEnv}" is not set`);

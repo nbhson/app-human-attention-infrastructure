@@ -1,11 +1,11 @@
 # Phase 3 · Week 5 Retro — The review-quality loop closes, and holds
 
-*Day-25 checkpoint (Phase 3). First pass over the LLM-as-judge (Day 21–22), the
+_Day-25 checkpoint (Phase 3). First pass over the LLM-as-judge (Day 21–22), the
 judge-signal weight fit (Day 23), and the gold corpus (Day 24) — wired end-to-end
 into one measurement that ends in an explicit **PROMOTE / HOLD** decision. Same
 rule as every prior retro: numbers-first, blameless, and green before committed.
 The headline this week is not an uplift; it is that the loop **measured → fit →
-compared → decided**, and it decided to hold.*
+compared → decided**, and it decided to hold._
 
 ## What shipped this week
 
@@ -32,22 +32,22 @@ compared → decided**, and it decided to hold.*
 
 The demo runs on the six-example seed corpus with a **deterministic
 two-rater demonstration judge** (no live LLM, no API key — the real `Judge` needs
-a `LLMProvider`, which this repo never carries by design). The agreement *math*
+a `LLMProvider`, which this repo never carries by design). The agreement _math_
 and the fit/A-B gate are the production code; only the LLM call is swapped, so the
 pipeline shape is real while the score values are a model:
 
-| Measurement | Value (demo) | Floor |
-|-------------|--------------|-------|
-| judge-vs-gold severity / routing / usefulness | 0.935 / 0.958 / 1.000 (`n=6`) | usefulness ≥ 0.5 |
-| inter-judge severity / routing (κ) | 0.920 / 0.945 (κ 1.000, `n=6`) | severity ≥ 0.7 |
-| refit ranking (incumbent → candidate) | 1.000 → 1.000 (log-loss 0.440 → 0.205) | candidate must lead |
-| **A/B verdict** | **TIE** (`Δ = 0.0000`) | — |
-| **Decision** | **HOLD** | — |
+| Measurement                                   | Value (demo)                           | Floor               |
+| --------------------------------------------- | -------------------------------------- | ------------------- |
+| judge-vs-gold severity / routing / usefulness | 0.935 / 0.958 / 1.000 (`n=6`)          | usefulness ≥ 0.5    |
+| inter-judge severity / routing (κ)            | 0.920 / 0.945 (κ 1.000, `n=6`)         | severity ≥ 0.7      |
+| refit ranking (incumbent → candidate)         | 1.000 → 1.000 (log-loss 0.440 → 0.205) | candidate must lead |
+| **A/B verdict**                               | **TIE** (`Δ = 0.0000`)                 | —                   |
+| **Decision**                                  | **HOLD**                               | —                   |
 
 ## What the decision means — and why it is not a failure
 
 The fit verdict was `UPLIFT` (the candidate beat the incumbent on held-out
-*log-loss*, and the judge signal did **not** dominate a single column), but the
+_log-loss_, and the judge signal did **not** dominate a single column), but the
 A/B gate scores on **ranking accuracy**, and there the two arms tied exactly
 (`Δ = 0.0000`). The gate therefore refused to flip the default. That is the
 discipline working, not a shortcoming: **§2.1 — "if the candidate doesn't beat
@@ -60,7 +60,7 @@ and inter-judge agreement above floor) — does the run emit `PROMOTE`. On this
 seed the fit passes gate 1 and the judge passes gate 3, but gate 2 is a tie, so
 the verdict is HOLD. The default weight set was **not** flipped.
 
-## The honesty boundary (what the demo does *not* prove)
+## The honesty boundary (what the demo does _not_ prove)
 
 - **The judge is a stand-in.** The demonstration scorer perturbs the gold, so the
   near-1.0 agreements are circular, not evidence. Real agreement needs a live
@@ -80,7 +80,7 @@ the verdict is HOLD. The default weight set was **not** flipped.
   or `@harness/benchmark`. The cross-package compositor is the app host (`apps/api`
   imports anything), verified by the boundary linter and `architecture.test.ts`
   (R17 pins `benchmark → domain/db/judge`; R9 pins `evaluation → domain/db/di/
-  observability`).
+observability`).
 - **Every number recomputes from audit rows.** `computeAgreement` (judge) and
   `computeGoldAgreement` (benchmark) are pure functions over score/run objects;
   `runCalibration` recomputes the refit from the judge-augmented samples. Nothing
@@ -98,4 +98,4 @@ the verdict is HOLD. The default weight set was **not** flipped.
 
 ---
 
-*Next: Day 26 — Hybrid Retriever Default: BM25 + Embeddings Fused*
+_Next: Day 26 — Hybrid Retriever Default: BM25 + Embeddings Fused_

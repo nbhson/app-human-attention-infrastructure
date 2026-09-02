@@ -1,8 +1,8 @@
 # HAI Harness — Tổng quan Flow Hoạt động
 
-> **`review-reorient` (v0.6):** đường code-gen đã nghỉ hưu — flow dưới đây phản ánh hướng **review PR/MR bên ngoài**: AI là *reviewer* (đọc, không ghi), không còn "AI tự sinh fix".
+> **`review-reorient` (v0.6):** đường code-gen đã nghỉ hưu — flow dưới đây phản ánh hướng **review PR/MR bên ngoài**: AI là _reviewer_ (đọc, không ghi), không còn "AI tự sinh fix".
 
-> **Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa *"sự chú ý của con người"* trong phát triển phần mềm:
+> **Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa _"sự chú ý của con người"_ trong phát triển phần mềm:
 > một code change (PR/MR) đi vào → Harness quan sát, xác minh, đánh giá, dùng AI review, xếp ưu tiên và định tuyến tới đúng sự chú ý của con người.
 
 Nguồn: `docs/summary/HAI_overview.md`, `docs/architecture/HAI_Harness_Architecture_v0.6.md`, `packages/orchestrator/README.md`, `packages/attention-engine/README.md`.
@@ -147,6 +147,7 @@ stateDiagram-v2
 ```
 
 **Bất biến (Spec 2):**
+
 - Chuyển trạng thái dùng **optimistic locking** (`UPDATE ... WHERE id AND state = expected` → `StateConflictError`).
 - `attempt_number` chỉ tăng khi `REWORK → QUEUED`; idempotency key = `task_id:attempt_number`.
 - Mọi transition ghi vào `task_state_history` (audit).
@@ -173,7 +174,7 @@ flowchart TB
     QUEUE --> FEED["Feedback was_useful<br/>→ recalibrate weights"]
 ```
 
-Labels: **CRITICAL ≥ 0.80 · HIGH ≥ 0.60 · MEDIUM ≥ 0.30 · LOW < 0.30**. Factor thiếu → redistribute trọng số + ghi `factors_unavailable`; thiếu hết → mặc định HIGH (*fail toward attention*).
+Labels: **CRITICAL ≥ 0.80 · HIGH ≥ 0.60 · MEDIUM ≥ 0.30 · LOW < 0.30**. Factor thiếu → redistribute trọng số + ghi `factors_unavailable`; thiếu hết → mặc định HIGH (_fail toward attention_).
 
 ---
 

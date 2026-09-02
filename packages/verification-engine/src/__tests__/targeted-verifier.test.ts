@@ -9,11 +9,7 @@ function resolver(tests: readonly string[], complete: boolean): AffectedTestsRes
 }
 
 /** Wire a verifier whose two run modes are recorded spies. */
-function subject(
-  tests: readonly string[],
-  complete: boolean,
-  overrides: Partial<TargetedVerifierOptions> = {},
-) {
+function subject(tests: readonly string[], complete: boolean, overrides: Partial<TargetedVerifierOptions> = {}) {
   const runAll = vi.fn(async () => 'PASSED' as const);
   const runTests = vi.fn(async () => 'PASSED' as const);
   const verifier = new TargetedVerifier({

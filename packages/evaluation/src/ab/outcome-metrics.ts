@@ -77,8 +77,7 @@ export function rankCorrelationDistribution(
   }
   const min = values.length > 0 ? Math.min(...values) : undefined;
   const max = values.length > 0 ? Math.max(...values) : undefined;
-  const mean =
-    values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
+  const mean = values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
   return {
     values,
     count: values.length,
@@ -159,11 +158,9 @@ export interface EvidenceVerdict {
 
 /** True when a signal set has no computed value, or every computed value is zero. */
 function allDegenerate(signals: OutcomeSignals): boolean {
-  const values = [
-    signals.contextAcceptanceRate,
-    signals.humanMinutesPerAccept,
-    signals.reworkRate,
-  ].filter((value): value is number => value !== undefined);
+  const values = [signals.contextAcceptanceRate, signals.humanMinutesPerAccept, signals.reworkRate].filter(
+    (value): value is number => value !== undefined,
+  );
   return values.length === 0 || values.every((value) => value === 0);
 }
 
@@ -184,9 +181,7 @@ export function evaluateEvidence(
   if (correlation.count === 0) {
     reasons.push('no computable rank_correlation (top-k intersection < 2 on every input)');
   } else {
-    const disagreeing = correlation.values.filter(
-      (value) => value < bar.correlationDisagreementThreshold,
-    ).length;
+    const disagreeing = correlation.values.filter((value) => value < bar.correlationDisagreementThreshold).length;
     const disagreeingShare = disagreeing / correlation.count;
     if (disagreeingShare < bar.minDisagreeingShare) {
       reasons.push(

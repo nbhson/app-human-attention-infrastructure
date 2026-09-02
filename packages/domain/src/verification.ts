@@ -28,8 +28,7 @@ export const VerificationCheckType = {
   Custom: 'CUSTOM',
 } as const;
 /** A verification check type. */
-export type VerificationCheckType =
-  (typeof VerificationCheckType)[keyof typeof VerificationCheckType];
+export type VerificationCheckType = (typeof VerificationCheckType)[keyof typeof VerificationCheckType];
 
 /** Overall verification status (verification spec §2.2). */
 export const VerificationStatus = {
@@ -61,8 +60,7 @@ export const VerificationErrorSeverity = {
   Info: 'INFO',
 } as const;
 /** A verification error severity. */
-export type VerificationErrorSeverity =
-  (typeof VerificationErrorSeverity)[keyof typeof VerificationErrorSeverity];
+export type VerificationErrorSeverity = (typeof VerificationErrorSeverity)[keyof typeof VerificationErrorSeverity];
 
 /** The scheduling priority of a verification request (spec §2.1). */
 export const VerificationPriority = {
@@ -208,25 +206,18 @@ export type CreateVerificationRequestInput = Omit<VerificationRequest, 'createdA
 /**
  * Build a {@link VerificationRequest} defaulting priority to `MEDIUM`.
  */
-export function createVerificationRequest(
-  input: CreateVerificationRequestInput,
-): VerificationRequest {
+export function createVerificationRequest(input: CreateVerificationRequestInput): VerificationRequest {
   return { createdAt: new Date(), priority: VerificationPriority.Medium, ...input };
 }
 
 /** Input for {@link createVerificationCheckResult}. */
-export type CreateVerificationCheckResultInput = Omit<
-  VerificationCheckResult,
-  'errors' | 'metrics'
-> &
+export type CreateVerificationCheckResultInput = Omit<VerificationCheckResult, 'errors' | 'metrics'> &
   Partial<Pick<VerificationCheckResult, 'errors' | 'metrics' | 'flaky'>>;
 
 /**
  * Build a {@link VerificationCheckResult} defaulting `errors`/`metrics` empty.
  */
-export function createVerificationCheckResult(
-  input: CreateVerificationCheckResultInput,
-): VerificationCheckResult {
+export function createVerificationCheckResult(input: CreateVerificationCheckResultInput): VerificationCheckResult {
   return { errors: [], metrics: {}, ...input };
 }
 

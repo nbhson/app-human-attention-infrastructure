@@ -22,7 +22,7 @@ review-quality measurement — plus the corpus loader and judge-vs-gold evaluati
 5. **Seed deterministically** — `loadSeedExamples` provides a versioned, redacted
    seed corpus (no secrets, no org code).
 
-## What it is *not*
+## What it is _not_
 
 Review examples, **not** coding tasks. There is no SUT patch, no SWE-bench rerun,
 no code-generation task — the corpus exists to answer "does the judge/report agree
@@ -36,16 +36,16 @@ routing  agreement  = 1 − mean |judge.routing   − gold_routing|
 usefulness agreement = judge.overall ≥ 0.5 ⇔ gold_useful      (binary)
 ```
 
-The judge *predicts*; the human *decides*. `USEFULNESS_THRESHOLD` is `0.5`.
+The judge _predicts_; the human _decides_. `USEFULNESS_THRESHOLD` is `0.5`.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
+| Module              | What it provides                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------ |
 | `review-example.ts` | `ReviewExample`, `ArtifactFinding`, `JudgedArtifact`, `SCALE_VERSION` (`v1`), `LABEL_SET`. |
-| `corpus.ts` | `loadReviewExamples` — version-filtered, read-only `review_examples` load. |
-| `eval-judge.ts` | `evaluateJudge` + `reportFromExample` (report reconstruction over a `JudgeScorer` seam). |
-| `seed/seed-data.ts` | `loadSeedExamples` — deterministic seed corpus. |
+| `corpus.ts`         | `loadReviewExamples` — version-filtered, read-only `review_examples` load.                 |
+| `eval-judge.ts`     | `evaluateJudge` + `reportFromExample` (report reconstruction over a `JudgeScorer` seam).   |
+| `seed/seed-data.ts` | `loadSeedExamples` — deterministic seed corpus.                                            |
 
 ## Test strategy
 

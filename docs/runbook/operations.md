@@ -2,7 +2,7 @@
 
 > **Status:** v1.0-candidate (as-built) — Day 40 exit review complete (`v0.4.0-harness`, EXIT-WITH-CARRYFORWARD).
 > Companion to [README.md](README.md) (incident-oriented) and
-> [audit-queries.md](audit-queries.md) (copy-paste SQL). These are the *planned*
+> [audit-queries.md](audit-queries.md) (copy-paste SQL). These are the _planned_
 > procedures for the current stack: provider-token rotation, write-back audit,
 > learning-loop HOLD, the `rank_method` kill-switch, and the durable-queue flag.
 > If a command here doesn't work as written, that is a doc bug — fix it, don't
@@ -22,19 +22,19 @@ docker compose exec -T postgres psql -U harness -d harness
 ## OP-1 — Rotate / redact a provider token
 
 **Why.** Git/Jira credentials are a single point of compromise. The harness holds
-*no clear-text token* anywhere it persists: `provider_configs.token_redacted` is a
+_no clear-text token_ anywhere it persists: `provider_configs.token_redacted` is a
 non-reversible last-4 hint for display only, and `mcp.config.json` stores a
-`tokenEnv` *name* — never a value. The real token lives in the MCP server's
+`tokenEnv` _name_ — never a value. The real token lives in the MCP server's
 environment (the process that launches the MCP subprocess / sets SSE headers) and
-is injected at connect time. Rotating means changing the secret *at its source*;
+is injected at connect time. Rotating means changing the secret _at its source_;
 there is nothing to scrub inside the harness.
 
 **Where the truth lives (two truths, by design):**
 
-| Truth | File / table | Holds |
-| --- | --- | --- |
-| Connectivity | `mcp.config.json` (via `MCP_CONFIG_PATH`) | which hosts exist, transport, and the `tokenEnv` *name* |
-| Display | `provider_configs` | `enabled` + `token_redacted` hint + `base_url`, mirrored for the settings UI |
+| Truth        | File / table                              | Holds                                                                        |
+| ------------ | ----------------------------------------- | ---------------------------------------------------------------------------- |
+| Connectivity | `mcp.config.json` (via `MCP_CONFIG_PATH`) | which hosts exist, transport, and the `tokenEnv` _name_                      |
+| Display      | `provider_configs`                        | `enabled` + `token_redacted` hint + `base_url`, mirrored for the settings UI |
 
 **Procedure:**
 
@@ -61,7 +61,7 @@ there is nothing to scrub inside the harness.
    The config load is a **fast, loud guard**: a machine restart with a missing or
    empty `tokenEnv` throws `McpConfigError("mcp.config.json is not valid JSON"`-family)
    rather than serving an anonymous request — a legit rotated-but-unset token fails
-   startup, which is the correct behaviour. Set the new value *before* restarting.
+   startup, which is the correct behaviour. Set the new value _before_ restarting.
 
 4. Confirm nothing entered the DB in the clear. `provider_configs` must show only
    the last-4 hint (or `••••` for a short secret):
@@ -90,8 +90,8 @@ full token is visible in `provider_configs`/settings output — both are code bu
 
 ## OP-2 — Prove write-back is OFF, then read the audit
 
-**Why.** "We wrote nothing externally" must be an *auditable fact*, not an
-assumption. Write-back is behind a three-layer toggle and every *emitted* write is
+**Why.** "We wrote nothing externally" must be an _auditable fact_, not an
+assumption. Write-back is behind a three-layer toggle and every _emitted_ write is
 appended to `writeback_log` (PENDING → SUCCEEDED / FAILED / DUPLICATE) with a
 deterministic `dedup_key` (sha-256 over provider | target | action | normalized
 payload). When toggled off, **no row exists** — so "no rows" is itself the proof.
@@ -119,7 +119,7 @@ docker compose exec -T postgres psql -U harness -d harness \
 
 If `writeback_log` is empty while the toggle was off, that is the proof. Note the
 **decision-time flag is itself persisted**: `review_decisions.writeback_enabled`
-records the *effective* gate at decision time, so a `false` there states "nothing
+records the _effective_ gate at decision time, so a `false` there states "nothing
 external was written for this decision" even though `writeback_log` has no row.
 
 **Procedure — read the audit when write-back IS on:**
@@ -151,7 +151,7 @@ index `writeback_log_dedup_inflight_uniq` failed to catch a double-post).
 **Why.** HOLD is the loop working as designed, not a failure. The Day-33 closed
 loop runs `evaluate → calibrate → deploy → observe`; the deploy stage is a
 **measured PROMOTE/HOLD gate** (`decidePromotion`). A candidate is HELD when it
-did *not* win its held-out comparison against the incumbent (no measured WIN), or
+did _not_ win its held-out comparison against the incumbent (no measured WIN), or
 when judge-disagreement dominates the fit (the overfit alarm). A held candidate
 parks at Deploy — the cycle still **completes with outcome `held`**, and the
 loop feeds forward into the next Evaluate window. Nothing is applied; the hot-path
@@ -170,13 +170,13 @@ docker compose exec -T postgres psql -U harness -d harness \
 
 **How to interpret:**
 
-| Signal | Meaning | Action |
-| --- | --- | --- |
-| `deploy` stage `status = held` | candidate did not clear the promotion gate | none — expected on a non-WIN cycle |
-| `loop_completed` `outcome = held` | cycle ran end-to-end, candidate parked, feed-forward advanced | none — the loop is healthy |
-| `loop_completed` `outcome = completed` **and** `promoted = false` | empty window or clean non-promote | none |
-| `promoted = true` | a candidate won a measured comparison | adopt it **explicitly** — the loop never applies weights on its own |
-| HOLD **every** cycle for many windows | the incumbent is not being beaten (or judge dominates) | tuning/product decision, not an ops fix |
+| Signal                                                            | Meaning                                                       | Action                                                              |
+| ----------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `deploy` stage `status = held`                                    | candidate did not clear the promotion gate                    | none — expected on a non-WIN cycle                                  |
+| `loop_completed` `outcome = held`                                 | cycle ran end-to-end, candidate parked, feed-forward advanced | none — the loop is healthy                                          |
+| `loop_completed` `outcome = completed` **and** `promoted = false` | empty window or clean non-promote                             | none                                                                |
+| `promoted = true`                                                 | a candidate won a measured comparison                         | adopt it **explicitly** — the loop never applies weights on its own |
+| HOLD **every** cycle for many windows                             | the incumbent is not being beaten (or judge dominates)        | tuning/product decision, not an ops fix                             |
 
 **Escalate when:** a `held` cycle fails to advance the feed-forward cursor (the
 next cycle re-scans the same window — check successive `next_since` values), or
@@ -188,10 +188,10 @@ no adoption step (a wiring gap). Inspect the fit before overriding: the
 
 ## OP-4 — `rank_method` kill-switch (force `keyword`)
 
-**Why.** Hybrid / RAG-Fusion ranking are *built and reachable* but must never win
+**Why.** Hybrid / RAG-Fusion ranking are _built and reachable_ but must never win
 the default without a measured live A/B. `DEFAULT_RANK_METHOD` is held at
 `keyword` (the Day-29 replay returned a toss-up). The kill-switch is the ability
-to force the *served* default back to `keyword` — and to confirm it is keyword —
+to force the _served_ default back to `keyword` — and to confirm it is keyword —
 without touching code. Selection is configuration, not code: the resolver treats
 an absent/unknown method as `keyword`, and a mis-spelled `rank_method` degrades to
 `keyword` (a degraded ranking, not a crash).
@@ -216,7 +216,7 @@ grep -n "resolveWithShadow\|SemanticRanker" apps/api/src/bootstrap.ts
 **Flipping it back to `keyword`** (if a deployment ever promotes hybrid on a
 measured WIN and then needs to roll back) is a one-line config change:
 `DEFAULT_RANK_METHOD = RANK_METHOD_KEYWORD` in `retriever-factory.ts` — reversible
-in seconds, no DB migration. The semantic shadow keeps *measuring* either way
+in seconds, no DB migration. The semantic shadow keeps _measuring_ either way
 (writes `shadow_rank_comparisons`) without affecting the hot path.
 
 **Escalate when:** `resolveContext` is observed serving a non-keyword ranking while
@@ -237,12 +237,12 @@ a typo can never silently fall back to in-process and drop durability.
 
 **The transport contract:**
 
-| Value | Behaviour | Needs |
-| --- | --- | --- |
-| `inproc` (default) | zero-config `InProcessEventBus` | nothing |
-| `redis` | durable `RedisEventsBus` over a `StreamTransport` | an adapter + broker |
-| `sqs` | durable `RedisEventsBus` over an SQS `StreamTransport` | an adapter + queue |
-| anything else | startup throws | — (fix the typo) |
+| Value              | Behaviour                                              | Needs               |
+| ------------------ | ------------------------------------------------------ | ------------------- |
+| `inproc` (default) | zero-config `InProcessEventBus`                        | nothing             |
+| `redis`            | durable `RedisEventsBus` over a `StreamTransport`      | an adapter + broker |
+| `sqs`              | durable `RedisEventsBus` over an SQS `StreamTransport` | an adapter + queue  |
+| anything else      | startup throws                                         | — (fix the typo)    |
 
 **Procedure — select the in-process default (what local dev runs):**
 
@@ -265,7 +265,7 @@ EVENT_TRANSPORT=redis pnpm dev
 grep -n "EVENT_TRANSPORT" packages/event-bus/src/transport-resolver.ts
 ```
 
-**Escalate when:** a deployment *expects* durability but the log shows in-process
+**Escalate when:** a deployment _expects_ durability but the log shows in-process
 (the env var isn't reaching the process — a launch-profile miss, not a bus bug), or
 a `redis`/`sqs` selection starts without error despite no adapter being wired
 (impossible by construction — `buildEventBus` throws without `options.transport`).

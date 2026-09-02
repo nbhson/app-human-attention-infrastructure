@@ -169,12 +169,12 @@ describe('resolveHeadSha / cloneInputFromPullRequest', () => {
 
   it('trims whitespace but rejects an empty or non-SHA head', () => {
     expect(resolveHeadSha(pullRequest())).toBe(HEAD_SHA);
-    expect(() =>
-      resolveHeadSha(pullRequest({ head: { ref: 'feature/x', sha: '  ', repo: 'x/y/z' } })),
-    ).toThrow(GitProviderError);
-    expect(() =>
-      resolveHeadSha(pullRequest({ head: { ref: 'feature/x', sha: 'not-a-sha', repo: 'x/y/z' } })),
-    ).toThrow(GitProviderError);
+    expect(() => resolveHeadSha(pullRequest({ head: { ref: 'feature/x', sha: '  ', repo: 'x/y/z' } }))).toThrow(
+      GitProviderError,
+    );
+    expect(() => resolveHeadSha(pullRequest({ head: { ref: 'feature/x', sha: 'not-a-sha', repo: 'x/y/z' } }))).toThrow(
+      GitProviderError,
+    );
   });
 
   it('builds CloneInput with the resolved SHA and both branch names', () => {

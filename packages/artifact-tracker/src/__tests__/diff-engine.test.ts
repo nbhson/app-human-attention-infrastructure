@@ -139,22 +139,8 @@ describe('DiffEngine', () => {
     const seed = await seedRun(db, 'diff-base');
     const artifactId = await createArtifact(db, seed, 'src/app.ts');
     // Three writes; diffing the third must use the second as base, not the first.
-    await appendChange(
-      db,
-      seed,
-      artifactId,
-      'v1\n',
-      FileChangeType.Created,
-      new Date('2026-01-01T00:00:00Z'),
-    );
-    await appendChange(
-      db,
-      seed,
-      artifactId,
-      'v1\nv2\n',
-      FileChangeType.Modified,
-      new Date('2026-01-02T00:00:00Z'),
-    );
+    await appendChange(db, seed, artifactId, 'v1\n', FileChangeType.Created, new Date('2026-01-01T00:00:00Z'));
+    await appendChange(db, seed, artifactId, 'v1\nv2\n', FileChangeType.Modified, new Date('2026-01-02T00:00:00Z'));
     const third = await appendChange(
       db,
       seed,

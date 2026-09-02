@@ -12,12 +12,7 @@
  * files changed" must never be a silently-mangled mapping (day-03 §6).
  */
 
-import type {
-  GitProviderType,
-  PullRequest,
-  PullRequestFile,
-  PullRequestFileStatus,
-} from '@harness/domain';
+import type { GitProviderType, PullRequest, PullRequestFile, PullRequestFileStatus } from '@harness/domain';
 import type { ToolResult } from '@harness/mcp';
 
 import { GitProviderError } from './git-provider.js';

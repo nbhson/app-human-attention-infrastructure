@@ -80,8 +80,7 @@ export default function ReviewDetailPage(): JSX.Element {
     return <p>Could not load this queue item.</p>;
   }
 
-  const canSubmit =
-    decision !== null && rationale.trim() !== '' && wasUseful !== null && !decide.isPending;
+  const canSubmit = decision !== null && rationale.trim() !== '' && wasUseful !== null && !decide.isPending;
   const claimed = data.status === 'CLAIMED';
 
   return (
@@ -127,11 +126,7 @@ export default function ReviewDetailPage(): JSX.Element {
               <li key={`${check.kind}-${index}`} style={{ marginBottom: 4 }}>
                 <span>{check.status === 'PASSED' ? '✓' : '✗'}</span> {check.kind}: {check.status}
                 {check.evidenceId !== null && (
-                  <button
-                    type="button"
-                    style={{ marginLeft: 8 }}
-                    onClick={() => setEvidenceId(check.evidenceId)}
-                  >
+                  <button type="button" style={{ marginLeft: 8 }} onClick={() => setEvidenceId(check.evidenceId)}>
                     evidence
                   </button>
                 )}
@@ -146,9 +141,7 @@ export default function ReviewDetailPage(): JSX.Element {
         <DiffViewer diffs={data.diffs} />
       </section>
 
-      <section
-        style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 16 }}
-      >
+      <section style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 16 }}>
         {!claimed ? (
           <button type="button" onClick={() => claim.mutate()} disabled={claim.isPending}>
             Claim
@@ -199,12 +192,7 @@ export default function ReviewDetailPage(): JSX.Element {
             <div style={{ marginTop: 8 }}>
               <span>Was this item worth your attention?</span>{' '}
               <label>
-                <input
-                  type="radio"
-                  name="wasUseful"
-                  checked={wasUseful === true}
-                  onChange={() => setWasUseful(true)}
-                />{' '}
+                <input type="radio" name="wasUseful" checked={wasUseful === true} onChange={() => setWasUseful(true)} />{' '}
                 yes
               </label>{' '}
               <label>
@@ -221,11 +209,7 @@ export default function ReviewDetailPage(): JSX.Element {
             <div style={{ marginTop: 8 }}>
               <label>
                 Comment (optional):{' '}
-                <input
-                  value={comment}
-                  onChange={(event) => setComment(event.target.value)}
-                  style={{ width: '100%' }}
-                />
+                <input value={comment} onChange={(event) => setComment(event.target.value)} style={{ width: '100%' }} />
               </label>
             </div>
 
@@ -256,9 +240,7 @@ export default function ReviewDetailPage(): JSX.Element {
         )}
       </section>
 
-      {evidenceId !== null && (
-        <EvidenceModal evidenceId={evidenceId} onClose={() => setEvidenceId(null)} />
-      )}
+      {evidenceId !== null && <EvidenceModal evidenceId={evidenceId} onClose={() => setEvidenceId(null)} />}
     </main>
   );
 }

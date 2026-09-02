@@ -12,13 +12,7 @@
 
 import { asc, eq } from 'drizzle-orm';
 
-import {
-  brand,
-  createFixSuggestion,
-  createReviewFinding,
-  createReviewReport,
-  EventType,
-} from '@harness/domain';
+import { brand, createFixSuggestion, createReviewFinding, createReviewReport, EventType } from '@harness/domain';
 import type {
   AiProviderType,
   FindingKind,
@@ -36,11 +30,7 @@ import type { Judge } from '@harness/judge';
 
 /** Load the stored report as a full domain `ReviewReport`, or `null` if it vanished. */
 async function loadReport(db: DrizzleDB, reportId: ReviewReportID): Promise<ReviewReport | null> {
-  const reportRows = await db
-    .select()
-    .from(reviewReports)
-    .where(eq(reviewReports.id, reportId))
-    .limit(1);
+  const reportRows = await db.select().from(reviewReports).where(eq(reviewReports.id, reportId)).limit(1);
   const row = reportRows[0];
   if (!row) {
     return null;

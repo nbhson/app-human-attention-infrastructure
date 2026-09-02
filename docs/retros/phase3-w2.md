@@ -1,6 +1,6 @@
 # Phase 3 · Week 2 Retro — Write-back checkpoint
 
-*Day-10 checkpoint (Phase 3, Week 2). Week 2 took the transport Week 1 connected
+_Day-10 checkpoint (Phase 3, Week 2). Week 2 took the transport Week 1 connected
 and made it safe to **write** through: one `WriteBackService` seam over the same
 MCP client, a full provider matrix (GitHub/GitLab/Bitbucket comment+status, Jira
 comment+transition), an append-only audit with claim-then-write idempotency, and a
@@ -8,7 +8,7 @@ three-layer toggle that is off unless a human arms it. The week ends with one
 provable statement — **approve with write-back ON → the comment/status lands;
 OFF → nothing external, and the empty `writeback_log` is the proof.** Same rule as
 every prior retro: honest by design, numbers-first, blameless, and green before
-committed.*
+committed._
 
 ---
 
@@ -17,7 +17,7 @@ committed.*
 - **"OFF is provable" is the deliverable that mattered, and it lands as a
   query, not a claim.** The three-layer gate fails safe — request `writeback`
   flag ∧ global `WRITEBACK_ENABLED` ceiling ∧ per-provider `WRITEBACK_<PROVIDER>` —
-  and a disarmed write resolves to a successful no-op that records *zero* rows.
+  and a disarmed write resolves to a successful no-op that records _zero_ rows.
   A reviewer who decides "no automatic comment this time" proves it by the empty
   `writeback_log`, not by a log line saying it skipped.
 - **One transport, read and write.** `MCPWriteBack` rides the same `@harness/mcp`
@@ -68,7 +68,7 @@ token bytes.
 
 - **Migration 0033 emitted `public.`-qualified foreign keys.** drizzle-kit
   v0.31.10 autoqualified the `review_decisions` FKs as `REFERENCES
-  "public"."review_reports"` / `"public"."review_decisions"`, which the
+"public"."review_reports"` / `"public"."review_decisions"`, which the
   isolated-schema test harness (search_path-scoped) rejects — the table is created
   unqualified into the test schema but the FK points at `public`. Caught by the db
   integration test, fixed by hand-editing 0033 back to unqualified references,
@@ -93,9 +93,9 @@ token bytes.
 
 ---
 
-*Checkpoint rule applied: `pnpm typecheck` (44/44), `pnpm lint`, and `pnpm test`
+_Checkpoint rule applied: `pnpm typecheck` (44/44), `pnpm lint`, and `pnpm test`
 (**745** tests / 134 files) are all green before this note is committed. The
-stubbed demo runs end-to-end with no live token and no key in the repo.*
+stubbed demo runs end-to-end with no live token and no key in the repo._
 
-*Next: Day 11 — Clone a PR into a sandbox worktree (`GitProvider.cloneAndCheckout`). Week 3 pivots to verification breadth; the
-write-back seam is closed at this checkpoint — do not start it back up early.*
+_Next: Day 11 — Clone a PR into a sandbox worktree (`GitProvider.cloneAndCheckout`). Week 3 pivots to verification breadth; the
+write-back seam is closed at this checkpoint — do not start it back up early._

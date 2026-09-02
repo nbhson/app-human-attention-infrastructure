@@ -61,26 +61,26 @@ row and **nothing** external. To re-arm the historical off-at-rest behavior, set
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `writeback-service.ts` | `WriteBackService` + `WriteBackError` (carries `provider`/`action`/`externalId`/`status`). |
-| `mcp-writeback.ts` | `MCPWriteBack` — the MCP-backed implementation, plus `MCPWriteBackOptions` (injected `enabled`). |
-| `dedup.ts` | `dedupKey` (sha256 of `provider\|externalId\|action\|normalized body`), `normalizeBody`, `effectiveBody`. |
-| `redact.ts` | `redactSensitive` + `credentialEnvValues` — scrub tokens/keys from the audit `error`. |
+| Module                 | What it provides                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `writeback-service.ts` | `WriteBackService` + `WriteBackError` (carries `provider`/`action`/`externalId`/`status`).                |
+| `mcp-writeback.ts`     | `MCPWriteBack` — the MCP-backed implementation, plus `MCPWriteBackOptions` (injected `enabled`).          |
+| `dedup.ts`             | `dedupKey` (sha256 of `provider\|externalId\|action\|normalized body`), `normalizeBody`, `effectiveBody`. |
+| `redact.ts`            | `redactSensitive` + `credentialEnvValues` — scrub tokens/keys from the audit `error`.                     |
 
 ## Audit (`writeback_log`)
 
 One append-only row per attempt, in the order written:
 
-| Status | Meaning |
-| --- | --- |
-| `PENDING` | claimed before the tool call. |
-| `SUCCEEDED` | the tool call returned `ok`; `external_ref` carries the host handle. |
-| `FAILED` | transport/host failure; `error` is redacted. |
+| Status      | Meaning                                                               |
+| ----------- | --------------------------------------------------------------------- |
+| `PENDING`   | claimed before the tool call.                                         |
+| `SUCCEEDED` | the tool call returned `ok`; `external_ref` carries the host handle.  |
+| `FAILED`    | transport/host failure; `error` is redacted.                          |
 | `DUPLICATE` | an identical write had already succeeded — skipped, no external call. |
 
 A unique partial index on `dedup_key WHERE status IN ('PENDING','SUCCEEDED')` enforces
-one *in-flight* write per intent; a `FAILED` row still lets a retry append a fresh
+one _in-flight_ write per intent; a `FAILED` row still lets a retry append a fresh
 `PENDING` row and try again.
 
 ## Test strategy

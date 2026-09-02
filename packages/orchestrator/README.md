@@ -16,7 +16,7 @@ workflow / retry removed. ·
 2. **Own the state machine** — the one place that decides which transitions are legal (no transition logic lives anywhere else).
 3. **Record history** — every transition is an append-only `task_state_history` row.
 
-> The state machine **is** the spec. What was removed is only the *driver* that
+> The state machine **is** the spec. What was removed is only the _driver_ that
 > pulled `PENDING`/`REWORK` tasks through a code-gen workflow — the review slice
 > creates a task to anchor provenance and immediately `CANCELLED`s it.
 
@@ -24,7 +24,7 @@ workflow / retry removed. ·
 
 ## The canonical state machine
 
-The `TaskStatus` union lives in `@harness/domain`; this package owns *which moves are legal*. The transition table **is** the spec — when in doubt, reject rather than infer.
+The `TaskStatus` union lives in `@harness/domain`; this package owns _which moves are legal_. The transition table **is** the spec — when in doubt, reject rather than infer.
 
 ```text
   PENDING ──▶ QUEUED ──▶ EXECUTING ──▶ VERIFYING ──▶ AWAITING_REVIEW ──▶ APPROVED ──▶ COMPLETED
@@ -41,21 +41,21 @@ The `TaskStatus` union lives in `@harness/domain`; this package owns *which move
 
 ### Legal transitions (the table, exactly as enforced)
 
-| From | Legal targets |
-| --- | --- |
-| `PENDING` | `QUEUED`, `CANCELLED` |
-| `QUEUED` | `EXECUTING`, `CANCELLED` |
-| `EXECUTING` | `VERIFYING`, `FAILED`, `AWAITING_HUMAN_INTERVENTION` |
-| `VERIFYING` | `AWAITING_REVIEW`, `REWORK`, `FAILED`, `AWAITING_HUMAN_INTERVENTION` |
-| `AWAITING_REVIEW` | `APPROVED`, `REJECTED` |
-| `APPROVED` | `COMPLETED`, `AWAITING_HUMAN_INTERVENTION` |
-| `REJECTED` | `REWORK`, `FAILED`, `CANCELLED` |
-| `REWORK` | `QUEUED`, `CANCELLED`, `FAILED` |
-| `COMPLETED` | *(terminal)* |
-| `FAILED` | `QUEUED`, `CANCELLED` |
-| `AWAITING_HUMAN_INTERVENTION` | `QUEUED`, `CANCELLED` |
-| `CANCELLED` | *(terminal)* |
-| `RETRYING` | *(defined, currently unreachable — no inbound edge; added for the retry path)* |
+| From                          | Legal targets                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `PENDING`                     | `QUEUED`, `CANCELLED`                                                          |
+| `QUEUED`                      | `EXECUTING`, `CANCELLED`                                                       |
+| `EXECUTING`                   | `VERIFYING`, `FAILED`, `AWAITING_HUMAN_INTERVENTION`                           |
+| `VERIFYING`                   | `AWAITING_REVIEW`, `REWORK`, `FAILED`, `AWAITING_HUMAN_INTERVENTION`           |
+| `AWAITING_REVIEW`             | `APPROVED`, `REJECTED`                                                         |
+| `APPROVED`                    | `COMPLETED`, `AWAITING_HUMAN_INTERVENTION`                                     |
+| `REJECTED`                    | `REWORK`, `FAILED`, `CANCELLED`                                                |
+| `REWORK`                      | `QUEUED`, `CANCELLED`, `FAILED`                                                |
+| `COMPLETED`                   | _(terminal)_                                                                   |
+| `FAILED`                      | `QUEUED`, `CANCELLED`                                                          |
+| `AWAITING_HUMAN_INTERVENTION` | `QUEUED`, `CANCELLED`                                                          |
+| `CANCELLED`                   | _(terminal)_                                                                   |
+| `RETRYING`                    | _(defined, currently unreachable — no inbound edge; added for the retry path)_ |
 
 Terminal states are `COMPLETED` and `CANCELLED`. Human-driven transitions (e.g.
 `AWAITING_REVIEW → APPROVED/REJECTED`, any hand-off to `CANCELLED`) require a
@@ -65,22 +65,22 @@ Terminal states are `COMPLETED` and `CANCELLED`. Human-driven transitions (e.g.
 
 ## Core data shapes
 
-| Type | What it is |
-| --- | --- |
-| `TaskRecord` | Typed view of a persisted `tasks` row (`id`, `projectId`, `title`, `state`, `attemptNumber`, `maxAttempts`, `assignedAgent`, `idempotencyKey`, timestamps). |
-| `CreateTaskParams` | Minimal create input (`projectId`, `title`, `description?`, `maxAttempts?` → default 3). |
-| `TaskStateHistoryEntry` | One `task_state_history` audit-trail row: `fromState`, `toState`, `triggeredBy`, `triggerEventId`, `rationale`, `attemptNumber`. |
+| Type                    | What it is                                                                                                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TaskRecord`            | Typed view of a persisted `tasks` row (`id`, `projectId`, `title`, `state`, `attemptNumber`, `maxAttempts`, `assignedAgent`, `idempotencyKey`, timestamps). |
+| `CreateTaskParams`      | Minimal create input (`projectId`, `title`, `description?`, `maxAttempts?` → default 3).                                                                    |
+| `TaskStateHistoryEntry` | One `task_state_history` audit-trail row: `fromState`, `toState`, `triggeredBy`, `triggerEventId`, `rationale`, `attemptNumber`.                            |
 
 ---
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `state-machine/task-state-machine.ts` | `TaskStateMachine` — `canTransition`, `legalTargets`, `isTerminal`, `requiresRationale`. |
-| `state-machine/errors.ts` | `IllegalTransitionError`, `MissingRationaleError`, `StateConflictError`, `TerminalStateError`. |
-| `task-service.ts` | `TaskService` — validated `transitionTask()` (guards against version skew via `StateConflictError`) + `TransitionOptions`. |
-| `types.ts` | `CreateTaskParams`, `TaskRecord`, `TaskStateHistoryEntry`. |
+| Module                                | What it provides                                                                                                           |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `state-machine/task-state-machine.ts` | `TaskStateMachine` — `canTransition`, `legalTargets`, `isTerminal`, `requiresRationale`.                                   |
+| `state-machine/errors.ts`             | `IllegalTransitionError`, `MissingRationaleError`, `StateConflictError`, `TerminalStateError`.                             |
+| `task-service.ts`                     | `TaskService` — validated `transitionTask()` (guards against version skew via `StateConflictError`) + `TransitionOptions`. |
+| `types.ts`                            | `CreateTaskParams`, `TaskRecord`, `TaskStateHistoryEntry`.                                                                 |
 
 Retired (removed from the barrel): `dispatch/` (`Dispatcher`, `DispatchLoop`),
 `workflow/` (`WorkflowRunner`, step handlers, `LINEAR_WORKFLOW_V1`), and `retry/`
@@ -134,12 +134,11 @@ src/
 
 ```typescript
 // state machine + errors
-TaskStateMachine, IllegalTransitionError, MissingRationaleError,
-StateConflictError, TerminalStateError
+(TaskStateMachine, IllegalTransitionError, MissingRationaleError, StateConflictError, TerminalStateError);
 // service
-TaskService, TransitionOptions
+(TaskService, TransitionOptions);
 // types
-CreateTaskParams, TaskRecord, TaskStateHistoryEntry
+(CreateTaskParams, TaskRecord, TaskStateHistoryEntry);
 ```
 
 ## Wiring

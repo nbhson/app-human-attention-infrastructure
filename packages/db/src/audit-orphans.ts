@@ -25,12 +25,7 @@ try {
   const rows = await db
     .select({ id: tasks.id, state: tasks.state, updated_at: tasks.updated_at })
     .from(tasks)
-    .where(
-      and(
-        inArray(tasks.state, [TaskStatus.Executing, TaskStatus.Verifying]),
-        lt(tasks.updated_at, cutoff),
-      ),
-    )
+    .where(and(inArray(tasks.state, [TaskStatus.Executing, TaskStatus.Verifying]), lt(tasks.updated_at, cutoff)))
     .orderBy(tasks.updated_at);
 
   if (rows.length === 0) {

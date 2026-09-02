@@ -102,11 +102,7 @@ export function dependencyProximity(path: string, targetFiles: readonly string[]
 }
 
 /** Weighted relevance, normalized by the sum of the active weights. */
-export function weightedRelevance(
-  keyword: number,
-  dependency: number,
-  weights: RankWeights,
-): number {
+export function weightedRelevance(keyword: number, dependency: number, weights: RankWeights): number {
   const kw = weights.keywordOverlap;
   const dep = weights.dependencyProximity;
   const total = kw + dep;
@@ -129,10 +125,7 @@ export function deriveCorpus(trajectory: AgentRun): RankCorpus {
     const content = step.toolInput['content'];
     if (typeof path !== 'string') continue;
     const existing = contentByPath.get(path);
-    if (
-      typeof content === 'string' &&
-      (existing === undefined || content.length >= existing.length)
-    ) {
+    if (typeof content === 'string' && (existing === undefined || content.length >= existing.length)) {
       contentByPath.set(path, content);
     } else if (existing === undefined) {
       contentByPath.set(path, '');

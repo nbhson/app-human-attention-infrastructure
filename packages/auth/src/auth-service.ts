@@ -77,11 +77,7 @@ export class AuthService {
    * subsequent logins refresh only display claims (see `./identity.ts`).
    */
   async findOrCreateUser(userInfo: OidcUserInfo): Promise<User> {
-    const rows = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.oidc_sub, userInfo.sub))
-      .limit(1);
+    const rows = await this.db.select().from(users).where(eq(users.oidc_sub, userInfo.sub)).limit(1);
     const existing = rows[0];
     if (existing) {
       const updated = await this.db

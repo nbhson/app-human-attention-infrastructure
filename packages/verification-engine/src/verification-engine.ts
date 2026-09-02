@@ -44,13 +44,7 @@ import { computeWorkdirManifest } from '@harness/sandbox';
 import { readInt } from './env.js';
 import { EvidenceKind, EvidenceStore, EvidenceSubjectKind } from './evidence-store.js';
 import { CheckTimeoutError, RequestTimeoutError, withTimeout } from './timeout.js';
-import type {
-  CheckContext,
-  CheckResult,
-  OverallVerdict,
-  VerificationCheck,
-  VerificationReport,
-} from './types.js';
+import type { CheckContext, CheckResult, OverallVerdict, VerificationCheck, VerificationReport } from './types.js';
 import { CheckStatus } from './types.js';
 
 /** Context resolved from the change, carrying the task/project the run belongs to. */
@@ -92,28 +86,19 @@ export class VerificationEngine {
         ctx: { correlationId: ctx.taskId, taskId: ctx.taskId },
         attributes: {
           'harness.verification.change_id': changeId,
-          'harness.verification.check_kind': this.options.checks
-            .map((check) => check.kind)
-            .join(','),
+          'harness.verification.check_kind': this.options.checks.map((check) => check.kind).join(','),
         },
       },
       () => this.verifyInContext(ctx, changeId),
     );
   }
 
-  private async verifyInContext(
-    ctx: ResolvedContext,
-    changeId: ChangeID,
-  ): Promise<VerificationReport> {
+  private async verifyInContext(ctx: ResolvedContext, changeId: ChangeID): Promise<VerificationReport> {
     const started = Date.now();
 
     const runCheck = async (check: VerificationCheck): Promise<CheckResult> => {
       try {
-        return await withTimeout(
-          check.run(ctx),
-          check.timeoutMs,
-          () => new CheckTimeoutError(check.kind),
-        );
+        return await withTimeout(check.run(ctx), check.timeoutMs, () => new CheckTimeoutError(check.kind));
       } catch (error) {
         if (error instanceof CheckTimeoutError) {
           return {
@@ -216,12 +201,9 @@ export class VerificationEngine {
         // TEST checks also carry a structured TEST_RESULTS blob (their per-test
         // leaves, serialised) — a second evidence record linked to the same row.
         if ((check.testResults?.length ?? 0) > 0) {
-          await this.evidenceStore.record(
-            tx,
-            EvidenceKind.TestResults,
-            JSON.stringify(check.testResults),
-            [{ subjectKind: EvidenceSubjectKind.CheckResult, subjectId: checkResultId }],
-          );
+          await this.evidenceStore.record(tx, EvidenceKind.TestResults, JSON.stringify(check.testResults), [
+            { subjectKind: EvidenceSubjectKind.CheckResult, subjectId: checkResultId },
+          ]);
         }
         // Day 16: TEST checks carry per-test leaves; persist one row per test,
         // linked to the check-result row just above (the FK §2.3 requires it).

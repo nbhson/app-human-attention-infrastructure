@@ -49,13 +49,7 @@ import {
 } from '@harness/db';
 import { createTestDb, destroyTestDb } from '@harness/db/test-utils';
 import type { TestDb } from '@harness/db/test-utils';
-import {
-  GitProviderType,
-  PullRequestFileStatus,
-  Role,
-  TicketProviderType,
-  newUserID,
-} from '@harness/domain';
+import { GitProviderType, PullRequestFileStatus, Role, TicketProviderType, newUserID } from '@harness/domain';
 import type { Issue, PullRequest, WriteBackIntent, WriteBackResult } from '@harness/domain';
 import type { CloneResult, FetchPullRequestInput, GitProvider } from '@harness/git-provider';
 import type { FetchIssueInput, TicketProvider } from '@harness/ticket-provider';
@@ -228,9 +222,7 @@ class ArgsAwareMcpClient implements McpClient {
       });
     }
     if (name === this.getFilesTool) {
-      return toolText([
-        { path: `src/${this.host}.ts`, status: 'modified', additions: 1, deletions: 0 },
-      ]);
+      return toolText([{ path: `src/${this.host}.ts`, status: 'modified', additions: 1, deletions: 0 }]);
     }
     throw new Error(`${this.host} client received an out-of-scope tool call: ${name}`);
   }
@@ -473,9 +465,7 @@ describe('load profile (day-37)', () => {
       })),
     ];
 
-    const results = await Promise.all(
-      requests.map((r) => resolveReviewInput({ prUrl: r.prUrl }, { registry })),
-    );
+    const results = await Promise.all(requests.map((r) => resolveReviewInput({ prUrl: r.prUrl }, { registry })));
 
     // Each concurrent review resolved to its own host and its own PR number.
     for (let i = 0; i < requests.length; i += 1) {

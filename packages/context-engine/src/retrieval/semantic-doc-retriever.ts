@@ -30,9 +30,7 @@ export class SemanticDocRetriever implements Retriever {
   constructor(private readonly source: SemanticCandidateSource) {}
 
   async retrieve(query: RetrievalQuery): Promise<RetrievedDoc[]> {
-    const contentBySource = new Map(
-      query.documents.map((document) => [document.sourceId, document.content]),
-    );
+    const contentBySource = new Map(query.documents.map((document) => [document.sourceId, document.content]));
     const candidates = await this.source.retrieve(query.text);
 
     const docs: RetrievedDoc[] = [];

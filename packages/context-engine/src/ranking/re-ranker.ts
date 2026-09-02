@@ -61,11 +61,7 @@ export class ReRanker {
 
     const ranked = input.fused.map((doc) => {
       const fusion = maxScore > 0 ? doc.score / maxScore : 0;
-      const dependency = dependencySignal(
-        this.dependencyResolver,
-        input.changedFiles,
-        doc.sourceId,
-      );
+      const dependency = dependencySignal(this.dependencyResolver, input.changedFiles, doc.sourceId);
       const recency = recencySignal(input.mtimeMs?.get(doc.sourceId), nowMs);
       // Day-32 learned usage supersedes the day-27 raw-popularity term when wired.
       const usage =
@@ -82,8 +78,6 @@ export class ReRanker {
       return { sourceId: doc.sourceId, content: doc.content, relevanceScore };
     });
 
-    return ranked.sort(
-      (a, b) => b.relevanceScore - a.relevanceScore || a.sourceId.localeCompare(b.sourceId),
-    );
+    return ranked.sort((a, b) => b.relevanceScore - a.relevanceScore || a.sourceId.localeCompare(b.sourceId));
   }
 }

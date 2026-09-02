@@ -34,11 +34,7 @@ export interface GitProvider {
   postComment(input: FetchPullRequestInput, body: string): Promise<void>;
 
   /** Set a commit/PR status (used by the optional write-back path). */
-  setStatus(
-    input: FetchPullRequestInput,
-    state: 'pending' | 'success' | 'failure',
-    description: string,
-  ): Promise<void>;
+  setStatus(input: FetchPullRequestInput, state: 'pending' | 'success' | 'failure', description: string): Promise<void>;
 
   /**
    * Clone the PR's repo into `workdir` and check out the **head SHA** the PR

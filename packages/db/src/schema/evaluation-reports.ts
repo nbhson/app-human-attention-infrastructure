@@ -28,10 +28,6 @@ export const evaluationReports = pgTable(
   },
   (table) => [
     index('evaluation_reports_window_idx').on(table.window_from, table.window_to),
-    uniqueIndex('evaluation_reports_window_source_unique').on(
-      table.window_from,
-      table.window_to,
-      table.source_version,
-    ),
+    uniqueIndex('evaluation_reports_window_source_unique').on(table.window_from, table.window_to, table.source_version),
   ],
 );

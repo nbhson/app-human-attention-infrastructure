@@ -258,8 +258,7 @@ describe('verification-failure E2E (day-41)', () => {
         timedOutKinds: [],
         failedChecks: [{ kind: 'COMPILE', status: 'FAILED', exitCode: 1, tail: 'build failed' }],
       },
-      rendered:
-        '## Verification — FAILED\n\n### COMPILE\n- exit code 1\n\n**Review required before any write-back.**',
+      rendered: '## Verification — FAILED\n\n### COMPILE\n- exit code 1\n\n**Review required before any write-back.**',
       error: null,
     });
 

@@ -16,12 +16,10 @@ function input(overrides: Partial<RoutingInput> = {}): RoutingInput {
 
 describe('matchRule (ATTENTION_POLICY_V1)', () => {
   it('routes CRITICAL → ESCALATE, even when ALSO flaky (order = r1 before r3)', () => {
-    expect(matchRule(ATTENTION_POLICY_V1, input({ label: 'CRITICAL', flaky: true }))).toMatchObject(
-      {
-        id: 'r1-critical',
-        action: 'ESCALATE',
-      },
-    );
+    expect(matchRule(ATTENTION_POLICY_V1, input({ label: 'CRITICAL', flaky: true }))).toMatchObject({
+      id: 'r1-critical',
+      action: 'ESCALATE',
+    });
   });
 
   it('routes HIGH → REVIEW_REQUIRED', () => {
@@ -103,8 +101,8 @@ describe('matchRule condition operators', () => {
 
   it('does not match `factorsUnavailableAny` when none intersect', () => {
     const unavailable: FactorKey[] = ['impact'];
-    expect(
-      matchRule(policy, input({ label: 'LOW' as PriorityLabel, factorsUnavailable: unavailable })),
-    ).toBe(DEFAULT_RULE);
+    expect(matchRule(policy, input({ label: 'LOW' as PriorityLabel, factorsUnavailable: unavailable }))).toBe(
+      DEFAULT_RULE,
+    );
   });
 });

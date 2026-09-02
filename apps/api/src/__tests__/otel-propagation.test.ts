@@ -134,9 +134,7 @@ async function seedClaimedItem(): Promise<{ taskId: string; queueId: string }> {
     state: TaskStatus.AwaitingReview,
     idempotency_key: `ik-${taskId}`,
   });
-  await db
-    .insert(agentRuns)
-    .values({ id: agentRunId, task_id: taskId, status: 'COMPLETED', max_steps: 10 });
+  await db.insert(agentRuns).values({ id: agentRunId, task_id: taskId, status: 'COMPLETED', max_steps: 10 });
   await db.insert(artifacts).values({
     id: artifactId,
     project_id: projectId,
@@ -228,16 +226,10 @@ describe('trace_id ↔ correlation_id propagation (day-03 §3.4)', () => {
     // whose trace_id matches the span's own.
     expect(span?.parentSpanId).toBeUndefined();
     await eventually(async () => {
-      const rows = await testDb.db
-        .select()
-        .from(traceCorrelation)
-        .where(eq(traceCorrelation.correlation_id, taskId));
+      const rows = await testDb.db.select().from(traceCorrelation).where(eq(traceCorrelation.correlation_id, taskId));
       return rows.length > 0;
     });
-    const row = await testDb.db
-      .select()
-      .from(traceCorrelation)
-      .where(eq(traceCorrelation.correlation_id, taskId));
+    const row = await testDb.db.select().from(traceCorrelation).where(eq(traceCorrelation.correlation_id, taskId));
     expect(row[0]!.trace_id).toBe(span!.spanContext().traceId);
   });
 
@@ -268,9 +260,7 @@ describe('trace_id ↔ correlation_id propagation (day-03 §3.4)', () => {
     expect(child!.parentSpanId).toBe(root!.spanContext().spanId);
 
     // The child carries the *request's* correlation id (ambient), not its own.
-    expect(child!.attributes['harness.correlation_id']).toBe(
-      root!.attributes['harness.correlation_id'],
-    );
+    expect(child!.attributes['harness.correlation_id']).toBe(root!.attributes['harness.correlation_id']);
 
     // Only the root http.request wrote a mapping row; child spans never do.
     const requestCorrelation = root!.attributes['harness.correlation_id'] as string;

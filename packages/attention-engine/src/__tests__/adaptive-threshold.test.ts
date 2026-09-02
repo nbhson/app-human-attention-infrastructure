@@ -271,9 +271,8 @@ describe('AdaptiveThresholdController.run', () => {
   it('raises the HIGH cutoff one step and publishes before/after + persists a supersedes row', async () => {
     const bus = new InProcessEventBus();
     const adjusted: AttentionThresholdAdjustedPayload[] = [];
-    bus.subscribe<AttentionThresholdAdjustedPayload>(
-      EventType.AttentionThresholdAdjusted,
-      (event) => adjusted.push(event.payload),
+    bus.subscribe<AttentionThresholdAdjustedPayload>(EventType.AttentionThresholdAdjusted, (event) =>
+      adjusted.push(event.payload),
     );
 
     for (let i = 0; i < 6; i += 1) {
@@ -299,9 +298,8 @@ describe('AdaptiveThresholdController.run', () => {
   it('no-ops (no event, no row) when the window is too small', async () => {
     const bus = new InProcessEventBus();
     const adjusted: AttentionThresholdAdjustedPayload[] = [];
-    bus.subscribe<AttentionThresholdAdjustedPayload>(
-      EventType.AttentionThresholdAdjusted,
-      (event) => adjusted.push(event.payload),
+    bus.subscribe<AttentionThresholdAdjustedPayload>(EventType.AttentionThresholdAdjusted, (event) =>
+      adjusted.push(event.payload),
     );
 
     // 2 decided items < minDecisions (5).
@@ -322,9 +320,8 @@ describe('InflationMonitor.run', () => {
   it('emits inflation_detected on a share breach and leaves thresholds untouched (alerts, never auto-lowers)', async () => {
     const bus = new InProcessEventBus();
     const inflated: AttentionInflationDetectedPayload[] = [];
-    bus.subscribe<AttentionInflationDetectedPayload>(
-      EventType.AttentionInflationDetected,
-      (event) => inflated.push(event.payload),
+    bus.subscribe<AttentionInflationDetectedPayload>(EventType.AttentionInflationDetected, (event) =>
+      inflated.push(event.payload),
     );
 
     // 4 highish of 5 total → share 0.8 > ceiling 0.3.

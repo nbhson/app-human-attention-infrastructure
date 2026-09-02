@@ -92,9 +92,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(this.config.apiKey.length > 0
-            ? { Authorization: `Bearer ${this.config.apiKey}` }
-            : {}),
+          ...(this.config.apiKey.length > 0 ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(this.timeoutMs),
@@ -103,10 +101,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
       // An abort (our timeout) or a network drop. Surface a clear, typed failure
       // instead of hanging forever or leaking a bare 500 upstream.
       if (isAbortError(error)) {
-        throw new OpenAICompatibleError(
-          `openai-compatible ${url} timed out after ${this.timeoutMs}ms`,
-          'timeout',
-        );
+        throw new OpenAICompatibleError(`openai-compatible ${url} timed out after ${this.timeoutMs}ms`, 'timeout');
       }
       throw new OpenAICompatibleError(
         `openai-compatible ${url} request failed: ${error instanceof Error ? error.message : String(error)}`,

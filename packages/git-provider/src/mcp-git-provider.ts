@@ -17,12 +17,7 @@ import { McpConfigError } from '@harness/mcp';
 import type { McpClient, McpServerRegistry } from '@harness/mcp';
 
 import { GitProviderError, parseRepoPath } from './git-provider.js';
-import type {
-  CloneInput,
-  CloneResult,
-  FetchPullRequestInput,
-  GitProvider,
-} from './git-provider.js';
+import type { CloneInput, CloneResult, FetchPullRequestInput, GitProvider } from './git-provider.js';
 import { cloneAndCheckout } from './clone.js';
 import { mapMcpGitPullRequest } from './mcp-git-mapper.js';
 import type { GitHost, GitToolMap } from './git-tool-map.js';

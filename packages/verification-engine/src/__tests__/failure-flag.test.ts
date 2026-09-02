@@ -6,20 +6,13 @@ import type { CheckResult } from '../types.js';
 import { CheckKind, CheckStatus } from '../types.js';
 
 /** A check result fixture with sensible defaults. */
-function check(
-  kind: CheckKind,
-  status: CheckStatus,
-  overrides: Partial<CheckResult> = {},
-): CheckResult {
+function check(kind: CheckKind, status: CheckStatus, overrides: Partial<CheckResult> = {}): CheckResult {
   return { checkKind: kind, status, durationMs: 1, output: '', ...overrides };
 }
 
 describe('flagReport (day-13 §2)', () => {
   it('is a green flag when every check passed — no failed/timed-out kinds, no flags', () => {
-    const flag = flagReport([
-      check(CheckKind.COMPILE, CheckStatus.PASSED),
-      check(CheckKind.TEST, CheckStatus.PASSED),
-    ]);
+    const flag = flagReport([check(CheckKind.COMPILE, CheckStatus.PASSED), check(CheckKind.TEST, CheckStatus.PASSED)]);
 
     expect(flag.verdict).toBe('PASSED');
     expect(flag.failed).toBe(false);
@@ -69,10 +62,7 @@ describe('flagReport (day-13 §2)', () => {
     // A container kill lands under timedOutKinds, a non-zero exit under failedKinds.
     expect(flag.timedOutKinds).toEqual([CheckKind.TEST]);
     expect(flag.failedKinds).toEqual([CheckKind.COMPILE]);
-    expect(flag.failedChecks.map((f) => f.status)).toEqual([
-      CheckStatus.TIMED_OUT,
-      CheckStatus.FAILED,
-    ]);
+    expect(flag.failedChecks.map((f) => f.status)).toEqual([CheckStatus.TIMED_OUT, CheckStatus.FAILED]);
     // The timeout surfaces its kill code too, but stays classified infra.
     expect(flag.failedChecks[0]?.exitCode).toBe(137);
     expect(flag.failedChecks[0]?.evidenceRef).toBe('evt_t');

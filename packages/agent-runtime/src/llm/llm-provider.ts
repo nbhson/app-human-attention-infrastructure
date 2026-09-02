@@ -9,11 +9,4 @@
  * `@anthropic-ai/sdk` never leaks past this package) intact.
  */
 
-export type {
-  LLMMessage,
-  LLMProvider,
-  LLMRequest,
-  LLMResponse,
-  LLMToolCall,
-  LLMToolDefinition,
-} from '@harness/domain';
+export type { LLMMessage, LLMProvider, LLMRequest, LLMResponse, LLMToolCall, LLMToolDefinition } from '@harness/domain';

@@ -72,9 +72,7 @@ class SecretLeakingClient implements McpClient {
     return Promise.resolve([]);
   }
   async callTool(): Promise<ToolResult> {
-    throw new Error(
-      `Authorization: Bearer ${GH_SECRET} rejected; token=${JIRA_SECRET} echoed by the host`,
-    );
+    throw new Error(`Authorization: Bearer ${GH_SECRET} rejected; token=${JIRA_SECRET} echoed by the host`);
   }
   close() {
     return Promise.resolve();

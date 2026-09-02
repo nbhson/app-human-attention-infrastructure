@@ -26,12 +26,7 @@ import {
   RetrieverFactory,
   SemanticDocRetriever,
 } from '@harness/context-engine';
-import type {
-  QueryRewriter,
-  RetrievedDoc,
-  RetrievalQuery,
-  SemanticCandidate,
-} from '@harness/context-engine';
+import type { QueryRewriter, RetrievedDoc, RetrievalQuery, SemanticCandidate } from '@harness/context-engine';
 import type { Logger } from '@harness/di';
 
 /** The shared corpus both layers rank over (one keyword-strong, one content-rich). */
@@ -52,9 +47,7 @@ function assert(condition: boolean, label: string): void {
 }
 
 function describeOrder(label: string, docs: readonly RetrievedDoc[]): void {
-  const rows = docs
-    .map((doc) => `    ${doc.sourceId.padEnd(16)} matchedBy=${doc.matchedBy}`)
-    .join('\n');
+  const rows = docs.map((doc) => `    ${doc.sourceId.padEnd(16)} matchedBy=${doc.matchedBy}`).join('\n');
   console.log(`  ${label} (${docs.length} docs):\n${rows}`);
 }
 
@@ -136,23 +129,15 @@ async function main(): Promise<void> {
 
   // --- 4. Rag fusion: a further opt-in, never the default ---------------------
   const ragFusion = await factory.resolve(RANK_METHOD_RAG_FUSION);
-  assert(
-    ragFusion.method === RANK_METHOD_RAG_FUSION,
-    "resolve('rag_fusion') resolves to rag_fusion",
-  );
+  assert(ragFusion.method === RANK_METHOD_RAG_FUSION, "resolve('rag_fusion') resolves to rag_fusion");
   const backToDefault = await factory.resolve(undefined);
-  assert(
-    backToDefault.method === RANK_METHOD_KEYWORD,
-    'round-trip: undefined → keyword (default unchanged)',
-  );
+  assert(backToDefault.method === RANK_METHOD_KEYWORD, 'round-trip: undefined → keyword (default unchanged)');
   console.log('  4. rag_fusion is a further opt-in (never the default):');
   console.log(`     resolve('rag_fusion').method = "${ragFusion.method}"`);
   console.log(`     resolve(undefined).method   = "${backToDefault.method}" (default unchanged)`);
   console.log();
 
-  console.log(
-    'week-6 milestone: hybrid is selectable, reversible, and did NOT flip the default. ✅',
-  );
+  console.log('week-6 milestone: hybrid is selectable, reversible, and did NOT flip the default. ✅');
 }
 
 main().catch((err) => {

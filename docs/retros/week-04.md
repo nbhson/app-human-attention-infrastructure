@@ -1,11 +1,11 @@
 # Phase 2 · Week 4 Retro — Semantic infra, installed in shadow
 
-*Day-20 checkpoint (Phase 2). Fourth pass, over the semantic substrate built across
+_Day-20 checkpoint (Phase 2). Fourth pass, over the semantic substrate built across
 Phase-2 days 16–20. Same rule as prior retros: honest by design, numbers-first,
 blameless — and every acceptance criterion is green before this note is committed.
 This week's verdict is structural rather than a single red/green number: the
 semantic path exists, is measured, and does not leak into the default — the proof
-is a mechanical invariant, not an assertion.*
+is a mechanical invariant, not an assertion._
 
 ## What shipped this week
 
@@ -44,7 +44,7 @@ the default path. That is held by two tests, not by hope:
 
 The read I take from that: it is the first week where the strongest evidence for
 the deliverable is a **negative** — the semantic path is proven by the calls it
-does *not* make on the live path rather than by a number it produced. That is the
+does _not_ make on the live path rather than by a number it produced. That is the
 correct evidence for a "shadow" week, and it should not be upgraded to a green
 "semantic is better" claim until Day 29's A/B dry-run actually measures a
 difference.
@@ -64,7 +64,7 @@ authoritatively correct regardless of stat drift.
 
 - **The A/B seam is built but still unread.** `shadow_rank_comparisons` has the
   pre-computed Kendall tau between keyword and semantic orders, and nothing has
-  *consumed* it. Day 29 is the first honest read of whether semantic ranking
+  _consumed_ it. Day 29 is the first honest read of whether semantic ranking
   actually differs — before then, any "semantic helps" claim is a feature
   announcement, not a measurement.
 - **The cache has no TTL sweep.** `stored_at` is the eviction basis and the hash
@@ -88,7 +88,7 @@ authoritatively correct regardless of stat drift.
   weaken the listener "because stat is good enough" would be reintroducing a
   stale-serve window that only the hash path can close.
 - **The exact tokenizer is reference-grade, not re-validated.** Day 19 ships
-  js-tiktoken's rank tables unchanged and validates *behaviour* (gold corpus +
+  js-tiktoken's rank tables unchanged and validates _behaviour_ (gold corpus +
   UTF-8 backoff), not the encoder itself. A model whose encoding js-tiktoken
   doesn't know falls back to `cl100k_base` via `getTokenizer` — a silent
   approximation for Claude-model ids. It is the right default, but it is a
@@ -100,7 +100,7 @@ authoritatively correct regardless of stat drift.
 - **No engine reached for another engine.** `context-engine` grew dependencies on
   `db`, `di`, `event-bus`, and `observability` this week — all shared infra, and
   all permitted by the boundary matrix (`context-engine` → `[...SHARED,
-  'observability', 'embeddings']`). The architecture test (R4/R8) is green:
+'observability', 'embeddings']`). The architecture test (R4/R8) is green:
   R4 re-reads each engine's `package.json` and asserts no sibling engine, and R8
   still holds for `observability`'s own (unchanged) dependencies.
 - **`@harness/embeddings` stayed at `[domain, db, event-bus]`** (R10): the re-embed
@@ -122,9 +122,9 @@ authoritatively correct regardless of stat drift.
 
 ---
 
-*Checkpoint rule applied: `pnpm lint`, `pnpm -r typecheck`, and `pnpm -r test`
+_Checkpoint rule applied: `pnpm lint`, `pnpm -r typecheck`, and `pnpm -r test`
 are green (112 test files, 546 tests — including the 12 new Day-20 cache/listener
 tests and the 6 semantic-shadow tests). `pnpm e2e` (migrate through 0026 + happy
 path + 8 failure scenarios) is green. The served `rank_method` remains
 `phase1-keyword-dependency`, `metadata.tokenizer` reports `tiktoken:cl100k_base`,
-and R4/R8/R10 are asserted by `packages/di/src/__tests__/architecture.test.ts`.*
+and R4/R8/R10 are asserted by `packages/di/src/__tests__/architecture.test.ts`._

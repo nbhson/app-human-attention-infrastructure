@@ -42,9 +42,9 @@ without becoming the context ranker.
 
 ## The `Embedder` seam
 
-| Provider | When |
-| --- | --- |
-| `StubEmbedder` (`providers/stub.ts`) | The DI default — deterministic, no live model. |
+| Provider                                                      | When                                            |
+| ------------------------------------------------------------- | ----------------------------------------------- |
+| `StubEmbedder` (`providers/stub.ts`)                          | The DI default — deterministic, no live model.  |
 | `OpenAICompatibleEmbedder` (`providers/openai-compatible.ts`) | Real provider — retrying, non-throwing adapter. |
 
 `EmbedError` + a result discriminator make provider failures a returned
@@ -64,17 +64,17 @@ rows, because indexing is idempotent.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `embedder.ts` | `Embedder` interface, `EmbedError`, result discriminator. |
-| `providers/stub.ts` | `StubEmbedder` — deterministic default. |
-| `providers/openai-compatible.ts` | `OpenAICompatibleEmbedder`. |
-| `indexer.ts` | `EmbeddingIndexer` — batch, resumable, idempotent. |
-| `sources.ts` | Backfill + event source gathering. |
-| `reembed-listener.ts` | Re-embed a source on `artifact.created`/`changed`. |
-| `health.ts` | `isFreshVector`, `computeIndexHealth`. |
-| `logger.ts` | The structural `IndexLogger` seam. |
-| `cli.ts` | Backfill CLI. |
+| Module                           | What it provides                                          |
+| -------------------------------- | --------------------------------------------------------- |
+| `embedder.ts`                    | `Embedder` interface, `EmbedError`, result discriminator. |
+| `providers/stub.ts`              | `StubEmbedder` — deterministic default.                   |
+| `providers/openai-compatible.ts` | `OpenAICompatibleEmbedder`.                               |
+| `indexer.ts`                     | `EmbeddingIndexer` — batch, resumable, idempotent.        |
+| `sources.ts`                     | Backfill + event source gathering.                        |
+| `reembed-listener.ts`            | Re-embed a source on `artifact.created`/`changed`.        |
+| `health.ts`                      | `isFreshVector`, `computeIndexHealth`.                    |
+| `logger.ts`                      | The structural `IndexLogger` seam.                        |
+| `cli.ts`                         | Backfill CLI.                                             |
 
 ---
 
@@ -92,7 +92,7 @@ seam.
 
 ## Key invariants
 
-- **Shadow-then-default.** Embeddings are *produced* here; `rank_method` in
+- **Shadow-then-default.** Embeddings are _produced_ here; `rank_method` in
   `context-engine` stays `keyword` until a measured A/B win flips it.
 - **Idempotent indexing.** Re-running the backfill does not duplicate rows.
 

@@ -37,13 +37,7 @@ import type { Logger } from '@harness/di';
 import type { ContentStore } from '@harness/object-store';
 import { streamToString } from '@harness/object-store';
 
-import {
-  extractComplexity,
-  extractConfidence,
-  extractImpact,
-  extractNovelty,
-  extractRisk,
-} from './factors.js';
+import { extractComplexity, extractConfidence, extractImpact, extractNovelty, extractRisk } from './factors.js';
 import type { VerificationVerdict } from './factors.js';
 import { computePriority, labelFor } from './scoring.js';
 import type { AttentionAssessment, FactorKey, FactorScores } from './types.js';
@@ -224,10 +218,7 @@ export class AttentionSubscriber {
   }
 
   private async fetchRetryCount(taskId: TaskID): Promise<number> {
-    const rows = await this.db
-      .select({ id: retryLog.id })
-      .from(retryLog)
-      .where(eq(retryLog.task_id, taskId));
+    const rows = await this.db.select({ id: retryLog.id }).from(retryLog).where(eq(retryLog.task_id, taskId));
     return rows.length;
   }
 
@@ -257,17 +248,13 @@ export class AttentionSubscriber {
    * (boundary R4), so the diff is recomputed here from the same content-addressed
    * snapshots with the shared `diff` package (day-18 §2.2 "DiffEngine counts").
    */
-  private async diffCounts(
-    change: ChangeRow,
-  ): Promise<{ addedLines: number; removedLines: number }> {
+  private async diffCounts(change: ChangeRow): Promise<{ addedLines: number; removedLines: number }> {
     const current = await this.contentFor(change.content_hash);
 
     const baseRows = await this.db
       .select({ content_hash: changes.content_hash })
       .from(changes)
-      .where(
-        and(eq(changes.artifact_id, change.artifact_id), lt(changes.created_at, change.created_at)),
-      )
+      .where(and(eq(changes.artifact_id, change.artifact_id), lt(changes.created_at, change.created_at)))
       .orderBy(desc(changes.created_at))
       .limit(1);
     const baseHash = baseRows[0]?.content_hash;
@@ -294,9 +281,7 @@ export class AttentionSubscriber {
       return '';
     }
     if (row.content_backend === 'object' && this.contentStore !== undefined) {
-      return streamToString(
-        await this.contentStore.get({ hash: row.content_hash, backend: 'object' }),
-      );
+      return streamToString(await this.contentStore.get({ hash: row.content_hash, backend: 'object' }));
     }
     return row.content ?? '';
   }

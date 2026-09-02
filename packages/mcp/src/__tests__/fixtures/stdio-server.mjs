@@ -18,9 +18,7 @@ function reply(id, result, error) {
   if (garbage) {
     process.stdout.write('this-is-not-json\n');
   }
-  process.stdout.write(
-    `${JSON.stringify({ jsonrpc: '2.0', id, ...(error ? { error } : { result }) })}\n`,
-  );
+  process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, ...(error ? { error } : { result }) })}\n`);
 }
 
 rl.on('line', (line) => {

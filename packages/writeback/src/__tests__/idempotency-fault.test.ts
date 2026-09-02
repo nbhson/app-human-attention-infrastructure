@@ -20,12 +20,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { GitProviderType, WritebackAction } from '@harness/domain';
-import type {
-  WriteBackIntent,
-  WritebackClaim,
-  WritebackFinalize,
-  WritebackLogStore,
-} from '@harness/domain';
+import type { WriteBackIntent, WritebackClaim, WritebackFinalize, WritebackLogStore } from '@harness/domain';
 import type { McpClient, McpServerRegistry, ToolResult } from '@harness/mcp';
 import { StaticGitToolMap } from '@harness/git-provider';
 import { StaticTicketToolMap } from '@harness/ticket-provider';
@@ -95,8 +90,7 @@ class ConcurrencySafeStore implements WritebackLogStore {
 
   async claim(input: WritebackClaim): Promise<'claimed' | 'duplicate'> {
     const inflight = this.rows.some(
-      (row) =>
-        row.dedupKey === input.dedupKey && (row.status === 'PENDING' || row.status === 'SUCCEEDED'),
+      (row) => row.dedupKey === input.dedupKey && (row.status === 'PENDING' || row.status === 'SUCCEEDED'),
     );
     this.rows.push({
       intentId: input.intentId,
@@ -138,13 +132,9 @@ function commentIntent(id: string, body: string): WriteBackIntent {
 }
 
 function build(client: McpClient, store: WritebackLogStore) {
-  const service = new MCPWriteBack(
-    fakeRegistry(client),
-    new StaticGitToolMap(),
-    new StaticTicketToolMap(),
-    store,
-    { enabled: () => true },
-  );
+  const service = new MCPWriteBack(fakeRegistry(client), new StaticGitToolMap(), new StaticTicketToolMap(), store, {
+    enabled: () => true,
+  });
   return { service, client, store };
 }
 

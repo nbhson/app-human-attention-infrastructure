@@ -103,10 +103,7 @@ export function parsePrUrl(prUrl: string): ParsedPrUrl {
     return { repo: `bitbucket.org/${m[1]}/${m[2]}`, number: Number(m[3]) };
   }
 
-  throw new ReviewInputError(
-    `unsupported Git host "${host}" (expected github.com, gitlab.com, or bitbucket.org)`,
-    400,
-  );
+  throw new ReviewInputError(`unsupported Git host "${host}" (expected github.com, gitlab.com, or bitbucket.org)`, 400);
 }
 
 /**

@@ -14,12 +14,7 @@ export class IllegalTransitionError extends Error {
   readonly toState: TaskState;
   readonly legalTargets: readonly TaskState[];
 
-  constructor(
-    taskId: TaskID,
-    fromState: TaskState,
-    toState: TaskState,
-    legalTargets: readonly TaskState[],
-  ) {
+  constructor(taskId: TaskID, fromState: TaskState, toState: TaskState, legalTargets: readonly TaskState[]) {
     const targets = legalTargets.join(', ') || '(none — terminal)';
     super(
       `Illegal transition for task ${taskId}: ${fromState} -> ${toState}. Legal targets from ${fromState}: ${targets}.`,
@@ -34,12 +29,7 @@ export class IllegalTransitionError extends Error {
 
 /** A transition attempted from a terminal state (`COMPLETED` / `CANCELLED`). */
 export class TerminalStateError extends IllegalTransitionError {
-  constructor(
-    taskId: TaskID,
-    fromState: TaskState,
-    toState: TaskState,
-    legalTargets: readonly TaskState[],
-  ) {
+  constructor(taskId: TaskID, fromState: TaskState, toState: TaskState, legalTargets: readonly TaskState[]) {
     super(taskId, fromState, toState, legalTargets);
     this.name = 'TerminalStateError';
   }
@@ -52,9 +42,7 @@ export class StateConflictError extends Error {
   readonly actualState: TaskState;
 
   constructor(taskId: TaskID, expectedState: TaskState, actualState: TaskState) {
-    super(
-      `State conflict for task ${taskId}: expected ${expectedState} but it is already ${actualState}.`,
-    );
+    super(`State conflict for task ${taskId}: expected ${expectedState} but it is already ${actualState}.`);
     this.name = 'StateConflictError';
     this.taskId = taskId;
     this.expectedState = expectedState;

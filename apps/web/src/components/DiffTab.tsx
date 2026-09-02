@@ -80,9 +80,7 @@ export function DiffTab({
       {diff.map((file) => {
         const fileFindings = findings.filter((finding) => finding.file === file.path);
         const highlightLines =
-          selected !== null && selected.file === file.path && selected.line !== null
-            ? [selected.line]
-            : [];
+          selected !== null && selected.file === file.path && selected.line !== null ? [selected.line] : [];
         return (
           <section
             key={file.path}
@@ -117,10 +115,7 @@ export function DiffTab({
                       onClick={() => onSelectFinding(finding.id)}
                     >
                       <div className="finding-card-head">
-                        <span
-                          className="finding-card-severity"
-                          style={{ color: severityColor(finding.severity) }}
-                        >
+                        <span className="finding-card-severity" style={{ color: severityColor(finding.severity) }}>
                           {severityLabel(finding.severity)}
                         </span>
                         <span className="finding-card-location">
@@ -135,11 +130,7 @@ export function DiffTab({
             )}
 
             <div style={{ padding: '4px 8px 8px' }}>
-              <DiffViewer
-                diffs={[toViewerDiff(file)]}
-                showLineNumbers
-                highlightLines={highlightLines}
-              />
+              <DiffViewer diffs={[toViewerDiff(file)]} showLineNumbers highlightLines={highlightLines} />
             </div>
           </section>
         );

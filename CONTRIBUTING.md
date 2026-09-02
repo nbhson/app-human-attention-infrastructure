@@ -64,7 +64,7 @@ small. Co-authored commits are welcome.
   `.env.example` carries placeholders only.
 - The real provider paths are compile-tested only; CI uses throwaway credentials
   against an ephemeral Postgres.
-- If you *think* you might have committed a secret, treat it as compromised: rotate
+- If you _think_ you might have committed a secret, treat it as compromised: rotate
   it, and open a [private report](SECURITY.md) rather than a public issue.
 
 ## Code of conduct

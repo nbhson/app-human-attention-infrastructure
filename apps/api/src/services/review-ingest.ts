@@ -74,8 +74,7 @@ async function retryTransient<T>(
       return await fn();
     } catch (error) {
       const isTransient =
-        error instanceof Error &&
-        /deadlock|lock timeout|connection|ECONNRESET|ETIMEDOUT/i.test(error.message);
+        error instanceof Error && /deadlock|lock timeout|connection|ECONNRESET|ETIMEDOUT/i.test(error.message);
       if (!isTransient || attempt === maxAttempts) {
         throw error;
       }
@@ -143,10 +142,7 @@ export function parseGithubPrUrl(prUrl: string): { repo: string; number: number 
     }
     return { repo: `${url.host}/${parts[0]}/${parts[1]}`, number };
   }
-  throw new ReviewIngestError(
-    `only GitHub pull-request URLs are supported today, got "${prUrl}"`,
-    400,
-  );
+  throw new ReviewIngestError(`only GitHub pull-request URLs are supported today, got "${prUrl}"`, 400);
 }
 
 /**
@@ -163,19 +159,14 @@ export function buildDiff(files: readonly PullRequestFile[]): string {
     .filter((f) => isReviewableFile(f.path) && f.patch.trim().length > 0)
     .map(
       (f) =>
-        `=== ${f.path} (${f.status}, +${f.additions} -${f.deletions}) ===\n` +
-        redactSensitivePatch(f.path, f.patch),
+        `=== ${f.path} (${f.status}, +${f.additions} -${f.deletions}) ===\n` + redactSensitivePatch(f.path, f.patch),
     )
     .join('\n\n');
 }
 
 /** Get-or-create the owning project by repo slug (same idempotent pattern as the task route). */
 async function getOrCreateProject(db: DrizzleDB, repo: string): Promise<ProjectID> {
-  const rows = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.repo_path, repo))
-    .limit(1);
+  const rows = await db.select({ id: projects.id }).from(projects).where(eq(projects.repo_path, repo)).limit(1);
   const existing = rows[0];
   if (existing) {
     return brand(existing.id, 'ProjectID');
@@ -255,10 +246,7 @@ export class ReviewIngestService {
     let requirement = '';
     if (input.jiraTicket !== undefined) {
       if (!ticketProvider) {
-        throw new ReviewIngestError(
-          'jiraTicket provided but no ticket provider is configured',
-          400,
-        );
+        throw new ReviewIngestError('jiraTicket provided but no ticket provider is configured', 400);
       }
       const issue: Issue = await ticketProvider.fetchIssue({ key: input.jiraTicket });
       requirement = `${issue.summary}\n${issue.description}`;
@@ -301,10 +289,7 @@ export class ReviewIngestService {
       // upstream/AI problem (retry-able, not a code defect), so surface it as
       // a 502 rather than leaking an unhelpful 500.
       if (error instanceof ReviewParseError) {
-        throw new ReviewIngestError(
-          `the AI returned an unusable review (${error.message}) — try again`,
-          502,
-        );
+        throw new ReviewIngestError(`the AI returned an unusable review (${error.message}) — try again`, 502);
       }
       throw error;
     });
@@ -482,11 +467,7 @@ export class ReviewIngestService {
       // Stage: fetching — retrieve PR from GitHub.
       await retryTransient(
         'status fetching',
-        () =>
-          db
-            .update(reviewReports)
-            .set({ review_status: 'fetching' })
-            .where(eq(reviewReports.id, reportId)),
+        () => db.update(reviewReports).set({ review_status: 'fetching' }).where(eq(reviewReports.id, reportId)),
         logger,
         reportId,
       );
@@ -503,11 +484,7 @@ export class ReviewIngestService {
       // Stage: recalling — retrieve past review context.
       await retryTransient(
         'status recalling',
-        () =>
-          db
-            .update(reviewReports)
-            .set({ review_status: 'recalling' })
-            .where(eq(reviewReports.id, reportId)),
+        () => db.update(reviewReports).set({ review_status: 'recalling' }).where(eq(reviewReports.id, reportId)),
         logger,
         reportId,
       );
@@ -585,11 +562,7 @@ export class ReviewIngestService {
       // Stage: storing — finalise the report with merged summary + verdict.
       await retryTransient(
         'status storing',
-        () =>
-          db
-            .update(reviewReports)
-            .set({ review_status: 'storing' })
-            .where(eq(reviewReports.id, reportId)),
+        () => db.update(reviewReports).set({ review_status: 'storing' }).where(eq(reviewReports.id, reportId)),
         logger,
         reportId,
       );
@@ -617,9 +590,7 @@ export class ReviewIngestService {
         finding_count: findingOffset,
         suggestion_count: suggestionOffset,
       };
-      bus.publish(
-        createEvent(EventType.ReviewReportCreated, brand(reportId, 'CorrelationID'), reportCreated),
-      );
+      bus.publish(createEvent(EventType.ReviewReportCreated, brand(reportId, 'CorrelationID'), reportCreated));
 
       logger.info('review report processed (async)', { report_id: reportId, pr_url: pr.url });
     } catch (error) {
@@ -663,14 +634,7 @@ export class ReviewIngestService {
     _correlationId: string,
     onBatch?: (batchIndex: number, batchCount: number, output: ReviewAgentOutput) => Promise<void>,
   ) {
-    const {
-      reviewAgent,
-      memoryProvider,
-      twoPassEnabled,
-      maxBatchSize,
-      maxBatchTokens,
-      maxConcurrency,
-    } = this.deps;
+    const { reviewAgent, memoryProvider, twoPassEnabled, maxBatchSize, maxBatchTokens, maxConcurrency } = this.deps;
 
     // 1. Memory recall: retrieve past review findings relevant to this PR.
     const rawMemories = memoryProvider
@@ -744,8 +708,7 @@ export class ReviewIngestService {
     });
 
     // If budgeted primary is empty, use the first batch-worth of files.
-    const filesToReview =
-      budgeted.primary.length > 0 ? budgeted.primary : targetFiles.slice(0, maxBatchSize ?? 5);
+    const filesToReview = budgeted.primary.length > 0 ? budgeted.primary : targetFiles.slice(0, maxBatchSize ?? 5);
 
     // 5. Batch review (parallel), with progressive callback if provided.
     return batchReview(

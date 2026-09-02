@@ -34,10 +34,7 @@ export type Brand<T, BrandName extends string> = T & { readonly __brand: BrandNa
  * @param value - the underlying string value.
  * @returns the value typed with the requested brand.
  */
-export function brand<BrandName extends string>(
-  value: string,
-  _brandName: BrandName,
-): Brand<string, BrandName> {
+export function brand<BrandName extends string>(value: string, _brandName: BrandName): Brand<string, BrandName> {
   void _brandName; // the brand name exists only to infer `BrandName` at the call site
   return value as Brand<string, BrandName>;
 }
@@ -161,11 +158,9 @@ export const newContextID = (): ContextID => newBrandedId('ContextID');
 /** Generate a new {@link AssessmentID}. */
 export const newAssessmentID = (): AssessmentID => newBrandedId('AssessmentID');
 /** Generate a new {@link VerificationRequestID}. */
-export const newVerificationRequestID = (): VerificationRequestID =>
-  newBrandedId('VerificationRequestID');
+export const newVerificationRequestID = (): VerificationRequestID => newBrandedId('VerificationRequestID');
 /** Generate a new {@link VerificationResultID}. */
-export const newVerificationResultID = (): VerificationResultID =>
-  newBrandedId('VerificationResultID');
+export const newVerificationResultID = (): VerificationResultID => newBrandedId('VerificationResultID');
 /** Generate a new {@link EvidenceID}. */
 export const newEvidenceID = (): EvidenceID => newBrandedId('EvidenceID');
 /** Generate a new {@link ProjectID}. */
@@ -185,8 +180,7 @@ export const newCorrelationID = (): CorrelationID => newBrandedId('CorrelationID
 /** Generate a new {@link ReviewQueueItemID}. */
 export const newReviewQueueItemID = (): ReviewQueueItemID => newBrandedId('ReviewQueueItemID');
 /** Generate a new {@link AssessmentFeedbackID}. */
-export const newAssessmentFeedbackID = (): AssessmentFeedbackID =>
-  newBrandedId('AssessmentFeedbackID');
+export const newAssessmentFeedbackID = (): AssessmentFeedbackID => newBrandedId('AssessmentFeedbackID');
 /** Generate a new {@link UserID}. */
 export const newUserID = (): UserID => newBrandedId('UserID');
 /** Generate a new {@link SessionID}. */

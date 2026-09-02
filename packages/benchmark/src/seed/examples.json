@@ -27,9 +27,7 @@
     "report": {
       "verdict": "COMMENT",
       "summary": "Formatting looks fine; no functional issues noted.",
-      "findings": [
-        { "severity": "NIT", "file": "src/auth.ts", "message": "Nit: add a trailing newline." }
-      ]
+      "findings": [{ "severity": "NIT", "file": "src/auth.ts", "message": "Nit: add a trailing newline." }]
     },
     "gold": { "severity": 0.3, "routing": 0.2, "useful": false }
   },

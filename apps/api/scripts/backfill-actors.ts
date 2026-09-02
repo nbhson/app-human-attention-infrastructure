@@ -20,9 +20,7 @@ import { createDb, decisions, users } from '@harness/db';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-  throw new Error(
-    '[backfill:actors] DATABASE_URL is not set. Copy .env.example to .env (repo root).',
-  );
+  throw new Error('[backfill:actors] DATABASE_URL is not set. Copy .env.example to .env (repo root).');
 }
 const db = createDb(connectionString);
 
@@ -54,10 +52,7 @@ let leftNull = 0;
 for (const row of rows) {
   const actor = await findActor(row.reviewer_id);
   if (actor) {
-    await db
-      .update(decisions)
-      .set({ actor_id: actor.id, actor_email: actor.email })
-      .where(eq(decisions.id, row.id));
+    await db.update(decisions).set({ actor_id: actor.id, actor_email: actor.email }).where(eq(decisions.id, row.id));
     mapped += 1;
   } else {
     leftNull += 1; // honest null — no fabricated join

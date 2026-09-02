@@ -12,14 +12,7 @@
 
 import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 
-import {
-  assessments,
-  decisions,
-  eventLog,
-  reviewQueue,
-  shadowRankComparisons,
-  taskStateHistory,
-} from '@harness/db';
+import { assessments, decisions, eventLog, reviewQueue, shadowRankComparisons, taskStateHistory } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import type { AttentionItemRoutedPayload } from '@harness/domain';
 import { EventType } from '@harness/domain';
@@ -34,10 +27,7 @@ export interface MetricsWindow {
 }
 
 /** Load the windowed rows from the store and assemble a {@link MetricsInput}. */
-export async function loadMetricsInput(
-  db: DrizzleDB,
-  window: MetricsWindow,
-): Promise<MetricsInput> {
+export async function loadMetricsInput(db: DrizzleDB, window: MetricsWindow): Promise<MetricsInput> {
   const { from, to } = window;
 
   const [decisionLog, reworkLog, routeLog, shadowLog] = await Promise.all([
@@ -71,9 +61,7 @@ async function loadDecisions(db: DrizzleDB, from: Date, to: Date): Promise<Decis
   const byDecisionId = new Map<string, DecisionRow>();
   for (const row of rows) {
     const dwellSeconds =
-      row.claimedAt !== null
-        ? Math.max(0, (row.createdAt.getTime() - row.claimedAt.getTime()) / 1000)
-        : undefined;
+      row.claimedAt !== null ? Math.max(0, (row.createdAt.getTime() - row.claimedAt.getTime()) / 1000) : undefined;
     const candidate: DecisionRow = {
       decisionId: row.decisionId,
       assessmentId: row.assessmentId,
@@ -84,10 +72,7 @@ async function loadDecisions(db: DrizzleDB, from: Date, to: Date): Promise<Decis
       ...(row.label !== null ? { label: row.label } : {}),
     };
     const existing = byDecisionId.get(row.decisionId);
-    if (
-      !existing ||
-      (existing.dwellSeconds === undefined && candidate.dwellSeconds !== undefined)
-    ) {
+    if (!existing || (existing.dwellSeconds === undefined && candidate.dwellSeconds !== undefined)) {
       byDecisionId.set(row.decisionId, candidate);
     }
   }
@@ -169,9 +154,7 @@ async function loadShadowComparisons(db: DrizzleDB, from: Date, to: Date): Promi
       rankCorrelation: shadowRankComparisons.rank_correlation,
     })
     .from(shadowRankComparisons)
-    .where(
-      and(gte(shadowRankComparisons.created_at, from), lte(shadowRankComparisons.created_at, to)),
-    );
+    .where(and(gte(shadowRankComparisons.created_at, from), lte(shadowRankComparisons.created_at, to)));
 
   return rows.map((row) => ({
     comparisonId: row.comparisonId,

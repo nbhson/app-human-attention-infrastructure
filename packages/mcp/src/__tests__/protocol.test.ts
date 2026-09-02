@@ -25,9 +25,9 @@ describe('parseServerInfo', () => {
 
 describe('parseToolsList', () => {
   it('parses tools', () => {
-    expect(
-      parseToolsList({ tools: [{ name: 'a', description: 'd', inputSchema: { type: 'object' } }] }),
-    ).toEqual([{ name: 'a', description: 'd', inputSchema: { type: 'object' } }]);
+    expect(parseToolsList({ tools: [{ name: 'a', description: 'd', inputSchema: { type: 'object' } }] })).toEqual([
+      { name: 'a', description: 'd', inputSchema: { type: 'object' } },
+    ]);
   });
 
   it('tolerates absent optional fields', () => {
@@ -66,9 +66,7 @@ describe('parseToolResult', () => {
   });
 
   it('rejects an unknown content type', () => {
-    expect(() => parseToolResult({ content: [{ type: 'wat', text: 'x' }] })).toThrow(
-      McpClientError,
-    );
+    expect(() => parseToolResult({ content: [{ type: 'wat', text: 'x' }] })).toThrow(McpClientError);
   });
 
   it('rejects a missing content array', () => {

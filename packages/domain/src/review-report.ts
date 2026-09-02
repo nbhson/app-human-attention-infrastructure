@@ -122,8 +122,7 @@ export interface ReviewReport {
 }
 
 /** Input for {@link createReviewFinding}. */
-export type CreateReviewFindingInput = Omit<ReviewFinding, 'id'> &
-  Partial<Pick<ReviewFinding, 'id'>>;
+export type CreateReviewFindingInput = Omit<ReviewFinding, 'id'> & Partial<Pick<ReviewFinding, 'id'>>;
 
 /** Build a {@link ReviewFinding}, defaulting `id` to a fresh UUIDv7. */
 export function createReviewFinding(input: CreateReviewFindingInput): ReviewFinding {
@@ -140,10 +139,7 @@ export function createFixSuggestion(input: CreateFixSuggestionInput): FixSuggest
 }
 
 /** Input for {@link createReviewReport}. */
-export type CreateReviewReportInput = Omit<
-  ReviewReport,
-  'id' | 'createdAt' | 'findings' | 'suggestions'
-> &
+export type CreateReviewReportInput = Omit<ReviewReport, 'id' | 'createdAt' | 'findings' | 'suggestions'> &
   Partial<Pick<ReviewReport, 'id' | 'createdAt' | 'findings' | 'suggestions'>>;
 
 /**

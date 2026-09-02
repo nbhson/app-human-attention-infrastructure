@@ -19,7 +19,7 @@ no leader election, no replica failover, no connection to a message broker.
 - Every concurrency guarantee — `FOR UPDATE SKIP LOCKED`, optimistic locks
   (`WHERE state = from`), guarded `UPDATE ... WHERE status = 'QUEUED'`, unique
   idempotency keys — was written and tested against a **single shared database**.
-  They race *correctly* when two loops or two reviewers contend on the same row
+  They race _correctly_ when two loops or two reviewers contend on the same row
   (`apps/api/test/concurrency/`, `packages/db/src/faults.ts`), but they assume
   one DB, not a cluster.
 - **Network partitions / split-brain are non-issues**: with one node and one DB,
@@ -31,7 +31,7 @@ no leader election, no replica failover, no connection to a message broker.
 
 `IEventBus` is an **in-process, in-memory** bus (`InProcessEventBus`); subscribers
 run synchronously off the publishing call. The load smoke test (§2.3) pushes 50
-tasks as the ceiling — that is the *tested* envelope, not a benchmark or an SLA.
+tasks as the ceiling — that is the _tested_ envelope, not a benchmark or an SLA.
 
 - There is no rate limiting, no dead-letter queue, and no durable buffer. If the
   process dies mid-publish, the event is gone (its side-effect may or may not have
@@ -40,10 +40,10 @@ tasks as the ceiling — that is the *tested* envelope, not a benchmark or an SL
   available as `RedisEventsBus`, selected by `EVENT_TRANSPORT` (Day 34,
   **opt-in**; the in-process bus remains the default).
 
-## 3. The reconciler is the *only* sanctioned auto-repair
+## 3. The reconciler is the _only_ sanctioned auto-repair
 
 On a non-graceful crash (`SIGKILL`, not `SIGTERM`), a task can be stranded in
-`EXECUTING` or `VERIFYING`. One thing — and *only* one thing — repairs that:
+`EXECUTING` or `VERIFYING`. One thing — and _only_ one thing — repairs that:
 
 - `apps/api/src/reconcile.ts`'s `reconcileOrphans()` runs **once at startup,
   before the dispatcher or runtime loop starts** (`apps/api/src/index.ts`). This
@@ -64,18 +64,18 @@ and `vitest` as child processes on the **host**, inheriting its filesystem.
 
 - **Concurrent execution is not exercised**: two workers verifying over the same
   tree would race on `tsc`/`vitest` output files, so the load smoke runs 2
-  dispatchers + 2 runtime loops for the *dispatch* path but drives the
-  failure/retry scenarios sequentially. It is safe to race *dispatch* and *queuing*
+  dispatchers + 2 runtime loops for the _dispatch_ path but drives the
+  failure/retry scenarios sequentially. It is safe to race _dispatch_ and _queuing_
   — not two in-flight verifications of the same tree.
 - A bare worktree still "passes" Vitest via `--passWithNoTests`; a suite that
-  must *actually* run needs its own `vitest.config.ts` so it doesn't report
+  must _actually_ run needs its own `vitest.config.ts` so it doesn't report
   "no tests" and pass vacuously (see the Day-26 S3 fixture).
 - Container sandboxing lands in **Day 22** (verification) and **Day 23**
   (agent code mode).
 
 ## 5. Deterministic fault injection only (no chaos)
 
-Failure-injection tests (`FaultyDb` + the F1–F5 suite) throw a *queued* error at
+Failure-injection tests (`FaultyDb` + the F1–F5 suite) throw a _queued_ error at
 the head of the next matching query — deterministic, reproducible, no real network
 failure or Postgres restart. Deliberately **no** chaos-monkey random faults:
 reproducibility beats coverage when the point is to pin a single invariant.

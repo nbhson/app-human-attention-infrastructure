@@ -171,10 +171,7 @@ export interface ArtifactSnapshot {
 }
 
 /** Input for {@link createArtifact}. Derived fields are optional. */
-export type CreateArtifactInput = Omit<
-  Artifact,
-  'createdAt' | 'updatedAt' | 'status' | 'sizeBytes' | 'metadata'
-> &
+export type CreateArtifactInput = Omit<Artifact, 'createdAt' | 'updatedAt' | 'status' | 'sizeBytes' | 'metadata'> &
   Partial<Pick<Artifact, 'createdAt' | 'updatedAt' | 'status' | 'sizeBytes' | 'metadata'>>;
 
 /**

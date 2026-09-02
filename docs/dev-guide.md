@@ -1,7 +1,7 @@
 # Developer Guide
 
 > **Goal:** a clean machine + this guide → a green `pnpm test` in under 15 minutes,
-> with no tribal knowledge. If any step below stumbles, that is a *guide bug* — fix
+> with no tribal knowledge. If any step below stumbles, that is a _guide bug_ — fix
 > the guide, not your memory.
 
 HAI Harness is a TypeScript monorepo (pnpm workspaces + Turborepo) that turns a
@@ -15,17 +15,17 @@ retired.
 
 ## 1. Prerequisites
 
-| Requirement | Version | Why |
-| --- | --- | --- |
-| Node.js | ≥ 20 | Engine runtime + `engines` field |
-| pnpm | ≥ 9 | `packageManager` pins `9.15.4` |
-| Docker | any recent | local PostgreSQL (+ pgvector) via `docker compose` |
+| Requirement | Version    | Why                                                |
+| ----------- | ---------- | -------------------------------------------------- |
+| Node.js     | ≥ 20       | Engine runtime + `engines` field                   |
+| pnpm        | ≥ 9        | `packageManager` pins `9.15.4`                     |
+| Docker      | any recent | local PostgreSQL (+ pgvector) via `docker compose` |
 
 Nothing else. No global TypeScript, no Postgres client install, no service mesh.
 
 ## 2. Setup (clone-to-green)
 
-```bash
+````bash
 git clone <repo-url> harness-human-attention-infrastructure
 cd harness-human-attention-infrastructure
 
@@ -156,7 +156,7 @@ pnpm typecheck            # turbo run typecheck (tsc --noEmit everywhere)
 pnpm build                # turbo run build (each package emits dist)
 pnpm e2e                  # full-system e2e over the real stack (see below)
 pnpm audit:orphans        # exit-code orphan alarm (see runbook R1)
-```
+````
 
 **`pnpm e2e`** runs the end-to-end suites in `e2e/` (config
 `e2e/vitest.config.ts`) against a live Postgres. It expects a seeded fixture:
@@ -186,22 +186,22 @@ Dependency direction points inward; the domain never imports infrastructure. The
 rules are enforced by `eslint-plugin-boundaries` at lint time and asserted by
 `packages/di/src/__tests__/architecture.test.ts`:
 
-| Rule | Constraint |
-| --- | --- |
-| R1 | `@harness/domain` imports nothing (internal) |
-| R2 | `@harness/event-bus` → `domain` only |
-| R3 | `@harness/db` → `domain`, `event-bus` only |
-| R4 | engines (`orchestrator`, `agent-runtime`, etc.) → `domain`, `event-bus`, `db`, `di` only |
-| R5 | `apps/*` → anything |
-| R6 | `@harness/review` → `domain`, `event-bus`, `db`, `di` only |
-| R7 | `@harness/auth` → `domain`, `db`, `event-bus`, `di` only (never an engine) |
-| R8 | `@harness/observability` → `domain`, `db`, `di` only; every telemetry-carrying engine depends on it |
-| R9 | `@harness/evaluation` → `domain`, `db`, `di`, `observability` only (never an engine) |
-| R10 | `@harness/embeddings` → `domain`, `db`, `event-bus` only (never `di`/`observability`/an engine) |
-| R11 | `@harness/object-store` → no `@harness/*` dependency (leaf seam) |
-| R12 | `@harness/sandbox` → no `@harness/*` dependency (leaf seam) |
-| R13 | `@harness/git-provider` → `domain` only (never an engine) |
-| R14 | `@harness/ticket-provider` → `domain` only (never an engine) |
+| Rule | Constraint                                                                                          |
+| ---- | --------------------------------------------------------------------------------------------------- |
+| R1   | `@harness/domain` imports nothing (internal)                                                        |
+| R2   | `@harness/event-bus` → `domain` only                                                                |
+| R3   | `@harness/db` → `domain`, `event-bus` only                                                          |
+| R4   | engines (`orchestrator`, `agent-runtime`, etc.) → `domain`, `event-bus`, `db`, `di` only            |
+| R5   | `apps/*` → anything                                                                                 |
+| R6   | `@harness/review` → `domain`, `event-bus`, `db`, `di` only                                          |
+| R7   | `@harness/auth` → `domain`, `db`, `event-bus`, `di` only (never an engine)                          |
+| R8   | `@harness/observability` → `domain`, `db`, `di` only; every telemetry-carrying engine depends on it |
+| R9   | `@harness/evaluation` → `domain`, `db`, `di`, `observability` only (never an engine)                |
+| R10  | `@harness/embeddings` → `domain`, `db`, `event-bus` only (never `di`/`observability`/an engine)     |
+| R11  | `@harness/object-store` → no `@harness/*` dependency (leaf seam)                                    |
+| R12  | `@harness/sandbox` → no `@harness/*` dependency (leaf seam)                                         |
+| R13  | `@harness/git-provider` → `domain` only (never an engine)                                           |
+| R14  | `@harness/ticket-provider` → `domain` only (never an engine)                                        |
 
 **The rule you'll actually hit:** if you `import { X } from '@harness/db'` inside
 `@harness/attention-engine`, `pnpm lint` fails with a `boundaries` error naming the
@@ -209,7 +209,7 @@ violated rule. Fix it by passing the dependency through the constructor (wired i
 `apps/api/src/bootstrap.ts`), not by widening the rule.
 
 **"Engines never import engines" in two sentences:** an engine's contract to its
-neighbours is *events and data*, not method calls — so a change to the Agent
+neighbours is _events and data_, not method calls — so a change to the Agent
 Runtime cannot silently alter the Attention Engine's behaviour. It keeps each
 engine independently testable and replaceable, which is the whole point of the
 modular monolith (Architecture spec §7, cross-cutting invariants).
@@ -227,7 +227,7 @@ modular monolith (Architecture spec §7, cross-cutting invariants).
 - **No mocks across package boundaries.** A package's tests use its real
   collaborators (or the container's real registrations). The only sanctioned
   substitute is `FaultyDb` (`@harness/db/test-utils`), a `Proxy` wrapping a real
-  `DrizzleDB` to inject *queued* faults at the head of the next matching query.
+  `DrizzleDB` to inject _queued_ faults at the head of the next matching query.
 - **Concurrency tests use barriers, not sleeps.** Concurrency suites coordinate
   with explicit promise/event barriers so assertions are race-free and
   deterministic; `await delay(...)` is a smell that hides a real race.
@@ -283,7 +283,7 @@ The parity holds by construction: `SandboxedCheck` runs `tsc --noEmit` inside th
 in-process verdicts agree.
 
 **Semantic shadow (day-18).** The keyword→dependency ranker is the served default
-and stays so; the semantic retriever runs *alongside* it, writing a
+and stays so; the semantic retriever runs _alongside_ it, writing a
 `shadow_rank_comparisons` row never read by the hot path. It needs an embedding
 index — populate it to opt the shadow in:
 
@@ -337,7 +337,7 @@ deterministic.
 
 **MCP connectivity (day-02).** `mcp.config.json` is the single connectivity file:
 each `servers` entry names a transport (`stdio` command + args, or an `sse` url)
-and a `tokenEnv` *reference* (never a secret). At load the token's presence is
+and a `tokenEnv` _reference_ (never a secret). At load the token's presence is
 checked and reduced to a non-reversible last-4 `tokenHint`, then discarded; the
 real token lives only in the MCP server's environment and is injected at connect
 time. Resolve path: `MCP_CONFIG_PATH` (default `./mcp.config.json`).

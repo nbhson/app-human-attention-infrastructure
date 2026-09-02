@@ -49,13 +49,7 @@ describe('RetrieverFactory', () => {
     const keyword = fake('keyword');
     const semantic = fake('semantic');
     const rewriter = { rewrite: async (q: string) => [q] };
-    const factory = new RetrieverFactory(
-      keyword,
-      noopLogger,
-      undefined,
-      semantic,
-      rewriter as never,
-    );
+    const factory = new RetrieverFactory(keyword, noopLogger, undefined, semantic, rewriter as never);
     expect((await factory.resolve(RANK_METHOD_RAG_FUSION))?.method).toBe(RANK_METHOD_RAG_FUSION);
   });
 

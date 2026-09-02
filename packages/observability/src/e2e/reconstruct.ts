@@ -135,9 +135,7 @@ export async function reconstruct(db: DrizzleDB, correlationId: string): Promise
   // Verification step must be attributable to exact bytes (day-22 §5.5).
   const unhashed = verificationRows.filter((row) => row.contentHash === null);
   if (unhashed.length > 0) {
-    throw new TelemetryIntegrityError(
-      `verification_reports without content_hash (${unhashed.length} row(s))`,
-    );
+    throw new TelemetryIntegrityError(`verification_reports without content_hash (${unhashed.length} row(s))`);
   }
 
   return {

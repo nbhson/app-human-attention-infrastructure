@@ -85,12 +85,8 @@
           "name": "agent_runs_task_id_tasks_id_fk",
           "tableFrom": "agent_runs",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -161,12 +157,8 @@
           "name": "artifacts_project_id_projects_id_fk",
           "tableFrom": "artifacts",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -224,12 +216,8 @@
           "name": "assessment_feedback_assessment_id_assessments_id_fk",
           "tableFrom": "assessment_feedback",
           "tableTo": "assessments",
-          "columnsFrom": [
-            "assessment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assessment_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -324,12 +312,8 @@
           "name": "assessments_artifact_id_artifacts_id_fk",
           "tableFrom": "assessments",
           "tableTo": "artifacts",
-          "columnsFrom": [
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["artifact_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -337,12 +321,8 @@
           "name": "assessments_change_id_changes_id_fk",
           "tableFrom": "assessments",
           "tableTo": "changes",
-          "columnsFrom": [
-            "change_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["change_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -424,12 +404,8 @@
           "name": "changes_artifact_id_artifacts_id_fk",
           "tableFrom": "changes",
           "tableTo": "artifacts",
-          "columnsFrom": [
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["artifact_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -437,12 +413,8 @@
           "name": "changes_agent_run_id_agent_runs_id_fk",
           "tableFrom": "changes",
           "tableTo": "agent_runs",
-          "columnsFrom": [
-            "agent_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -523,12 +495,8 @@
           "name": "contexts_task_id_tasks_id_fk",
           "tableFrom": "contexts",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -599,12 +567,8 @@
           "name": "decisions_change_id_changes_id_fk",
           "tableFrom": "decisions",
           "tableTo": "changes",
-          "columnsFrom": [
-            "change_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["change_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -612,12 +576,8 @@
           "name": "decisions_assessment_id_assessments_id_fk",
           "tableFrom": "decisions",
           "tableTo": "assessments",
-          "columnsFrom": [
-            "assessment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assessment_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -675,12 +635,8 @@
           "name": "dispatch_log_task_id_tasks_id_fk",
           "tableFrom": "dispatch_log",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -690,9 +646,7 @@
         "dispatch_log_idempotency_key_unique": {
           "name": "dispatch_log_idempotency_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "idempotency_key"
-          ]
+          "columns": ["idempotency_key"]
         }
       },
       "policies": {},
@@ -929,12 +883,8 @@
           "name": "evidence_links_evidence_id_evidence_id_fk",
           "tableFrom": "evidence_links",
           "tableTo": "evidence",
-          "columnsFrom": [
-            "evidence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evidence_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1016,12 +966,8 @@
           "name": "llm_call_log_agent_run_id_agent_runs_id_fk",
           "tableFrom": "llm_call_log",
           "tableTo": "agent_runs",
-          "columnsFrom": [
-            "agent_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1130,12 +1076,8 @@
           "name": "retry_log_task_id_tasks_id_fk",
           "tableFrom": "retry_log",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1225,12 +1167,8 @@
           "name": "review_queue_task_id_tasks_id_fk",
           "tableFrom": "review_queue",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1238,12 +1176,8 @@
           "name": "review_queue_assessment_id_assessments_id_fk",
           "tableFrom": "review_queue",
           "tableTo": "assessments",
-          "columnsFrom": [
-            "assessment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assessment_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1328,12 +1262,8 @@
           "name": "snapshots_change_id_changes_id_fk",
           "tableFrom": "snapshots",
           "tableTo": "changes",
-          "columnsFrom": [
-            "change_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["change_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1426,12 +1356,8 @@
           "name": "task_state_history_task_id_tasks_id_fk",
           "tableFrom": "task_state_history",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1514,12 +1440,8 @@
           "name": "task_step_log_task_id_tasks_id_fk",
           "tableFrom": "task_step_log",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1612,12 +1534,8 @@
           "name": "tasks_project_id_projects_id_fk",
           "tableFrom": "tasks",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1627,9 +1545,7 @@
         "tasks_idempotency_key_unique": {
           "name": "tasks_idempotency_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "idempotency_key"
-          ]
+          "columns": ["idempotency_key"]
         }
       },
       "policies": {},
@@ -1701,12 +1617,8 @@
           "name": "trajectory_steps_agent_run_id_agent_runs_id_fk",
           "tableFrom": "trajectory_steps",
           "tableTo": "agent_runs",
-          "columnsFrom": [
-            "agent_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1765,12 +1677,8 @@
           "name": "verification_requests_task_id_tasks_id_fk",
           "tableFrom": "verification_requests",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1778,12 +1686,8 @@
           "name": "verification_requests_change_id_changes_id_fk",
           "tableFrom": "verification_requests",
           "tableTo": "changes",
-          "columnsFrom": [
-            "change_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["change_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1848,12 +1752,8 @@
           "name": "verification_results_request_id_verification_requests_id_fk",
           "tableFrom": "verification_results",
           "tableTo": "verification_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1930,12 +1830,8 @@
           "name": "verification_reports_change_id_changes_id_fk",
           "tableFrom": "verification_reports",
           "tableTo": "changes",
-          "columnsFrom": [
-            "change_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["change_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1943,12 +1839,8 @@
           "name": "verification_reports_task_id_tasks_id_fk",
           "tableFrom": "verification_reports",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2024,12 +1916,8 @@
           "name": "verification_check_results_report_id_verification_reports_id_fk",
           "tableFrom": "verification_check_results",
           "tableTo": "verification_reports",
-          "columnsFrom": [
-            "report_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["report_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2037,12 +1925,8 @@
           "name": "verification_check_results_evidence_id_evidence_id_fk",
           "tableFrom": "verification_check_results",
           "tableTo": "evidence",
-          "columnsFrom": [
-            "evidence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["evidence_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2125,12 +2009,8 @@
           "name": "verification_test_results_check_result_id_verification_check_results_id_fk",
           "tableFrom": "verification_test_results",
           "tableTo": "verification_check_results",
-          "columnsFrom": [
-            "check_result_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["check_result_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

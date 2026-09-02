@@ -108,8 +108,7 @@ export default function QueuePage(): JSX.Element {
       if (priorityFilter !== 'all' && review.priority !== priorityFilter) return false;
       if (selectedRepo !== 'all' && review.repo !== selectedRepo) return false;
       if (query) {
-        const haystack =
-          `${review.prTitle} ${review.repo} ${review.author ?? ''} #${review.prNumber}`.toLowerCase();
+        const haystack = `${review.prTitle} ${review.repo} ${review.author ?? ''} #${review.prNumber}`.toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       return true;
@@ -153,9 +152,7 @@ export default function QueuePage(): JSX.Element {
           queryClient.invalidateQueries({ queryKey: ['reviewsSummary'] }),
         ]);
         showToast(
-          `${ids.length} ${ids.length === 1 ? 'review' : 'reviews'} ${
-            decision === 'APPROVE' ? 'approved' : 'updated'
-          }`,
+          `${ids.length} ${ids.length === 1 ? 'review' : 'reviews'} ${decision === 'APPROVE' ? 'approved' : 'updated'}`,
         );
       } catch {
         showToast('Bulk decision failed — try again', 'warning');
@@ -198,8 +195,7 @@ export default function QueuePage(): JSX.Element {
     function onKey(e: KeyboardEvent): void {
       const target = e.target as HTMLElement | null;
       const typing =
-        target !== null &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+        target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       if (e.key === '/' && !typing) {
         e.preventDefault();
         searchRef.current?.focus();
@@ -264,9 +260,7 @@ export default function QueuePage(): JSX.Element {
             <Search />
           </div>
           <h3 className="rq-empty-title">Couldn't load reviews</h3>
-          <p className="rq-empty-text">
-            {error instanceof Error ? error.message : 'Unexpected error'}
-          </p>
+          <p className="rq-empty-text">{error instanceof Error ? error.message : 'Unexpected error'}</p>
           <button type="button" className="rq-empty-reset" onClick={() => void refetch()}>
             Retry
           </button>

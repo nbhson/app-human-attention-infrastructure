@@ -66,9 +66,7 @@ export function ReviewTab({
                 <li key={finding.id}>
                   <FindingCard
                     finding={finding}
-                    hasFix={
-                      finding.suggestion !== null || suggestionsInFile(suggestions, finding.file)
-                    }
+                    hasFix={finding.suggestion !== null || suggestionsInFile(suggestions, finding.file)}
                     selected={selected?.id === finding.id}
                     onSelect={() => onSelect(finding.id)}
                   />
@@ -87,9 +85,7 @@ export function ReviewTab({
           onOpenVerification={() => onOpenVerification(selected)}
         />
       ) : (
-        <div className="finding-detail-empty">
-          Select a finding to see its evidence and suggested fix.
-        </div>
+        <div className="finding-detail-empty">Select a finding to see its evidence and suggested fix.</div>
       )}
     </div>
   );
@@ -156,10 +152,7 @@ function FindingDetail({
   return (
     <aside className="finding-detail">
       <div className="finding-card-head">
-        <span
-          className="finding-card-severity"
-          style={{ color: severityColor(finding.severity), fontSize: '0.78rem' }}
-        >
+        <span className="finding-card-severity" style={{ color: severityColor(finding.severity), fontSize: '0.78rem' }}>
           {severityLabel(finding.severity)}
         </span>
         <span className="finding-card-location">
@@ -175,16 +168,12 @@ function FindingDetail({
       <p style={{ margin: '0 0 14px', lineHeight: 1.55 }}>{finding.message}</p>
 
       <p className="detail-label">Evidence</p>
-      <p style={{ margin: '0 0 14px', color: 'var(--color-text-muted)' }}>
-        {finding.anchor.detail}
-      </p>
+      <p style={{ margin: '0 0 14px', color: 'var(--color-text-muted)' }}>{finding.anchor.detail}</p>
 
       {finding.suggestion !== null && (
         <>
           <p className="detail-label">Suggested fix</p>
-          <p style={{ margin: '0 0 14px', color: 'var(--color-text-muted)' }}>
-            {finding.suggestion}
-          </p>
+          <p style={{ margin: '0 0 14px', color: 'var(--color-text-muted)' }}>{finding.suggestion}</p>
         </>
       )}
 
@@ -195,10 +184,7 @@ function FindingDetail({
             <details key={suggestion.id} className="fix-suggestion">
               <summary>
                 <span>Suggested edit</span>
-                <span
-                  aria-hidden="true"
-                  style={{ color: 'var(--color-text-faint)', fontSize: '0.78rem' }}
-                >
+                <span aria-hidden="true" style={{ color: 'var(--color-text-faint)', fontSize: '0.78rem' }}>
                   +{suggestion.proposed.split('\n').length}
                 </span>
               </summary>
@@ -216,9 +202,7 @@ function FindingDetail({
                   </p>
                 )}
                 <pre className="detail-code">{suggestion.proposed}</pre>
-                <p style={{ margin: '8px 0 0', color: 'var(--color-text-muted)' }}>
-                  {suggestion.rationale}
-                </p>
+                <p style={{ margin: '8px 0 0', color: 'var(--color-text-muted)' }}>{suggestion.rationale}</p>
               </div>
             </details>
           ))}

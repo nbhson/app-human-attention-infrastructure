@@ -95,10 +95,7 @@ const REJECTION_DECISIONS: ReadonlySet<string> = new Set(['REJECTED', 'REQUEST_C
  * contradicts a clean pass — an approve-then-defect, or a fly-through that
  * later reworked (the escalation-leak the Day-06 metrics already track).
  */
-export function deriveOutcome(
-  decision: string | null,
-  laterDefect: boolean,
-): CalibrationRow['outcome'] {
+export function deriveOutcome(decision: string | null, laterDefect: boolean): CalibrationRow['outcome'] {
   if (decision !== null) {
     if (decision === 'APPROVED') {
       return laterDefect ? 'DEFECTED_LATER' : 'APPROVED';

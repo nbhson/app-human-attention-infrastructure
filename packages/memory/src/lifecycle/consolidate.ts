@@ -41,11 +41,7 @@ type MemoryEntryRow = typeof memoryEntries.$inferSelect;
  * aggregate confidence to the chain max, archive the superseded rows, and
  * publish `memory.consolidated` per head.
  */
-export async function consolidateChains(
-  db: DrizzleDB,
-  bus: IEventBus,
-  logger?: Logger,
-): Promise<ConsolidateResult> {
+export async function consolidateChains(db: DrizzleDB, bus: IEventBus, logger?: Logger): Promise<ConsolidateResult> {
   const rows = await db.select().from(memoryEntries).where(eq(memoryEntries.status, 'ACTIVE'));
 
   // A linear append chain (day-17) has at most one superseder per target: the
@@ -98,10 +94,7 @@ export async function consolidateChains(
     // Fold each superseded row's evidence into the head (idempotent via UNIQUE).
     let headFolded = 0;
     for (const row of superseded) {
-      const links = await db
-        .select()
-        .from(memoryEntryEvidence)
-        .where(eq(memoryEntryEvidence.memory_entry_id, row.id));
+      const links = await db.select().from(memoryEntryEvidence).where(eq(memoryEntryEvidence.memory_entry_id, row.id));
       if (links.length > 0) {
         await db
           .insert(memoryEntryEvidence)
@@ -124,18 +117,12 @@ export async function consolidateChains(
     // recurrence bump (day-17), this only protects multi-superseder chains.
     const chainMax = Math.max(headRow.confidence, ...superseded.map((row) => row.confidence));
     if (chainMax !== headRow.confidence) {
-      await db
-        .update(memoryEntries)
-        .set({ confidence: chainMax })
-        .where(eq(memoryEntries.id, headId));
+      await db.update(memoryEntries).set({ confidence: chainMax }).where(eq(memoryEntries.id, headId));
     }
 
     // Archive the superseded versions (soft-delete, retained for audit).
     const archivedIds = superseded.map((row) => row.id);
-    await db
-      .update(memoryEntries)
-      .set({ status: 'ARCHIVED' })
-      .where(inArray(memoryEntries.id, archivedIds));
+    await db.update(memoryEntries).set({ status: 'ARCHIVED' }).where(inArray(memoryEntries.id, archivedIds));
     archived += superseded.length;
 
     bus.publish(

@@ -81,8 +81,8 @@ export function ReviewQueueHeader({
       </div>
 
       <p className="rq-subtitle">
-        Reviews waiting for a human decision, prioritised by risk derived from the AI findings'
-        severity and the change's blast radius.
+        Reviews waiting for a human decision, prioritised by risk derived from the AI findings' severity and the
+        change's blast radius.
       </p>
 
       <div className="rq-metrics">

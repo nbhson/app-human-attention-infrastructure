@@ -1,15 +1,15 @@
 # Week 5 Live Demo — Object Store → Sandbox → Cache, Integrated
 
-*Phase 2 · day-25 checkpoint. A narrated runbook: prove the three Week-5 address
+_Phase 2 · day-25 checkpoint. A narrated runbook: prove the three Week-5 address
 spaces — the content-addressed object store, the isolated sandbox, and the
 context source cache — agree on a single `content_hash`, and read the whole week's
-liveness off the Day-4 registry plus the Day-07 report's new sections.*
+liveness off the Day-4 registry plus the Day-07 report's new sections._
 
 > Week 5 is the "integrated, not yet trusted" week. The deliverable is **not** a
-> cut-over to sandbox-only verification. It is proof the new subsystems *feed
-> each other* (object store → sandbox, cache → second run) while the served
+> cut-over to sandbox-only verification. It is proof the new subsystems _feed
+> each other_ (object store → sandbox, cache → second run) while the served
 > ranking stays keyword (`rankMethod = 'keyword'` in the report) and every fallback
-> is *counted* rather than silent.
+> is _counted_ rather than silent.
 
 ---
 
@@ -23,7 +23,7 @@ pnpm dev                      # API on http://localhost:3000 for §2
 ```
 
 The Week-5 counters exist on the registry at boot, before any traffic runs (that
-is the point — a liveness signal must be *present* at zero, not appear on demand):
+is the point — a liveness signal must be _present_ at zero, not appear on demand):
 
 ```bash
 curl -s http://localhost:3000/metrics | grep -E 'harness_(sandbox|object_store)'
@@ -82,7 +82,7 @@ for the fallback path itself (in-process and sandboxed verdicts agree).
 
 ## 3. The second run hits the cache
 
-The context source cache keys on `source_id + content_hash`; a second, *unchanged*
+The context source cache keys on `source_id + content_hash`; a second, _unchanged_
 run serves from the cache with zero file reads. Re-run the same task and confirm
 the miss → hit transition:
 
@@ -119,11 +119,12 @@ pnpm eval:report --once --from=2026-08-11T00:00:00Z --to=2026-08-18T00:00:00Z
 {
   "window": { "from": "…", "to": "…" },
   "generatedAt": "…",
-  "lines": [ /* routing.precision, routing.recall, routing.escalationLeakage,
-               efficiency.humanMinutesPerAccept, efficiency.inflationRatio */ ],
+  "lines": [
+    /* routing.precision, routing.recall, routing.escalationLeakage,
+               efficiency.humanMinutesPerAccept, efficiency.inflationRatio */
+  ],
   "shadow": { "comparisons": 2, "meanRankCorrelation": 0.6 },
-  "infra":  { "cacheHitRatio": 0.9, "sandboxFallbackRate": 0.0,
-              "sandboxAvgDurationMs": 1200 },
+  "infra": { "cacheHitRatio": 0.9, "sandboxFallbackRate": 0.0, "sandboxAvgDurationMs": 1200 },
   "rankMethod": "keyword"
 }
 ```
@@ -133,14 +134,14 @@ pnpm eval:report --once --from=2026-08-11T00:00:00Z --to=2026-08-18T00:00:00Z
 - `infra.cacheHitRatio` / `infra.sandboxFallbackRate` / `infra.sandboxAvgDurationMs`
   are omitted when their denominator is zero — no false `0` for "no traffic".
 - `infra.objectIntegrityErrors` appears only when non-zero (absence = no drift).
-- `rankMethod = 'keyword'` is the invariant made *visible*: it reduces the served
+- `rankMethod = 'keyword'` is the invariant made _visible_: it reduces the served
   `contexts.rank_method` (`phase1-keyword-dependency`) to the keyword-vs-semantic
   distinction that matters for the shadow-leak check.
 
 > **Honest limit:** the `--once` CLI is a **fresh process**, so its `infra`
-> snapshot reads the counters from *this* process's lifetime — typically zero.
+> snapshot reads the counters from _this_ process's lifetime — typically zero.
 > The live `/metrics` counters (§2) are the real continuous numbers. The
-> structural guarantee of this checkpoint is that the report *renders* all three
+> structural guarantee of this checkpoint is that the report _renders_ all three
 > sections with honest holes; Day 27's end-to-end run wires a long-lived process
 > into that snapshot so the holes fill with real numbers.
 

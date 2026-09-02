@@ -89,10 +89,7 @@ export class OpenAICompatibleEmbedder implements Embedder {
             retryable: response.status === 429 || response.status >= 500,
           };
         } else {
-          const parsed = this.parseResponse(
-            (await response.json()) as EmbeddingsResponseBody,
-            texts.length,
-          );
+          const parsed = this.parseResponse((await response.json()) as EmbeddingsResponseBody, texts.length);
           if (parsed.ok) {
             return parsed;
           }
@@ -150,10 +147,7 @@ export class OpenAICompatibleEmbedder implements Embedder {
     const vectors: number[][] = [];
     for (const item of data) {
       const embedding = item.embedding;
-      if (
-        !Array.isArray(embedding) ||
-        embedding.some((component) => typeof component !== 'number')
-      ) {
+      if (!Array.isArray(embedding) || embedding.some((component) => typeof component !== 'number')) {
         return {
           ok: false,
           error: { kind: 'embed_error', message: 'malformed embedding vector', retryable: false },

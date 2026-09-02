@@ -54,86 +54,80 @@ export function registerAuditRoutes(app: FastifyInstance, container: Container):
   const db = container.resolve<DrizzleDB>(TOKENS.Db);
   const canRead = requireRole(container, Role.Operate, Role.Reviewer, Role.Admin);
 
-  app.get<{ Querystring: AuditQuery }>(
-    '/api/audit',
-    { preHandler: canRead },
-    async (request, reply) => {
-      const limit = clampLimit(request.query.limit);
-      const before = parseBefore(request.query.before);
-      if (before === null) {
-        return reply.code(400).send({ error: 'before must be an ISO-8601 timestamp' });
-      }
-      const kindFilter = request.query.kind;
-      if (kindFilter !== undefined && !KINDS.has(kindFilter)) {
-        return reply.code(400).send({
-          error: `kind must be one of: ${[...KINDS].join(', ')}`,
-        });
-      }
+  app.get<{ Querystring: AuditQuery }>('/api/audit', { preHandler: canRead }, async (request, reply) => {
+    const limit = clampLimit(request.query.limit);
+    const before = parseBefore(request.query.before);
+    if (before === null) {
+      return reply.code(400).send({ error: 'before must be an ISO-8601 timestamp' });
+    }
+    const kindFilter = request.query.kind;
+    if (kindFilter !== undefined && !KINDS.has(kindFilter)) {
+      return reply.code(400).send({
+        error: `kind must be one of: ${[...KINDS].join(', ')}`,
+      });
+    }
 
-      const correlationId = nonEmpty(request.query.correlationId);
-      const eventType = nonEmpty(request.query.eventType);
+    const correlationId = nonEmpty(request.query.correlationId);
+    const eventType = nonEmpty(request.query.eventType);
 
-      const pages: SourcePage[] = [];
-      if (kindFilter === undefined || kindFilter === 'event') {
-        pages.push(
-          await loadEvents(db, {
-            limit,
-            before,
-            ...(eventType !== undefined ? { eventType } : {}),
-            ...(correlationId !== undefined ? { correlationId } : {}),
-          }),
-        );
-      }
-      if (kindFilter === undefined || kindFilter === 'llm') {
-        pages.push(
-          await loadLlm(db, {
-            limit,
-            before,
-            ...(correlationId !== undefined ? { correlationId } : {}),
-          }),
-        );
-      }
-      if (kindFilter === undefined || kindFilter === 'tool') {
-        pages.push(
-          await loadTools(db, {
-            limit,
-            before,
-            ...(correlationId !== undefined ? { correlationId } : {}),
-          }),
-        );
-      }
-      if (kindFilter === undefined || kindFilter === 'run') {
-        pages.push(
-          await loadRuns(db, {
-            limit,
-            before,
-            ...(correlationId !== undefined ? { correlationId } : {}),
-          }),
-        );
-      }
-
-      const entries = mergeEntries(
-        pages.map((page) => page.entries),
-        limit,
+    const pages: SourcePage[] = [];
+    if (kindFilter === undefined || kindFilter === 'event') {
+      pages.push(
+        await loadEvents(db, {
+          limit,
+          before,
+          ...(eventType !== undefined ? { eventType } : {}),
+          ...(correlationId !== undefined ? { correlationId } : {}),
+        }),
       );
+    }
+    if (kindFilter === undefined || kindFilter === 'llm') {
+      pages.push(
+        await loadLlm(db, {
+          limit,
+          before,
+          ...(correlationId !== undefined ? { correlationId } : {}),
+        }),
+      );
+    }
+    if (kindFilter === undefined || kindFilter === 'tool') {
+      pages.push(
+        await loadTools(db, {
+          limit,
+          before,
+          ...(correlationId !== undefined ? { correlationId } : {}),
+        }),
+      );
+    }
+    if (kindFilter === undefined || kindFilter === 'run') {
+      pages.push(
+        await loadRuns(db, {
+          limit,
+          before,
+          ...(correlationId !== undefined ? { correlationId } : {}),
+        }),
+      );
+    }
 
-      // The next cursor is the oldest timestamp among pages that actually filled
-      // their limit — a short page is the tail of that source, so it cannot carry
-      // the cursor forward past the other sources' oldest rows.
-      const fullPages = pages.filter((page) => page.entries.length >= limit);
-      const oldestCursor =
-        fullPages.length === 0
-          ? undefined
-          : fullPages
-              .map((page) => page.oldest as Date)
-              .sort((a, b) => a.getTime() - b.getTime())[0];
+    const entries = mergeEntries(
+      pages.map((page) => page.entries),
+      limit,
+    );
 
-      return {
-        items: entries,
-        nextBefore: oldestCursor?.toISOString() ?? null,
-      };
-    },
-  );
+    // The next cursor is the oldest timestamp among pages that actually filled
+    // their limit — a short page is the tail of that source, so it cannot carry
+    // the cursor forward past the other sources' oldest rows.
+    const fullPages = pages.filter((page) => page.entries.length >= limit);
+    const oldestCursor =
+      fullPages.length === 0
+        ? undefined
+        : fullPages.map((page) => page.oldest as Date).sort((a, b) => a.getTime() - b.getTime())[0];
+
+    return {
+      items: entries,
+      nextBefore: oldestCursor?.toISOString() ?? null,
+    };
+  });
 }
 
 function clampLimit(raw: string | undefined): number {
@@ -189,9 +183,7 @@ async function loadEvents(db: DrizzleDB, filter: SourceFilter): Promise<SourcePa
     .limit(filter.limit);
   return {
     kind: 'event',
-    entries: rows.map((row) =>
-      toEventEntry({ ...row, payload: row.payload as Record<string, unknown> }),
-    ),
+    entries: rows.map((row) => toEventEntry({ ...row, payload: row.payload as Record<string, unknown> })),
     oldest: last(rows)?.occurred_at ?? null,
   };
 }

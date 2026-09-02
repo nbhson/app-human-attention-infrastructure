@@ -55,10 +55,7 @@ function cohensKappa(n11: number, n10: number, n01: number, n00: number, n: numb
 }
 
 /** Compute one dimension's agreement across the pairs. */
-function agreementFor(
-  pairs: readonly JudgeScorePair[],
-  pick: (scores: JudgeScores) => number,
-): AgreementDimension {
+function agreementFor(pairs: readonly JudgeScorePair[], pick: (scores: JudgeScores) => number): AgreementDimension {
   const n = pairs.length;
   let sumAbs = 0;
   let n11 = 0;

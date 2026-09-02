@@ -1,9 +1,7 @@
 {
   "id": "msg_01J00000000000000000000001",
   "container": null,
-  "content": [
-    { "type": "text", "text": "Hello, world.", "citations": null }
-  ],
+  "content": [{ "type": "text", "text": "Hello, world.", "citations": null }],
   "model": "claude-sonnet-4-6",
   "role": "assistant",
   "stop_details": null,

@@ -92,16 +92,11 @@ function counters(): {
 
 describe('RoutingContentStore failure injection (day-26 §3.2)', () => {
   function makeStore(counter: ReturnType<typeof counters>): RoutingContentStore {
-    return new RoutingContentStore(
-      new InMemoryContentStore('db'),
-      new DownObjectStore(),
-      THRESHOLD,
-      {
-        dbFallbackMaxBytes: FALLBACK_MAX,
-        onFallback: counter.onFallback,
-        onError: counter.onError,
-      },
-    );
+    return new RoutingContentStore(new InMemoryContentStore('db'), new DownObjectStore(), THRESHOLD, {
+      dbFallbackMaxBytes: FALLBACK_MAX,
+      onFallback: counter.onFallback,
+      onError: counter.onError,
+    });
   }
 
   it('small content is db-primary and never consults the (down) object store', async () => {
@@ -136,9 +131,9 @@ describe('RoutingContentStore failure injection (day-26 §3.2)', () => {
     const store = makeStore(counter);
 
     const large = Buffer.alloc(10 * 1024 * 1024, 0x65); // 10 MiB — over the band
-    await expect(
-      store.put(large, { contentHash: sha256Hex(large), sizeBytes: large.length }),
-    ).rejects.toBeInstanceOf(ObjectStoreUnavailableError);
+    await expect(store.put(large, { contentHash: sha256Hex(large), sizeBytes: large.length })).rejects.toBeInstanceOf(
+      ObjectStoreUnavailableError,
+    );
 
     expect(counter.error).toBe(1);
     expect(counter.fallback).toBe(0); // no degrade — it must fail closed
@@ -146,21 +141,16 @@ describe('RoutingContentStore failure injection (day-26 §3.2)', () => {
 
   it('does not mask a non-availability error (a plain bug propagates, no degrade)', async () => {
     const counter = counters();
-    const store = new RoutingContentStore(
-      new InMemoryContentStore('db'),
-      new BugObjectStore(),
-      THRESHOLD,
-      {
-        dbFallbackMaxBytes: FALLBACK_MAX,
-        onFallback: counter.onFallback,
-        onError: counter.onError,
-      },
-    );
+    const store = new RoutingContentStore(new InMemoryContentStore('db'), new BugObjectStore(), THRESHOLD, {
+      dbFallbackMaxBytes: FALLBACK_MAX,
+      onFallback: counter.onFallback,
+      onError: counter.onError,
+    });
 
     const content = Buffer.alloc(2 * 1024 * 1024, 0x62);
-    await expect(
-      store.put(content, { contentHash: sha256Hex(content), sizeBytes: content.length }),
-    ).rejects.toThrow(/unexpected bug/);
+    await expect(store.put(content, { contentHash: sha256Hex(content), sizeBytes: content.length })).rejects.toThrow(
+      /unexpected bug/,
+    );
 
     expect(counter.fallback).toBe(0);
     expect(counter.error).toBe(0);

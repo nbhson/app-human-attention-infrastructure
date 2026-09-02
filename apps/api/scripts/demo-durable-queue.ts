@@ -59,9 +59,7 @@ async function main(): Promise<void> {
     batchSize: 2,
     consumerName: 'worker-1',
   });
-  worker1.subscribe(EventType.TaskCreated, (e) =>
-    worker1Seen.push((e.payload as TaskCreatedPayload).name),
-  );
+  worker1.subscribe(EventType.TaskCreated, (e) => worker1Seen.push((e.payload as TaskCreatedPayload).name));
   await worker1.flush(); // one readGroup(2) — delivers 2, then
   worker1.stop(); // "crash": entries c/d/e stay undelivered in the stream
   console.log(`  2. worker-1 drained a partial batch of ${worker1Seen.length}, then crashed`);
@@ -76,9 +74,7 @@ async function main(): Promise<void> {
     batchSize: 2,
     consumerName: 'worker-2',
   });
-  worker2.subscribe(EventType.TaskCreated, (e) =>
-    worker2Seen.push((e.payload as TaskCreatedPayload).name),
-  );
+  worker2.subscribe(EventType.TaskCreated, (e) => worker2Seen.push((e.payload as TaskCreatedPayload).name));
   await worker2.drain();
   console.log(`  3. worker-2 (restart) drained the remaining ${worker2Seen.length} events`);
   console.log(`     delivered after restart: ${worker2Seen.join(', ')}`);
@@ -108,14 +104,10 @@ async function main(): Promise<void> {
   console.log(`  4. redelivery: ${rawCalls.length} deliveries, ${deduped.size} processed`);
   assert(rawCalls.length === 2, 'an unacked entry is redelivered (at-least-once)');
   assert(deduped.size === 1, 'an idempotent consumer (keyed on event_id) dedupes');
-  console.log(
-    '     → at-least-once + idempotent consumers dedupe (the safe durable combination). ✅',
-  );
+  console.log('     → at-least-once + idempotent consumers dedupe (the safe durable combination). ✅');
   console.log();
 
-  console.log(
-    'day-34: the durable queue is an optional transport swap — the contract never moves. ✅',
-  );
+  console.log('day-34: the durable queue is an optional transport swap — the contract never moves. ✅');
 }
 
 main().catch((error) => {

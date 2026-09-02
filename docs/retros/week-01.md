@@ -1,7 +1,7 @@
 # Week 1 Retro — Foundation
 
-*Day 07 checkpoint. This is a private working document: honest by design, not a
-rubber stamp.*
+_Day 07 checkpoint. This is a private working document: honest by design, not a
+rubber stamp._
 
 ## What is solid
 
@@ -49,7 +49,7 @@ rubber stamp.*
 ## Decisions that need revisiting before Phase 2
 
 - **Move `EventLogWriter` off fire-and-forget.** Either a dedicated write queue or
-  a synchronous `write` on the hot path (profiled first). Decided *not* to change
+  a synchronous `write` on the hot path (profiled first). Decided _not_ to change
   now — see checkpoint rule — but this is the highest-priority architectural debt
   carried into Week 2.
 - **Where do read models live?** The `TaskRecord`/`TaskStateHistoryEntry` mappers
@@ -66,7 +66,7 @@ rubber stamp.*
 
 ## Watch items for Week 2
 
-- **Day 08 coroutine/dispatch loop** will be the first *author* of `TaskService`
+- **Day 08 coroutine/dispatch loop** will be the first _author_ of `TaskService`
   transitions at volume. Watch for transition ordering bugs (`StateConflictError`
   storms when two workers pull the same `QUEUED` task) — optimistic locking is
   correct but will need retry/backoff around it.
@@ -82,16 +82,16 @@ rubber stamp.*
 
 ---
 
-*Checkpoint rule applied: the smoke test, lint, typecheck, build, and full test
-suite are all green before this note is committed (see `apps/api` on Day 07).*
+_Checkpoint rule applied: the smoke test, lint, typecheck, build, and full test
+suite are all green before this note is committed (see `apps/api` on Day 07)._
 ---
 
 # Phase 2 · Week 1 Retro — Identity & Observability
 
-*Day-05 checkpoint (Phase 2). Separate pass over the identity + observability
+_Day-05 checkpoint (Phase 2). Separate pass over the identity + observability
 stack built across Phase-2 days 01–04. Same rule as the Phase-1 retro: honest by
 design, numbers-first, blameless — and every acceptance criterion is green
-before this note is committed.*
+before this note is committed._
 
 ## What is solid
 
@@ -105,7 +105,7 @@ before this note is committed.*
   doc-comments mention it, and those were reworded so the literal-token criterion
   is genuinely zero — no test needed masking).
 - **The 403 is evidence, not silence.** `requireRole` publishes
-  `authz.decision_denied`; `EventLogWriter` subscribes to *every* event type and
+  `authz.decision_denied`; `EventLogWriter` subscribes to _every_ event type and
   persists it to `event_log`. A denied reviewer attempt is queryable, which is
   exactly what an audit trail should do.
 - **The mock OIDC provider keeps the real exchange.** `getAuthorizationUrl` →
@@ -118,7 +118,7 @@ before this note is committed.*
 ## What is fragile
 
 - **`correlation_id = "bootstrap"` is the silent default for any span that
-  escapes the async-local context** (`context.ts:46`). The tracer *test* pins the
+  escapes the async-local context** (`context.ts:46`). The tracer _test_ pins the
   default, but nothing at runtime warns you that a span landed on it. Every such
   span pollutes Week-2 latency joins and reads as "one shared task" in a
   `WHERE correlation_id = 'bootstrap'` query. This checkpoint's demo is the last
@@ -133,7 +133,7 @@ before this note is committed.*
   is a required `boolean`, so an order-happy client always sends true/false; the
   `undefined → unknown` folding in `recordUsefulness` protects against callers
   that omit it, but today the unknown bucket is effectively empty. Before Day 11
-  builds the calibration dataset the shape to re-verify is *which event* fires it
+  builds the calibration dataset the shape to re-verify is _which event_ fires it
   and whether `null`-handling is off — a latent calibration bug is cheapest to
   kill now (plan §6).
 - **Two metric surfaces coexist.** The Phase-1 `/api/ops/metrics` JSON and the new
@@ -154,12 +154,12 @@ before this note is committed.*
   keep them registered (they're the alphabet for evaluation) but don't wire
   dashboards/alerts until the emitter sets real samples.
 - **The `bootstrap`-correlation watchdog is unfunded** — a cheap step is a log (or
-  span tag) when a *non-root* decision-path span resolves to `bootstrap`, rather
+  span tag) when a _non-root_ decision-path span resolves to `bootstrap`, rather
   than assuming the async-local store is always set.
 
 ---
 
-*Checkpoint rule applied: lint, typecheck, all 384 unit/integration tests, and the
+_Checkpoint rule applied: lint, typecheck, all 384 unit/integration tests, and the
 E2E happy-path + 8 failure scenarios are green before this note is committed.
 R7/R8 and the no-engine-imports-engine rule are asserted by
-`packages/di/src/__tests__/architecture.test.ts`.*
+`packages/di/src/__tests__/architecture.test.ts`._

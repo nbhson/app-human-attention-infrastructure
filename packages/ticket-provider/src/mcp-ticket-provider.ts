@@ -89,18 +89,12 @@ function extractAvailableStatuses(result: ToolResult): string[] {
 }
 
 /** Raise a {@link TicketProviderError} from a failed write result, listing statuses where present. */
-function failWrite(
-  action: 'comment' | 'transition',
-  targetState: string | undefined,
-  result: ToolResult,
-): never {
+function failWrite(action: 'comment' | 'transition', targetState: string | undefined, result: ToolResult): never {
   const detail = contentText(result);
   const available = action === 'transition' ? extractAvailableStatuses(result) : [];
   const target = action === 'transition' && targetState !== undefined ? ` to "${targetState}"` : '';
   const statuses = available.length > 0 ? ` (available statuses: ${available.join(', ')})` : '';
-  throw new TicketProviderError(
-    `jira ${action}${target} failed${detail ? `: ${detail}` : ''}${statuses}`,
-  );
+  throw new TicketProviderError(`jira ${action}${target} failed${detail ? `: ${detail}` : ''}${statuses}`);
 }
 
 export class MCPTicketProvider implements TicketProvider {

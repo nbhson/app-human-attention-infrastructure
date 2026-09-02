@@ -330,6 +330,13 @@
       "when": 1787853612682,
       "tag": "0046_calm_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1788000000000,
+      "tag": "0047_llm_call_log_error",
+      "breakpoints": true
     }
   ]
 }

@@ -116,13 +116,9 @@ export class MetricsComputer {
  * is omitted when no comparison produced a tau (fewer than 2 shared items).
  */
 function computeShadow(rows: readonly ShadowRow[]): ShadowMetrics {
-  const correlations = rows
-    .filter((row) => row.rankCorrelation !== null)
-    .map((row) => row.rankCorrelation as number);
+  const correlations = rows.filter((row) => row.rankCorrelation !== null).map((row) => row.rankCorrelation as number);
   const mean =
-    correlations.length > 0
-      ? correlations.reduce((sum, value) => sum + value, 0) / correlations.length
-      : undefined;
+    correlations.length > 0 ? correlations.reduce((sum, value) => sum + value, 0) / correlations.length : undefined;
   return {
     comparisons: rows.length,
     ...(mean !== undefined ? { meanRankCorrelation: mean } : {}),
@@ -139,12 +135,8 @@ function computeInfra(counters: InfraCounters | undefined): InfraMetrics {
   return {
     ...(cacheTotal > 0 ? { cacheHitRatio: counters.cacheHits / cacheTotal } : {}),
     ...(sandboxTotal > 0 ? { sandboxFallbackRate: counters.sandboxFallbacks / sandboxTotal } : {}),
-    ...(counters.sandboxRuns > 0
-      ? { sandboxAvgDurationMs: counters.sandboxDurationMs / counters.sandboxRuns }
-      : {}),
-    ...(counters.objectIntegrityErrors > 0
-      ? { objectIntegrityErrors: counters.objectIntegrityErrors }
-      : {}),
+    ...(counters.sandboxRuns > 0 ? { sandboxAvgDurationMs: counters.sandboxDurationMs / counters.sandboxRuns } : {}),
+    ...(counters.objectIntegrityErrors > 0 ? { objectIntegrityErrors: counters.objectIntegrityErrors } : {}),
   };
 }
 

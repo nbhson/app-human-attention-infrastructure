@@ -1,11 +1,6 @@
 import { index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
-import {
-  aiProviderCheck,
-  findingKindCheck,
-  reviewSeverityCheck,
-  reviewVerdictCheck,
-} from './enums.js';
+import { aiProviderCheck, findingKindCheck, reviewSeverityCheck, reviewVerdictCheck } from './enums.js';
 import { tasks } from './tasks.js';
 
 /**
@@ -68,9 +63,5 @@ export const reviewFindings = pgTable(
     order_index: integer('order_index').notNull().default(0),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    reviewSeverityCheck,
-    findingKindCheck,
-    index('review_findings_report_id_idx').on(table.report_id),
-  ],
+  (table) => [reviewSeverityCheck, findingKindCheck, index('review_findings_report_id_idx').on(table.report_id)],
 );

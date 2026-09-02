@@ -16,9 +16,7 @@ export function Skeleton({
   readonly height?: string | number;
   readonly style?: CSSProperties;
 }): JSX.Element {
-  return (
-    <div className="skeleton" style={{ width: width ?? '100%', height: height ?? 12, ...style }} />
-  );
+  return <div className="skeleton" style={{ width: width ?? '100%', height: height ?? 12, ...style }} />;
 }
 
 /** A text line (a `Skeleton` with text-y proportions). */

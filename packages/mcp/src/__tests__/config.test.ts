@@ -52,9 +52,7 @@ describe('parseMcpConfig', () => {
   });
 
   it('rejects an unknown transport', () => {
-    expect(() =>
-      parseMcpConfig(JSON.stringify({ servers: { x: { transport: 'ftp' } } }), {}),
-    ).toThrow(McpConfigError);
+    expect(() => parseMcpConfig(JSON.stringify({ servers: { x: { transport: 'ftp' } } }), {})).toThrow(McpConfigError);
   });
 
   it('rejects a declared tokenEnv whose env var is unset', () => {
@@ -73,12 +71,8 @@ describe('parseMcpConfig', () => {
   });
 
   it('requires command for stdio and url for sse', () => {
-    expect(() =>
-      parseMcpConfig(JSON.stringify({ servers: { x: { transport: 'stdio' } } }), {}),
-    ).toThrow(/command/);
-    expect(() =>
-      parseMcpConfig(JSON.stringify({ servers: { x: { transport: 'sse' } } }), {}),
-    ).toThrow(/url/);
+    expect(() => parseMcpConfig(JSON.stringify({ servers: { x: { transport: 'stdio' } } }), {})).toThrow(/command/);
+    expect(() => parseMcpConfig(JSON.stringify({ servers: { x: { transport: 'sse' } } }), {})).toThrow(/url/);
   });
 });
 

@@ -55,10 +55,7 @@ function buildRegistry(live: boolean): McpServerRegistry {
   }
   const stdio = { transport: 'stdio', command: process.execPath, args: [FORGE_STUB] };
   return new McpServerRegistryImpl(
-    parseMcpConfig(
-      JSON.stringify({ servers: { github: stdio, gitlab: stdio, bitbucket: stdio, jira: stdio } }),
-      {},
-    ),
+    parseMcpConfig(JSON.stringify({ servers: { github: stdio, gitlab: stdio, bitbucket: stdio, jira: stdio } }), {}),
   );
 }
 
@@ -68,9 +65,7 @@ function printPr(pr: PullRequest): void {
   console.log(`  title:   "${pr.title}"`);
   console.log(`  files:   ${pr.files.length}`);
   if (first) {
-    console.log(
-      `  first:   ${first.path} (${first.status}, +${first.additions} -${first.deletions})`,
-    );
+    console.log(`  first:   ${first.path} (${first.status}, +${first.additions} -${first.deletions})`);
   }
   console.log();
 }
@@ -89,12 +84,8 @@ async function main(): Promise<void> {
   const jiraBaseUrl = process.env.JIRA_BASE_URL ?? 'https://acme.atlassian.net';
 
   console.log();
-  console.log(
-    `demo:mcp-connectivity — mode=${live ? 'live (mcp.config.json)' : 'stubbed (forge-server.mjs)'}`,
-  );
-  console.log(
-    'one @harness/mcp client + one mcp.config.json fronts GitHub, GitLab, Bitbucket, and Jira',
-  );
+  console.log(`demo:mcp-connectivity — mode=${live ? 'live (mcp.config.json)' : 'stubbed (forge-server.mjs)'}`);
+  console.log('one @harness/mcp client + one mcp.config.json fronts GitHub, GitLab, Bitbucket, and Jira');
   console.log('— no per-host REST SDK.');
   console.log();
 
@@ -106,10 +97,7 @@ async function main(): Promise<void> {
     }
 
     console.log('=== Jira ===');
-    const { issue } = await resolveReviewInput(
-      { prUrl: FORGE_URLS[0]!, jiraKey: JIRA_KEY },
-      { registry, jiraBaseUrl },
-    );
+    const { issue } = await resolveReviewInput({ prUrl: FORGE_URLS[0]!, jiraKey: JIRA_KEY }, { registry, jiraBaseUrl });
     if (issue === undefined) {
       throw new Error('expected a Jira issue to be resolved');
     }

@@ -35,10 +35,7 @@ export interface TicketToolMapEntry {
   /** Translate an issue key + comment body into that system's comment arguments. */
   readonly buildCommentArgs: (input: { key: string; body: string }) => Record<string, unknown>;
   /** Translate an issue key + target status into that system's transition arguments. */
-  readonly buildTransitionArgs: (input: {
-    key: string;
-    targetState: string;
-  }) => Record<string, unknown>;
+  readonly buildTransitionArgs: (input: { key: string; targetState: string }) => Record<string, unknown>;
 }
 
 /**
@@ -53,15 +50,9 @@ export interface TicketToolMap {
   /** The get-issue argument object for a system (throws if the system has no entry). */
   buildArgs(system: TicketSystem, input: { key: string }): Record<string, unknown>;
   /** The comment argument object for a system (throws if the system has no entry). */
-  buildCommentArgs(
-    system: TicketSystem,
-    input: { key: string; body: string },
-  ): Record<string, unknown>;
+  buildCommentArgs(system: TicketSystem, input: { key: string; body: string }): Record<string, unknown>;
   /** The transition argument object for a system (throws if the system has no entry). */
-  buildTransitionArgs(
-    system: TicketSystem,
-    input: { key: string; targetState: string },
-  ): Record<string, unknown>;
+  buildTransitionArgs(system: TicketSystem, input: { key: string; targetState: string }): Record<string, unknown>;
 }
 
 /** The built-in row for the single public ticket system. */
@@ -103,17 +94,11 @@ export class StaticTicketToolMap implements TicketToolMap {
     return this.require(system).buildArgs(input);
   }
 
-  buildCommentArgs(
-    system: TicketSystem,
-    input: { key: string; body: string },
-  ): Record<string, unknown> {
+  buildCommentArgs(system: TicketSystem, input: { key: string; body: string }): Record<string, unknown> {
     return this.require(system).buildCommentArgs(input);
   }
 
-  buildTransitionArgs(
-    system: TicketSystem,
-    input: { key: string; targetState: string },
-  ): Record<string, unknown> {
+  buildTransitionArgs(system: TicketSystem, input: { key: string; targetState: string }): Record<string, unknown> {
     return this.require(system).buildTransitionArgs(input);
   }
 

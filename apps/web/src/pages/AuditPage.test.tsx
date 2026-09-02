@@ -26,12 +26,7 @@ function renderAudit(): void {
   );
 }
 
-function entry(
-  id: string,
-  kind: AuditEntry['kind'],
-  occurredAt: string,
-  title: string,
-): AuditEntry {
+function entry(id: string, kind: AuditEntry['kind'], occurredAt: string, title: string): AuditEntry {
   return {
     id,
     kind,
@@ -83,9 +78,7 @@ describe('AuditPage', () => {
 
   it('filters by kind via the tabs', async () => {
     mocked.list
-      .mockResolvedValueOnce(
-        page([entry('e1', 'event', '2026-08-25T10:00:00.000Z', 'task.created')]),
-      )
+      .mockResolvedValueOnce(page([entry('e1', 'event', '2026-08-25T10:00:00.000Z', 'task.created')]))
       .mockResolvedValueOnce(page([entry('l1', 'llm', '2026-08-25T10:00:01.000Z', 'model-x')]));
 
     renderAudit();

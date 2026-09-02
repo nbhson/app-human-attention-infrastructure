@@ -53,9 +53,7 @@ describe('buildDiff', () => {
   });
 
   it('redacts secret values from .env patches before they reach the diff', () => {
-    const files = [
-      file('.env', '--- a/.env\n+++ b/.env\n@@ -1 +1 @@\n+API_KEY=sk-live-abc\n+PORT=3000\n'),
-    ];
+    const files = [file('.env', '--- a/.env\n+++ b/.env\n@@ -1 +1 @@\n+API_KEY=sk-live-abc\n+PORT=3000\n')];
 
     const diff = buildDiff(files);
 

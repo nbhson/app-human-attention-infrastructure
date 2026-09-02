@@ -33,8 +33,7 @@ function nonNegativeInt(value: unknown): number {
 
 /** Flatten a stored pull-request payload into its per-file diff rows. */
 export function normalizePrFiles(prPayload: unknown): PrFile[] {
-  const payload =
-    typeof prPayload === 'object' && prPayload !== null ? (prPayload as { files?: unknown }) : {};
+  const payload = typeof prPayload === 'object' && prPayload !== null ? (prPayload as { files?: unknown }) : {};
   if (!Array.isArray(payload.files)) {
     return [];
   }

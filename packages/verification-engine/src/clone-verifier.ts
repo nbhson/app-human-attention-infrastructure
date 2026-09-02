@@ -94,9 +94,7 @@ function skippedCheck(kind: CheckKind, note: string): CheckResult {
 
 /** PASSED iff every check is PASSED or FLAKY (mirrors the engine's `buildReport`). */
 function overallOf(checks: CheckResult[]): OverallVerdict {
-  return checks.every(
-    (check) => check.status === CheckStatus.PASSED || check.status === CheckStatus.FLAKY,
-  )
+  return checks.every((check) => check.status === CheckStatus.PASSED || check.status === CheckStatus.FLAKY)
     ? 'PASSED'
     : 'FAILED';
 }
@@ -110,8 +108,6 @@ function overallOf(checks: CheckResult[]): OverallVerdict {
  */
 function failedKinds(checks: CheckResult[]): CheckKind[] {
   return checks
-    .filter(
-      (check) => check.status === CheckStatus.FAILED || check.status === CheckStatus.TIMED_OUT,
-    )
+    .filter((check) => check.status === CheckStatus.FAILED || check.status === CheckStatus.TIMED_OUT)
     .map((check) => check.checkKind);
 }

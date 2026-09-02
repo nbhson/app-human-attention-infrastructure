@@ -35,14 +35,10 @@ export class CacheInvalidationListener {
 
   subscribe(bus: IEventBus): void {
     bus.subscribe<ArtifactCreatedPayload>(EventType.ArtifactCreated, (event) => {
-      void this.onCreated(event.payload).catch((error) =>
-        this.fail('artifact.created', error, event.correlation_id),
-      );
+      void this.onCreated(event.payload).catch((error) => this.fail('artifact.created', error, event.correlation_id));
     });
     bus.subscribe<ArtifactChangedPayload>(EventType.ArtifactChanged, (event) => {
-      void this.onChanged(event.payload).catch((error) =>
-        this.fail('artifact.changed', error, event.correlation_id),
-      );
+      void this.onChanged(event.payload).catch((error) => this.fail('artifact.changed', error, event.correlation_id));
     });
   }
 

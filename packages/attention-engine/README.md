@@ -56,23 +56,23 @@ proposes new weights.
 
 - **`PRIORITY_WEIGHTS`** (placeholder, sum = 1.0): `risk .35`, `impact .25`,
   `novelty .15`, `complexity .10`, `confidence .15`.
-- **The confidence inversion** is intentional and load-bearing: *low* agent
+- **The confidence inversion** is intentional and load-bearing: _low_ agent
   confidence **raises** priority — the exact inverse of the v0.1 spec bug.
 - Unavailable factors hold a neutral `0.5` placeholder; their weight is
   redistributed across the rest (`factorsUnavailable` records which).
 
 ## Routing & auto-approve
 
-| Component | What it does |
-| --- | --- |
-| `thresholds/threshold-store.ts` | Persisted routing thresholds. |
-| `thresholds/adaptive-threshold.ts` | Adapt thresholds from observed error rate. |
-| `thresholds/daily-budget.ts` | Daily automatic-approval budget guard. |
-| `thresholds/inflation-monitor.ts` | Detects automatic-approval "inflation". |
-| `auto-approve/gate.ts` | Decides whether a change may auto-approve. |
-| `auto-approve/kill-switch.ts` | Global kill-switch — forces everything back to review. |
-| `auto-approve/sampler.ts` | Routes a sampled fraction to review for audit. |
-| `auto-approve/executor.ts` | Applies the approval (records `AUTO_APPROVED`). |
+| Component                          | What it does                                           |
+| ---------------------------------- | ------------------------------------------------------ |
+| `thresholds/threshold-store.ts`    | Persisted routing thresholds.                          |
+| `thresholds/adaptive-threshold.ts` | Adapt thresholds from observed error rate.             |
+| `thresholds/daily-budget.ts`       | Daily automatic-approval budget guard.                 |
+| `thresholds/inflation-monitor.ts`  | Detects automatic-approval "inflation".                |
+| `auto-approve/gate.ts`             | Decides whether a change may auto-approve.             |
+| `auto-approve/kill-switch.ts`      | Global kill-switch — forces everything back to review. |
+| `auto-approve/sampler.ts`          | Routes a sampled fraction to review for audit.         |
+| `auto-approve/executor.ts`         | Applies the approval (records `AUTO_APPROVED`).        |
 
 **Kill-switch > automation:** the switch turns all auto-approve into review
 instantly, whatever the scores say. The sampler keeps auto-approve honest by
@@ -85,45 +85,45 @@ auditing a fraction. An auto-approved-then-human-rejected change emits
 token**, and is not eagerly started — a server entrypoint (or `demo:closed-loop`)
 drives `runCycle()` on a cadence.
 
-| Component | What it does |
-| --- | --- |
-| `learning/collector.ts` | read new `was_useful` + judge + factor facts from the DB. |
-| `learning/calibration-job.ts` | fit a candidate through an injected `FitSeam`. |
-| `learning/promotion-gate.ts` | `decidePromotion` — the measured PROMOTE/HOLD guardrail. |
-| `learning/learning-loop.ts` | four-stage `evaluate → calibrate → deploy → observe` cycle. |
-| `learning/cycle-audit.ts` | per-stage + per-cycle audit under one `cycle_id`. |
-| `learning/types.ts` | `ReviewFact`, `LearningSample`, `LearningCandidate`, `PromotionDecision`. |
+| Component                     | What it does                                                              |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `learning/collector.ts`       | read new `was_useful` + judge + factor facts from the DB.                 |
+| `learning/calibration-job.ts` | fit a candidate through an injected `FitSeam`.                            |
+| `learning/promotion-gate.ts`  | `decidePromotion` — the measured PROMOTE/HOLD guardrail.                  |
+| `learning/learning-loop.ts`   | four-stage `evaluate → calibrate → deploy → observe` cycle.               |
+| `learning/cycle-audit.ts`     | per-stage + per-cycle audit under one `cycle_id`.                         |
+| `learning/types.ts`           | `ReviewFact`, `LearningSample`, `LearningCandidate`, `PromotionDecision`. |
 
 The gate is the invariant made executable: a candidate **PROMOTES** only by winning
 its held-out ranking comparison against the incumbent; a **HOLD** (no measured
 improvement, or the judge-disagreement column dominates the fit — overfit alarm)
 parks the candidate at Deploy (`deploy = held`) and the cycle still completes. The
 hot-path `WeightsProvider` (`StaticWeightsAdapter`) keeps returning the placeholder
-until a promotion is *explicitly adopted* — the loop proposes, it never applies.
+until a promotion is _explicitly adopted_ — the loop proposes, it never applies.
 
 ## Core data shapes
 
-| Type | What it is |
-| --- | --- |
-| `AttentionWeights` | Five non-negative weights summing to 1.0. |
-| `FactorScores` | `risk / impact / novelty / complexity / confidenceScore`, each `[0, 1]`. |
+| Type                  | What it is                                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `AttentionWeights`    | Five non-negative weights summing to 1.0.                                                                                     |
+| `FactorScores`        | `risk / impact / novelty / complexity / confidenceScore`, each `[0, 1]`.                                                      |
 | `AttentionAssessment` | Persisted assessment: `id`, `taskId`, `changeId`, `artifactId`, `factors`, `factorsUnavailable`, `combinedPriority`, `label`. |
-| `PriorityLabel` | `LOW` / `MEDIUM` / `HIGH` / `CRITICAL`. |
+| `PriorityLabel`       | `LOW` / `MEDIUM` / `HIGH` / `CRITICAL`.                                                                                       |
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `types.ts` | `AttentionWeights`, `FactorScores`, `AttentionAssessment`, `PriorityLabel`, `PRIORITY_WEIGHTS`, `FACTOR_KEYS`. |
-| `factors.ts` | Factor collection. |
-| `scoring.ts` | Weighted combination (confidence-inverted). |
-| `policy.ts` | Routing + threshold policy. |
-| `router.ts` | Route a scored change. |
-| `weights/weights-provider.ts` | Weight source (defaults; the learning loop proposes, the operator adopts). |
-| `thresholds/*` | threshold store, adaptive threshold, daily budget, inflation monitor. |
-| `auto-approve/*` | gate, kill-switch, sampler, executor. |
-| `learning/*` | collector, calibration job, promotion gate, learning loop, cycle audit. |
-| `attention-subscriber.ts` | Consumes pipeline events to trigger assessments. |
+| Module                        | What it provides                                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                    | `AttentionWeights`, `FactorScores`, `AttentionAssessment`, `PriorityLabel`, `PRIORITY_WEIGHTS`, `FACTOR_KEYS`. |
+| `factors.ts`                  | Factor collection.                                                                                             |
+| `scoring.ts`                  | Weighted combination (confidence-inverted).                                                                    |
+| `policy.ts`                   | Routing + threshold policy.                                                                                    |
+| `router.ts`                   | Route a scored change.                                                                                         |
+| `weights/weights-provider.ts` | Weight source (defaults; the learning loop proposes, the operator adopts).                                     |
+| `thresholds/*`                | threshold store, adaptive threshold, daily budget, inflation monitor.                                          |
+| `auto-approve/*`              | gate, kill-switch, sampler, executor.                                                                          |
+| `learning/*`                  | collector, calibration job, promotion gate, learning loop, cycle audit.                                        |
+| `attention-subscriber.ts`     | Consumes pipeline events to trigger assessments.                                                               |
 
 ## Interaction with other packages
 
@@ -144,7 +144,7 @@ is itself a `TaskTrigger` actor (`attention.item_routed` → approval via the ex
 ## Key invariants
 
 - **Evidence before confidence.** A high auto-approve threshold without calibration
-  evidence is treated as *less* trustworthy; thresholds adapt from measured outcomes.
+  evidence is treated as _less_ trustworthy; thresholds adapt from measured outcomes.
 - **Convex weights.** Any weight vector must be a convex combination (≥ 0, sums to 1.0).
 - **Kill-switch & sampler always win** over automation.
 - **Automation proposes, never applies.** A weight vector reaches the hot path only

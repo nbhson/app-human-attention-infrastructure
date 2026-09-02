@@ -75,11 +75,7 @@ function makeFit(candidate: LearningCandidate): FitSeam {
 }
 
 /** A loop whose job clock is pinned to `T2` and whose cycle ids are stable. */
-function makeLoop(
-  candidate: LearningCandidate,
-  bus: IEventBus,
-  facts: readonly ReviewFact[] = [],
-): LearningLoop {
+function makeLoop(candidate: LearningCandidate, bus: IEventBus, facts: readonly ReviewFact[] = []): LearningLoop {
   let n = 0;
   const job = new CalibrationJob(
     makeCollect(facts),
@@ -100,28 +96,16 @@ function makeLoop(
 describe('LearningLoop (day-33 §3.1–§3.4)', () => {
   it('advances stage-by-stage in order, under a single correlation id', async () => {
     const bus = new RecordingBus();
-    const loop = makeLoop(makeCandidate({ improvement: true }), bus, [
-      makeFact('a', T0),
-      makeFact('b', T1),
-    ]);
+    const loop = makeLoop(makeCandidate({ improvement: true }), bus, [makeFact('a', T0), makeFact('b', T1)]);
 
     const record = await loop.runCycle(null);
 
-    expect(record.stages.map((s) => s.stage)).toEqual([
-      'evaluate',
-      'calibrate',
-      'deploy',
-      'observe',
-    ]);
+    expect(record.stages.map((s) => s.stage)).toEqual(['evaluate', 'calibrate', 'deploy', 'observe']);
     expect(record.outcome).toBe('completed');
     expect(record.promoted).toBe(true);
 
-    const stageEvents = bus.published.filter(
-      (e) => e.event_type === EventType.LearningStageCompleted,
-    );
-    const completeEvent = bus.published.find(
-      (e) => e.event_type === EventType.LearningLoopCompleted,
-    );
+    const stageEvents = bus.published.filter((e) => e.event_type === EventType.LearningStageCompleted);
+    const completeEvent = bus.published.find((e) => e.event_type === EventType.LearningLoopCompleted);
     expect(stageEvents.map((e) => (e.payload as { stage: string }).stage)).toEqual([
       'evaluate',
       'calibrate',
@@ -154,10 +138,7 @@ describe('LearningLoop (day-33 §3.1–§3.4)', () => {
 
   it('Observe re-enters Evaluate: the second cycle feeds from the first cursor', async () => {
     const bus = new RecordingBus();
-    const loop = makeLoop(makeCandidate({ improvement: true }), bus, [
-      makeFact('a', T0),
-      makeFact('b', T1),
-    ]);
+    const loop = makeLoop(makeCandidate({ improvement: true }), bus, [makeFact('a', T0), makeFact('b', T1)]);
 
     const first = await loop.runCycle(null);
     expect(first.sampleCount).toBe(2);

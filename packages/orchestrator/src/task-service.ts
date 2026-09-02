@@ -11,13 +11,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 
 import { brand, EventType, newTaskID, TaskStatus, uuidv7 } from '@harness/domain';
-import type {
-  EventID,
-  TaskID,
-  TaskStatus as TaskState,
-  TaskStateChangedPayload,
-  TaskTrigger,
-} from '@harness/domain';
+import type { EventID, TaskID, TaskStatus as TaskState, TaskStateChangedPayload, TaskTrigger } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { tasks, taskStateHistory } from '@harness/db';
@@ -187,9 +181,7 @@ export class TaskService {
       triggered_by: triggeredBy,
       attempt_number: nextAttempt,
     };
-    this.bus.publish(
-      createEvent(EventType.TaskStateChanged, brand(taskId, 'CorrelationID'), payload),
-    );
+    this.bus.publish(createEvent(EventType.TaskStateChanged, brand(taskId, 'CorrelationID'), payload));
 
     return toRecord(row);
   }

@@ -39,8 +39,7 @@ export interface JudgeFitReport {
 /** Assemble the before/after monitor from a judge-signal fit. */
 export function buildJudgeFitReport(result: JudgeFitResult, config: FitConfig): JudgeFitReport {
   const judgeSignalDominates = result.judgeSignalDominates;
-  const verdict: JudgeFitReport['verdict'] =
-    result.improvement && !judgeSignalDominates ? 'uplift' : 'hold';
+  const verdict: JudgeFitReport['verdict'] = result.improvement && !judgeSignalDominates ? 'uplift' : 'hold';
 
   let governanceNote: string;
   if (verdict === 'uplift') {
@@ -52,8 +51,7 @@ export function buildJudgeFitReport(result: JudgeFitResult, config: FitConfig): 
       'judge-signal refit lets judge disagreement dominate a single factor — overfit risk on small ' +
       'N; held pending more review labels';
   } else {
-    governanceNote =
-      'judge-signal refit did not beat the incumbent on held-out validation; the incumbent stays active';
+    governanceNote = 'judge-signal refit did not beat the incumbent on held-out validation; the incumbent stays active';
   }
 
   return {

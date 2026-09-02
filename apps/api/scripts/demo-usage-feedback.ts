@@ -68,18 +68,11 @@ async function main(): Promise<void> {
   );
   const halfLife = DEFAULT_USAGE_LEARN_CONFIG.halfLifeMs;
   const stale = learner.learn([mark('old.ts', true, NOW - halfLife)]);
-  assert(
-    Math.abs(stale.get('old.ts')! - (0.5 + maxSingle / 2)) < 1e-9,
-    'a half-life-old mark halves',
-  );
+  assert(Math.abs(stale.get('old.ts')! - (0.5 + maxSingle / 2)) < 1e-9, 'a half-life-old mark halves');
   console.log('  2. per-mark cap and time decay keep it a signal, never a certainty:');
-  console.log(
-    `     maxSingleMark = ${maxSingle}   maxSignal = ${DEFAULT_USAGE_LEARN_CONFIG.maxSignal}`,
-  );
+  console.log(`     maxSingleMark = ${maxSingle}   maxSignal = ${DEFAULT_USAGE_LEARN_CONFIG.maxSignal}`);
   console.log(`     50 useful marks → ${round(saturated.get('spam.ts')!)}  (capped, not 10.5)`);
-  console.log(
-    `     mark aged 1 half-life → ${round(stale.get('old.ts')!)}  (0.5 + ${maxSingle}/2)`,
-  );
+  console.log(`     mark aged 1 half-life → ${round(stale.get('old.ts')!)}  (0.5 + ${maxSingle}/2)`);
   console.log();
 
   // --- 3. Learned signal drives the re-rank, superseding raw popularity --------

@@ -146,28 +146,14 @@ export function ReviewQueueFilters(props: ReviewQueueFiltersProps): JSX.Element 
                 className={`rq-pill ${active ? 'rq-pill--active' : 'rq-pill--idle'}`}
                 aria-label={pill.label}
                 aria-pressed={active}
-                style={
-                  active
-                    ? { background: pill.activeBg, color: 'var(--color-on-accent)' }
-                    : undefined
-                }
+                style={active ? { background: pill.activeBg, color: 'var(--color-on-accent)' } : undefined}
                 onClick={() => onStatusFilter(pill.key)}
               >
-                {pill.dot && (
-                  <span
-                    className="rq-pill-dot"
-                    style={{ background: pill.dot }}
-                    aria-hidden="true"
-                  />
-                )}
+                {pill.dot && <span className="rq-pill-dot" style={{ background: pill.dot }} aria-hidden="true" />}
                 <span>{pill.label}</span>
                 <span
                   className="rq-pill-count"
-                  style={
-                    active
-                      ? { background: pill.activeCountBg, color: pill.activeCountColor }
-                      : undefined
-                  }
+                  style={active ? { background: pill.activeCountBg, color: pill.activeCountColor } : undefined}
                 >
                   {counts[pill.key]}
                 </span>
@@ -179,17 +165,8 @@ export function ReviewQueueFilters(props: ReviewQueueFiltersProps): JSX.Element 
 
       <div className="rq-secondary">
         <div className="rq-secondary-left">
-          <button
-            type="button"
-            className="rq-select-all"
-            onClick={onToggleSelectAll}
-            aria-pressed={allSelected}
-          >
-            {allSelected ? (
-              <CheckSquare className="rq-checkbox" />
-            ) : (
-              <Square className="rq-checkbox" />
-            )}
+          <button type="button" className="rq-select-all" onClick={onToggleSelectAll} aria-pressed={allSelected}>
+            {allSelected ? <CheckSquare className="rq-checkbox" /> : <Square className="rq-checkbox" />}
             <span>Select all</span>
           </button>
 
@@ -231,11 +208,7 @@ export function ReviewQueueFilters(props: ReviewQueueFiltersProps): JSX.Element 
 
           <label className="rq-select">
             <span className="rq-select-label">Sort</span>
-            <select
-              value={sortBy}
-              onChange={(e) => onSortBy(e.target.value as SortKey)}
-              aria-label="Sort reviews"
-            >
+            <select value={sortBy} onChange={(e) => onSortBy(e.target.value as SortKey)} aria-label="Sort reviews">
               <option value="urgency">Urgency</option>
               <option value="newest">Newest</option>
               <option value="findings">Findings</option>
