@@ -275,6 +275,7 @@ export class ReviewIngestService {
         correlationId: task.id,
         maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
         ...(this.deps.autoReviewMode !== undefined ? { autoReviewMode: this.deps.autoReviewMode } : {}),
+        ...(input.autoReviewMode !== undefined ? { autoReviewMode: input.autoReviewMode } : {}),
       },
       correlationId,
     ).catch((error: unknown) => {
