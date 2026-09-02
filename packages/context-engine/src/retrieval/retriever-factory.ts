@@ -18,7 +18,6 @@ import { DEFAULT_VARIANT_COUNT } from './query-rewriter.js';
 import { RagFusionRetriever } from './rag-fusion-retriever.js';
 import type { Retriever } from './retriever.js';
 import type { Logger } from '@harness/di';
-import { eq } from 'drizzle-orm';
 
 /** The day-26 default ranking method. */
 export const RANK_METHOD_KEYWORD = 'keyword';
@@ -36,7 +35,7 @@ export type RankMethod =
  *
  * Implementations:
  * - {@link EnvRankDefaultProvider} — reads `DEFAULT_RANK_METHOD` env var (default: `keyword`).
- * - {@link DbRankDefaultProvider} — reads the latest `ab_experiments` row with
+ * - {@link DbRankDefaultProvider} — reads the latest arm-B `ab_runs` report with
  *   `recommendation = 'promote'` and falls back to `keyword`.
  */
 export interface RankDefaultResolver {
@@ -56,19 +55,20 @@ export class EnvRankDefaultProvider implements RankDefaultResolver {
 }
 
 /**
- * Type-safe shape for the `variant_b` JSON column in `ab_experiments`.
- * Extend when new variant fields are added.
+ * Shape of the persisted `ab_runs.report` JSON relevant to the default flip.
+ * `recommendation` is the Day-30 cutover call; `rankMethod` names the B arm's
+ * ranker so a `promote` maps to the concrete method it promoted.
  */
-interface VariantBSnapshot {
-  rank_method?: string;
-  // future fields: retriever_config?, embedding_model?, etc.
+interface AbRunReportSnapshot {
+  rankMethod?: 'keyword' | 'semantic' | 'hybrid';
+  recommendation?: 'promote' | 'keep-shadow' | 'real-ab';
 }
 
 /**
- * DB-backed resolver: reads the latest promoted experiment from `ab_experiments`
- * where `recommendation = 'promote'` and returns the variant B method when the
- * recommendation is `promote`. Falls back to {@link EnvRankDefaultProvider} when
- * no DB is available or the query returns no result.
+ * DB-backed resolver: reads the latest `ab_runs` arm-B report whose experiment
+ * recommended `promote` and returns the promoted method when it is `hybrid`.
+ * Falls back to {@link EnvRankDefaultProvider} when no DB is available or the
+ * query returns no promoting result.
  */
 export class DbRankDefaultProvider implements RankDefaultResolver {
   constructor(
@@ -78,29 +78,36 @@ export class DbRankDefaultProvider implements RankDefaultResolver {
 
   async resolveDefaultRankMethod(): Promise<RankMethod> {
     try {
-      const { desc } = await import('drizzle-orm');
-      const { abExperiments } = await import('@harness/db');
+      const { desc, eq } = await import('drizzle-orm');
+      const { abExperiments, abRuns } = await import('@harness/db');
       const db = this.resolveDb();
-      const row = await db
-        .select()
-        .from(abExperiments)
-        .where(eq(abExperiments.recommendation, 'promote'))
-        .orderBy(desc(abExperiments.created_at))
+      const rows = await db
+        .select({
+          experimentId: abRuns.experiment_id,
+          report: abRuns.report,
+          createdAt: abRuns.created_at,
+        })
+        .from(abRuns)
+        .innerJoin(abExperiments, eq(abRuns.experiment_id, abExperiments.id))
+        .where(eq(abRuns.variant_id, 'B'))
+        .orderBy(desc(abRuns.created_at))
         .limit(1);
-      if (row[0]) {
-        const variantB = row[0].variant_b as VariantBSnapshot;
-        if (variantB?.rank_method === RANK_METHOD_HYBRID) {
+      const row = rows[0];
+      if (row) {
+        const report = row.report as AbRunReportSnapshot;
+        if (report.recommendation === 'promote' && report.rankMethod === RANK_METHOD_HYBRID) {
           this.logger.info('A/B experiment promoted hybrid as default rank_method', {
             event_type: 'rank_method_promoted',
-            experiment_id: row[0].id,
-            variant_b_rank_method: variantB.rank_method,
+            experiment_id: row.experimentId,
+            variant_b_rank_method: report.rankMethod,
           });
           return RANK_METHOD_HYBRID;
         }
         this.logger.debug('Latest A/B experiment does not promote hybrid', {
           event_type: 'rank_method_not_promoted',
-          experiment_id: row[0].id,
-          variant_b_rank_method: variantB?.rank_method ?? 'missing',
+          experiment_id: row.experimentId,
+          variant_b_rank_method: report.rankMethod ?? 'missing',
+          recommendation: report.recommendation ?? 'missing',
         });
       }
     } catch (err) {

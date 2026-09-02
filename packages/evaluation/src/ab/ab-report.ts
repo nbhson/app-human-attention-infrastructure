@@ -158,8 +158,29 @@ export class RankingDryRun {
       metric,
     });
 
-    await this.recordArm(experimentId, 'A', metric, topK, signalsA, aOrders, sourceHashes);
-    await this.recordArm(experimentId, 'B', metric, topK, signalsB, bOrders, sourceHashes);
+    const evidence = evaluateEvidence(bar, config.fixtures.length, correlation, signalsA, signalsB);
+    const recommendation = recommend(evidence, signalsA, signalsB);
+
+    await this.recordArm(
+      experimentId,
+      'A',
+      metric,
+      topK,
+      signalsA,
+      aOrders,
+      sourceHashes,
+      recommendation,
+    );
+    await this.recordArm(
+      experimentId,
+      'B',
+      metric,
+      topK,
+      signalsB,
+      bOrders,
+      sourceHashes,
+      recommendation,
+    );
 
     const after = await this.liveCounts();
     const noProductionEffect =
@@ -175,9 +196,6 @@ export class RankingDryRun {
           `ContextSnapshot — the comparison is confounded and must be fixed before shipping.`,
       );
     }
-
-    const evidence = evaluateEvidence(bar, config.fixtures.length, correlation, signalsA, signalsB);
-    const recommendation = recommend(evidence, signalsA, signalsB);
 
     return {
       experimentId,
@@ -203,6 +221,7 @@ export class RankingDryRun {
     signals: OutcomeSignals,
     rankings: readonly (readonly string[])[],
     sourceHashes: readonly string[],
+    recommendation: Recommendation,
   ): Promise<void> {
     const variantId = arm === 'A' ? 'A' : 'B';
     const rankMethod = arm === 'A' ? 'keyword' : 'hybrid';
@@ -222,6 +241,7 @@ export class RankingDryRun {
         outcome: signals,
         topK,
         noProductionEffect: true,
+        recommendation,
       },
     });
   }
