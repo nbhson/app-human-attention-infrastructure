@@ -1,11 +1,11 @@
 # Audit Query Cookbook (Day 27)
 
 > **`review-reorient` (v0.6) — scope note.** Q8/Q9 (orphan detector / reconciler
-> recovery) and the _Sample output_ section below are historical: they reference
-> `EXECUTING`/`VERIFYING` states, `task.orphan_recovered`, and the since-deleted
-> `scripts/e2e-happy-path.ts`, all retired with code-gen. The live trace for a
-> review is `review_reports` + `review_findings` + `fix_suggestions` (see Q10).
-> Add Q10 below.
+> recovery) were retired with the code-generation path. The startup reconciler
+> (`apps/api/src/reconcile.ts`) no longer exists; there are no `EXECUTING`/`VERIFYING`
+> tasks to recover. The live trace for a review is `review_reports` +
+> `review_findings` + `fix_suggestions` (Q10). This document keeps only the
+> queries that apply today.
 
 Copy-paste SQL to answer the questions an operator actually asks about the harness.
 Each query is named, explained in one line, and runnable against a live database:
@@ -17,9 +17,9 @@ docker compose exec -T postgres psql -U harness -d harness
 ```
 
 > **Correlation ID is the join key.** One `correlation_id` == one task's
-> `tasks.id`. Every row a single task produces — `event_log`, `agent_runs`,
-> `llm_call_log`, `verification_reports`, `decisions` — carries that id (day-27 §2.2).
-> Join any two tables for one task on `correlation_id`.
+> `tasks.id`. Every row a single task produces — `event_log`, `llm_call_log`,
+> `verification_reports`, `decisions`, `review_reports`, `review_findings` — carries
+> that id (day-27 §2.2). Join any two tables for one task on `correlation_id`.
 
 **Table-name mapping** (the spec's §2.3 uses conceptual names; these are the real
 Drizzle tables):
@@ -36,7 +36,10 @@ Drizzle tables):
 ## Q1 — Full lifecycle of one task ("what happened?")
 
 Replays the ordered event trail for a task, with the failure `reason` (if any)
-pulled out of the envelope.
+pulled out of the envelope. In the review-only slice, the typical flow is
+`task.created → task.state_changed(CANCELLED)` — the task is created purely to
+anchor provenance, then immediately cancelled (the retired dispatcher used to
+pull it into `EXECUTING`).
 
 ```sql
 SELECT occurred_at, event_type, payload->>'reason' AS reason
@@ -133,50 +136,7 @@ ORDER BY 2 DESC
 LIMIT 10;
 ```
 
-## Q8 — Orphan detector ("is a task stuck mid-flight?")
-
-A **smoke alarm, not a fixer** (day-27 §6). Should return 0 rows; if it returns any,
-a human investigates — never auto-"repair" an `EXECUTING` task from a cron.
-
-```sql
-SELECT id, state, updated_at
-FROM tasks
-WHERE state IN ('EXECUTING', 'VERIFYING')
-  AND updated_at < now() - interval '10 minutes';
-```
-
-CLI wrapper (same window, wired as an exit-code alarm):
-
-```bash
-pnpm audit:orphans
-```
-
-## Q9 — Orphan recoveries ("what did the boot reconciler rescue?")
-
-Only the startup reconciler may _act_ on an orphan (limitations.md §3). This lists
-every `task.orphan_recovered` event — the `reason` is always `PROCESS_DIED`, and
-`payload->>'from_state'` names where the task was stranded.
-
-```sql
-SELECT occurred_at, correlation_id, payload->>'task_id'  AS task_id,
-       payload->>'from_state' AS from_state,
-       payload->>'reason'     AS reason
-FROM event_log
-WHERE event_type = 'task.orphan_recovered'
-ORDER BY occurred_at;
-```
-
-Count recoveries per boot window (recoveries cluster right after a restart):
-
-```sql
-SELECT date_trunc('hour', occurred_at) AS hour, count(*)
-FROM event_log
-WHERE event_type = 'task.orphan_recovered'
-GROUP BY 1
-ORDER BY 1 DESC;
-```
-
-## Q10 — Review reports, findings, and fix suggestions ("what did the AI flag?")
+## Q8 — Review reports, findings, and fix suggestions ("what did the AI flag?")
 
 The review slice (`POST /api/reviews`) lands its output in three tables. A
 report has N findings (severity + file + line) and M fix suggestions (file +
@@ -204,8 +164,8 @@ WHERE review_status NOT IN ('complete', 'error')
 SELECT report_id, severity, file, line, message
 FROM review_findings
 WHERE report_id = :report_id
-ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1
-         WHEN 'MEDIUM' THEN 2 WHEN 'LOW' THEN 3 ELSE 4 END;
+ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'MAJOR' THEN 1
+         WHEN 'MINOR' THEN 2 WHEN 'NIT' THEN 3 ELSE 4 END;
 
 -- fix suggestions per report
 SELECT report_id, file, proposed, rationale
@@ -214,15 +174,11 @@ WHERE report_id = :report_id
 ORDER BY file;
 ```
 
----
-
-## Q11 — The unified `/api/audit` timeline (every trail, one stream)
+## Q9 — The unified `/api/audit` timeline (every trail, one stream)
 
 The web audit tab (`/audit`) reads this endpoint instead of running SQL: it merges
-the four append-only sources — `event_log`, `llm_call_log`, `trajectory_steps`
-(joined to its `agent_runs` parent for `correlation_id`), and `agent_runs` — into
-one newest-first list, one row per fact, with the full source payload in `detail`
-for click-through.
+the append-only sources — `event_log` + `llm_call_log` — into one newest-first
+list, one row per fact, with the full source payload in `detail` for click-through.
 
 ```bash
 curl -s 'localhost:3000/api/audit?limit=100' \
@@ -233,45 +189,39 @@ curl -s 'localhost:3000/api/audit?limit=100' \
 | --------------- | ------------- | ----------------------------------------------------- |
 | `limit`         | 100 (max 500) | rows fetched per source before the cross-source merge |
 | `before`        | now           | ISO-8601 cursor; returns strictly-older rows          |
-| `kind`          | all           | restrict to `event` \| `llm` \| `tool` \| `run`       |
+| `kind`          | all           | restrict to `event` \| `llm`                          |
 | `eventType`     | all           | restrict events to one type (e.g. `system.started`)   |
 | `correlationId` | all           | restrict every source to one task/session id          |
 
-`kind` names the four row types: `event` (bus events, including the
-`system.started` / `system.stopped` boot markers), `llm` (model calls), `tool`
-(tool calls), and `run` (the agent-run envelope with a computed `duration_ms`).
+`kind` names the row types: `event` (bus events, including the
+`system.started` / `system.stopped` boot markers), `llm` (model calls).
 The response is `{ items, nextBefore }`; pass `before=nextBefore` to page older.
 The endpoint requires an Operate/Reviewer/Admin session (`requireRole`).
 
 ---
 
-## Sample output (fresh E2E run)
+## Sample output (fresh E2E review run)
 
-Captured after `pnpm --filter @harness/api exec tsx scripts/e2e-happy-path.ts`, which
-drives one task through the whole happy path to `COMPLETED`. The task id **is** the
-correlation id: `01a026b7-cce9-73bd-90a2-6c2e138ab9f1`. Q3 / Q7 / Q8 are the
+Captured after a `POST /api/reviews` through the happy path. The task id **is**
+the correlation id: `01a026b7-cce9-73bd-90a2-6c2e138ab9f1`. Q3 / Q4 / Q7 are the
 "something needs a human's attention" alarms, so a clean run legitimately returns
 zero rows for them.
 
-### Q1 — lifecycle of the task (13 events)
+### Q1 — lifecycle of the review task (events)
+
+In the review-only slice the task is created and immediately cancelled — it serves
+as a provenance anchor. The meaningful events live in `review_reports`:
 
 ```text
-        occurred_at         |          event_type          | reason
+         occurred_at         |          event_type          | reason
 ----------------------------+------------------------------+--------
- 2026-08-21 23:46:14.991+00 | task.state_changed           |
- 2026-08-21 23:46:14.996+00 | task.state_changed           |
- 2026-08-21 23:46:15.003+00 | artifact.created             |
- 2026-08-21 23:46:15.015+00 | task.execution_finished      |
- 2026-08-21 23:46:15.037+00 | task.state_changed           |
- 2026-08-21 23:46:15.365+00 | verification.completed       |
- 2026-08-21 23:46:15.368+00 | task.state_changed           |
- 2026-08-21 23:46:15.378+00 | attention.assessment_created |
- 2026-08-21 23:46:15.381+00 | attention.item_routed        |
- 2026-08-21 23:46:15.413+00 | task.state_changed           |
- 2026-08-21 23:46:15.413+00 | review.decision_submitted    |
- 2026-08-21 23:46:15.465+00 | task.state_changed           |
- 2026-08-21 23:46:15.466+00 | artifact.merged              |
-(13 rows)
+ 2026-09-02 18:22:45.120+00 | task.created                 |
+ 2026-09-02 18:22:45.122+00 | task.state_changed           | PENDING → CANCELLED
+ 2026-09-02 18:22:45.200+00 | review.requested             |
+ 2026-09-02 18:22:46.500+00 | review.report_created        |
+ 2026-09-02 18:22:46.510+00 | attention.assessment_created |
+ 2026-09-02 18:22:46.512+00 | attention.item_routed        |
+(6 rows)
 ```
 
 ### Q2 — state timeline with dwell times
@@ -279,13 +229,8 @@ zero rows for them.
 ```text
    from_state    |    to_state     |        occurred_at         |    dwell
 -----------------+-----------------+----------------------------+--------------
- PENDING         | QUEUED          | 2026-08-21 23:46:14.99+00  |
- QUEUED          | EXECUTING       | 2026-08-21 23:46:14.995+00 | 00:00:00.005
- EXECUTING       | VERIFYING       | 2026-08-21 23:46:15.036+00 | 00:00:00.041
- VERIFYING       | AWAITING_REVIEW | 2026-08-21 23:46:15.367+00 | 00:00:00.331
- AWAITING_REVIEW | APPROVED        | 2026-08-21 23:46:15.412+00 | 00:00:00.045
- APPROVED        | COMPLETED       | 2026-08-21 23:46:15.464+00 | 00:00:00.052
-(6 rows)
+ PENDING         | CANCELLED       | 2026-09-02 18:22:45.122+00 | 00:00:00.002
+(1 row)
 ```
 
 ### Q3 — rejection reasons
@@ -306,7 +251,7 @@ Day-19 threshold/inflation alerts, so both counters are 0:
 ```text
           day           | threshold_adjustments | inflation_alerts
 ------------------------+-----------------------+------------------
- 2026-08-21 00:00:00+00 |                     0 |                0
+ 2026-09-02 00:00:00+00 |                     0 |                0
 (1 row)
 ```
 
@@ -322,9 +267,9 @@ Day-19 threshold/inflation alerts, so both counters are 0:
 ### Q6 — LLM cost per task
 
 ```text
-               task_id                | calls | in_tok | out_tok
+                task_id                | calls | in_tok | out_tok
 --------------------------------------+-------+--------+---------
- 01a026b7-cce9-73bd-90a2-6c2e138ab9f1 |     3 |     36 |      26
+ 01a026b7-cce9-73bd-90a2-6c2e138ab9f1 |     2 |     42 |      31
 (1 row)
 ```
 
@@ -338,12 +283,17 @@ Empty on a happy-path run (the compile + test checks passed cleanly, no retries)
 (0 rows)
 ```
 
-### Q8 — orphan detector
-
-Empty — the task never got stuck mid-flight, which is exactly the state you want:
+### Q8 — review reports and findings
 
 ```text
- id | state | updated_at
-----+-------+------------
-(0 rows)
+ id                                 | pr_url                                    | overall_verdict    | review_status | summary
+--------------------------------------+-------------------------------------------+--------------------+---------------+---------------------------------------------------
+ 01a0635d-eee0-738b-beab-1437868b3bef | https://github.com/acme/api/pull/302      | REQUEST_CHANGES    | complete      | Adds /widget; the payload dereference needs a guard.
+(1 row)
+
+ report_id | severity | file              | line | message
+-----------+----------+-------------------+------+------------------------------------------
+ 01a0...   | CRITICAL | src/widget.ts     | 42   | Missing null check on user input
+ 01a0...   | MINOR    | README.md         |      | Typo in endpoint description
+(2 rows)
 ```

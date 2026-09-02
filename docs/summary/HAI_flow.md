@@ -1,5 +1,9 @@
 # HAI Harness — Tổng quan Flow Hoạt động
 
+> **📍 Tài liệu dẫn hướng:** Đây là bản tóm tắt flow của `docs/summary/HAI_overview.md`.
+> Để overview đầy đủ (kiến trúc 4 lớp, 11 phân hệ, domain objects, tech stack, lộ trình),
+> đọc **`HAI_overview.md`**.
+>
 > **`review-reorient` (v0.6):** đường code-gen đã nghỉ hưu — flow dưới đây phản ánh hướng **review PR/MR bên ngoài**: AI là _reviewer_ (đọc, không ghi), không còn "AI tự sinh fix".
 
 > **Human Attention Infrastructure (HAI) Harness** — nền tảng AI-native quản lý và tối ưu hóa _"sự chú ý của con người"_ trong phát triển phần mềm:
