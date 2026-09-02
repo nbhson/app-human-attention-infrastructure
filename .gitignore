@@ -8,5 +8,5 @@ coverage/
 *.tsbuildinfo
 .vitest-out.json
 /sandbox/
-.claude/
 mcp.config.json
+.claude/worktrees/
