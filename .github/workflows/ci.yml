@@ -13,7 +13,7 @@ env:
   OIDC_MOCK: 'true'
 
 jobs:
-  # Per-package test matrix (Phase-2 day-05 §3.3): every package runs its own
+  # Per-package test matrix: every package runs its own
   # vitest pass in an isolated job, which makes @harness/auth and
   # @harness/observability first-class lanes instead of hidden inside one
   # aggregate `pnpm test` run. Each job gets its own Postgres service container.
