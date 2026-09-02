@@ -3,7 +3,7 @@
 [![CI](https://github.com/nbhson/human-attention-infrastructure-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A5%2020-339933.svg)](package.json)
-[![Version](https://img.shields.io/badge/version-v0.3.0--harness-7a3f3f.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/tags)
+[![Version](https://img.shields.io/badge/version-v0.4.0--harness-7a3f3f.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/tags)
 
 **AI reviews external pull requests; a human decides.** Paste a PR / MR URL
 (+ an optional Jira ticket), and the harness fetches the diff + the requirement,
@@ -16,10 +16,10 @@ queryable, and auditable.
 
 | | |
 | --- | --- |
-| **Status** | Feature-complete · tagged `v0.3.0-harness` · review-only control plane (`review-reorient`) |
-| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 1090 unit tests ✅ · 17 e2e ✅ |
+| **Status** | Feature-complete · tagged `v0.4.0-harness` · review-only control plane (`review-reorient`) |
+| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 1090 unit tests ✅ · 25 e2e ✅ |
 | **Stack** | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker |
-| **Boundary model** | 25 `@harness/*` packages; engines never import another engine |
+| **Boundary model** | 25 `@harness/*` packages (see package list below); engines never import another engine |
 
 > **Pivot note.** The harness no longer *authors* code. The internal loop — an
 > AI agent writing files, committing them, and auto-merging on approval — is
@@ -218,7 +218,7 @@ in the [Developer Guide](docs/dev-guide.md).
 
 ## Status
 
-The harness is feature-complete through **`v0.3.0-harness`** — a review-only control
+The harness is feature-complete through **`v0.4.0-harness`** — a review-only control
 plane: MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `mcp.config.json`),
 AI review, Docker-sandbox verification, attention routing, toggle-gated write-back,
 review memory, and a closed learning loop with an LLM-as-judge quality signal.

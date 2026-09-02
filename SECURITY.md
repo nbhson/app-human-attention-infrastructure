@@ -21,7 +21,7 @@ call).
 
 ## Supported versions
 
-Security fixes are applied to the **latest tagged release** (`v0.3.0-harness` at
+Security fixes are applied to the **latest tagged release** (`v0.4.0-harness` at
 time of writing). Older tags are **not** back-ported; upgrade first, then re-test.
 
 ## What we want to hear about

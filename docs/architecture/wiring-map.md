@@ -2,7 +2,7 @@
 
 > **Living document.** Every time an engine is registered in `apps/api/src/bootstrap.ts`, add a row here. It takes ~2 minutes and saves hours of archaeology later.
 >
-> **Status:** v1.0-candidate (as-built) — Day 40 exit review complete (`v0.3.0-harness`, EXIT-WITH-CARRYFORWARD).
+> **Status:** v1.0-candidate (as-built) — Day 40 exit review complete (`v0.4.0-harness`, EXIT-WITH-CARRYFORWARD).
 
 This table records the object graph built by `buildContainer()` (`apps/api/src/bootstrap.ts`) — the **only** place `new InProcessEventBus()` may appear (day-05 §6). Everything else asks the container for a token via `resolve(TOKENS.*)`.
 
@@ -118,7 +118,7 @@ leaf and an engine (rule R5 / R4):
 | `code-index` | `code-index/src/{indexer,graph,affected}.ts` (day-14) | Pure leaf (node built-ins only): `indexFiles` → `buildGraph` → `affectedTests` computes the transitive affected-test closure; `complete:false` on a graph gap | Consumed by the app host only — **never** imported by `verification-engine` (rule R4). |
 | `TargetedVerifier` | `verification-engine/src/targeted-verifier.ts` (day-14) | The *routing policy*: affected set when complete and non-empty, else full suite | The app injects `resolveAffected = (changed) => affectedTests(changed, graph)` — the engine owns the policy, the leaf owns the graph; neither imports the other. |
 
-`scripts/demo-verification.ts` (`pnpm --filter @harness/api demo:verification`, day-15) is the
+`apps/api/scripts/demo-verification.ts` (`pnpm --filter @harness/api demo:verification`, day-15) is the
 integration point that binds these four together over a recorded fixture: it
 proves targeted verdict == full verdict on every case (green *and* red) with fewer
 tests, falls back to the full suite on any graph gap / unindexed file / empty
@@ -145,7 +145,7 @@ measured WIN (rework down, context acceptance ≥). `hybrid` and `rag_fusion` bo
 *selectable* per request via an explicit `rank_method`, and flipping the default is a
 one-line change to `retriever-factory.ts` with the A/B report as its audit trail. The
 round-trip — default → `'hybrid'` → kill-switch `'keyword'` → default — is proven by
-`scripts/demo-hybrid-default.ts` (`pnpm --filter @harness/api demo:hybrid-default`, day-30), which runs the
+`apps/api/scripts/demo-hybrid-default.ts` (`pnpm --filter @harness/api demo:hybrid-default`, day-30), which runs the
 real `LexicalRetriever` + `HybridRetriever` (RRF) hermetically: only the embedder's
 cosine ranking is stubbed.
 
@@ -163,7 +163,7 @@ held-out ranking comparison against the incumbent — or that trips the
 `judgeSignalDominates` overfit alarm — is `HOLD`, and the job never applies a
 weight vector itself (day-31 §2.2). The `WeightsProvider` on the routing hot path
 is unchanged: `StaticWeightsAdapter` still returns the placeholder until a
-promotion is explicitly adopted. See `scripts/demo-learning-loop.ts`.
+promotion is explicitly adopted. See `apps/api/scripts/demo-learning-loop.ts`.
 
 ### Usage feedback — usefulness → learned ranking signal
 
@@ -179,7 +179,7 @@ optional `learnedUsage?` slot on `ReRankInput`; when present it **supersedes**
 `retrievalCount`, and an unobserved source falls to the neutral 0.5 rather than 0 —
 the same missing-signal fallback as day-27. There is no eager job here: the caller
 (an app entrypoint) runs `learn()` over recent marks and passes the resulting map
-into the re-rank. See `scripts/demo-usage-feedback.ts`.
+into the re-rank. See `apps/api/scripts/demo-usage-feedback.ts`.
 
 ### Closed learning loop — one tracked, observable cycle
 
@@ -198,7 +198,7 @@ loop tunes calibration/routing only; the human APPROVE/REJECT gate and the sampl
 auto-approve path are untouched (day-33 §2.4). There is no eager job: a server
 entrypoint (or `demo:closed-loop`) drives `runCycle()`, and `GET /api/learning/cycles`
 (`apps/api/src/routes/learning.ts`) renders the last N `learning.loop_completed`
-events from `event_log` for the ops view. See `scripts/demo-closed-loop.ts`.
+events from `event_log` for the ops view. See `apps/api/scripts/demo-closed-loop.ts`.
 
 ### Durable queue — an optional transport swap, contract frozen
 
@@ -219,7 +219,7 @@ delivery is at-least-once, correctness rides on the idempotent consumers Days
 08/19 already guarantee; a handler that throws leaves its entry pending for
 redelivery, a poison entry is dead-lettered after `maxDeliveryAttempts`, and a
 dropped connection is reported and retried with backoff (never silent). See
-`scripts/demo-durable-queue.ts`.
+`apps/api/scripts/demo-durable-queue.ts`.
 
 ### Tracing bootstrap (not a DI token)
 

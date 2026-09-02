@@ -233,4 +233,4 @@ flowchart TB
 
 ## 8. Lộ trình (đã hoàn tất)
 
-Toàn bộ lộ trình xây dựng (Core Loop → Calibrate & Measure → Learn & Automate) đã hoàn tất, tagged `v0.3.0-harness` (`EXIT-WITH-CARRYFORWARD`, 8/9 exit criteria). Lịch sử phân kỳ theo ngày (`docs/plan/`) đã được gỡ bỏ; tổng kết exit ở `docs/retros/phase3-exit-review.md`.
+Toàn bộ lộ trình xây dựng (Core Loop → Calibrate & Measure → Learn & Automate) đã hoàn tất, tagged `v0.4.0-harness` (`EXIT-WITH-CARRYFORWARD`, 8/9 exit criteria). Lịch sử phân kỳ theo ngày (`docs/plan/`) đã được gỡ bỏ; tổng kết exit ở `docs/retros/phase3-exit-review.md`.

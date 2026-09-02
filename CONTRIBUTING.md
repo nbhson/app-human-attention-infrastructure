@@ -23,8 +23,8 @@ A PR is ready when this passes locally:
 ```sh
 pnpm lint
 pnpm typecheck
-pnpm test       # ~1072 unit + integration tests
-pnpm e2e        # 9 end-to-end tests (needs Postgres)
+pnpm test       # 1090 unit + integration tests
+pnpm e2e        # 25 end-to-end tests (needs Postgres)
 ```
 
 Or one shot: `pnpm test && pnpm lint && pnpm e2e`. CI runs the same, plus a

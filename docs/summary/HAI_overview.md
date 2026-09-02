@@ -2,7 +2,7 @@
 
 > **`review-reorient` (v0.6):** đường code-generation đã *nghỉ hưu*. Sản phẩm giờ là control plane **review PR/MR bên ngoài** (Bitbucket/GitLab/GitHub + Jira): AI đóng vai *reviewer chứ không phải author* — đọc diff + requirement, trả report + findings + *fix suggestions*. Các mô tả "AI sinh code / tự sửa fix" ở các mục dưới chỉ còn là lịch sử thiết kế; phần machinery được giữ (state machine, attention routing, verification, evidence) vẫn dùng lại nguyên trạng.
 
-> **Hoàn tất (`v0.3.0-harness`):** MCP connectivity (GitHub/GitLab/Bitbucket/Jira qua một `mcp.config.json`, token qua env — không inline), write-back có toggle + `writeback_log`, review memory, LLM-as-judge + inter-judge agreement, và learning loop đóng. Exit review **8/9 tiêu chí** — còn 1 mục *hybrid search làm default* được carry-forward (Day-29 A/B trả HOLD, `keyword` vẫn là default). Xem `docs/retros/phase3-exit-review.md`.
+> **Hoàn tất (`v0.4.0-harness`):** MCP connectivity (GitHub/GitLab/Bitbucket/Jira qua một `mcp.config.json`, token qua env — không inline), write-back có toggle + `writeback_log`, review memory, LLM-as-judge + inter-judge agreement, và learning loop đóng. Exit review **8/9 tiêu chí** — còn 1 mục *hybrid search làm default* được carry-forward (Day-29 A/B trả HOLD, `keyword` vẫn là default). Xem `docs/retros/phase3-exit-review.md`.
 
 ## Tổng quan
 
@@ -266,11 +266,11 @@ Bổ sung trên nền trước:
 
 ## Lộ trình (đã hoàn tất)
 
-Toàn bộ lộ trình 3 giai đoạn xây dựng đã hoàn tất, tagged `v0.3.0-harness` (`EXIT-WITH-CARRYFORWARD`, 8/9 exit criteria):
+Toàn bộ lộ trình 3 giai đoạn xây dựng đã hoàn tất, tagged `v0.4.0-harness` (`EXIT-WITH-CARRYFORWARD`, 8/9 exit criteria):
 
 - **Core loop** (`v0.1.0-harness`): Task → Context → Agent → Artifact → Verification → Attention → Human Review → Decision → Evidence.
 - **Calibrate & Close the Measurement Loop** (`v0.2.0-harness`): Evaluation Engine v0 (metrics + A/B harness), calibrate attention weights từ data `was_useful`, semantic search infra (shadow, sau Ranker seam), auto-approve sau flag + audit.
-- **Learn & Automate Under Guardrails** (`v0.3.0-harness`): Memory/Evidence, targeted/incremental verification (dependency graph), context ranking hybrid (đã xây — default vẫn keyword vì A/B HOLD), multi-agent bounded, benchmark + LLM-as-judge, đóng vòng Evaluate → Calibrate → Deploy → Observe.
+- **Learn & Automate Under Guardrails** (`v0.4.0-harness`): Memory/Evidence, targeted/incremental verification (dependency graph), context ranking hybrid (đã xây — default vẫn keyword vì A/B HOLD), multi-agent bounded, benchmark + LLM-as-judge, đóng vòng Evaluate → Calibrate → Deploy → Observe.
 
 Lịch sử phân kỳ theo ngày (`docs/plan/`, phase-1/2/3) đã được gỡ bỏ; tổng kết exit ở `docs/retros/phase3-exit-review.md`.
 
