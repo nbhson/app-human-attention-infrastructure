@@ -29,6 +29,9 @@ export interface AbOutcomeSignals {
   readonly reworkRate?: number;
 }
 
+/** The Day-30 cutover call (`promote` / `keep-shadow` / `real-ab`), see §5. */
+export type AbRecommendation = 'promote' | 'keep-shadow' | 'real-ab';
+
 /** A run's self-describing payload: enough to reproduce the experiment result. */
 export interface AbRunReport {
   readonly variantId: 'A' | 'B';
@@ -49,6 +52,8 @@ export interface AbRunReport {
   readonly topK?: number;
   /** Assigned at run time: live `tasks`/`decisions`/`contexts` counts did not move. */
   readonly noProductionEffect?: boolean;
+  /** Day-30 cutover call, persisted so a later default-flip reads it without re-deriving. */
+  readonly recommendation?: AbRecommendation;
 }
 
 export interface CreateExperimentInput {

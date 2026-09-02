@@ -7,6 +7,7 @@ export type { ReadonlyDb } from './readonly-db.js';
 export { AbStore } from './ab-store.js';
 export type {
   AbOutcomeSignals,
+  AbRecommendation,
   AbRunReport,
   CreateExperimentInput,
   RecordRunInput,
