@@ -450,6 +450,7 @@ export class ReviewIngestService {
     input: {
       prUrl: string;
       jiraTicket?: string;
+      autoReviewMode?: boolean;
     },
   ): Promise<void> {
     const { db, bus, gitProvider, ticketProvider, model, logger } = this.deps;
@@ -527,6 +528,8 @@ export class ReviewIngestService {
           model,
           correlationId: reportId,
           maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
+          ...(this.deps.autoReviewMode !== undefined ? { autoReviewMode: this.deps.autoReviewMode } : {}),
+          ...(input.autoReviewMode !== undefined ? { autoReviewMode: input.autoReviewMode } : {}),
         },
         brand(reportId, 'CorrelationID'),
         // Per-batch callback: insert findings + suggestions immediately, update progress.
