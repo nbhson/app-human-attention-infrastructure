@@ -25,6 +25,8 @@
 
 The most useful sources of truth live next door:
 
+- **[users-permissions.md](users-permissions.md)** — user model, role hierarchy, route
+  permission matrix, and common operations for managing access.
 - **[operations.md](operations.md)** — the _as-built_ procedures
   (v1.0-candidate): provider-token rotation (OP-1), write-back audit (OP-2),
   learning-loop HOLD (OP-3), the `rank_method` kill-switch (OP-4), and the
