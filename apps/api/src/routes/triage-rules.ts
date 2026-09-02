@@ -5,11 +5,11 @@
  *  - `GET /api/triage-rules` — the current rule state (readable by any review
  *    principal, so the rules page can render without elevating).
  *  - `PUT /api/triage-rules` — upsert a partial `{ securityBlock?,
- *    performanceRegression?, schemaIntegrity? }` patch. Absent keys are left
- *    unchanged; only booleans are accepted. Guarded by `Reviewer`/`Admin` (the
- *    same guard as the review decision route — reviewers may tune their own
- *    triage), matching the "operator-mutable at runtime" intent, not a
- *    secret-bearing ADMIN-only control.
+ *    performanceRegression?, schemaIntegrity?, autoReviewEnabled? }` patch.
+ *    Absent keys are left unchanged; only booleans are accepted. Guarded by
+ *    `Reviewer`/`Admin` (the same guard as the review decision route —
+ *    reviewers may tune their own triage), matching the "operator-mutable at
+ *    runtime" intent, not a secret-bearing ADMIN-only control.
  */
 
 import type { FastifyInstance } from 'fastify';
@@ -22,17 +22,19 @@ import type { DrizzleDB } from '@harness/db';
 
 import { loadTriageRuleState, saveTriageRuleState } from '../triage-rules-store.js';
 
-/** `PUT` body: the three wired toggles, all optional (absent = leave unchanged). */
+/** `PUT` body: the wired toggles, all optional (absent = leave unchanged). */
 interface TriageRulesBody {
   readonly securityBlock?: unknown;
   readonly performanceRegression?: unknown;
   readonly schemaIntegrity?: unknown;
+  readonly autoReviewEnabled?: unknown;
 }
 
 function pickBooleans(body: TriageRulesBody | undefined): Partial<{
   securityBlock: boolean;
   performanceRegression: boolean;
   schemaIntegrity: boolean;
+  autoReviewEnabled: boolean;
 }> {
   if (body === undefined) {
     return {};
@@ -41,12 +43,14 @@ function pickBooleans(body: TriageRulesBody | undefined): Partial<{
     securityBlock?: boolean;
     performanceRegression?: boolean;
     schemaIntegrity?: boolean;
+    autoReviewEnabled?: boolean;
   } = {};
   if (typeof body.securityBlock === 'boolean') patch.securityBlock = body.securityBlock;
   if (typeof body.performanceRegression === 'boolean') {
     patch.performanceRegression = body.performanceRegression;
   }
   if (typeof body.schemaIntegrity === 'boolean') patch.schemaIntegrity = body.schemaIntegrity;
+  if (typeof body.autoReviewEnabled === 'boolean') patch.autoReviewEnabled = body.autoReviewEnabled;
   return patch;
 }
 
