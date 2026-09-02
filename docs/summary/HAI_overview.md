@@ -26,45 +26,32 @@ Kiến trúc biến "sự chú ý" thành tài nguyên có thể đo lường, �
 
 | Trường                    | Kiểu          | Mô tả                                                                                         | Ví dụ                                            |
 | ------------------------- | ------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `change`                  | diff / commit | Nội dung thay đổi cần review (diff text, commit SHA, hoặc branch)                             | `"HEAD~1..HEAD"`                                 |
-| `pr_id` _(thay `change`)_ | string        | Số + URL Pull / Merge Request — HAI tự fetch diff + metadata                                  | `"#482"`, `https://github.com/acme/api/pull/482` |
-| `jira_ticket`             | string        | Ticket tương ứng — tiêu chí & context để đối chiếu ("change có giải quyết đúng ticket không") | `"ACME-1234"`                                    |
-| `target_repo`             | string        | Repo chứa change                                                                              | `github.com/acme/api`                            |
-| `priority` _(tuỳ chọn)_   | enum          | `CRITICAL / HIGH / MEDIUM / LOW`                                                              | `HIGH`                                           |
-| `policy` _(tuỳ chọn)_     | object        | retry · timeout · `approval_gate`                                                             | `{ approval_gate: true }`                        |
+| `pr_url`                  | string        | URL Pull / Merge Request — HAI tự fetch diff + metadata                                        | `https://github.com/acme/api/pull/482`           |
+| `jira_ticket` _(tuỳ chọn)_ | string        | Ticket tương ứng — tiêu chí & context để đối chiếu ("change có giải quyết đúng ticket không") | `"ACME-1234"`                                    |
 
-> `change` và `pr_id` là hai cách nạp cùng một thứ: **code change cần review**. `jira_ticket` mang "yêu cầu gốc" để đối chiếu khi review.
-
-Ví dụ payload:
-
-```json
-{
-  "pr_id": "https://github.com/acme/api/pull/482",
-  "jira_ticket": "ACME-1234",
-  "target_repo": "github.com/acme/api",
-  "priority": "HIGH"
-}
-```
+> **Review-only flow:** Harness nhận URL PR, fetch diff qua MCP, fetch ticket (nếu có), hỏi AI review, và trả về report + findings + fix suggestions. Không có code generation, không có auto-commit.
 
 ### 2. Progress — sau khi có input thì ra kết quả thế nào
 
-Input (change + ticket) đi qua 7 bước, mỗi bước chạy khi bước trước hoàn tất:
+Input (PR URL + ticket) đi qua các bước, mỗi bước chạy khi bước trước hoàn tất:
 
-1. **Nhận & chuẩn hoá change** _(Orchestrator + Artifact Tracker)_ — fetch diff từ PR (hoặc nhận diff trực tiếp), parse file thay đổi, tạo `Task` review (`PENDING → QUEUED`).
-2. **Dựng context** _(Context Engine)_ — phân tích file bị đụng + phụ thuộc liên quan + nội dung Jira ticket.
-3. **Xác minh** _(Verification)_ — `compile → test → lint` trên change, chạy độc lập → evidence `PASSED / FAILED`.
-4. **Chấm điểm** _(Attention)_ — `Risk/Impact/Novelty/Complexity/Confidence` → priority.
-5. **Định tuyến** _(Attention)_ — xếp vào review queue, gán reviewer theo priority.
-6. **Con người quyết định** _(Human Review)_ — `APPROVE` / `REJECT` / `REQUEST_CHANGES` + rationale.
-7. **Lưu evidence** _(Memory/Evidence)_ — mọi claim kèm evidence, append-only, truy vết theo `correlation_id`.
+1. **Fetch diff + requirement** _(GitProvider + TicketProvider via MCP)_ — fetch PR diff, metadata (files, base/head SHA), và ticket requirement (Jira).
+2. **Tạo Task anchor** _(Orchestrator)_ — tạo `Task` review, chuyển ngay `CANCELLED` (anchor provenance, không dispatch).
+3. **Xây dựng context** _(Context Engine)_ — collect → rank → trim sources (keyword/hybrid/RAG Fusion), inject review memory.
+4. **AI Review** _(ReviewAgent)_ — model đọc diff + context, trả JSON: summary + overallVerdict + findings[] + suggestions[].
+5. **Verification** _(VerificationEngine)_ — clone PR vào Docker sandbox, chạy `build` + `test` của clone. FAILED → flag report, không sửa code.
+6. **Attention scoring** _(Attention Engine)_ — tính 5 factors → combinedPriority → label (CRITICAL/HIGH/MEDIUM/LOW) → route.
+7. **Human decision** _(Review UI)_ — người xem report, approve/reject/comment + rationale.
+8. **Write-back** _(WriteBackService)_ — nếu armed, comment/status lên PR + transition lên Jira (toggle-gated).
+9. **Memory ingest** _(MemoryIngestor)_ — distill finding/decision thành memory entries.
 
-Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → nạp change mới (quay lại bước 1); mọi trạng thái có thể ESCALATE → `AWAITING_HUMAN_INTERVENTION`.
+Nhánh phụ: `REQUEST_CHANGES` → tác giả sửa → tái review; mọi trạng thái có thể ESCALATE → `AWAITING_HUMAN_INTERVENTION`.
 
 ### 3. Kết quả — cái gì đi ra
 
-- **APPROVE:** quyết định review + **Evidence chain** (compile/test/lint + provenance) truy vết được.
+- **APPROVE:** quyết định review + **Evidence chain** (compile/test/sandbox + provenance) truy vết được.
 - **REJECT / REQUEST_CHANGES:** quyết định + rationale gửi lại tác giả.
-- **Luôn ghi:** event log + decision log — nền cho việc _đo_ và _học_ (tinh chỉnh calibration/routing từ tín hiệu `was_useful`).
+- **Luôn ghi:** event log + decision log + `review_reports`/`review_findings`/`fix_suggestions` — nền cho việc _đo_ và _học_ (tinh chỉnh calibration/routing từ tín hiệu `was_useful`).
 
 ### 4. Bề mặt report — attention metric & Breakdown (`review-reorient`)
 
@@ -134,21 +121,21 @@ Tài liệu as-built cho từng phân hệ hiện nằm trong **`README.md` củ
 > **`review-reorient` note.** State machine được giữ nguyên (states + transitions + optimistic locking), nhưng các _driver_ di chuyển task qua `EXECUTING → VERIFYING` (dispatch/workflow/retry) đã nghỉ hưu cùng code-gen. Luồng live hôm nay: review slice tạo Task rồi chuyển ngay `CANCELLED` (`transitionTask(..., Cancelled, 'human', { rationale: 'review-only task handled by the review slice' })`).
 
 ```
-PENDING → QUEUED → EXECUTING → VERIFYING → AWAITING_REVIEW
-                                              ↓         ↓
-                                        APPROVED    REJECTED
-                                              ↓         ↓
-                                        COMPLETED    REWORK → QUEUED (attempt+1)
-                                              hoặc FAILED (hết attempts)
-
-Mọi trạng thái → AWAITING_HUMAN_INTERVENTION (escalation)
-Mọi trạng thái → CANCELLED
-Terminal: COMPLETED, CANCELLED
+PENDING → QUEUED → CANCELLED        ← live review-only path (anchor + done)
+                        ↕
+EXECUTING → VERIFYING → AWAITING_REVIEW → APPROVED → COMPLETED
+                              ↓
+                         REJECTED → REWORK → QUEUED
+                              ↓
+                         FAILED (hết attempts)
+                        hoặc AWAITING_HUMAN_INTERVENTION
 ```
 
 - Chuyển trạng thái dùng **optimistic locking** (`UPDATE ... WHERE id AND state = expected` → `StateConflictError`)
 - `attempt_number` chỉ tăng khi REWORK → QUEUED; idempotency key = `task_id:attempt_number`
 - Mọi transition ghi vào `task_state_history` (audit)
+
+> **Lưu ý:** Trong review-only mode, `EXECUTING`/`VERIFYING` là các state lịch sử — vẫn tồn tại trong schema nhưng không còn được driver nào sử dụng. Task review được `CANCELLED` ngay sau `QUEUED`.
 
 ### Attention Assessment (Spec 6 — công thức đã sửa)
 
@@ -174,35 +161,41 @@ combined_priority = w_risk·risk + w_impact·impact + w_novelty·novelty
 
 - CheckKind: `COMPILE | TEST | LINT` · CheckStatus: `PASSED | FAILED | FLAKY | TIMED_OUT | SKIPPED`
 - Timeout 2 tầng (per-check vs request-level); flaky retry-once (fail→pass = FLAKY, report PASSED + `flaky: true`)
-- Hiện tại: chạy in-process trong worktree riêng, `sanitizedEnv()` loại secrets, output cap 64KB
-- Overall PASSED ⟺ mọi check ∈ {PASSED, FLAKY}; FAILED → task REWORK
+- Container sandboxed (`DockerSandbox`): `--network none`, `--read-only rootfs`, `--user 1000:1000`, `--cap-drop ALL`
+- Overall PASSED ⟺ mọi check ∈ {PASSED, FLAKY}; FAILED → flag report (không gate decision)
 
 ### Context (Spec 4)
 
-- Baseline: `relevance_score = 0.7·keyword_overlap + 0.3·dependency_proximity` (semantic/recency/history = 0 hiện tại; Ranker interface là seam)
-- Shadow: dựng infra semantic (pgvector + Embedder) ở chế độ shadow/experimental (đo qua A/B harness) — chưa là default
-- Hybrid (đã xây, chưa flip default): hybrid search (keyword + embeddings) + RRF + re-ranking (heuristic ngôn ngữ: dependency/recency/usage) + RAG Fusion
-- Tokenizer: chars/4; budget trimmer không bao giờ drop target files
-- Freshness: re-hash sources vs `content_hash` → FRESH/STALE; STALE → re-resolve, agent đang chạy chỉ nhận warning
+- Default ranking: `KeywordDependencyRanker` (keyword overlap + dependency proximity)
+- Shadow: semantic (pgvector + Embedder) + hybrid (BM25 + embeddings + RRF) + RAG Fusion — all selectable per-request via `rank_method`, none is default
+- Tokenizer: exact `tiktoken` per model, budget trimmer never drops target files
+- Freshness: re-hash sources vs `content_hash` → FRESH/STALE; STALE → re-resolve
 
 ---
 
 ## Event-Driven Model
 
-Envelope chuẩn (Spec 2 §8):
+Ensemble chuẩn (Spec 2 §8):
 
 ```ts
 {
-  event_id: (UUIDv7, event_type, event_version, occurred_at(UTC), correlation_id, payload);
+  event_id: (UUIDv7),
+  event_type: string,
+  event_version: string,
+  occurred_at: UTC timestamp,
+  correlation_id: string,  // == tasks.id
+  payload: Record<string, unknown>
 }
 ```
 
-Naming: `<domain>.<entity>_<verb_past_tense>`. Luồng chuẩn:
+Naming: `<domain>.<entity>_<verb_past_tense>`. Luồng chuẩn cho review slice:
 
 ```
-task.created → task.state_changed (×N) → artifact.created → verification.completed
-→ attention.assessment_created → attention.item_routed → review.decision_submitted
-→ artifact.merged → task.completed
+task.created → task.state_changed(PENDING→CANCELLED)
+→ review.requested → review.report_created
+→ attention.assessment_created → attention.item_routed
+→ review.decision_submitted → integration.writeback_completed
+→ memory.entry_created
 ```
 
 Mọi event persist append-only vào `event_log` (idempotent), join theo `correlation_id`.
@@ -220,7 +213,7 @@ Mọi event persist append-only vào `event_log` (idempotent), join theo `correl
 | Events              | In-process IEventBus (EventEmitter) sau interface — thay thế được             |
 | Test                | Vitest (integration test dùng schema `harness_test` riêng)                    |
 | Infra               | Docker Compose (postgres:16-alpine)                                           |
-| LLM                 | LLMProvider adapter: Anthropic SDK + MockLLM (test)                           |
+| LLM                 | LLMProvider adapter: Anthropic SDK + OpenAI-compatible + MockLLM (test)       |
 
 Repo: `apps/api`, `apps/web`, `packages/{domain, event-bus, db, di, orchestrator, agent-runtime, context-engine, artifact-tracker, attention-engine, verification-engine, review}`.
 
@@ -242,7 +235,7 @@ Bổ sung / thay thế trên nền ban đầu (vẫn **modular monolith**, **Pos
 | Evaluation               | Offline metrics + **shadow A/B harness** (replay trajectory)              | Spec 3 §6.1 · Spec 11 §5                                                 |
 | Observability/Governance | Metrics + audit trail + policy → promote **Spec 10**                      | OpenTelemetry-ready                                                      |
 | Auth                     | SSO thật (OIDC provider)                                                  | Thay header `X-Reviewer-Id` (day-30 P0)                                  |
-| Sandbox                  | Git worktree / **container** per verification & agent run                 | Spec 7 §5.5 · Spec 3 §14.3 (Code-Mode)                                   |
+| Sandbox                  | Docker container per verification & agent run                             | Spec 7 §5.5 · Spec 3 §14.3 (Code-Mode)                                   |
 
 ---
 
@@ -272,7 +265,7 @@ Toàn bộ lộ trình 3 giai đoạn xây dựng đã hoàn tất, tagged `v0.4
 
 - **Core loop** (`v0.1.0-harness`): Task → Context → Agent → Artifact → Verification → Attention → Human Review → Decision → Evidence.
 - **Calibrate & Close the Measurement Loop** (`v0.2.0-harness`): Evaluation Engine v0 (metrics + A/B harness), calibrate attention weights từ data `was_useful`, semantic search infra (shadow, sau Ranker seam), auto-approve sau flag + audit.
-- **Learn & Automate Under Guardrails** (`v0.4.0-harness`): Memory/Evidence, targeted/incremental verification (dependency graph), context ranking hybrid (đã xây — default vẫn keyword vì A/B HOLD), multi-agent bounded, benchmark + LLM-as-judge, đóng vòng Evaluate → Calibrate → Deploy → Observe.
+- **Review Control Plane** (`v0.4.0-harness`): MCP connectivity (GitHub/GitLab/Bitbucket/Jira qua một `@harness/mcp` client + `mcp.config.json`), toggle-gated write-back, review memory, LLM-as-judge with inter-judge agreement, và closed learning loop. Exit review: **8 của 9** tiêu chí đạt → `EXIT-WITH-CARRYFORWARD`; một caveat (hybrid ranking không phải default — Day-29 A/B HOLD) được carry-forward (CF-1/CF-2).
 
 Lịch sử phân kỳ theo ngày (`docs/plan/`, phase-1/2/3) đã được gỡ bỏ; tổng kết exit ở `docs/retros/phase3-exit-review.md`.
 
@@ -283,6 +276,7 @@ Lịch sử phân kỳ theo ngày (`docs/plan/`, phase-1/2/3) đã được gỡ
 - Multi-agent orchestration phức tạp · RAG/vector DB · UI sophisticated · autonomous loops · microservices/K8s
 - Auto-approve thật (r5 chỉ set flag) · SSO/auth thật (P0: hiện chỉ `X-Reviewer-Id` header)
 - Semantic ranking, targeted/incremental verification (đã có seam trong interface)
+- Code generation (AI viết code, commit, auto-merge) — đã retired trong `review-reorient`
 
 ---
 
@@ -294,6 +288,8 @@ Các điểm "cần lưu ý" trước đây nay đã được giải quyết tro
 - ✅ **Data storage strategy** — PostgreSQL 16 cho tất cả; conventions rõ ràng; evidence append-only
 - ✅ **Error handling & fallback** — FailureClass (TRANSIENT/PERMANENT/RESOURCE), retry policy, escalation → AWAITING_HUMAN_INTERVENTION
 - ✅ **Spec 9 (Memory/Evidence) & Spec 11 (Evaluation Engine)** — đã formalize từ các ghi chú "Phase sau" thành spec riêng: Evidence store append-only và Evaluation seam
-- ✅ **Auth** — đã có `@harness/auth` (`requireRole` + session/OIDC identity); SSO đầy đủ vẫn là P0 ngoài phạm vi.
+- ✅ **Auth** — đã có `@harness/auth` (`requireRole` + session/OIDC identity); SSO đầy đủ vẫn là P0 ngoài phạm vi
+- ✅ **MCP connectivity** — GitHub/GitLab/Bitbucket/Jira qua 1 config file
+- ✅ **Write-back audit** — `writeback_log` + toggle chain (global + per-provider + per-decision)
 
 **Kết luận:** Kiến trúc giữ nguyên hướng đi đúng (tập trung human attention bottleneck, evidence > confidence), nay đã đủ chi tiết để implement — với 11 phân hệ (state machine chặt chẽ, event model có audit trail), lộ trình rõ ràng, và kế hoạch từng bước đã được ghi trong lịch sử build.

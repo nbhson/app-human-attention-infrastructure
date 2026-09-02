@@ -35,43 +35,58 @@ tasks as the ceiling — that is the _tested_ envelope, not a benchmark or an SL
 
 - There is no rate limiting, no dead-letter queue, and no durable buffer. If the
   process dies mid-publish, the event is gone (its side-effect may or may not have
-  committed, which is exactly what the reconciler in §3 exists to catch).
+  committed).
 - A durable queue behind the same `IEventBus` contract (no subscriber changes) is
   available as `RedisEventsBus`, selected by `EVENT_TRANSPORT` (Day 34,
   **opt-in**; the in-process bus remains the default).
 
-## 3. The reconciler is the _only_ sanctioned auto-repair
+## 3. No startup reconciler (retired)
 
-On a non-graceful crash (`SIGKILL`, not `SIGTERM`), a task can be stranded in
-`EXECUTING` or `VERIFYING`. One thing — and _only_ one thing — repairs that:
+> **RETIRED in `review-reorient`.** This section is preserved as historical
+> reference; the reconciler and the states it acted on (`EXECUTING`, `VERIFYING`)
+> no longer exist in the live system.
 
-- `apps/api/src/reconcile.ts`'s `reconcileOrphans()` runs **once at startup,
-  before the dispatcher or runtime loop starts** (`apps/api/src/index.ts`). This
-  is a single-writer moment, so it may act safely.
-- It moves each orphaned `EXECUTING`/`VERIFYING` task to
-  `AWAITING_HUMAN_INTERVENTION` with reason `PROCESS_DIED`, and publishes
-  `task.orphan_recovered` (see the audit cookbook, Q9).
-- It **never** re-runs, re-queues, or decides anything. It escorts the task to a
-  human. The Q8 orphan detector stays a **smoke alarm, not a fixer** — do not
-  auto-repair from a cron; only the startup reconciler may act, and only here.
+On a non-graceful crash (`SIGKILL`, not `SIGTERM`), a task could previously be
+stranded in `EXECUTING` or `VERIFYING`. One thing — and _only_ one thing —
+repaired that:
 
-## 4. One shared sandbox; verification runs on the host
+- `apps/api/src/reconcile.ts`'s `reconcileOrphans()` ran **once at startup**,
+  before the dispatcher or runtime loop started. This was a single-writer moment,
+  so it could act safely.
+- It moved each orphaned `EXECUTING`/`VERIFYING` task to
+  `AWAITING_HUMAN_INTERVENTION` with reason `PROCESS_DIED`, and published
+  `task.orphan_recovered` (see the audit cookbook, formerly Q9).
+- It **never** re-ran, re-queued, or decided anything. It escorted the task to a
+  human.
 
-The agent's three file tools (`read_file`/`write_file`/`list_directory`) are all
-bound to **one global `SANDBOX_ROOT`** (set in `bootstrap.ts`). Verification is
-not containerised: `CompileCheck` (Day 15) and `TestCheck` (Day 16) spawn `tsc`
-and `vitest` as child processes on the **host**, inheriting its filesystem.
+**Today:** the review slice creates a task and immediately cancels it
+(`PENDING → CANCELLED`). There is no in-flight execution path, no dispatcher,
+no runtime loop, and therefore no orphan state to recover. The `task.orphan_recovered`
+event type remains in the domain vocabulary for backward compatibility with old
+logs, but it is never published again.
 
-- **Concurrent execution is not exercised**: two workers verifying over the same
-  tree would race on `tsc`/`vitest` output files, so the load smoke runs 2
-  dispatchers + 2 runtime loops for the _dispatch_ path but drives the
-  failure/retry scenarios sequentially. It is safe to race _dispatch_ and _queuing_
-  — not two in-flight verifications of the same tree.
-- A bare worktree still "passes" Vitest via `--passWithNoTests`; a suite that
-  must _actually_ run needs its own `vitest.config.ts` so it doesn't report
-  "no tests" and pass vacuously (see the Day-26 S3 fixture).
-- Container sandboxing lands in **Day 22** (verification) and **Day 23**
-  (agent code mode).
+If you see `EXECUTING`/`VERIFYING` rows in `task_state_history` today, they are
+historical from pre-`review-reorient` runs.
+
+## 4. Verification runs in the Docker sandbox
+
+All verification (compile + test) runs inside the Docker sandbox
+(`@harness/sandbox` → `DockerSandbox`). The clone's own `package.json` scripts
+(`build`, `test`) are discovered and executed inside the container — not on the
+host. The rootfs stays `--read-only`; the disposable surface is the throwaway
+clone worktree itself.
+
+- **Network is disabled** (`--network none`): the sandbox cannot reach out to
+  package registries. Pre-installed dependencies are not supported; the clone's
+  `node_modules` must already exist or the build will fail.
+- **Resource caps** (`--cpus`, `--memory`, `--user 1000:1000`, `--cap-drop ALL`)
+  keep each container safe even if the PR code tries to do something unexpected.
+- **Timeout**: each container is killed after `VERIFY_SANDBOX_TIMEOUT_S` (default
+  120s). A timed-out check is `TIMED_OUT`, not `FAILED`.
+
+Container sandboxing landed on Day 22. Before that, `CompileCheck` / `TestCheck`
+spun `tsc` and `vitest` as child processes on the **host** — the legacy in-process
+path is still wired but the review slice goes through the sandbox today.
 
 ## 5. Deterministic fault injection only (no chaos)
 
