@@ -124,7 +124,13 @@ import { envInt } from './env-utils.js';
 /** Default session lifetime (7 days), overridable via `SESSION_TTL_MS` (day-01 §2.2). */
 const SECRET_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Engine tokens registered as stubs until their build day (Days 06+). */
+/**
+ * Retired engine tokens — code-gen was retired in the review-reorient pivot.
+ * Kept as stubs so the DI graph stays stable (nothing depends on these tokens
+ * at runtime; the real work lives in TaskService / ReviewAgent /
+ * AttentionSubscriber + AttentionRouter). Tests verify they still throw
+ * "not yet implemented" to prevent accidental unstubbing.
+ */
 const ENGINE_STUB_TOKENS = [
   TOKENS.Orchestrator,
   TOKENS.AgentRuntime,

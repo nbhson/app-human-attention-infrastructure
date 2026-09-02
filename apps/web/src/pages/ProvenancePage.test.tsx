@@ -48,7 +48,10 @@ function renderPage(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[`/tasks/${TASK_ID}/provenance`]}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={[`/tasks/${TASK_ID}/provenance`]}
+      >
         <Routes>
           <Route path="/tasks/:id/provenance" element={<ProvenancePage />} />
         </Routes>

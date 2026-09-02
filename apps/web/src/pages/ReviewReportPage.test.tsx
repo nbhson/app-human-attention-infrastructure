@@ -103,7 +103,10 @@ function renderReport(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/reviews/report-abc']}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={['/reviews/report-abc']}
+      >
         <Routes>
           <Route path="/reviews/:id" element={<ReviewReportPage />} />
         </Routes>
