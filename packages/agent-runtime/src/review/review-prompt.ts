@@ -54,8 +54,11 @@ export interface ReviewPrompt {
  * prompt produced it. v2: compacted sections, added safety guardrail, added
  * few-shot examples, added chain-of-thought instruction, expanded kind guidance.
  * v3: added `autoReviewMode` flag for full code-review mode (surfaces MINOR/NIT/INFO).
+ * v4: added explicit "HIGH-SIGNAL FILTER" mode instructions when autoReviewMode
+ *     is OFF — now correctly suppresses MINOR/NIT/INFO findings instead of
+ *     returning them alongside CRITICAL/MAJOR.
  */
-export const REVIEW_PROMPT_VERSION = 'reviewer-v3';
+export const REVIEW_PROMPT_VERSION = 'reviewer-v4';
 
 const SYSTEM_PROMPT = `You are a senior code reviewer in the role of a Human-Attention Routing Engine.
 
@@ -332,8 +335,10 @@ export function buildReviewPrompt(input: ReviewPromptInput): ReviewPrompt {
   const memoriesSection = buildMemoriesSection(input.relatedMemories);
 
   const modeSection = autoReviewMode
-    ? `REVIEW MODE: FULL CODE REVIEW\nWhen autoReviewMode is enabled, you are a comprehensive code review tool (like GitHub Copilot Review, SonarQube, or DeepCode). Review ALL aspects of the code: correctness, security, performance, architecture, naming, style, maintainability, and best practices. Report every finding regardless of severity — CRITICAL, MAJOR, MINOR, NIT, and INFO. For MINOR/NIT/INFO findings, focus on genuine engineering value: naming consistency, code organization, potential refactoring opportunities, style improvements, and maintainability concerns. This is NOT a human-attention router — it is a thorough code reviewer.\n`
-    : '';
+    ? `REVIEW MODE: FULL CODE REVIEW
+When autoReviewMode is enabled, you are a comprehensive code review tool (like GitHub Copilot Review, SonarQube, or DeepCode). Review ALL aspects of the code: correctness, security, performance, architecture, naming, style, maintainability, and best practices. Report every finding regardless of severity — CRITICAL, MAJOR, MINOR, NIT, and INFO. For MINOR/NIT/INFO findings, focus on genuine engineering value: naming consistency, code organization, potential refactoring opportunities, style improvements, and maintainability concerns. This is NOT a human-attention router — it is a thorough code reviewer.\n`
+    : `REVIEW MODE: HIGH-SIGNAL FILTER
+When autoReviewMode is disabled (default), you are a human-attention router. ONLY surface CRITICAL and MAJOR findings — these are the only severities you should return. MINOR, NIT, and INFO findings must be suppressed; do not include them in the output. Your job is to filter out low-signal noise and only surface items that require human reasoning or judgment. If all issues are MINOR/NIT/INFO, return an empty findings array and an APPROVE verdict.\n`;
 
   const userMessage = [
     `PULL REQUEST: ${input.prUrl}`,

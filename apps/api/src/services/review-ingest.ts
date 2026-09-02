@@ -275,6 +275,7 @@ export class ReviewIngestService {
         correlationId: task.id,
         maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
         ...(this.deps.autoReviewMode !== undefined ? { autoReviewMode: this.deps.autoReviewMode } : {}),
+        ...(input.autoReviewMode !== undefined ? { autoReviewMode: input.autoReviewMode } : {}),
       },
       correlationId,
     ).catch((error: unknown) => {
@@ -449,6 +450,7 @@ export class ReviewIngestService {
     input: {
       prUrl: string;
       jiraTicket?: string;
+      autoReviewMode?: boolean;
     },
   ): Promise<void> {
     const { db, bus, gitProvider, ticketProvider, model, logger } = this.deps;
@@ -526,6 +528,8 @@ export class ReviewIngestService {
           model,
           correlationId: reportId,
           maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
+          ...(this.deps.autoReviewMode !== undefined ? { autoReviewMode: this.deps.autoReviewMode } : {}),
+          ...(input.autoReviewMode !== undefined ? { autoReviewMode: input.autoReviewMode } : {}),
         },
         brand(reportId, 'CorrelationID'),
         // Per-batch callback: insert findings + suggestions immediately, update progress.
@@ -717,7 +721,10 @@ export class ReviewIngestService {
     });
 
     // If budgeted primary is empty, use the first batch-worth of files.
-    const filesToReview = budgeted.primary.length > 0 ? budgeted.primary : targetFiles.slice(0, maxBatchSize ?? 5);
+    const filesToReview =
+      budgeted.primary.length > 0
+        ? [...budgeted.primary, ...budgeted.overflow] // Include ALL files, not just primary
+        : targetFiles.slice(0, maxBatchSize ?? 5);
 
     // 5. Batch review (parallel), with progressive callback if provided.
     return batchReview(

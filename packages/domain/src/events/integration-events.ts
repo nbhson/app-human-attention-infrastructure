@@ -58,6 +58,11 @@ export interface ReviewRequestedPayload {
   readonly pr_url: string;
   /** Optional Jira ticket key. */
   readonly jira_ticket?: string;
+  /**
+   * When true, run the review in full code-review mode (all severities).
+   * Defaults to false (high-signal mode, only CRITICAL/MAJOR).
+   */
+  readonly autoReviewMode?: boolean;
 }
 
 /** Payload for {@link import('./event-types.js').EventType.ReviewFixSuggestionCreated}. */

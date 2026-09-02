@@ -130,9 +130,11 @@ export function registerReviewIngestRoutes(
         }
         // Fast path: create report with placeholder, publish event, return 202.
         // The actual AI review runs asynchronously via the `review.requested` subscriber.
+        const ruleState = await loadTriageRuleState(db);
         const result = await ingest.createReview({
           prUrl: prUrl.trim(),
           ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0 ? { jiraTicket: jiraTicket.trim() } : {}),
+          ...(ruleState.autoReviewEnabled ? { autoReviewMode: true } : {}),
         });
         // Publish event so the background worker picks it up.
         const payload: ReviewRequestedPayload = {
@@ -140,6 +142,7 @@ export function registerReviewIngestRoutes(
           review_report_id: result.reportId,
           pr_url: result.prUrl,
           ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0 ? { jira_ticket: jiraTicket.trim() } : {}),
+          ...(ruleState.autoReviewEnabled ? { autoReviewMode: true } : {}),
         };
         bus.publish(createEvent(EventType.ReviewRequested, brand(result.reportId, 'CorrelationID'), payload));
         return reply.code(202).send({

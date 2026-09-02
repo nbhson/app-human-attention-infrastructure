@@ -48,6 +48,7 @@ export class ReviewWorkerSubscriber {
     const args: Parameters<typeof this.ingest.processReview>[1] = {
       prUrl: payload.pr_url,
       ...(payload.jira_ticket !== undefined ? { jiraTicket: payload.jira_ticket } : {}),
+      ...(payload.autoReviewMode !== undefined ? { autoReviewMode: payload.autoReviewMode } : {}),
     };
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
