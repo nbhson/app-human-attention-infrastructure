@@ -41,6 +41,12 @@ export interface BatchReviewOptions {
    * Raise on a provider with generous rate limits; lower on a strict one.
    */
   readonly maxConcurrency?: number;
+  /**
+   * When true, the reviewer operates in full code-review mode — surfacing ALL
+   * findings including MINOR, NIT, and INFO (style, naming, architecture, etc.).
+   * When false (default), the reviewer filters to high-signal items only.
+   */
+  readonly autoReviewMode?: boolean;
 }
 
 /**
@@ -53,6 +59,7 @@ function buildReviewInput(
     prTitle: string;
     requirement: string;
     relatedMemories?: ReviewPromptInput['relatedMemories'];
+    autoReviewMode?: boolean;
   },
 ): ReviewPromptInput {
   return {
@@ -60,6 +67,7 @@ function buildReviewInput(
     prTitle: opts.prTitle,
     requirement: opts.requirement,
     diff: buildDiff(batch),
+    autoReviewMode: opts.autoReviewMode,
     ...(opts.relatedMemories !== undefined ? { relatedMemories: opts.relatedMemories } : {}),
   } as ReviewPromptInput;
 }
@@ -109,6 +117,7 @@ export async function batchReview(
         prTitle: opts.prTitle,
         requirement: opts.requirement,
         relatedMemories: opts.relatedMemories,
+        ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
       }),
       buildAgentOptions(opts.model, opts.correlationId, opts.maxAgentTokens),
     );
@@ -130,6 +139,7 @@ export async function batchReview(
           requirement: opts.requirement,
           // Only pass memories to the first batch to avoid repetition.
           relatedMemories: index === 0 ? opts.relatedMemories : undefined,
+          ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
         }),
         buildAgentOptions(opts.model, opts.correlationId, opts.maxAgentTokens),
       );

@@ -33,6 +33,7 @@ const DEFAULT_STATE = {
   securityBlock: true,
   performanceRegression: true,
   schemaIntegrity: true,
+  autoReviewEnabled: false,
 };
 
 describe('TriageRulesPage', () => {
@@ -45,6 +46,7 @@ describe('TriageRulesPage', () => {
       securityBlock: true,
       performanceRegression: false,
       schemaIntegrity: true,
+      autoReviewEnabled: false,
     });
 
     renderPage();

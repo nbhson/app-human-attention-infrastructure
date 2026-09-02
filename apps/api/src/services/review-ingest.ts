@@ -109,6 +109,11 @@ export interface ReviewIngestInput {
   readonly prUrl: string;
   /** Jira issue key, e.g. `ACME-1234`. Optional. */
   readonly jiraTicket?: string;
+  /**
+   * When true, the reviewer operates in full code-review mode (all severities).
+   * Defaults to false (human-review mode, only CRITICAL/MAJOR).
+   */
+  readonly autoReviewMode?: boolean;
 }
 
 /** What the route returns after a successful ingest. */
@@ -199,6 +204,8 @@ export interface ReviewIngestDeps {
   readonly twoPassEnabled?: boolean;
   /** Max concurrent AI requests (default 3). */
   readonly maxConcurrency?: number;
+  /** When true, review in full code-review mode (all severities). */
+  readonly autoReviewMode?: boolean;
 }
 
 export class ReviewIngestService {
@@ -267,6 +274,7 @@ export class ReviewIngestService {
         model,
         correlationId: task.id,
         maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
+        ...(this.deps.autoReviewMode !== undefined ? { autoReviewMode: this.deps.autoReviewMode } : {}),
       },
       correlationId,
     ).catch((error: unknown) => {
@@ -630,6 +638,7 @@ export class ReviewIngestService {
       model: string;
       correlationId: string;
       maxAgentTokens?: number;
+      autoReviewMode?: boolean;
     },
     _correlationId: string,
     onBatch?: (batchIndex: number, batchCount: number, output: ReviewAgentOutput) => Promise<void>,
@@ -723,6 +732,7 @@ export class ReviewIngestService {
         maxBatchSize: maxBatchSize ?? 5,
         maxBatchTokens: maxBatchTokens ?? 8000,
         maxConcurrency: maxConcurrency ?? 10,
+        ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
         ...(opts.maxAgentTokens !== undefined ? { maxAgentTokens: opts.maxAgentTokens } : {}),
         ...(relatedMemories !== undefined && relatedMemories.length > 0 ? { relatedMemories } : {}),
       } as unknown as BatchReviewOptions,

@@ -13,31 +13,41 @@ import { eq } from 'drizzle-orm';
 import { triageRules } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 
-/** The three wired rule toggles (mirrors the `TriageRuleStateInput` shape). */
+/** The triage rule toggles, including the new auto-review mode. */
 export interface TriageRuleState {
   readonly securityBlock: boolean;
   readonly performanceRegression: boolean;
   readonly schemaIntegrity: boolean;
+  /**
+   * When true, the review agent returns all findings (including MINOR, NIT, INFO)
+   * instead of filtering to only CRITICAL/MAJOR. This enables a full code-review
+   * mode that surfaces issues like naming, style, and architecture — not just
+   * attention-worthy bugs. Defaults to false (human-review mode).
+   */
+  readonly autoReviewEnabled: boolean;
 }
 
 const SINGLETON_ID = 'singleton';
 
-/** The all-ON defaults, returned when no `triage_rules` row exists yet. */
+/** The all-ON defaults (autoReviewEnabled defaults to false = human-review mode). */
 const DEFAULT_STATE: TriageRuleState = {
   securityBlock: true,
   performanceRegression: true,
   schemaIntegrity: true,
+  autoReviewEnabled: false,
 };
 
 function toState(row: {
   security_block: boolean;
   performance_regression: boolean;
   schema_integrity: boolean;
+  auto_review_enabled: boolean;
 }): TriageRuleState {
   return {
     securityBlock: row.security_block,
     performanceRegression: row.performance_regression,
     schemaIntegrity: row.schema_integrity,
+    autoReviewEnabled: row.auto_review_enabled,
   };
 }
 
@@ -55,6 +65,7 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
     securityBlock: patch.securityBlock ?? current.securityBlock,
     performanceRegression: patch.performanceRegression ?? current.performanceRegression,
     schemaIntegrity: patch.schemaIntegrity ?? current.schemaIntegrity,
+    autoReviewEnabled: patch.autoReviewEnabled ?? current.autoReviewEnabled,
   };
 
   await db
@@ -64,6 +75,7 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
       security_block: next.securityBlock,
       performance_regression: next.performanceRegression,
       schema_integrity: next.schemaIntegrity,
+      auto_review_enabled: next.autoReviewEnabled,
     })
     .onConflictDoUpdate({
       target: triageRules.id,
@@ -71,6 +83,7 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
         security_block: next.securityBlock,
         performance_regression: next.performanceRegression,
         schema_integrity: next.schemaIntegrity,
+        auto_review_enabled: next.autoReviewEnabled,
       },
     });
 
