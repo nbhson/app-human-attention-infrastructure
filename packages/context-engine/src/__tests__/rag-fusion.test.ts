@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LLMProvider, LLMResponse } from '@harness/domain';
+import type { Logger } from '@harness/di';
 
 import { parseVariants, LLMQueryRewriter, MAX_VARIANT_COUNT } from '../retrieval/query-rewriter.js';
 import { RagFusionRetriever } from '../retrieval/rag-fusion-retriever.js';
@@ -11,6 +12,14 @@ import {
   RANK_METHOD_KEYWORD,
   RANK_METHOD_RAG_FUSION,
 } from '../retrieval/retriever-factory.js';
+
+const noopLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: () => noopLogger,
+};
 
 const QUERY: RetrievalQuery = {
   text: 'payment refund',
@@ -117,22 +126,22 @@ describe('RagFusionRetriever (day-28 §2.1)', () => {
 });
 
 describe('RetrieverFactory (day-28 §3.3)', () => {
-  it('swaps keyword / hybrid / rag_fusion through one seam, default keyword', () => {
+  it('swaps keyword / hybrid / rag_fusion through one seam, default keyword', async () => {
     const keyword = baseByQuery({ x: [doc('x')] }, 'keyword');
     const semantic = baseByQuery({ x: [doc('x', 'semantic')] });
     const rewriter = { rewrite: async () => ['x'] };
-    const factory = new RetrieverFactory(keyword, semantic, rewriter);
+    const factory = new RetrieverFactory(keyword, noopLogger, undefined, semantic, rewriter);
 
-    expect(factory.resolve(undefined)?.method).toBe(RANK_METHOD_KEYWORD);
-    expect(factory.resolve(RANK_METHOD_KEYWORD)?.method).toBe(RANK_METHOD_KEYWORD);
-    expect(factory.resolve(RANK_METHOD_HYBRID)?.method).toBe(RANK_METHOD_HYBRID);
-    expect(factory.resolve(RANK_METHOD_RAG_FUSION)?.method).toBe(RANK_METHOD_RAG_FUSION);
+    expect((await factory.resolve(undefined))?.method).toBe(RANK_METHOD_KEYWORD);
+    expect((await factory.resolve(RANK_METHOD_KEYWORD))?.method).toBe(RANK_METHOD_KEYWORD);
+    expect((await factory.resolve(RANK_METHOD_HYBRID))?.method).toBe(RANK_METHOD_HYBRID);
+    expect((await factory.resolve(RANK_METHOD_RAG_FUSION))?.method).toBe(RANK_METHOD_RAG_FUSION);
   });
 
-  it('degrades hybrid and rag_fusion to keyword when their deps are missing', () => {
+  it('degrades hybrid and rag_fusion to keyword when their deps are missing', async () => {
     const keyword = baseByQuery({ x: [doc('x')] }, 'keyword');
-    const factory = new RetrieverFactory(keyword);
-    expect(factory.resolve(RANK_METHOD_HYBRID)?.method).toBe(RANK_METHOD_KEYWORD);
-    expect(factory.resolve(RANK_METHOD_RAG_FUSION)?.method).toBe(RANK_METHOD_KEYWORD);
+    const factory = new RetrieverFactory(keyword, noopLogger);
+    expect((await factory.resolve(RANK_METHOD_HYBRID))?.method).toBe(RANK_METHOD_KEYWORD);
+    expect((await factory.resolve(RANK_METHOD_RAG_FUSION))?.method).toBe(RANK_METHOD_KEYWORD);
   });
 });

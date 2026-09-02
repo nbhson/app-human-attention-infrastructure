@@ -18,7 +18,7 @@
  */
 
 import {
-  DEFAULT_RANK_METHOD,
+  EnvRankDefaultProvider,
   LexicalRetriever,
   RANK_METHOD_HYBRID,
   RANK_METHOD_KEYWORD,
@@ -32,6 +32,7 @@ import type {
   RetrievalQuery,
   SemanticCandidate,
 } from '@harness/context-engine';
+import type { Logger } from '@harness/di';
 
 /** The shared corpus both layers rank over (one keyword-strong, one content-rich). */
 const QUERY: RetrievalQuery = {
@@ -80,6 +81,14 @@ const stubRewriter: QueryRewriter = {
   },
 };
 
+const noopLogger: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => noopLogger,
+};
+
 async function main(): Promise<void> {
   console.log();
   console.log('demo:hybrid-default — day-30 Week-6 checkpoint (default held at keyword)');
@@ -88,19 +97,23 @@ async function main(): Promise<void> {
   // The factory is the one seam: keyword (real), semantic (stub embedder), rewriter (stub).
   const factory = new RetrieverFactory(
     new LexicalRetriever(),
+    noopLogger,
+    undefined,
     new SemanticDocRetriever(stubSemanticSource),
     stubRewriter,
   );
 
   // --- 1. The held default ----------------------------------------------------
-  const byDefault = factory.resolve(undefined);
+  const defaultProvider = new EnvRankDefaultProvider();
+  const defaultRankMethod = await defaultProvider.resolveDefaultRankMethod();
+  const byDefault = await factory.resolve(undefined);
   assert(byDefault.method === RANK_METHOD_KEYWORD, 'absent rank_method resolves to keyword');
-  console.log(`  1. DEFAULT_RANK_METHOD = "${DEFAULT_RANK_METHOD}"  (day-29 A/B: HOLD — not won)`);
+  console.log(`  1. DEFAULT_RANK_METHOD = "${defaultRankMethod}"  (day-29 A/B: HOLD — not won)`);
   console.log(`     resolve(undefined).method = "${byDefault.method}"`);
   console.log();
 
   // --- 2. Hybrid remains selectable, and it actually fuses --------------------
-  const hybrid = factory.resolve(RANK_METHOD_HYBRID);
+  const hybrid = await factory.resolve(RANK_METHOD_HYBRID);
   assert(hybrid.method === RANK_METHOD_HYBRID, "resolve('hybrid') resolves to hybrid");
   const hybridDocs = await hybrid.retrieve(QUERY);
   const matched = new Set(hybridDocs.map((doc) => doc.matchedBy));
@@ -110,7 +123,7 @@ async function main(): Promise<void> {
   console.log();
 
   // --- 3. Kill-switch: keyword reverts in one line ----------------------------
-  const keyword = factory.resolve(RANK_METHOD_KEYWORD);
+  const keyword = await factory.resolve(RANK_METHOD_KEYWORD);
   assert(keyword.method === RANK_METHOD_KEYWORD, "resolve('keyword') resolves to keyword");
   const keywordDocs = await keyword.retrieve(QUERY);
   assert(
@@ -122,12 +135,12 @@ async function main(): Promise<void> {
   console.log();
 
   // --- 4. Rag fusion: a further opt-in, never the default ---------------------
-  const ragFusion = factory.resolve(RANK_METHOD_RAG_FUSION);
+  const ragFusion = await factory.resolve(RANK_METHOD_RAG_FUSION);
   assert(
     ragFusion.method === RANK_METHOD_RAG_FUSION,
     "resolve('rag_fusion') resolves to rag_fusion",
   );
-  const backToDefault = factory.resolve(undefined);
+  const backToDefault = await factory.resolve(undefined);
   assert(
     backToDefault.method === RANK_METHOD_KEYWORD,
     'round-trip: undefined → keyword (default unchanged)',

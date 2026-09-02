@@ -28,8 +28,6 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MockLLM, mockTextResponse } from '@harness/agent-runtime';
-import { MockOidcProvider } from '@harness/auth';
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 import type { DrizzleDB } from '@harness/db';
@@ -359,21 +357,6 @@ beforeEach(async () => {
   await resetReviewTables(testDb.db);
 });
 
-/** Poll until `count()` reaches `expected` — judge shadows are fire-and-forget. */
-async function waitForCount(count: () => Promise<number>, expected: number): Promise<void> {
-  const deadline = Date.now() + 8000;
-  for (;;) {
-    const n = await count();
-    if (n >= expected) {
-      return;
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`timed out waiting for ${expected} row(s); saw ${n}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-}
-
 /** Seed the reviewer principal so the mock login preserves its REVIEWER role. */
 async function seedReviewer(): Promise<void> {
   await testDb.db.insert(users).values({
@@ -419,7 +402,7 @@ describe('load profile (day-37)', () => {
 
     // Every request succeeded and returned a distinct report id.
     for (const reply of replies) {
-      expect(reply.statusCode).toBe(201);
+      expect(reply.statusCode).toBe(202);
     }
     const created = replies.map((r) => r.json<{ reportId: string }>());
     expect(new Set(created.map((c) => c.reportId)).size).toBe(10);

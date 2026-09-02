@@ -199,6 +199,7 @@ export default tseslint.config(
       '**/*.config.ts',
       '**/*.config.mjs',
       'eslint.config.mjs',
+      '.claude/**',
     ],
   },
   eslint.configs.recommended,
@@ -210,13 +211,13 @@ export default tseslint.config(
         // (and outside the api tsconfig); lint them under a default project so
         // type-aware rules still apply.
         projectService: {
-          allowDefaultProject: ['apps/api/scripts/*.ts', 'e2e/*.ts'],
+          allowDefaultProject: ['apps/api/scripts/*.ts', 'e2e/*.ts', 'e2e/utils/*.ts'],
           // The api scripts + e2e specs live outside `src/` and outside the api
           // tsconfig, so tseslint lints them under the default project. That path
           // caps its file count at 8 to avoid a slow fallback project; we have 9
           // scripts (day-25 added calibration-report.ts) + 2 e2e specs (day-37),
           // so raise the cap rather than give them a shared throwaway project.
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20,
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 25,
         },
         tsconfigRootDir: import.meta.dirname,
       },

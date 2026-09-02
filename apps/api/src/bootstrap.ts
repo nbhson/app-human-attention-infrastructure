@@ -38,8 +38,10 @@ import {
   AutoApproveSampler,
   DbAutoApproveLoader,
   StaticWeightsAdapter,
+  DbWeightsProvider,
 } from '@harness/attention-engine';
 import type { AutoApproveTaskTransition } from '@harness/attention-engine';
+import type { Logger } from '@harness/di';
 import {
   AuthService,
   MockOidcProvider,
@@ -60,7 +62,6 @@ import {
 } from '@harness/context-engine';
 import type { ContextCache } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
-import type { Logger } from '@harness/di';
 import {
   DrizzleJudgeRunStore,
   DrizzleWritebackLogStore,
@@ -364,12 +365,22 @@ export function buildContainer(): Container {
     return subscriber;
   });
 
-  // Day 12: the attention weight seam. The provider returns the Phase-1
-  // placeholder; the Day-12 fitter writes `calibration_weights` rows but does
-  // NOT flip this registration (that is gated on Day 13/14). `AttentionSubscriber`
-  // resolves the vector through this token so a single swap is all promotion
-  // will require.
-  c.register(TOKENS.WeightsProvider, () => new StaticWeightsAdapter());
+  // Day 12: the attention weight seam. CF-2 (day-41): when `FITTED_WEIGHTS_ENABLED=1`,
+  // swap the static placeholder for a DB-backed provider that reads the latest
+  // promotion-worthy fit from `calibration_weights`. Otherwise the engine stays
+  // on the Phase-1 placeholder for byte-for-byte reproducibility.
+  if (process.env.FITTED_WEIGHTS_ENABLED === '1') {
+    c.register(
+      TOKENS.WeightsProvider,
+      (container) =>
+        new DbWeightsProvider(
+          () => container.resolve<DrizzleDB>(TOKENS.Db),
+          container.resolve<Logger>(TOKENS.Logger),
+        ),
+    );
+  } else {
+    c.register(TOKENS.WeightsProvider, () => new StaticWeightsAdapter());
+  }
 
   // Day 18: the Attention Engine's scoring subscriber. On `task.state_changed`
   // → AWAITING_REVIEW it computes the five Phase-1 factors, inserts an
