@@ -4,10 +4,7 @@ import { GitHubProvider, nextPagePath } from '../github-provider.js';
 import type { GithubPullPayload, GithubPrFilePayload } from '../github-mapper.js';
 
 /** A minimal `Response` stand-in carrying only what `GitHubProvider` reads. */
-function jsonResponse(
-  payload: unknown,
-  opts: { link?: string | null; ok?: boolean; status?: number } = {},
-): Response {
+function jsonResponse(payload: unknown, opts: { link?: string | null; ok?: boolean; status?: number } = {}): Response {
   return {
     ok: opts.ok ?? true,
     status: opts.status ?? 200,

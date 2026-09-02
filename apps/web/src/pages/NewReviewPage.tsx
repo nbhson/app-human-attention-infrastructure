@@ -247,8 +247,8 @@ export default function NewReviewPage(): JSX.Element {
 
       <h1 className="create-title">New AI Code Review</h1>
       <p className="create-subtitle">
-        Create an AI review for a pull request. HAI fetches the diff, analyzes the change, and
-        returns findings with fix suggestions — it never writes code.
+        Create an AI review for a pull request. HAI fetches the diff, analyzes the change, and returns findings with fix
+        suggestions — it never writes code.
       </p>
 
       {phase === 'form' && (
@@ -314,8 +314,8 @@ export default function NewReviewPage(): JSX.Element {
         <div className="progress-panel" role="status" aria-live="polite">
           <h2 className="progress-title">Starting AI Review</h2>
           <p className="progress-subtitle">
-            Your request has been submitted — HAI is fetching the pull request, running the AI
-            review, and storing the report. This is a single request and can take a few minutes.
+            Your request has been submitted — HAI is fetching the pull request, running the AI review, and storing the
+            report. This is a single request and can take a few minutes.
           </p>
           <div className="progress-indicator">
             <span className="spinner" aria-hidden="true" />
@@ -331,8 +331,8 @@ export default function NewReviewPage(): JSX.Element {
           </span>
           <h2 className="result-title">Review submitted</h2>
           <p className="result-summary">
-            HAI is reviewing your pull request in the background — this can take a few minutes. Open
-            the report page to track progress.
+            HAI is reviewing your pull request in the background — this can take a few minutes. Open the report page to
+            track progress.
           </p>
 
           <div className="verification-block">
@@ -368,11 +368,7 @@ export default function NewReviewPage(): JSX.Element {
                 </div>
                 {verification.error !== null && verification.error.length > 0 && (
                   <p
-                    className={
-                      verification.status === 'ERROR'
-                        ? 'verification-block-error'
-                        : 'verification-block-sub'
-                    }
+                    className={verification.status === 'ERROR' ? 'verification-block-error' : 'verification-block-sub'}
                   >
                     {verification.error}
                   </p>
@@ -380,9 +376,7 @@ export default function NewReviewPage(): JSX.Element {
               </>
             )}
 
-            <p className="verification-block-note">
-              A flag, not a gate — it never blocks your decision or write-back.
-            </p>
+            <p className="verification-block-note">A flag, not a gate — it never blocks your decision or write-back.</p>
           </div>
 
           <div className="result-actions">

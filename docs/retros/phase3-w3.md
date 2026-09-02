@@ -1,6 +1,6 @@
 # Phase 3 · Week 3 Retro — Verification breadth checkpoint
 
-*Day-15 checkpoint (Phase 3, Week 3). Week 3 took the clone machinery Weeks 1–2
+_Day-15 checkpoint (Phase 3, Week 3). Week 3 took the clone machinery Weeks 1–2
 led up to and answered the one question that decides whether "run the PR's own
 tests" is worth having: **can it be faster without being wrong?** The week
 delivered the dependency-graph leaf (`@harness/code-index`, day-14), the targeted
@@ -9,14 +9,14 @@ invariant (day-13), and the checkpoint wires all of them together into one
 end-to-end demo. It ends with one provable statement — **targeted verdict == full
 verdict on every case, with fewer tests where provable, and a FAILED build/test
 flags evidence without auto-rejecting.** Same rule as every prior retro: honest
-by design, numbers-first, blameless, and green before committed.*
+by design, numbers-first, blameless, and green before committed._
 
 ---
 
 ## What held
 
 - **"Still correct" is a verdict-parity table, not a claim.** `pnpm
-  demo:verification` prints each equivalence case side by side — changed file,
+demo:verification` prints each equivalence case side by side — changed file,
   tests run (`targeted/full`), measured latency, verdict, and a parity mark — and
   asserts `targeted verdict === full verdict` on all four cases. Three are green
   and one is a **red** case (`calc.ts` with a failing test), so parity is proven
@@ -112,15 +112,15 @@ runs on failure.
   reaches it only through the resolver seam — the engine never imports a sibling
   leaf or the `git-provider` seam. `CloneResult` maps to `CloneWorktree`
   structurally, so the engine never names a Git host either. The architecture test
-  + `eslint-plugin-boundaries` stayed green.
+  - `eslint-plugin-boundaries` stayed green.
 
 ---
 
-*Checkpoint rule applied: `pnpm typecheck` (**46/46**), `pnpm lint`, and `pnpm
+_Checkpoint rule applied: `pnpm typecheck` (**46/46**), `pnpm lint`, and `pnpm
 test` (**787** tests / 139 files) are all green before this note is committed. The
 demo runs end-to-end with no live key, no network, and no Docker — the sandbox
-clone/test legs are exercised by their own unit/parity suites.*
+clone/test legs are exercised by their own unit/parity suites._
 
-*Next: Day 16 — Review-memory Model: Reviews/Findings/Decisions Tiers.
+_Next: Day 16 — Review-memory Model: Reviews/Findings/Decisions Tiers.
 Week 4 pivots to review memory; the clone/verify machinery is now stable — do not
-refactor it mid-phase.*
+refactor it mid-phase._

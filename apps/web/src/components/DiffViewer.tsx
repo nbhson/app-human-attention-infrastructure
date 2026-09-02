@@ -97,9 +97,7 @@ export function DiffViewer({
                     key={index}
                     className={`diff-line ${lineClass(line)}${highlighted ? ' diff-line-highlight' : ''}`}
                   >
-                    {numLines !== null && (
-                      <span className="diff-line-num">{num !== null ? num : ''}</span>
-                    )}
+                    {numLines !== null && <span className="diff-line-num">{num !== null ? num : ''}</span>}
                     {line}
                   </div>
                 );

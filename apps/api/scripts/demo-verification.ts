@@ -35,13 +35,7 @@ import { join } from 'node:path';
 
 import { affectedTests, buildGraph, indexFiles } from '@harness/code-index';
 import type { DependencyGraph } from '@harness/code-index';
-import {
-  CheckKind,
-  CheckStatus,
-  TargetedVerifier,
-  flagReport,
-  renderFlag,
-} from '@harness/verification-engine';
+import { CheckKind, CheckStatus, TargetedVerifier, flagReport, renderFlag } from '@harness/verification-engine';
 import type {
   AffectedTestsResolver,
   CheckResult,
@@ -65,27 +59,14 @@ const FIXTURE: ReadonlyMap<string, string> = new Map([
       '',
     ].join('\n'),
   ],
-  [
-    'src/add.test.ts',
-    ["import { add } from './add';", '', 'export {};', '// asserts add(2, 3) === 5'].join('\n'),
-  ],
-  [
-    'src/mul.test.ts',
-    ["import { mul } from './mul';", '', 'export {};', '// asserts mul(2, 3) === 6'].join('\n'),
-  ],
-  [
-    'src/calc.test.ts',
-    ["import { calc } from './calc';", '', 'export {};', '// asserts calc(2, 3) === 30'].join('\n'),
-  ],
+  ['src/add.test.ts', ["import { add } from './add';", '', 'export {};', '// asserts add(2, 3) === 5'].join('\n')],
+  ['src/mul.test.ts', ["import { mul } from './mul';", '', 'export {};', '// asserts mul(2, 3) === 6'].join('\n')],
+  ['src/calc.test.ts', ["import { calc } from './calc';", '', 'export {};', '// asserts calc(2, 3) === 30'].join('\n')],
   ['src/standalone.ts', 'export const standalone = 1;\n'],
   // A runtime-computed specifier the indexer cannot resolve → `complete: false`.
   [
     'src/dynamic.ts',
-    [
-      "const name = 'add';",
-      "const loaded = require('./' + name);",
-      'export const dynamic = loaded;',
-    ].join('\n'),
+    ["const name = 'add';", "const loaded = require('./' + name);", 'export const dynamic = loaded;'].join('\n'),
   ],
 ]);
 
@@ -135,9 +116,7 @@ function runners(verdict: OverallVerdict) {
 
 async function main(): Promise<void> {
   console.log();
-  console.log(
-    'demo:verification — day-15 Week-3 checkpoint (targeted == full, FAILED is non-blocking)',
-  );
+  console.log('demo:verification — day-15 Week-3 checkpoint (targeted == full, FAILED is non-blocking)');
   console.log();
 
   // --- 1. Clone error surfacing + teardown --------------------------------------------
@@ -217,22 +196,10 @@ async function main(): Promise<void> {
     },
   ];
 
-  const hdr = (
-    label: string,
-    changed: string,
-    tests: string,
-    latency: string,
-    verdict: string,
-  ): void =>
-    console.log(
-      `  ${label}  ${changed.padEnd(12)}  tests ${tests}  latency ${latency} ms  verdict ${verdict}  ✅`,
-    );
-  console.log(
-    '  scenario                     changed       tests   latency(ms)        verdict   parity',
-  );
-  console.log(
-    '  ---------------------------- ------------- ------- ------------------ --------- --------',
-  );
+  const hdr = (label: string, changed: string, tests: string, latency: string, verdict: string): void =>
+    console.log(`  ${label}  ${changed.padEnd(12)}  tests ${tests}  latency ${latency} ms  verdict ${verdict}  ✅`);
+  console.log('  scenario                     changed       tests   latency(ms)        verdict   parity');
+  console.log('  ---------------------------- ------------- ------- ------------------ --------- --------');
 
   for (const cs of equivCases) {
     const { runAll, runTests } = runners(cs.verdict);
@@ -253,10 +220,7 @@ async function main(): Promise<void> {
     );
     assert(result.verdict === fullVerdict, `${cs.name}: targeted verdict === full verdict`);
     assert(result.verdict === cs.verdict, `${cs.name}: verdict is ${cs.verdict}`);
-    assert(
-      result.testsRun.length <= FULL_TESTS.length,
-      `${cs.name}: targeted ran ≤ full test count`,
-    );
+    assert(result.testsRun.length <= FULL_TESTS.length, `${cs.name}: targeted ran ≤ full test count`);
 
     hdr(
       cs.name.padEnd(25),
@@ -267,9 +231,7 @@ async function main(): Promise<void> {
     );
   }
   console.log();
-  console.log(
-    '  equivalence holds: targeted verdict == full verdict on every case (green AND red).',
-  );
+  console.log('  equivalence holds: targeted verdict == full verdict on every case (green AND red).');
 
   // --- 3. Fallback safety net ---------------------------------------------------------
   section('3', 'fallback safety net — an unprovable change runs the full suite');
@@ -340,19 +302,13 @@ async function main(): Promise<void> {
   assert(flag.verdict === 'FAILED', 'flag verdict is FAILED');
   assert(flag.failedKinds.join(',') === 'TEST', 'failed kinds narrow to TEST (code), not infra');
   assert(flag.timedOutKinds.length === 0, 'no TIMED_OUT (infra) kinds — this is a code failure');
-  assert(
-    flag.failedChecks.length === 1 && flag.failedChecks[0]?.exitCode === 1,
-    'exit code captured',
-  );
+  assert(flag.failedChecks.length === 1 && flag.failedChecks[0]?.exitCode === 1, 'exit code captured');
 
   const markdown = renderFlag(flag);
   assert(markdown.includes('## Verification — FAILED'), 'markdown heads as FAILED');
   assert(markdown.includes('evidence:'), 'markdown carries the evidence ref');
   assert(markdown.includes('src/calc.test.ts'), 'markdown carries the failing-test tail');
-  assert(
-    markdown.includes('**Review required before any write-back.**'),
-    'write-back is gated on review',
-  );
+  assert(markdown.includes('**Review required before any write-back.**'), 'write-back is gated on review');
 
   console.log('  (markdown a human reviewer sees — evidence ref + tail, never the full blob)');
   console.log();

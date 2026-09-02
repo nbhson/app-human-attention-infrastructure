@@ -166,9 +166,7 @@ export type CreateAttentionAssessmentInput = Omit<AttentionAssessment, 'createdA
  * Build an {@link AttentionAssessment} defaulting `createdAt` to now and
  * `metadata` to empty.
  */
-export function createAttentionAssessment(
-  input: CreateAttentionAssessmentInput,
-): AttentionAssessment {
+export function createAttentionAssessment(input: CreateAttentionAssessmentInput): AttentionAssessment {
   return { createdAt: new Date(), metadata: {}, ...input };
 }
 

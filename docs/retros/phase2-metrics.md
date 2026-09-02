@@ -1,10 +1,10 @@
 # Phase 2 → 3 Exit Review — Metrics Checkpoint
 
-*Day-30 deliverable (Phase-2 README §7, Spec 1 §24.3). The Phase-2 numbers,
+_Day-30 deliverable (Phase-2 README §7, Spec 1 §24.3). The Phase-2 numbers,
 marked against every exit criterion, with the one honest caveat up front: some
 of these gauges have a Phase-1 baseline to compare against, and some do not —
 because Phase 1 never recorded one. That absence is itself a finding, and it is
-carried into Phase 3 rather than papered over with a synthetic "improvement".*
+carried into Phase 3 rather than papered over with a synthetic "improvement"._
 
 **Decision: go-with-caveats → tag `v0.2.0-harness`.** Eight of nine exit
 criteria are fully met; the ninth is met halfway (weights fitted, improvement
@@ -14,17 +14,17 @@ not demonstrated). Details in §3.
 
 ## 1. The §7 exit criteria, marked
 
-| §7 Exit criterion | Verdict | Evidence (cited) |
-|---|---|---|
-| Routing precision/recall computed & reviewed against a real decision log | **✓** | `routing.precision` 0.333, `routing.recall` 0.5, `escalationLeakage` 1.0, `inflationRatio` 0.5, `humanMinutesPerAccept` 2.5 — computed from the real `decisions` × `assessments` × `review_queue` join over N=4 (week-02) |
-| Attention weights fitted from `was_useful`; inflation improved over placeholder | **△** | Fitted: yes (`eval:make-dataset` → `eval:fit`, Day 12). Improved: **no** — fitted log-loss 0.316 did *not* beat the Phase-1 placeholder's 0.262 on held-out, so `StaticWeightsAdapter` stays (wiring-map line 38) |
-| A/B harness replays + head-to-head, no production effect | **✓** | Day-9 `BASELINE` vs `DEP_HEAVY` (`noProductionEffect===true`); Day-29 keyword vs semantic dry-run: `rank_correlation` `[-1.0, -1.0]`, guardrail HELD — `tasks`/`decisions`/`contexts` unchanged |
-| Semantic infra shadow-only; `rank_method` default `keyword` | **✓** | `RANK_METHOD` wired to `'phase1-keyword-dependency'` (`apps/context-engine/src/trim.ts:22`); `semanticShadowEnabled` default **OFF** (`types.ts:50`); shadow-negative test asserts the keyword path makes **zero** embedder calls |
-| SSO/OIDC + roles; identity on audit | **✓** | OIDC `sub`-keyed login, revocable JWT sessions, `ADMIN ⊇ REVIEWER ⊇ OPERATOR` role gate; `review_decisions.actor_id` non-null (Week 1) — the Phase-1 `X-Reviewer-Id` header is gone |
-| Auto-approve gated: flag + sampling audit + calibration | **✓** | Three-part gate (`calibration-green ∧ flag on ∧ under the bar`) in `AutoApproveExecutor`; flag **OFF at rest**, kill-switch armed, 10% silent-human sample audits leakage (Week 3) |
-| Spec 8 + Spec 10 promoted | **✓** | `docs/core/8_Human_Review_Interface_v0.1.md` (Day 24), `docs/core/10_Observability_Governance_v0.1.md` (Day 10) |
-| Sandbox verifiable; large artifacts via `ContentStore` | **✓** | `SandboxedCheck` (container, in-process parity fallback) + `ObjectStoreContentStore` / `InMemoryContentStore` offload behind the `ContentStore` seam; Day-25 sandbox/fallback/integrity counters |
-| `pnpm test && pnpm lint && pnpm e2e` green | **✓** | 695 tests / 132 files; lint; typecheck; build; e2e happy-path + 8 failure scenarios |
+| §7 Exit criterion                                                               | Verdict | Evidence (cited)                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Routing precision/recall computed & reviewed against a real decision log        | **✓**   | `routing.precision` 0.333, `routing.recall` 0.5, `escalationLeakage` 1.0, `inflationRatio` 0.5, `humanMinutesPerAccept` 2.5 — computed from the real `decisions` × `assessments` × `review_queue` join over N=4 (week-02)         |
+| Attention weights fitted from `was_useful`; inflation improved over placeholder | **△**   | Fitted: yes (`eval:make-dataset` → `eval:fit`, Day 12). Improved: **no** — fitted log-loss 0.316 did _not_ beat the Phase-1 placeholder's 0.262 on held-out, so `StaticWeightsAdapter` stays (wiring-map line 38)                 |
+| A/B harness replays + head-to-head, no production effect                        | **✓**   | Day-9 `BASELINE` vs `DEP_HEAVY` (`noProductionEffect===true`); Day-29 keyword vs semantic dry-run: `rank_correlation` `[-1.0, -1.0]`, guardrail HELD — `tasks`/`decisions`/`contexts` unchanged                                   |
+| Semantic infra shadow-only; `rank_method` default `keyword`                     | **✓**   | `RANK_METHOD` wired to `'phase1-keyword-dependency'` (`apps/context-engine/src/trim.ts:22`); `semanticShadowEnabled` default **OFF** (`types.ts:50`); shadow-negative test asserts the keyword path makes **zero** embedder calls |
+| SSO/OIDC + roles; identity on audit                                             | **✓**   | OIDC `sub`-keyed login, revocable JWT sessions, `ADMIN ⊇ REVIEWER ⊇ OPERATOR` role gate; `review_decisions.actor_id` non-null (Week 1) — the Phase-1 `X-Reviewer-Id` header is gone                                               |
+| Auto-approve gated: flag + sampling audit + calibration                         | **✓**   | Three-part gate (`calibration-green ∧ flag on ∧ under the bar`) in `AutoApproveExecutor`; flag **OFF at rest**, kill-switch armed, 10% silent-human sample audits leakage (Week 3)                                                |
+| Spec 8 + Spec 10 promoted                                                       | **✓**   | `docs/core/8_Human_Review_Interface_v0.1.md` (Day 24), `docs/core/10_Observability_Governance_v0.1.md` (Day 10)                                                                                                                   |
+| Sandbox verifiable; large artifacts via `ContentStore`                          | **✓**   | `SandboxedCheck` (container, in-process parity fallback) + `ObjectStoreContentStore` / `InMemoryContentStore` offload behind the `ContentStore` seam; Day-25 sandbox/fallback/integrity counters                                  |
+| `pnpm test && pnpm lint && pnpm e2e` green                                      | **✓**   | 695 tests / 132 files; lint; typecheck; build; e2e happy-path + 8 failure scenarios                                                                                                                                               |
 
 **Tally: 8 ✓, 1 △, 0 ✗.** No criterion is un-measured ("not-checked"); every row
 carries a number or a code anchor.
@@ -37,13 +37,13 @@ The acceptance bar ("measure against the Phase-1 baseline, not against nothing")
 is met where a Phase-1 baseline exists, and **not silently invented where it
 does not**:
 
-| Metric | Phase-1 baseline | Phase-2 result | Delta is real? |
-|---|---|---|---|
-| Attention weight log-loss | placeholder **0.262** (held-out) | fitted **0.316** | **no win** — placeholder kept (honest loss, not a regression dressed as one) |
-| Routing precision / recall / leakage | **not recorded** | 0.333 / 0.5 / 1.0 (N=4) | **n/a** — no Phase-1 gauge existed to compare against |
-| Inflation ratio | **not recorded** | 0.5 (guardrail-tripping on first run) | **n/a** |
-| Human minutes per accept | **not recorded** | 2.5 | **n/a** |
-| `rank_method` | `keyword` | `'phase1-keyword-dependency'` | unchanged by construction |
+| Metric                               | Phase-1 baseline                 | Phase-2 result                        | Delta is real?                                                               |
+| ------------------------------------ | -------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| Attention weight log-loss            | placeholder **0.262** (held-out) | fitted **0.316**                      | **no win** — placeholder kept (honest loss, not a regression dressed as one) |
+| Routing precision / recall / leakage | **not recorded**                 | 0.333 / 0.5 / 1.0 (N=4)               | **n/a** — no Phase-1 gauge existed to compare against                        |
+| Inflation ratio                      | **not recorded**                 | 0.5 (guardrail-tripping on first run) | **n/a**                                                                      |
+| Human minutes per accept             | **not recorded**                 | 2.5                                   | **n/a**                                                                      |
+| `rank_method`                        | `keyword`                        | `'phase1-keyword-dependency'`         | unchanged by construction                                                    |
 
 ### Finding 1 — the routing metrics have no Phase-1 baseline.
 
@@ -61,7 +61,7 @@ as a recording habit).
 
 Week 3's checkpoint was a **hard** one: `eval:fit` produced fitted weights
 (log-loss 0.316) that lost to the Phase-1 placeholder (0.262) on the held-out
-set. The governance rule held — `StaticWeightsAdapter` was *not* auto-promoted,
+set. The governance rule held — `StaticWeightsAdapter` was _not_ auto-promoted,
 `eval:fit` printed an `improvement: false` verdict with a governance note, and
 the placeholder stayed. The criterion's "improvement over placeholders" half is
 therefore **△**, not ✓, and the system was left in its safe default. This is the
@@ -79,10 +79,10 @@ means "calibrated weights" is still aspirational, not done.
    0.262). Nothing regressed; the placeholder is the correct, measured default.
 2. **Routing "improvement" unmeasurable** — the gauges resolve to real values
    over a real decision log, but Phase 1 left no baseline, so Phase 2 can only
-   say the loop is *measured*, not *improved*.
+   say the loop is _measured_, not _improved_.
 
 Neither caveat blocks the Phase 2 → 3 transition: Phase 3's whole point is to
-accumulate the evidence that will *make* these numbers meaningful (memory,
+accumulate the evidence that will _make_ these numbers meaningful (memory,
 benchmark corpus, LLM-as-judge, closed-loop calibration). A **no-go** would be
 the call if any criterion was ✗ (e.g. auto-approve ON at rest, `rank_method`
 flipped, or the guardrail violated) — none is.
@@ -92,7 +92,7 @@ flipped, or the guardrail violated) — none is.
 ## 4. Carried into Phase 3 (from this checkpoint)
 
 1. **Re-run the weight fit to a verdict.** Once `was_useful` rows accumulate
-   beyond the N=4 window, re-run `eval:fit` and flip `WeightsProvider` *only* if
+   beyond the N=4 window, re-run `eval:fit` and flip `WeightsProvider` _only_ if
    the fitted weights beat 0.262 on held-out and the inflation-monitor stays
    under the ceiling. Seam: `WeightsProvider` (day-12). Gate: `improvement: true`
    before flipping `StaticWeightsAdapter` (backlog item).
@@ -110,8 +110,8 @@ flipped, or the guardrail violated) — none is.
 
 ---
 
-*Checkpoint rule applied: `pnpm build`, `pnpm typecheck`, `pnpm lint`,
+_Checkpoint rule applied: `pnpm build`, `pnpm typecheck`, `pnpm lint`,
 `pnpm test` (695/132 green), and `pnpm e2e` (happy-path + 8 failure scenarios)
 all green before this note is committed. The served `rank_method` is
 `'phase1-keyword-dependency'`, `semanticShadowEnabled` is **OFF**, and the
-auto-approve flag is **OFF** — the system is left in its safe defaults.*
+auto-approve flag is **OFF** — the system is left in its safe defaults._

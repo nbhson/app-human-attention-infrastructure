@@ -52,11 +52,7 @@ function collectTextLeaves(node: unknown, out: string[]): void {
  * Map a Jira issue into an {@link Issue}. `baseUrl` is the Jira site root (e.g.
  * `https://acme.atlassian.net`), used to build the human-facing `url`.
  */
-export function mapJiraIssue(
-  provider: TicketProviderType,
-  baseUrl: string,
-  payload: JiraIssuePayload,
-): Issue {
+export function mapJiraIssue(provider: TicketProviderType, baseUrl: string, payload: JiraIssuePayload): Issue {
   return {
     provider,
     key: payload.key,

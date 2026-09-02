@@ -129,22 +129,16 @@ export function registerReviewIngestRoutes(
         // The actual AI review runs asynchronously via the `review.requested` subscriber.
         const result = await ingest.createReview({
           prUrl: prUrl.trim(),
-          ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0
-            ? { jiraTicket: jiraTicket.trim() }
-            : {}),
+          ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0 ? { jiraTicket: jiraTicket.trim() } : {}),
         });
         // Publish event so the background worker picks it up.
         const payload: ReviewRequestedPayload = {
           task_id: result.taskId,
           review_report_id: result.reportId,
           pr_url: result.prUrl,
-          ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0
-            ? { jira_ticket: jiraTicket.trim() }
-            : {}),
+          ...(typeof jiraTicket === 'string' && jiraTicket.trim().length > 0 ? { jira_ticket: jiraTicket.trim() } : {}),
         };
-        bus.publish(
-          createEvent(EventType.ReviewRequested, brand(result.reportId, 'CorrelationID'), payload),
-        );
+        bus.publish(createEvent(EventType.ReviewRequested, brand(result.reportId, 'CorrelationID'), payload));
         return reply.code(202).send({
           reportId: result.reportId,
           taskId: result.taskId,
@@ -160,18 +154,14 @@ export function registerReviewIngestRoutes(
           // surface the useful status instead of a bare 500 so the create screen
           // can tell "inaccessible pull request" from an internal failure.
           if (error.status === 404) {
-            return reply
-              .code(404)
-              .send({ error: 'That pull request could not be found or is not accessible.' });
+            return reply.code(404).send({ error: 'That pull request could not be found or is not accessible.' });
           }
           if (error.status === 401 || error.status === 403) {
             return reply.code(422).send({
               error: 'That repository is not accessible — check the GITHUB_TOKEN permissions.',
             });
           }
-          return reply
-            .code(502)
-            .send({ error: 'The Git host could not be reached. Try again in a moment.' });
+          return reply.code(502).send({ error: 'The Git host could not be reached. Try again in a moment.' });
         }
         throw error;
       }
@@ -193,12 +183,7 @@ export function registerReviewIngestRoutes(
 
       // Fetch reports + rule state in parallel — rule state is independent of pagination.
       const [rows, ruleState] = await Promise.all([
-        db
-          .select()
-          .from(reviewReports)
-          .orderBy(desc(reviewReports.created_at))
-          .limit(limit)
-          .offset(offset),
+        db.select().from(reviewReports).orderBy(desc(reviewReports.created_at)).limit(limit).offset(offset),
         loadTriageRuleState(db),
       ]);
 
@@ -308,9 +293,7 @@ export function registerReviewIngestRoutes(
         decisionByReport.set(row.reportId, row.decision);
       }
       const decidedCount = decisionByReport.size;
-      const approvedCount = [...decisionByReport.values()].filter(
-        (decision) => decision === 'APPROVE',
-      ).length;
+      const approvedCount = [...decisionByReport.values()].filter((decision) => decision === 'APPROVE').length;
       return {
         pendingCount: total - decidedCount,
         decidedCount,
@@ -324,56 +307,41 @@ export function registerReviewIngestRoutes(
     { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
     async (request, reply) => {
       const id = request.params.id as ReviewReportID;
-      const reportRows = await db
-        .select()
-        .from(reviewReports)
-        .where(eq(reviewReports.id, id))
-        .limit(1);
+      const reportRows = await db.select().from(reviewReports).where(eq(reviewReports.id, id)).limit(1);
       const report = reportRows[0];
       if (!report) {
         return reply.code(404).send({ error: 'review report not found' });
       }
 
       // All subsidiary queries are independent — run them in parallel.
-      const [
-        findingsRows,
-        suggestionsRows,
-        llmRows,
-        judgeRows,
-        decisionRows,
-        verificationRows,
-        ruleState,
-      ] = await Promise.all([
-        db
-          .select()
-          .from(reviewFindings)
-          .where(eq(reviewFindings.report_id, id))
-          .orderBy(asc(reviewFindings.order_index)),
-        db
-          .select()
-          .from(fixSuggestions)
-          .where(eq(fixSuggestions.report_id, id))
-          .orderBy(asc(fixSuggestions.order_index)),
-        report.correlation_id !== null && report.correlation_id !== undefined
-          ? db
-              .select()
-              .from(llmCallLog)
-              .where(eq(llmCallLog.correlation_id, report.correlation_id))
-              .orderBy(asc(llmCallLog.created_at))
-          : [],
-        db
-          .select()
-          .from(judgeRuns)
-          .where(eq(judgeRuns.report_id, id))
-          .orderBy(asc(judgeRuns.created_at)),
-        db
-          .select()
-          .from(reviewDecisions)
-          .where(eq(reviewDecisions.report_id, id))
-          .orderBy(asc(reviewDecisions.created_at)),
-        db.select().from(reviewVerifications).where(eq(reviewVerifications.report_id, id)).limit(1),
-        loadTriageRuleState(db),
-      ]);
+      const [findingsRows, suggestionsRows, llmRows, judgeRows, decisionRows, verificationRows, ruleState] =
+        await Promise.all([
+          db
+            .select()
+            .from(reviewFindings)
+            .where(eq(reviewFindings.report_id, id))
+            .orderBy(asc(reviewFindings.order_index)),
+          db
+            .select()
+            .from(fixSuggestions)
+            .where(eq(fixSuggestions.report_id, id))
+            .orderBy(asc(fixSuggestions.order_index)),
+          report.correlation_id !== null && report.correlation_id !== undefined
+            ? db
+                .select()
+                .from(llmCallLog)
+                .where(eq(llmCallLog.correlation_id, report.correlation_id))
+                .orderBy(asc(llmCallLog.created_at))
+            : [],
+          db.select().from(judgeRuns).where(eq(judgeRuns.report_id, id)).orderBy(asc(judgeRuns.created_at)),
+          db
+            .select()
+            .from(reviewDecisions)
+            .where(eq(reviewDecisions.report_id, id))
+            .orderBy(asc(reviewDecisions.created_at)),
+          db.select().from(reviewVerifications).where(eq(reviewVerifications.report_id, id)).limit(1),
+          loadTriageRuleState(db),
+        ]);
 
       const decisionIds = decisionRows.map((row) => row.id);
       const writebackRows =
@@ -521,11 +489,7 @@ export function registerReviewIngestRoutes(
         });
       }
 
-      const reportRows = await db
-        .select()
-        .from(reviewReports)
-        .where(eq(reviewReports.id, id))
-        .limit(1);
+      const reportRows = await db.select().from(reviewReports).where(eq(reviewReports.id, id)).limit(1);
       const report = reportRows[0];
       if (!report) {
         return reply.code(404).send({ error: 'review report not found' });
@@ -586,9 +550,7 @@ export function registerReviewIngestRoutes(
 
       const writeback = container.resolve<WriteBackService>(TOKENS.WriteBackService);
       const approved = decision === ReviewDecisionType.Approve;
-      const decisionSummary = `Review decision: ${decision}${
-        rationale === undefined ? '' : ` — ${rationale}`
-      }`;
+      const decisionSummary = `Review decision: ${decision}${rationale === undefined ? '' : ` — ${rationale}`}`;
       const userComment = request.body?.comment?.trim();
       const commentBody = userComment && userComment.length > 0 ? userComment : decisionSummary;
 

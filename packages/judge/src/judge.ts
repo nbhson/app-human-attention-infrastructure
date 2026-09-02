@@ -12,12 +12,7 @@ import type { JudgeRunStore, JudgeScores, LLMProvider, ReviewReport } from '@har
 import { newJudgeRunID } from '@harness/domain';
 
 import { canonicalReportHash } from './report-hash.js';
-import {
-  buildRubricPrompt,
-  parseJudgeOutput,
-  RUBRIC_PROMPT_VERSION,
-  RUBRIC_SYSTEM_PROMPT,
-} from './rubric.js';
+import { buildRubricPrompt, parseJudgeOutput, RUBRIC_PROMPT_VERSION, RUBRIC_SYSTEM_PROMPT } from './rubric.js';
 
 /** Optional per-call overrides. */
 export interface JudgeOptions {

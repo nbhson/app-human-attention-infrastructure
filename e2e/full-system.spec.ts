@@ -58,13 +58,7 @@ import {
   newEvidenceID,
   newUserID,
 } from '@harness/domain';
-import type {
-  Issue,
-  MemoryProvider,
-  PullRequest,
-  WriteBackIntent,
-  WriteBackResult,
-} from '@harness/domain';
+import type { Issue, MemoryProvider, PullRequest, WriteBackIntent, WriteBackResult } from '@harness/domain';
 import type { CloneResult, FetchPullRequestInput, GitProvider } from '@harness/git-provider';
 import type { FetchIssueInput, TicketProvider } from '@harness/ticket-provider';
 import type { WriteBackService } from '@harness/writeback';

@@ -51,10 +51,7 @@ const DEFAULT_MAX_TOKENS_PER_SOURCE = 2000;
 const CHARS_PER_TOKEN = 4;
 
 /** Truncate `content` to `maxTokens`' approximate char budget and report the cut. */
-export function truncateSource(
-  content: string,
-  maxTokens: number,
-): { text: string; truncated: number } {
+export function truncateSource(content: string, maxTokens: number): { text: string; truncated: number } {
   const maxChars = maxTokens * CHARS_PER_TOKEN;
   if (content.length <= maxChars) {
     return { text: content, truncated: 0 };
@@ -184,11 +181,7 @@ export class EmbeddingIndexer {
   }
 
   /** Write the computed vector (and its provenance) onto the source's row. */
-  private async markEmbedded(
-    source: SourceCandidate,
-    vector: number[],
-    truncatedChars: number,
-  ): Promise<void> {
+  private async markEmbedded(source: SourceCandidate, vector: number[], truncatedChars: number): Promise<void> {
     await this.db
       .insert(contextSourceEmbeddings)
       .values({

@@ -12,12 +12,7 @@ import { GitProviderType } from '@harness/domain';
 import type { PullRequest } from '@harness/domain';
 
 import { GitProviderError, parseRepoPath } from './git-provider.js';
-import type {
-  CloneInput,
-  CloneResult,
-  FetchPullRequestInput,
-  GitProvider,
-} from './git-provider.js';
+import type { CloneInput, CloneResult, FetchPullRequestInput, GitProvider } from './git-provider.js';
 import { cloneAndCheckout } from './clone.js';
 import { mapGithubPullRequest } from './github-mapper.js';
 import type { GithubPullPayload, GithubPrFilePayload } from './github-mapper.js';
@@ -72,18 +67,10 @@ export class GitHubProvider implements GitProvider {
     // the whole chain (per_page=100) so every changed file is fetched; only when
     // the endpoint hits its hard cap are we forced to widen to the compare
     // endpoint (which reports up to 3000 files). No self-imposed limit anywhere.
-    const pagedFiles = (await this.requestAllArrayPages(
-      `${prPath}/files`,
-    )) as GithubPrFilePayload[];
+    const pagedFiles = (await this.requestAllArrayPages(`${prPath}/files`)) as GithubPrFilePayload[];
     let files = pagedFiles;
     if (pagedFiles.length >= GITHUB_PR_FILES_HARD_CAP) {
-      const compareFiles = await this.fetchCompareFiles(
-        owner,
-        name,
-        meta.base.sha,
-        meta.head.sha,
-        pagedFiles,
-      );
+      const compareFiles = await this.fetchCompareFiles(owner, name, meta.base.sha, meta.head.sha, pagedFiles);
       // Keep whichever list is larger: a successful compare should exceed the
       // capped page; a merge-base divergence must never under-count the cap.
       files = compareFiles.length >= pagedFiles.length ? compareFiles : pagedFiles;
@@ -102,10 +89,7 @@ export class GitHubProvider implements GitProvider {
     description: string,
   ): Promise<void> {
     const { owner, name } = parseRepoPath(input.repo);
-    const pr = (await this.request(
-      `/repos/${owner}/${name}/pulls/${input.number}`,
-      'GET',
-    )) as GithubPullPayload;
+    const pr = (await this.request(`/repos/${owner}/${name}/pulls/${input.number}`, 'GET')) as GithubPullPayload;
     await this.request(`/repos/${owner}/${name}/statuses/${pr.head.sha}`, 'POST', {
       state,
       description,

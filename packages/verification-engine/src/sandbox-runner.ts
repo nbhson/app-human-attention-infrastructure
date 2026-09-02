@@ -135,10 +135,7 @@ export class SandboxRunner {
   }
 
   /** Override wins; otherwise the clone's declared script name for `script`. */
-  private async resolveScriptName(
-    workdir: string,
-    script: 'build' | 'test',
-  ): Promise<string | undefined> {
+  private async resolveScriptName(workdir: string, script: 'build' | 'test'): Promise<string | undefined> {
     const override = script === 'build' ? this.options.buildCommand : this.options.testCommand;
     if (override !== undefined) {
       return override;
@@ -149,19 +146,11 @@ export class SandboxRunner {
 }
 
 /** Map a raw sandbox measurement to the check vocabulary (exit code → status). */
-export function toCheckResult(
-  kind: CheckKind,
-  result: SandboxResult,
-  durationMs: number,
-): CheckResult {
+export function toCheckResult(kind: CheckKind, result: SandboxResult, durationMs: number): CheckResult {
   const combined = `${result.stdout}${result.stderr}`;
   return {
     checkKind: kind,
-    status: result.timedOut
-      ? CheckStatus.TIMED_OUT
-      : result.exitCode === 0
-        ? CheckStatus.PASSED
-        : CheckStatus.FAILED,
+    status: result.timedOut ? CheckStatus.TIMED_OUT : result.exitCode === 0 ? CheckStatus.PASSED : CheckStatus.FAILED,
     durationMs,
     exitCode: result.exitCode,
     output: truncateOutput(combined),

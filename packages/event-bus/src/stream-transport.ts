@@ -78,10 +78,7 @@ export class InMemoryStreamTransport implements StreamTransport {
     }
 
     // 2. Then offer new entries, moving the delivered boundary forward as we go.
-    const fresh = this.entries.slice(
-      this.deliveredCount,
-      this.deliveredCount + (count - out.length),
-    );
+    const fresh = this.entries.slice(this.deliveredCount, this.deliveredCount + (count - out.length));
     for (const entry of fresh) {
       this.pending.set(entry.id, entry);
       this.deliveredCount += 1;

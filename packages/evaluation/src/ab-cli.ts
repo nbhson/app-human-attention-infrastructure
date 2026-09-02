@@ -73,9 +73,7 @@ async function main(): Promise<void> {
 
   const db = createDb(connectionString);
   try {
-    const loaded = await loadTrajectory(
-      resolveFixturePath(parseFixturePath(process.argv.slice(2))),
-    );
+    const loaded = await loadTrajectory(resolveFixturePath(parseFixturePath(process.argv.slice(2))));
     const inputs: ReplayInput[] = [
       {
         runId: loaded.runId,

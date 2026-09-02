@@ -45,14 +45,7 @@ export async function ensureImage(image: string, dockerBinary = 'docker'): Promi
   if (inspect.code === 0) {
     return;
   }
-  const build = await runDocker(dockerBinary, [
-    'build',
-    '-t',
-    image,
-    '-f',
-    DOCKERFILE,
-    BUILD_CONTEXT,
-  ]);
+  const build = await runDocker(dockerBinary, ['build', '-t', image, '-f', DOCKERFILE, BUILD_CONTEXT]);
   if (build.code !== 0) {
     throw new SandboxInfraError(`failed to build ${image}: ${build.output}`);
   }

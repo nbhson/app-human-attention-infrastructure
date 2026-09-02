@@ -7,15 +7,7 @@
 import Fastify from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  agentRuns,
-  artifacts,
-  assessments,
-  changes,
-  projects,
-  reviewQueue,
-  tasks,
-} from '@harness/db';
+import { agentRuns, artifacts, assessments, changes, projects, reviewQueue, tasks } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 import {
   newAgentRunID,
@@ -113,9 +105,7 @@ describe('ops routes', () => {
       state: TaskStatus.AwaitingReview,
       idempotency_key: newTaskID(),
     });
-    await db
-      .insert(agentRuns)
-      .values({ id: agentRunId, task_id: reviewTaskId, status: 'COMPLETED', max_steps: 10 });
+    await db.insert(agentRuns).values({ id: agentRunId, task_id: reviewTaskId, status: 'COMPLETED', max_steps: 10 });
     await db.insert(artifacts).values({
       id: artifactId,
       project_id: projectId,

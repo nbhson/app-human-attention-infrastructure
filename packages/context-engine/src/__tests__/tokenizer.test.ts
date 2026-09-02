@@ -75,9 +75,7 @@ describe('getTokenizer (day-19 §2.1 model-aware resolution)', () => {
 
 describe('tokenize', () => {
   it('lowercases and splits on non-alphanumeric boundaries', () => {
-    expect(tokenize('Fix bug in PaymentService.ts')).toEqual(
-      new Set(['bug', 'paymentservice', 'ts']),
-    );
+    expect(tokenize('Fix bug in PaymentService.ts')).toEqual(new Set(['bug', 'paymentservice', 'ts']));
   });
 
   it('drops stopwords and duplicates', () => {
@@ -85,17 +83,13 @@ describe('tokenize', () => {
   });
 
   it('keeps the salient keywords of a no-target task', () => {
-    expect(tokenize('Add logging to all API endpoints')).toEqual(
-      new Set(['logging', 'api', 'endpoints']),
-    );
+    expect(tokenize('Add logging to all API endpoints')).toEqual(new Set(['logging', 'api', 'endpoints']));
   });
 });
 
 describe('extractFileReferences', () => {
   it('extracts source-file tokens from a task description', () => {
-    expect(extractFileReferences('Fix bug in src/PaymentService.ts')).toEqual([
-      'src/PaymentService.ts',
-    ]);
+    expect(extractFileReferences('Fix bug in src/PaymentService.ts')).toEqual(['src/PaymentService.ts']);
   });
 
   it('returns an empty list when no file is named', () => {

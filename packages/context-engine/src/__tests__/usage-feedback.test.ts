@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ReRanker } from '../ranking/re-ranker.js';
-import {
-  DEFAULT_USAGE_LEARN_CONFIG,
-  UsageLearner,
-  type SourceUsefulness,
-} from '../ranking/usage-learner.js';
+import { DEFAULT_USAGE_LEARN_CONFIG, UsageLearner, type SourceUsefulness } from '../ranking/usage-learner.js';
 import type { RetrievedDoc } from '../retrieval/retriever.js';
 
 const NOW = 1_800_000_000_000;
@@ -54,12 +50,8 @@ describe('UsageLearner (day-32 §3.2)', () => {
 
   it('decays old marks — a mark past the half-life contributes half its weight', () => {
     const halfLife = DEFAULT_USAGE_LEARN_CONFIG.halfLifeMs;
-    const fresh = new UsageLearner(DEFAULT_USAGE_LEARN_CONFIG, () => NOW).learn([
-      mark('a.ts', true, NOW),
-    ]);
-    const stale = new UsageLearner(DEFAULT_USAGE_LEARN_CONFIG, () => NOW).learn([
-      mark('a.ts', true, NOW - halfLife),
-    ]);
+    const fresh = new UsageLearner(DEFAULT_USAGE_LEARN_CONFIG, () => NOW).learn([mark('a.ts', true, NOW)]);
+    const stale = new UsageLearner(DEFAULT_USAGE_LEARN_CONFIG, () => NOW).learn([mark('a.ts', true, NOW - halfLife)]);
     expect(fresh.get('a.ts')).toBeCloseTo(0.7);
     // Half-life: 0.5 + 0.2 * 0.5 = 0.6.
     expect(stale.get('a.ts')).toBeCloseTo(0.6);

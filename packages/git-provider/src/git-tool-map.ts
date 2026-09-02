@@ -44,11 +44,7 @@ export interface GitToolMapEntry {
   readonly statusTool: string;
   readonly labelTool: string;
   /** Translate `host/owner/name` + PR number into that host's read-tool arguments. */
-  readonly buildArgs: (input: {
-    owner: string;
-    name: string;
-    number: number;
-  }) => Record<string, unknown>;
+  readonly buildArgs: (input: { owner: string; name: string; number: number }) => Record<string, unknown>;
   /** Build the comment-tool arguments. */
   readonly buildCommentArgs: (input: {
     owner: string;
@@ -86,10 +82,7 @@ export interface GitToolMap {
   /** The tool names for a host (throws if the host has no entry). */
   resolve(host: GitHost): ResolvedGitTools;
   /** The argument object for a host's read tools (throws if the host has no entry). */
-  buildArgs(
-    host: GitHost,
-    input: { owner: string; name: string; number: number },
-  ): Record<string, unknown>;
+  buildArgs(host: GitHost, input: { owner: string; name: string; number: number }): Record<string, unknown>;
   /** The argument object for the host's comment tool. */
   buildCommentArgs(
     host: GitHost,
@@ -237,10 +230,7 @@ export class StaticGitToolMap implements GitToolMap {
     };
   }
 
-  buildArgs(
-    host: GitHost,
-    input: { owner: string; name: string; number: number },
-  ): Record<string, unknown> {
+  buildArgs(host: GitHost, input: { owner: string; name: string; number: number }): Record<string, unknown> {
     return this.require(host).buildArgs(input);
   }
 

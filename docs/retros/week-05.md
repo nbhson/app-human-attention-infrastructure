@@ -1,11 +1,11 @@
 # Phase 2 · Week 5 Retro — New address spaces, integrated but not yet trusted
 
-*Day-25 checkpoint (Phase 2). Fifth pass, over the object store, the two
+_Day-25 checkpoint (Phase 2). Fifth pass, over the object store, the two
 sandboxes, Spec 8's human-review surface, and the report that finally reads them
 together. Same rule as every prior retro: honest by design, numbers-first,
 blameless — and green before committed. This week's verdict is about **trust**:
 the subsystems now integrate, but "integrated" is not "survives failure", and the
-fallback path — not the happy path — is what earns the cut-over.*
+fallback path — not the happy path — is what earns the cut-over._
 
 ## What shipped this week
 
@@ -34,9 +34,9 @@ fallback path — not the happy path — is what earns the cut-over.*
 
 The honest read of Week 5 is that **the alert surface is built but unloaded**. On
 a freshly seeded dev DB every new counter sits at zero until traffic exercises it:
-the fallback rate's information arrives only when the sandbox *fails*, the
-integrity counter only when a blob *drifts*, and the cache ratio only after a
-*second* run. That is the correct posture for a checkpoint — a liveness signal
+the fallback rate's information arrives only when the sandbox _fails_, the
+integrity counter only when a blob _drifts_, and the cache ratio only after a
+_second_ run. That is the correct posture for a checkpoint — a liveness signal
 must read `0` before load rather than be absent until it is needed — but it means
 the week's real proof is the mechanism and its tests, not a headline number.
 
@@ -44,7 +44,7 @@ The three numbers that will matter first, in order of confidence:
 
 1. **`sandboxFallbackRate`** (`fallbacks / (runs + fallbacks)`) — the single best
    liveness signal for the whole week. A non-zero rate means the isolation is not
-   actually being used. It is computed, recorded, and rendered; it is *not* yet
+   actually being used. It is computed, recorded, and rendered; it is _not_ yet
    meaningfully non-zero anywhere, because Day 27 is the first honest end-to-end
    run.
 2. **`sandboxAvgDurationMs`** — the first place regression hides. Container
@@ -74,7 +74,7 @@ The three numbers that will matter first, in order of confidence:
 
 - **A live end-to-end run that loads the alert surface.** The `--once` report CLI
   is a fresh process, so its `infra` snapshot reads this process's lifetime
-  counters — zero. The report *renders* `infra` with honest holes, but the holes
+  counters — zero. The report _renders_ `infra` with honest holes, but the holes
   only fill once a long-lived process (Day 27) has both traffic and the report
   generator in the same address space.
 - **No TTL sweep on the cache** (carried from Week 4) and **no failure injection**
@@ -84,7 +84,7 @@ The three numbers that will matter first, in order of confidence:
 ## What is fragile — and the single surface Day 26 must hit first
 
 **The object-store read-back is the likeliest first failure.** Three things
-converge there: it is the *only* path that can silently poison a diff if its
+converge there: it is the _only_ path that can silently poison a diff if its
 integrity check is ever bypassed (`ContentIntegrityError` is the backstop); it is
 the newest in the write→read round-trip (the `content_hash` is written by
 `SnapshotStore` and re-read by `DiffEngine.contentFor` / `MergeService`); and its
@@ -94,26 +94,26 @@ armed, so its worst case is a loud fallback rather than a wrong answer. The vect
 index is behind an opt-in shadow flag, so it cannot corrupt the served path.
 
 **So: Day 26's failure-injection effort should hit the object store hardest** —
-missing blob, corrupt blob (forced digest drift), and a slow/hung store — *then*
-the sandbox (daemon down, image missing, timeout), *then* the index. The goal is
+missing blob, corrupt blob (forced digest drift), and a slow/hung store — _then_
+the sandbox (daemon down, image missing, timeout), _then_ the index. The goal is
 not "the store never fails"; it is "a store failure degrades to a loud, counted,
 correct answer rather than a silently-wrong diff or a hung run".
 
 ## Decisions / debts carried into Week 6
 
 - **Do not cut over to sandbox-only verification on demo success.** Week 5 proves
-  the subsystems *work together*; Day 26 proves they *survive failure*. The
+  the subsystems _work together_; Day 26 proves they _survive failure_. The
   in-process parity path stays the armed default until failure injection passes.
 - **The semantic switch stays parked.** Nothing in Week 5 changes the Day 29 A/B
-  read; `shadow_rank_comparisons` now *is* consumed by the report (mean Kendall
+  read; `shadow_rank_comparisons` now _is_ consumed by the report (mean Kendall
   tau), which is the first honest consumption of the week-4 shadow signal, but it
-  is a *description*, not a *decision*.
+  is a _description_, not a _decision_.
 
 ---
 
-*Checkpoint rule applied: `pnpm lint`, `pnpm -r typecheck`, and `pnpm -r test`
+_Checkpoint rule applied: `pnpm lint`, `pnpm -r typecheck`, and `pnpm -r test`
 are green; `pnpm e2e` (migrate through 0030 + happy path + 8 failure scenarios)
 is green. The report renders `shadow` / `infra` / `rankMethod`; the served
 `rank_method` is `phase1-keyword-dependency` (report `rankMethod = 'keyword'`);
 `sandbox` (R12) and `object-store` (R11) remain leaves; R4/R8 are asserted by
-`packages/di/src/__tests__/architecture.test.ts`.*
+`packages/di/src/__tests__/architecture.test.ts`._

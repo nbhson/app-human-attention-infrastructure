@@ -54,10 +54,7 @@ export function toLearningSample(fact: ReviewFact): LearningSample {
  * a re-run over unchanged data returns an empty window (the stale-data floor the
  * caller turns into a no-op, day-31 §2.4).
  */
-export function selectNewSince(
-  facts: readonly ReviewFact[],
-  since: Date | null,
-): readonly ReviewFact[] {
+export function selectNewSince(facts: readonly ReviewFact[], since: Date | null): readonly ReviewFact[] {
   if (since === null) {
     return facts;
   }

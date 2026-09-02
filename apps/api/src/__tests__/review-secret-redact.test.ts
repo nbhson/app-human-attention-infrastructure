@@ -70,8 +70,6 @@ describe('redactSensitivePatch', () => {
       ['+++ b/.env', '-API_KEY=<redacted>', ' APP_MODE=prod', ' OLD_TOKEN=<redacted>'].join('\n'),
     );
 
-    expect(redactSensitivePatch('src/app.ts', '+const apiKey = "live";\n')).toBe(
-      '+const apiKey = "live";\n',
-    );
+    expect(redactSensitivePatch('src/app.ts', '+const apiKey = "live";\n')).toBe('+const apiKey = "live";\n');
   });
 });

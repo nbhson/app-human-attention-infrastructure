@@ -20,10 +20,7 @@ import type { TaskStatus as TaskState } from '@harness/domain';
 const TRANSITIONS: ReadonlyMap<TaskState, ReadonlySet<TaskState>> = new Map([
   [TaskStatus.Pending, new Set([TaskStatus.Queued, TaskStatus.Cancelled])],
   [TaskStatus.Queued, new Set([TaskStatus.Executing, TaskStatus.Cancelled])],
-  [
-    TaskStatus.Executing,
-    new Set([TaskStatus.Verifying, TaskStatus.Failed, TaskStatus.AwaitingHumanIntervention]),
-  ],
+  [TaskStatus.Executing, new Set([TaskStatus.Verifying, TaskStatus.Failed, TaskStatus.AwaitingHumanIntervention])],
   [
     TaskStatus.Verifying,
     new Set([

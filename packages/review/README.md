@@ -36,13 +36,13 @@ claim, decide, release, escalate, or drop changes awaiting review.
       REJECT)     returned)   authority)
 ```
 
-| Action | Legal from | Effect |
-| --- | --- | --- |
-| `claim` | `QUEUED` | `QUEUED → CLAIMED` (atomic guarded UPDATE; losing racer → `QueueConflictError`) |
-| `decide` | `CLAIMED` | `CLAIMED → DECIDED`, records `APPROVE`/`REJECT` decision |
-| `release` | `CLAIMED` | `CLAIMED → QUEUED` (timed-out claim never orphans) |
-| `escalate` | `CLAIMED` | `CLAIMED → ESCALATED`, records `ESCALATED` decision |
-| `drop` | `QUEUED`, `CLAIMED` | → `DROPPED`, requires rationale |
+| Action     | Legal from          | Effect                                                                          |
+| ---------- | ------------------- | ------------------------------------------------------------------------------- |
+| `claim`    | `QUEUED`            | `QUEUED → CLAIMED` (atomic guarded UPDATE; losing racer → `QueueConflictError`) |
+| `decide`   | `CLAIMED`           | `CLAIMED → DECIDED`, records `APPROVE`/`REJECT` decision                        |
+| `release`  | `CLAIMED`           | `CLAIMED → QUEUED` (timed-out claim never orphans)                              |
+| `escalate` | `CLAIMED`           | `CLAIMED → ESCALATED`, records `ESCALATED` decision                             |
+| `drop`     | `QUEUED`, `CLAIMED` | → `DROPPED`, requires rationale                                                 |
 
 `claim` is deliberately **not** a read-then-assert — it is an acquire enforced by
 an atomic guarded UPDATE; the other actions read the row and assert against the
@@ -65,21 +65,21 @@ by the attention engine, never passed through the review UI).
 Because review is an engine under R6, its three cross-engine needs are declared
 as narrow interfaces and injected by the composition root:
 
-| Seam | Provides |
-| --- | --- |
-| `TaskTransition` | Drive the task state machine (`transitionTask`) — e.g. `REJECT → REWORK`. |
-| `FeedbackReporter` | Report `wasUseful` + comment back to attention calibration. |
-| `DiffProvider` | unified diffs (`diffChange → ReviewFileDiff[]`). |
+| Seam               | Provides                                                                  |
+| ------------------ | ------------------------------------------------------------------------- |
+| `TaskTransition`   | Drive the task state machine (`transitionTask`) — e.g. `REJECT → REWORK`. |
+| `FeedbackReporter` | Report `wasUseful` + comment back to attention calibration.               |
+| `DiffProvider`     | unified diffs (`diffChange → ReviewFileDiff[]`).                          |
 
 ---
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `types.ts` | `DecisionInput`, `DropInput`, `ReleaseInput`, `EscalateInput`, `QueueItem`/`QueueListItem`/`QueueItemDetail`, the three seams, and error classes. |
-| `state-machine.ts` | `ReviewAction`, `ALLOWED_FROM`, `canTransition`, `assertTransition`, `IllegalTransitionError`. |
-| `service.ts` | `ReviewService` — `list` / `detail` / `claim` / `decide` / `release` / `escalate` / `drop`. |
+| Module             | What it provides                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`         | `DecisionInput`, `DropInput`, `ReleaseInput`, `EscalateInput`, `QueueItem`/`QueueListItem`/`QueueItemDetail`, the three seams, and error classes. |
+| `state-machine.ts` | `ReviewAction`, `ALLOWED_FROM`, `canTransition`, `assertTransition`, `IllegalTransitionError`.                                                    |
+| `service.ts`       | `ReviewService` — `list` / `detail` / `claim` / `decide` / `release` / `escalate` / `drop`.                                                       |
 
 Error taxonomy (mapped to HTTP status by the routes): `ReviewError` (base),
 `QueueConflictError` (409), `QueueStateError`, `QueueItemNotFoundError` (404),

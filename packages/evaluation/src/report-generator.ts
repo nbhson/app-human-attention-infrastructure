@@ -41,9 +41,7 @@ const FLAT_EPSILON = 1e-9;
 /** Thrown when {@link generate} is asked to report on an empty/windowless input. */
 export class EmptyWindowError extends Error {
   constructor() {
-    super(
-      'Refusing to generate a report for an empty or windowless input — every metric is undefined',
-    );
+    super('Refusing to generate a report for an empty or windowless input — every metric is undefined');
     this.name = 'EmptyWindowError';
   }
 }
@@ -86,9 +84,7 @@ function guardrailFor(
     case 'efficiency.inflationRatio':
       return value !== undefined && value > INFLATION_CEILING ? GUARDRAIL_INFLATION : undefined;
     case 'efficiency.humanMinutesPerAccept':
-      return value !== undefined &&
-        previousValue !== undefined &&
-        value > previousValue * HUMAN_COST_SURGE
+      return value !== undefined && previousValue !== undefined && value > previousValue * HUMAN_COST_SURGE
         ? GUARDRAIL_HUMAN_COST
         : undefined;
     default:
@@ -97,10 +93,7 @@ function guardrailFor(
 }
 
 /** Delta-derived trend: `UNKNOWN` without a baseline, `FLAT` within float noise. */
-function trendFor(
-  value: number | undefined,
-  previousValue: number | undefined,
-): MetricLine['trend'] {
+function trendFor(value: number | undefined, previousValue: number | undefined): MetricLine['trend'] {
   if (value === undefined || previousValue === undefined) {
     return 'UNKNOWN';
   }
@@ -119,11 +112,7 @@ export class ReportGenerator {
    * which yields `delta`/`trend` holes (`undefined`/`UNKNOWN`) rather than a
    * fabricated zero-comparison.
    */
-  generate(
-    current: MetricsReport,
-    previous?: readonly MetricLine[],
-    generatedAt: Date = new Date(),
-  ): EvaluationReport {
+  generate(current: MetricsReport, previous?: readonly MetricLine[], generatedAt: Date = new Date()): EvaluationReport {
     if (current.window.from === '' || current.window.to === '') {
       throw new EmptyWindowError();
     }
@@ -138,8 +127,7 @@ export class ReportGenerator {
     const lines: MetricLine[] = METRIC_KEYS.map((key) => {
       const value = valueForKey(current, key);
       const previousValue = previousValues.get(key);
-      const delta =
-        value !== undefined && previousValue !== undefined ? value - previousValue : undefined;
+      const delta = value !== undefined && previousValue !== undefined ? value - previousValue : undefined;
       const guardrail = guardrailFor(key, value, previousValue);
       return {
         key,

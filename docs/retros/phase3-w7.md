@@ -1,13 +1,13 @@
 # Phase 3 · Week 7 Retro — The loop closes, and the gate stays human
 
-*Day-35 checkpoint (Phase 3). Week 7's milestone is written as "the closed loop,
+_Day-35 checkpoint (Phase 3). Week 7's milestone is written as "the closed loop,
 demonstrable". The discipline says a milestone earns that word only by running
 end-to-end **and** proving its moral core: the learning loop tunes calibration and
 routing, and never once reaches past them into the human APPROVE/REJECT gate. The
 week ends **green**: Days 31–34 built the pipeline (collect → fit → gate), the
 usefulness signal, the correlation-joined cycle, and an optional durable transport;
 Day 35 makes it one observable, re-entering run that asserts the gate stayed human.
-Numbers-first, blameless, green before committed.*
+Numbers-first, blameless, green before committed._
 
 ## What shipped this week (Days 31–35)
 
@@ -52,7 +52,7 @@ Numbers-first, blameless, green before committed.*
 ```
 
 The HOLD scene is the point: a no-improvement candidate parks at `deploy=held` and
-*still* re-enters Evaluate. A loop that only ever promotes is unproven — the
+_still_ re-enters Evaluate. A loop that only ever promotes is unproven — the
 guardrail is the feature, and it is exercised, not skipped.
 
 ## The human gate is untouched (the phase's moral core)
@@ -82,7 +82,7 @@ live broker ships in the repo — that path is compile-tested only, mirroring th
 ## The invariants, and what holds them
 
 - **The boundary held.** The learning pipeline crosses into `@harness/evaluation`
-  only at a *structural* seam (`CollectSeam`/`FitSeam`); `attention-engine` imports
+  only at a _structural_ seam (`CollectSeam`/`FitSeam`); `attention-engine` imports
   no evaluation package (boundary R4/R5). The architecture test stays green.
 - **Automation stops at the gate.** `CalibrationJob` returns a `LearningRun`; it
   never applies a weight vector. `promoted` is an audit flag, not a mutation.
@@ -94,7 +94,7 @@ live broker ships in the repo — that path is compile-tested only, mirroring th
 ## The debt carried forward
 
 - **Adopting a promoted vector is still an explicit caller step.** The loop stops at
-  "measured WIN"; nothing in the harness yet *applies* a promoted candidate to live
+  "measured WIN"; nothing in the harness yet _applies_ a promoted candidate to live
   routing. That is Week 8's call — and correctly so, since the corpus is small and a
   live flip should be its own gated action.
 - **The measurement corpus is small.** HOLD-on-no-WIN over a handful of seeded facts
@@ -113,4 +113,4 @@ live broker ships in the repo — that path is compile-tested only, mirroring th
 
 ---
 
-*Next: Day 36 — Hardening: Write-back Idempotency, Token Redaction, Multi-provider Concurrency*
+_Next: Day 36 — Hardening: Write-back Idempotency, Token Redaction, Multi-provider Concurrency_

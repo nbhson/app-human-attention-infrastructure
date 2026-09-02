@@ -156,9 +156,7 @@ describe('hashRows', () => {
   it('changes when one row is tampered', () => {
     const { rows } = buildCalibrationRows(input, 'feedback');
     const original = hashRows(rows);
-    const tampered: CalibrationRow[] = rows.map((r) =>
-      r.assessmentId === 'b-1' ? { ...r, outcome: 'APPROVED' } : r,
-    );
+    const tampered: CalibrationRow[] = rows.map((r) => (r.assessmentId === 'b-1' ? { ...r, outcome: 'APPROVED' } : r));
     expect(hashRows(tampered)).not.toBe(original);
   });
 });
@@ -249,10 +247,7 @@ describe('CalibrationWriter', () => {
     expect(dataset.rowCount).toBe(1);
     expect(dataset.contentHash).toBe(contentHash);
 
-    const storedRows = await testDb.db
-      .select()
-      .from(calibrationRows)
-      .where(eq(calibrationRows.dataset_id, dataset.id));
+    const storedRows = await testDb.db.select().from(calibrationRows).where(eq(calibrationRows.dataset_id, dataset.id));
     expect(storedRows).toHaveLength(1);
     expect(storedRows[0]?.assessment_id).toBe('a-1');
     expect(storedRows[0]?.outcome).toBe('APPROVED');

@@ -14,11 +14,7 @@
  */
 
 import type { Logger } from '@harness/di';
-import {
-  observeSandboxDuration,
-  recordSandboxFallback,
-  recordSandboxRun,
-} from '@harness/observability';
+import { observeSandboxDuration, recordSandboxFallback, recordSandboxRun } from '@harness/observability';
 import { SandboxInfraError, computeWorkdirManifest } from '@harness/sandbox';
 import type { Sandbox, SandboxLimits, SandboxResult } from '@harness/sandbox';
 
@@ -51,9 +47,7 @@ export class SandboxedCheck implements VerificationCheck {
     // itself a `SandboxedCheck`, a SandboxInfraError could loop fallback → fallback
     // forever. The in-process parity path must be a plain VerificationCheck.
     if (options.inner instanceof SandboxedCheck) {
-      throw new Error(
-        'SandboxedCheck.inner must not itself be a SandboxedCheck (redirect-reentrant fallback)',
-      );
+      throw new Error('SandboxedCheck.inner must not itself be a SandboxedCheck (redirect-reentrant fallback)');
     }
     this.kind = options.inner.kind;
     this.timeoutMs = options.inner.timeoutMs;
@@ -93,11 +87,7 @@ export class SandboxedCheck implements VerificationCheck {
     const combined = `${result.stdout}${result.stderr}`;
     return {
       checkKind: this.kind,
-      status: result.timedOut
-        ? CheckStatus.TIMED_OUT
-        : result.exitCode === 0
-          ? CheckStatus.PASSED
-          : CheckStatus.FAILED,
+      status: result.timedOut ? CheckStatus.TIMED_OUT : result.exitCode === 0 ? CheckStatus.PASSED : CheckStatus.FAILED,
       durationMs: result.durationMs,
       output: truncateOutput(combined),
       evidenceBody: combined,

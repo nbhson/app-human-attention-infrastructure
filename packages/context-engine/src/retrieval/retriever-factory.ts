@@ -27,8 +27,7 @@ export const RANK_METHOD_HYBRID = 'hybrid';
 export const RANK_METHOD_RAG_FUSION = 'rag_fusion';
 
 /** The resolvable rank methods. */
-export type RankMethod =
-  typeof RANK_METHOD_KEYWORD | typeof RANK_METHOD_HYBRID | typeof RANK_METHOD_RAG_FUSION;
+export type RankMethod = typeof RANK_METHOD_KEYWORD | typeof RANK_METHOD_HYBRID | typeof RANK_METHOD_RAG_FUSION;
 
 /**
  * Resolves the current production-default `rank_method` at runtime.
@@ -144,8 +143,7 @@ export class RetrieverFactory {
     // the hybrid and exists only when a rewriter is supplied too. Without the
     // dependency, the method resolves to keyword (same as unknown).
     this.hybrid = semantic ? new HybridRetriever(keyword, semantic) : null;
-    this.ragFusion =
-      this.hybrid && rewriter ? new RagFusionRetriever(this.hybrid, rewriter, variantCount) : null;
+    this.ragFusion = this.hybrid && rewriter ? new RagFusionRetriever(this.hybrid, rewriter, variantCount) : null;
   }
 
   /**

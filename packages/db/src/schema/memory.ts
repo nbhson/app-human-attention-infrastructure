@@ -56,10 +56,5 @@ export const memoryEntryEvidence = pgTable(
       .references(() => evidence.id),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    uniqueIndex('memory_entry_evidence_entry_evidence_unique').on(
-      table.memory_entry_id,
-      table.evidence_id,
-    ),
-  ],
+  (table) => [uniqueIndex('memory_entry_evidence_entry_evidence_unique').on(table.memory_entry_id, table.evidence_id)],
 );

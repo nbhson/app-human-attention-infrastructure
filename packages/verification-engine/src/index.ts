@@ -30,11 +30,7 @@ export {
 } from './sandbox-runner.js';
 export type { PackageManager, PackageScripts, SandboxRunnerOptions } from './sandbox-runner.js';
 export { CloneVerifier } from './clone-verifier.js';
-export type {
-  CloneVerifierOptions,
-  CloneVerificationReport,
-  CloneWorktree,
-} from './clone-verifier.js';
+export type { CloneVerifierOptions, CloneVerificationReport, CloneWorktree } from './clone-verifier.js';
 export { TargetedVerifier } from './targeted-verifier.js';
 export type {
   AffectedTests,

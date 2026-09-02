@@ -39,8 +39,7 @@ export interface ListPayloadSummary {
 
 /** Flatten a stored pull-request payload into the queue-card summary fields. */
 export function summaryFromPayload(prPayload: unknown): ListPayloadSummary {
-  const payload =
-    typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
+  const payload = typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
   const files = Array.isArray(payload.files) ? payload.files : [];
   const additions = files.reduce((sum, file) => sum + nonNegativeInt(file?.additions), 0);
   const deletions = files.reduce((sum, file) => sum + nonNegativeInt(file?.deletions), 0);
@@ -56,12 +55,9 @@ export function summaryFromPayload(prPayload: unknown): ListPayloadSummary {
 
 /** The PR's touched file paths, or `[]` — used by the triage schema/metadata rules. */
 export function prFilePathsFromPayload(prPayload: unknown): string[] {
-  const payload =
-    typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
+  const payload = typeof prPayload === 'object' && prPayload !== null ? (prPayload as StoredPrPayload) : {};
   const files = Array.isArray(payload.files) ? payload.files : [];
-  return files
-    .map((file) => toNullableString(file?.path))
-    .filter((path): path is string => path !== null);
+  return files.map((file) => toNullableString(file?.path)).filter((path): path is string => path !== null);
 }
 
 /**

@@ -16,11 +16,7 @@ describe('ReRanker (day-27 §2.2)', () => {
     const reranker = new ReRanker(undefined, undefined, () => NOW);
     const fused = [doc('a', 2), doc('b', 1), doc('c', 0.5)];
 
-    expect(reranker.reRank({ fused, changedFiles: [] }).map((d) => d.sourceId)).toEqual([
-      'a',
-      'b',
-      'c',
-    ]);
+    expect(reranker.reRank({ fused, changedFiles: [] }).map((d) => d.sourceId)).toEqual(['a', 'b', 'c']);
   });
 
   it('re-orders by dependency proximity when the resolver reports it', () => {
@@ -82,9 +78,7 @@ describe('re-rank signals (day-27 §2.4)', () => {
   it('dependencySignal is neutral when the resolver is absent or cold', () => {
     expect(dependencySignal(undefined, ['a'], 'b')).toBe(0.5);
     expect(dependencySignal(() => null, ['a'], 'b')).toBe(0.5);
-    expect(
-      dependencySignal((_changed, candidate) => (candidate === 'b' ? 1.0 : 0.1), ['a'], 'b'),
-    ).toBe(1.0);
+    expect(dependencySignal((_changed, candidate) => (candidate === 'b' ? 1.0 : 0.1), ['a'], 'b')).toBe(1.0);
   });
 
   it('recencySignal decays with age and is neutral when mtime is absent', () => {

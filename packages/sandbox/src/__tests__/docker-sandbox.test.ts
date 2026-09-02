@@ -58,25 +58,14 @@ describe('DockerSandbox.buildArgs (day-22 §2.2)', () => {
     const sandbox = new DockerSandbox();
     const args = sandbox.buildArgs(makeRun(), 'harness-verify-test');
 
-    expect(args).toEqual(
-      expect.arrayContaining(['--network', 'none', '--read-only', '--user', '1000:1000']),
-    );
-    expect(args).toEqual(
-      expect.arrayContaining(['--cap-drop', 'ALL', '--cpus', '1.0', '--memory', '512m']),
-    );
+    expect(args).toEqual(expect.arrayContaining(['--network', 'none', '--read-only', '--user', '1000:1000']));
+    expect(args).toEqual(expect.arrayContaining(['--cap-drop', 'ALL', '--cpus', '1.0', '--memory', '512m']));
     expect(args).toEqual(expect.arrayContaining(['--rm']));
     // The workdir is mounted read-only at the expected path.
     expect(args).toContain('type=bind,src=/tmp/worktree,dst=/workdir,readonly');
-    expect(args).toEqual(
-      expect.arrayContaining(['--workdir', '/workdir', 'harness-verify:node20']),
-    );
+    expect(args).toEqual(expect.arrayContaining(['--workdir', '/workdir', 'harness-verify:node20']));
     // The requested command is passed through after the image.
-    expect(args.slice(args.indexOf('harness-verify:node20') + 1)).toEqual([
-      'tsc',
-      '--noEmit',
-      '-p',
-      '.',
-    ]);
+    expect(args.slice(args.indexOf('harness-verify:node20') + 1)).toEqual(['tsc', '--noEmit', '-p', '.']);
   });
 
   it('mounts /workdir writable only when workspaceWritable is set (day-23 §2.2)', () => {
@@ -115,9 +104,7 @@ describe('DockerSandbox.run (day-22 §3.2)', () => {
 
   it('reports timedOut and force-removes the container when the command hangs', async () => {
     const { log, sandbox } = stubDocker('hang');
-    const result = await sandbox.run(
-      makeRun({ limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 0.2 } }),
-    );
+    const result = await sandbox.run(makeRun({ limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 0.2 } }));
 
     expect(result.timedOut).toBe(true);
     expect(result.exitCode).toBe(137);

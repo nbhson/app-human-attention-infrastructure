@@ -29,11 +29,7 @@ export class RequestTimeoutError extends Error {
  * timeout. The timer is cleared when the promise settles first, so a fast
  * operation never leaves a stray timeout keeping the process alive.
  */
-export function withTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  onTimeout: () => Error,
-): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
   if (ms <= 0) {
     return promise;
   }

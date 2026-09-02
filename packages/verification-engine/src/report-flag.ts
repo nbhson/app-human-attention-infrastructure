@@ -80,21 +80,13 @@ export function tailOf(output: string, max = FLAG_TAIL_LENGTH): string {
  * failure. Only a check that ran and failed to pass is flag-worthy.
  */
 export function flagReport(checks: readonly CheckResult[]): VerificationFlag {
-  const failed = checks.some((check) =>
-    (FLAG_WORTHY as readonly CheckStatus[]).includes(check.status),
-  );
-  const flagged = checks.filter((check) =>
-    (FLAG_WORTHY as readonly CheckStatus[]).includes(check.status),
-  );
+  const failed = checks.some((check) => (FLAG_WORTHY as readonly CheckStatus[]).includes(check.status));
+  const flagged = checks.filter((check) => (FLAG_WORTHY as readonly CheckStatus[]).includes(check.status));
   return {
     verdict: failed ? 'FAILED' : 'PASSED',
     failed,
-    timedOutKinds: checks
-      .filter((check) => check.status === CheckStatus.TIMED_OUT)
-      .map((check) => check.checkKind),
-    failedKinds: checks
-      .filter((check) => check.status === CheckStatus.FAILED)
-      .map((check) => check.checkKind),
+    timedOutKinds: checks.filter((check) => check.status === CheckStatus.TIMED_OUT).map((check) => check.checkKind),
+    failedKinds: checks.filter((check) => check.status === CheckStatus.FAILED).map((check) => check.checkKind),
     failedChecks: flagged.map((check) => ({
       kind: check.checkKind,
       status: check.status,

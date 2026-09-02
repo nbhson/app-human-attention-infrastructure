@@ -46,9 +46,7 @@ describe('mapOpenAIResponse', () => {
         {
           message: {
             content: '',
-            tool_calls: [
-              { id: 't2', type: 'function', function: { name: 'f', arguments: 'not json' } },
-            ],
+            tool_calls: [{ id: 't2', type: 'function', function: { name: 'f', arguments: 'not json' } }],
           },
           finish_reason: 'tool_calls',
         },

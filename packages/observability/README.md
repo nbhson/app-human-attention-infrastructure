@@ -60,13 +60,13 @@ the self-check that proves the substrate is honest.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `context.ts` | `runWithCorrelation` / `currentCorrelation`. |
-| `tracer.ts` | `initTracing`, `getTracer`, `startSpan`/`endSpan`/`withSpan`, `inMemoryExporter`, `resetTracing`. |
-| `meter.ts` | `getMeter`, `setMeterName`. |
-| `metrics.ts` | Named counters/gauges + the `record*` helpers. |
-| `e2e/reconstruct.ts` | `reconstruct` + `TelemetryIntegrityError`. |
+| Module               | What it provides                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `context.ts`         | `runWithCorrelation` / `currentCorrelation`.                                                      |
+| `tracer.ts`          | `initTracing`, `getTracer`, `startSpan`/`endSpan`/`withSpan`, `inMemoryExporter`, `resetTracing`. |
+| `meter.ts`           | `getMeter`, `setMeterName`.                                                                       |
+| `metrics.ts`         | Named counters/gauges + the `record*` helpers.                                                    |
+| `e2e/reconstruct.ts` | `reconstruct` + `TelemetryIntegrityError`.                                                        |
 
 ---
 

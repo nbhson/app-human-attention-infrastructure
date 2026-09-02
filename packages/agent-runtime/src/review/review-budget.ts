@@ -41,10 +41,7 @@ export interface BudgetFilesResult {
  * Only files with non-empty patches are ranked. The result splits files into
  * `primary` (within budget, highest relevance) and `overflow` (rest).
  */
-export function budgetFiles(
-  files: readonly PullRequestFile[],
-  opts: BudgetFilesOptions,
-): BudgetFilesResult {
+export function budgetFiles(files: readonly PullRequestFile[], opts: BudgetFilesOptions): BudgetFilesResult {
   const reviewable = files.filter((f) => f.patch.trim().length > 0);
   if (reviewable.length === 0) {
     return { primary: [], overflow: [], scores: new Map() };
@@ -71,10 +68,7 @@ export function budgetFiles(
   for (const { file } of scored) {
     const fileTokens = estimateTokens(file);
 
-    if (
-      primary.length < opts.maxSources &&
-      (primary.length === 0 || tokensUsed + fileTokens <= opts.maxTokens)
-    ) {
+    if (primary.length < opts.maxSources && (primary.length === 0 || tokensUsed + fileTokens <= opts.maxTokens)) {
       primary.push(file);
       tokensUsed += fileTokens;
     } else {

@@ -14,17 +14,17 @@ queryable, and auditable.
 
 ![HAI Review UI](./HAI.png)
 
-| | |
-| --- | --- |
-| **Status** | Feature-complete · tagged `v0.4.0-harness` · review-only control plane (`review-reorient`) |
-| **Quality gates** | build ✅ · typecheck ✅ · lint ✅ · 1090 unit tests ✅ · 25 e2e ✅ |
-| **Stack** | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker |
-| **Boundary model** | 25 `@harness/*` packages (see package list below); engines never import another engine |
+|                    |                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| **Status**         | Feature-complete · tagged `v0.4.0-harness` · review-only control plane (`review-reorient`) |
+| **Quality gates**  | build ✅ · typecheck ✅ · lint ✅ · 1090 unit tests ✅ · 25 e2e ✅                         |
+| **Stack**          | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker     |
+| **Boundary model** | 25 `@harness/*` packages (see package list below); engines never import another engine     |
 
-> **Pivot note.** The harness no longer *authors* code. The internal loop — an
+> **Pivot note.** The harness no longer _authors_ code. The internal loop — an
 > AI agent writing files, committing them, and auto-merging on approval — is
 > retired. The product is now a read-only **PR review control plane**: the AI is
-> the *reviewer*, not the author. See [§What changed](#what-changed) and the
+> the _reviewer_, not the author. See [§What changed](#what-changed) and the
 > [Phase-3 exit review](docs/retros/phase3-exit-review.md).
 
 ---
@@ -86,15 +86,15 @@ The review slice creates a task purely to anchor the provenance trail and
 immediately `CANCELLED` it — the retired dispatcher used to pull `PENDING`/`REWORK`
 tasks into the code-gen workflow, and a cancelled task is never consumed.
 
-| Engine | Role |
-| --- | --- |
-| **Orchestrator** | Owns the Task state machine + `TaskService` (the dispatch/workflow/retry loop is retired) |
-| **Agent Runtime** | The read-only **reviewer**: `LLMProvider` + `ReviewAgent` → structured report (the write/`write_file` tools are retired) |
-| **Context Engine** | Gathers, ranks, and budgets the context a reviewer sees (exact `tiktoken` tokens) |
-| **Verification Engine** | Independent compile + test + sandboxed checks (real tooling) |
-| **Attention Engine** | Scores each change and budgets human attention (+ gated auto-approve) |
-| **Review** | A human APPROVES / REJECTS every change, with rationale |
-| **Artifact Tracker** | Snapshots, diffs, and provenance for every change |
+| Engine                  | Role                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Orchestrator**        | Owns the Task state machine + `TaskService` (the dispatch/workflow/retry loop is retired)                                |
+| **Agent Runtime**       | The read-only **reviewer**: `LLMProvider` + `ReviewAgent` → structured report (the write/`write_file` tools are retired) |
+| **Context Engine**      | Gathers, ranks, and budgets the context a reviewer sees (exact `tiktoken` tokens)                                        |
+| **Verification Engine** | Independent compile + test + sandboxed checks (real tooling)                                                             |
+| **Attention Engine**    | Scores each change and budgets human attention (+ gated auto-approve)                                                    |
+| **Review**              | A human APPROVES / REJECTS every change, with rationale                                                                  |
+| **Artifact Tracker**    | Snapshots, diffs, and provenance for every change                                                                        |
 
 See [the wiring map](docs/architecture/wiring-map.md) for the full object graph.
 
@@ -119,16 +119,16 @@ nitpicks like a missing trailing newline.
 
 ## Capabilities
 
-| Area | What's shipped |
-| --- | --- |
-| **Ingest** | Paste a PR/MR URL + Jira ticket; fetch the diff + requirement through the **MCP** config — GitHub / GitLab / Bitbucket / Jira via one `mcp.config.json`, tokens referenced by env var (never inline) |
-| **Review** | The configured AI (Anthropic or OpenAI-compatible, `key`+`baseUrl`+`model`) reviews the diff **read-only** → report + findings + fix suggestions |
-| **Verify** | Clone into the Docker sandbox and run build/test; dependency-graph targeted verification; a FAILED run *flags* the report, never authors a fix |
-| **Attention & decision** | Score + route every review; a human APPROVES / REJECTS; `AUTO_APPROVABLE` stays the only auto-path — gated + sampling-audited |
-| **Write-back** | On by default (opt-out), fail-safe 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; `WRITEBACK_ENABLED=0` = nothing external |
-| **Memory** | Review / finding / decision memory tiers, distilled + relevance-scored, with consolidation / decay / archive |
-| **Quality & learning** | LLM-as-judge (rubric-scored) + inter-judge agreement, a versioned gold corpus, and a closed learning loop feeding decisions + judge signals back into calibration/routing |
-| **Observability** | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id` |
+| Area                     | What's shipped                                                                                                                                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ingest**               | Paste a PR/MR URL + Jira ticket; fetch the diff + requirement through the **MCP** config — GitHub / GitLab / Bitbucket / Jira via one `mcp.config.json`, tokens referenced by env var (never inline) |
+| **Review**               | The configured AI (Anthropic or OpenAI-compatible, `key`+`baseUrl`+`model`) reviews the diff **read-only** → report + findings + fix suggestions                                                     |
+| **Verify**               | Clone into the Docker sandbox and run build/test; dependency-graph targeted verification; a FAILED run _flags_ the report, never authors a fix                                                       |
+| **Attention & decision** | Score + route every review; a human APPROVES / REJECTS; `AUTO_APPROVABLE` stays the only auto-path — gated + sampling-audited                                                                        |
+| **Write-back**           | On by default (opt-out), fail-safe 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; `WRITEBACK_ENABLED=0` = nothing external           |
+| **Memory**               | Review / finding / decision memory tiers, distilled + relevance-scored, with consolidation / decay / archive                                                                                         |
+| **Quality & learning**   | LLM-as-judge (rubric-scored) + inter-judge agreement, a versioned gold corpus, and a closed learning loop feeding decisions + judge signals back into calibration/routing                            |
+| **Observability**        | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id`                                                                                             |
 
 ## What changed
 
@@ -163,12 +163,12 @@ that verifies, scores, routes, and records:
 
 ## Packages
 
-| Layer | Packages |
-| --- | --- |
-| **Foundation** | `domain`, `event-bus`, `di`, `db`, `observability` |
-| **Engines** | `orchestrator`, `agent-runtime`, `artifact-tracker`, `verification-engine`, `attention-engine`, `context-engine`, `review`, `auth`, `embeddings`, `evaluation` |
-| **Review slice** | `git-provider`, `ticket-provider`, `writeback`, `memory`, `judge`, `benchmark` |
-| **Tooling** | `object-store`, `sandbox`, `mcp`, `code-index` |
+| Layer            | Packages                                                                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Foundation**   | `domain`, `event-bus`, `di`, `db`, `observability`                                                                                                             |
+| **Engines**      | `orchestrator`, `agent-runtime`, `artifact-tracker`, `verification-engine`, `attention-engine`, `context-engine`, `review`, `auth`, `embeddings`, `evaluation` |
+| **Review slice** | `git-provider`, `ticket-provider`, `writeback`, `memory`, `judge`, `benchmark`                                                                                 |
+| **Tooling**      | `object-store`, `sandbox`, `mcp`, `code-index`                                                                                                                 |
 
 Each package documents its purpose, data model, invariants, and boundary rules in
 its own `README.md`.
@@ -184,7 +184,7 @@ and judge-vs-gold agreement **from the audit rows**:
 - judge-vs-gold severity / routing / usefulness **0.935 / 0.958 / 1.000**
 
 The honesty boundary is stated on the tin: the demo judge is a seeded PRNG, so these
-numbers prove the *review-quality math* is regression-free — they do not detect
+numbers prove the _review-quality math_ is regression-free — they do not detect
 live-model drift, and `n=6` is a mechanism test, not a signal. See
 [docs/retros/phase3-benchmark.md](docs/retros/phase3-benchmark.md).
 
@@ -250,24 +250,24 @@ The green gate is `pnpm test && pnpm lint && pnpm e2e`.
 
 ## Documentation
 
-| What | Where |
-| --- | --- |
-| **Architecture spec** | [`docs/architecture/`](docs/architecture/) + one `README.md` per `@harness/*` package |
-| **Operations runbook** | [`docs/runbook/`](docs/runbook/README.md) — incidents, exact commands, escalation rules |
-| **Developer guide** | [`docs/dev-guide.md`](docs/dev-guide.md) — clone-to-green in ~15 minutes |
-| **Wiring map** | [`docs/architecture/wiring-map.md`](docs/architecture/wiring-map.md) — the DI object graph |
-| **Retrospectives** | [`docs/retros/`](docs/retros/) — honest weekly post-mortems |
+| What                   | Where                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| **Architecture spec**  | [`docs/architecture/`](docs/architecture/) + one `README.md` per `@harness/*` package      |
+| **Operations runbook** | [`docs/runbook/`](docs/runbook/README.md) — incidents, exact commands, escalation rules    |
+| **Developer guide**    | [`docs/dev-guide.md`](docs/dev-guide.md) — clone-to-green in ~15 minutes                   |
+| **Wiring map**         | [`docs/architecture/wiring-map.md`](docs/architecture/wiring-map.md) — the DI object graph |
+| **Retrospectives**     | [`docs/retros/`](docs/retros/) — honest weekly post-mortems                                |
 
 ## Repository layout
 
-| Path | What's in it |
-| --- | --- |
-| `packages/` | 25 engines and shared libraries (`@harness/*`) |
-| `apps/api` | Fastify API + single DI bootstrap (`bootstrap.ts`) + the review slice |
-| `apps/web` | React + Vite review UI |
-| `docs/architecture/` | Architecture spec, wiring map, and living architecture notes |
-| `docs/runbook/` | Audit-query cookbook + operational runbook + limitations |
-| `docs/retros/` | Honest weekly retrospectives |
+| Path                 | What's in it                                                          |
+| -------------------- | --------------------------------------------------------------------- |
+| `packages/`          | 25 engines and shared libraries (`@harness/*`)                        |
+| `apps/api`           | Fastify API + single DI bootstrap (`bootstrap.ts`) + the review slice |
+| `apps/web`           | React + Vite review UI                                                |
+| `docs/architecture/` | Architecture spec, wiring map, and living architecture notes          |
+| `docs/runbook/`      | Audit-query cookbook + operational runbook + limitations              |
+| `docs/retros/`       | Honest weekly retrospectives                                          |
 
 ## License
 

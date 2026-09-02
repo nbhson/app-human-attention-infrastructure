@@ -37,10 +37,7 @@ export interface GitRunResult {
 }
 
 /** A `git` subprocess runner. `args` are passed verbatim after `git`. */
-export type RunGit = (
-  args: ReadonlyArray<string>,
-  opts?: { readonly cwd?: string },
-) => Promise<GitRunResult>;
+export type RunGit = (args: ReadonlyArray<string>, opts?: { readonly cwd?: string }) => Promise<GitRunResult>;
 
 /** A clone/checkout failed — network, missing SHA, disk, or a timeout. */
 export class CloneError extends GitProviderError {
@@ -94,12 +91,9 @@ function defaultRunGit(timeoutMs: number): RunGit {
             return;
           }
           const killed =
-            (error as { killed?: boolean }).killed === true ||
-            (error as { signal?: string }).signal !== undefined;
+            (error as { killed?: boolean }).killed === true || (error as { signal?: string }).signal !== undefined;
           const code =
-            typeof (error as { code?: unknown }).code === 'number'
-              ? ((error as { code?: unknown }).code as number)
-              : 1;
+            typeof (error as { code?: unknown }).code === 'number' ? ((error as { code?: unknown }).code as number) : 1;
           // 124 is the conventional "timed out" exit so the caller can branch.
           resolve({ exitCode: killed ? 124 : code, stdout: out, stderr: err });
         },
@@ -127,16 +121,7 @@ export async function cloneAndCheckout(
   }> = [
     {
       label: 'clone',
-      args: [
-        'clone',
-        '--depth',
-        '1',
-        '--no-tags',
-        '--branch',
-        input.sourceBranch,
-        cloneUrl,
-        workdir,
-      ],
+      args: ['clone', '--depth', '1', '--no-tags', '--branch', input.sourceBranch, cloneUrl, workdir],
     },
     {
       label: 'fetch',

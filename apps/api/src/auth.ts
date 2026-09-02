@@ -71,8 +71,7 @@ export function registerAuthHook(app: FastifyInstance, container: Container): vo
         } else {
           const sid = readCookie(request.headers.cookie, 'sid');
           if (sid) {
-            request.auth =
-              (await authService.resolveSessionContext(sid as AuthContext['sid'])) ?? undefined;
+            request.auth = (await authService.resolveSessionContext(sid as AuthContext['sid'])) ?? undefined;
           } else {
             request.auth = undefined;
           }

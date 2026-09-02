@@ -34,8 +34,7 @@ export interface AutoApproveGateConfig {
 }
 
 /** A structured gate verdict: either allowed, or the first part that failed. */
-export type AutoApproveGateResult =
-  { readonly allowed: true } | { readonly allowed: false; readonly reason: string };
+export type AutoApproveGateResult = { readonly allowed: true } | { readonly allowed: false; readonly reason: string };
 
 /** Inputs to one gate evaluation, assembled by the executor. */
 export interface AutoApproveGateInput {

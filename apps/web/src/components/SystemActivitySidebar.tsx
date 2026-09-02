@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { auditApi, type AuditEntry, type AuditKind } from '../api/audit';
@@ -106,10 +98,7 @@ export function SystemActivitySidebar(): JSX.Element {
   if (!isOpen) return <></>;
 
   return (
-    <aside
-      className={`sa-sidebar${isExpandedWidth ? ' sa-sidebar--wide' : ''}`}
-      aria-label="System activity panel"
-    >
+    <aside className={`sa-sidebar${isExpandedWidth ? ' sa-sidebar--wide' : ''}`} aria-label="System activity panel">
       <div className="sa-sidebar-head">
         <div className="sa-sidebar-brand">
           <div className="sa-sidebar-mark">
@@ -119,10 +108,7 @@ export function SystemActivitySidebar(): JSX.Element {
             <div className="sa-sidebar-title-row">
               <h2 className="sa-sidebar-title">System Activity</h2>
               <span className="sa-live">
-                <span
-                  className={`sa-live-dot${isPaused ? ' sa-live-paused' : ''}`}
-                  aria-hidden="true"
-                />
+                <span className={`sa-live-dot${isPaused ? ' sa-live-paused' : ''}`} aria-hidden="true" />
                 {isPaused ? 'PAUSED' : 'LIVE'}
               </span>
             </div>
@@ -239,9 +225,7 @@ export function SystemActivitySidebar(): JSX.Element {
           <div className="sa-feed-empty">
             <Radio />
             <p className="sa-feed-empty-title">No telemetry logs found</p>
-            <span className="sa-feed-empty-text">
-              Try adjusting your search query or trigger an action.
-            </span>
+            <span className="sa-feed-empty-text">Try adjusting your search query or trigger an action.</span>
           </div>
         ) : (
           filteredLogs.map((log) => (

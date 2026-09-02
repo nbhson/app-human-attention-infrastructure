@@ -22,9 +22,10 @@ describe('StaticTicketToolMap', () => {
   });
 
   it('encodes the Jira comment argument shape', () => {
-    expect(
-      map.buildCommentArgs(TicketProviderType.Jira, { key: 'ACME-1234', body: 'looks good' }),
-    ).toEqual({ issue_id_or_key: 'ACME-1234', body: 'looks good' });
+    expect(map.buildCommentArgs(TicketProviderType.Jira, { key: 'ACME-1234', body: 'looks good' })).toEqual({
+      issue_id_or_key: 'ACME-1234',
+      body: 'looks good',
+    });
   });
 
   it('encodes the Jira transition argument shape', () => {
@@ -39,8 +40,6 @@ describe('StaticTicketToolMap', () => {
   it('throws on a system with no entry', () => {
     // `Jira` is the only system; a fabricated token must fail loudly.
     expect(() => map.resolve('zendesk' as never)).toThrow(/no ticket tool map entry/);
-    expect(() => map.buildArgs('zendesk' as never, { key: 'Z-1' })).toThrow(
-      /no ticket tool map entry/,
-    );
+    expect(() => map.buildArgs('zendesk' as never, { key: 'Z-1' })).toThrow(/no ticket tool map entry/);
   });
 });

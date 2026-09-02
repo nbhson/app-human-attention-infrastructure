@@ -38,10 +38,7 @@ function normalizeRow(row: typeof reviewExamples.$inferSelect): ReviewExampleRow
  * examples in insertion order (no re-ordering — the corpus is append-only and the
  * caller applies any deterministic ordering it needs).
  */
-export async function loadReviewExamples(
-  db: ReadonlyDb,
-  scaleVersion?: string,
-): Promise<ReviewExample[]> {
+export async function loadReviewExamples(db: ReadonlyDb, scaleVersion?: string): Promise<ReviewExample[]> {
   const rows =
     scaleVersion !== undefined
       ? await db.select().from(reviewExamples).where(eq(reviewExamples.scale_version, scaleVersion))

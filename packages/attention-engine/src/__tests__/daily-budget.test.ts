@@ -11,12 +11,8 @@ import { decideDeferral, nextUtcMidnight, startOfUtcDay } from '../thresholds/da
 
 describe('startOfUtcDay / nextUtcMidnight', () => {
   it('floors to UTC midnight and steps to the next day boundary', () => {
-    expect(startOfUtcDay(new Date('2026-08-20T23:59:59.999Z')).toISOString()).toBe(
-      '2026-08-20T00:00:00.000Z',
-    );
-    expect(nextUtcMidnight(new Date('2026-08-20T05:00:00.000Z')).toISOString()).toBe(
-      '2026-08-21T00:00:00.000Z',
-    );
+    expect(startOfUtcDay(new Date('2026-08-20T23:59:59.999Z')).toISOString()).toBe('2026-08-20T00:00:00.000Z');
+    expect(nextUtcMidnight(new Date('2026-08-20T05:00:00.000Z')).toISOString()).toBe('2026-08-21T00:00:00.000Z');
   });
 });
 

@@ -28,7 +28,7 @@ through a structural seam, never a direct engine import (R4).
 
 The plan considered tree-sitter, but the implementation is a **hand-rolled lexical
 scanner** — tree-sitter grammars are a native/`web-tree-sitter` dependency this repo
-does not carry. The correctness guarantee is the *fallback* (`complete: false` →
+does not carry. The correctness guarantee is the _fallback_ (`complete: false` →
 full suite), not the parse, so a conservative lexical index is the right trade.
 
 ## Invariant
@@ -41,22 +41,22 @@ full suite), not the parse, so a conservative lexical index is the right trade.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `indexer.ts` | `indexFiles` + `IndexedFile`/`IndexedSymbol`/`IndexedEdge`; `SymbolKind`, `DependencyKind`, `isTestFile`. |
-| `graph.ts` | `buildGraph` → `DependencyGraph` (forward + reverse adjacency, `incompleteFiles`). |
-| `affected.ts` | `affectedTests` → `{ tests, complete }` (transitive closure + safety flag). |
-| `proximity.ts` | `dependencyProximity` — graph-distance → `[0,1]` re-rank signal. |
+| Module         | What it provides                                                                                          |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| `indexer.ts`   | `indexFiles` + `IndexedFile`/`IndexedSymbol`/`IndexedEdge`; `SymbolKind`, `DependencyKind`, `isTestFile`. |
+| `graph.ts`     | `buildGraph` → `DependencyGraph` (forward + reverse adjacency, `incompleteFiles`).                        |
+| `affected.ts`  | `affectedTests` → `{ tests, complete }` (transitive closure + safety flag).                               |
+| `proximity.ts` | `dependencyProximity` — graph-distance → `[0,1]` re-rank signal.                                          |
 
 ## Affected-test contract
 
-| condition | result |
-| --- | --- |
-| complete, non-empty closure | run just the affected tests. |
-| `complete: false` OR empty / unindexed | run the full suite. |
+| condition                              | result                       |
+| -------------------------------------- | ---------------------------- |
+| complete, non-empty closure            | run just the affected tests. |
+| `complete: false` OR empty / unindexed | run the full suite.          |
 
-`TargetedVerifier` (in `verification-engine`) owns the *policy*; this package owns
-the *graph*; neither imports the other.
+`TargetedVerifier` (in `verification-engine`) owns the _policy_; this package owns
+the _graph_; neither imports the other.
 
 ## Test strategy
 

@@ -2,15 +2,7 @@
  * Human review decision event payloads (architecture spec §13).
  */
 
-import type {
-  ChangeID,
-  DecisionID,
-  ReviewReportID,
-  ReviewerID,
-  ReviewQueueItemID,
-  TaskID,
-  UserID,
-} from '../ids.js';
+import type { ChangeID, DecisionID, ReviewReportID, ReviewerID, ReviewQueueItemID, TaskID, UserID } from '../ids.js';
 import type { HumanDecisionType } from '../review.js';
 import type { ReviewDecisionType } from '../review-decision.js';
 

@@ -74,11 +74,7 @@ export interface TaskTransition {
 
 /** The structural seam onto the attention feedback loop (injected; R6). */
 export interface FeedbackReporter {
-  reportAssessmentFeedback(
-    assessmentId: AssessmentID,
-    wasUseful: boolean,
-    comment?: string,
-  ): Promise<void>;
+  reportAssessmentFeedback(assessmentId: AssessmentID, wasUseful: boolean, comment?: string): Promise<void>;
 }
 
 /** One file's Day-17 unified diff (shape mirrors artifact-tracker's `FileDiff`). */

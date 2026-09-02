@@ -137,8 +137,7 @@ export function computeTriage(input: {
   const judgeRuns = Array.isArray(input.judgeRuns) ? input.judgeRuns : [];
 
   const securityBlocked =
-    rules.securityBlock &&
-    findings.some((finding) => finding.severity === 'CRITICAL' && isSecurityPath(finding.file));
+    rules.securityBlock && findings.some((finding) => finding.severity === 'CRITICAL' && isSecurityPath(finding.file));
 
   const schemaGate = rules.schemaIntegrity && prFilePaths.some(isMigrationPath);
 
@@ -149,10 +148,7 @@ export function computeTriage(input: {
   const regressionRisk =
     rules.performanceRegression &&
     lowOverallJudge &&
-    findings.some(
-      (finding) =>
-        isMajorOrCritical(finding.severity) && classifySourceFile(finding.file) === 'source',
-    );
+    findings.some((finding) => isMajorOrCritical(finding.severity) && classifySourceFile(finding.file) === 'source');
 
   const matchedRules: TriageRuleId[] = [];
   if (securityBlocked) matchedRules.push('security-block');

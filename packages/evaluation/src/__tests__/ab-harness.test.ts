@@ -11,15 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { count, eq } from 'drizzle-orm';
 
-import {
-  abExperiments,
-  abRuns,
-  AbStore,
-  asReadonlyDb,
-  decisions,
-  projects,
-  tasks,
-} from '@harness/db';
+import { abExperiments, abRuns, AbStore, asReadonlyDb, decisions, projects, tasks } from '@harness/db';
 import { createTestDb, destroyTestDb } from '@harness/db/test-utils';
 import type { TestDb } from '@harness/db/test-utils';
 import { brand, type AgentRun, type TrajectoryStep } from '@harness/domain';
@@ -32,9 +24,7 @@ import type { PipelineVariant, RankCorpus } from '../harness/variant.js';
 import { loadTrajectory } from '../replay/loader.js';
 import type { ReplayInput } from '../trajectory-replayer.js';
 
-const FIXTURE = fileURLToPath(
-  new URL('../../../../fixtures/trajectories/coding-run.json', import.meta.url),
-);
+const FIXTURE = fileURLToPath(new URL('../../../../fixtures/trajectories/coding-run.json', import.meta.url));
 
 const baseline: PipelineVariant = {
   variantId: 'baseline-keyword',

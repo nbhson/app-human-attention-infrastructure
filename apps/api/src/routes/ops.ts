@@ -24,20 +24,12 @@ const ORPHAN_WINDOW_MS = 10 * 60_000;
  * smoke alarm, not a fixer — when it returns > 0 a human investigates; never
  * auto-"repair" the rows (day-27 §6).
  */
-export async function orphanedTaskCount(
-  db: DrizzleDB,
-  olderThanMs = ORPHAN_WINDOW_MS,
-): Promise<number> {
+export async function orphanedTaskCount(db: DrizzleDB, olderThanMs = ORPHAN_WINDOW_MS): Promise<number> {
   const cutoff = new Date(Date.now() - olderThanMs);
   const rows = await db
     .select({ id: tasks.id })
     .from(tasks)
-    .where(
-      and(
-        inArray(tasks.state, [TaskStatus.Executing, TaskStatus.Verifying]),
-        lt(tasks.updated_at, cutoff),
-      ),
-    );
+    .where(and(inArray(tasks.state, [TaskStatus.Executing, TaskStatus.Verifying]), lt(tasks.updated_at, cutoff)));
   return rows.length;
 }
 
@@ -52,10 +44,7 @@ export function registerOpsRoutes(app: FastifyInstance, db: DrizzleDB): void {
   app.get('/api/ops/metrics', async () => {
     const [byState, queueRows] = await Promise.all([
       db.select({ state: tasks.state, n: count() }).from(tasks).groupBy(tasks.state),
-      db
-        .select({ n: count() })
-        .from(reviewQueue)
-        .where(eq(reviewQueue.status, ReviewQueueStatus.Queued)),
+      db.select({ n: count() }).from(reviewQueue).where(eq(reviewQueue.status, ReviewQueueStatus.Queued)),
     ]);
     return {
       tasksByState: Object.fromEntries(byState.map((row) => [row.state, row.n])),

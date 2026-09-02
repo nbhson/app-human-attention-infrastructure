@@ -1,14 +1,14 @@
 # Week 6 E2E Runbook — The Whole Phase-2 Pipeline, One Task
 
-*Phase 2 · day-27 checkpoint. A narrated, reproducible runbook: drive one
+_Phase 2 · day-27 checkpoint. A narrated, reproducible runbook: drive one
 canonical task through the **entire** Phase-2 pipeline — identity-attributed
 writes → context (keyword, shadow-compared) → sandboxed-capable agent →
 object-store-backed artifact → verification → human review → `task.completed` —
 and then **reconstruct that run from append-only telemetry**, proving the pipeline
-is not just green but *observable* end-to-end (Spec 10).*
+is not just green but *observable* end-to-end (Spec 10)._
 
 > Day 27 is the system-level "it actually works" proof. Weeks of unit tests can
-> stay green while two subsystems are wired *just wrong enough*; this is the first
+> stay green while two subsystems are wired _just wrong enough_; this is the first
 > time the whole loop is read back as one record. The rule: **a green task you
 > can't reconstruct is a red E2E.**
 
@@ -25,7 +25,7 @@ pnpm seed:e2e-fixture           # idempotent REVIEWER principal (day-27 §3.1)
 The seeder places the fixed `e2e-reviewer` principal (`roles=['OPERATOR',
 'REVIEWER']`) the guarded review routes need; re-running is a no-op
 (`onConflictDoNothing`). The E2E driver also re-seeds it after truncating the
-schema, so the seeder exists to decouple *environment readiness* from *driver run*
+schema, so the seeder exists to decouple _environment readiness_ from _driver run_
 — a Phase-3 canary calls it once at provision time.
 
 ---
@@ -33,8 +33,8 @@ schema, so the seeder exists to decouple *environment readiness* from *driver ru
 ## 1. The canonical task
 
 `fixtures/e2e/happy-path/` is one safe, representative change: `greeting.ts` ships
-a deliberate bug and `greeting.test.ts` exposes it. The task says *"Fix the
-greeting bug so the test passes."* The driver copies the fixture into a fresh
+a deliberate bug and `greeting.test.ts` exposes it. The task says _"Fix the
+greeting bug so the test passes."_ The driver copies the fixture into a fresh
 sandbox dir and drives it through the real HTTP surface:
 
 ```text
@@ -96,16 +96,16 @@ integrity invariants rather than returning rows:
 
 Alongside it, four more assertions hold:
 
-| Assertion | What it proves |
-|-----------|----------------|
-| `reconstruct(taskId).traceId !== null` | `trace_correlation` mapped `trace_id ↔ correlation_id` (Day 3) |
-| `servedRankMethod === 'phase1-keyword-dependency'` | the served ranking is still keyword |
-| `shadow_rank_comparisons` row exists | the semantic shadow recorded (write-only, no leak) |
-| `cacheHit + cacheMiss >= 1` | the context cache moved (Day 20) |
+| Assertion                                          | What it proves                                                 |
+| -------------------------------------------------- | -------------------------------------------------------------- |
+| `reconstruct(taskId).traceId !== null`             | `trace_correlation` mapped `trace_id ↔ correlation_id` (Day 3) |
+| `servedRankMethod === 'phase1-keyword-dependency'` | the served ranking is still keyword                            |
+| `shadow_rank_comparisons` row exists               | the semantic shadow recorded (write-only, no leak)             |
+| `cacheHit + cacheMiss >= 1`                        | the context cache moved (Day 20)                               |
 
 The functional chain prerequisites — `AWAITING_REVIEW`, `PASSED` verification,
 evidence rows, routed queue item, `commit_sha` set, all artifacts `MERGED`,
-`COMPLETED` — are all asserted *before* the reconstruction block, so a green task
+`COMPLETED` — are all asserted _before_ the reconstruction block, so a green task
 with a broken trace is still red.
 
 ---

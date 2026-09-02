@@ -177,8 +177,7 @@ function extractSource(source: string): {
   // A runtime-computed specifier anywhere in the file is a graph gap: any
   // `import(`/`require(` call beyond the plain-literal ones already captured.
   const literalDynamicCount = specifiers.filter((spec) => spec.kind === 'dynamic').length;
-  const totalCallCount =
-    [...source.matchAll(IMPORT_CALL_RE)].length + [...source.matchAll(REQUIRE_CALL_RE)].length;
+  const totalCallCount = [...source.matchAll(IMPORT_CALL_RE)].length + [...source.matchAll(REQUIRE_CALL_RE)].length;
   const hasDynamicVar = totalCallCount > literalDynamicCount;
 
   // References: identifiers imported (static imports only; dynamic specifiers
@@ -205,8 +204,7 @@ function extractSource(source: string): {
     }
   }
   // `export default` with a named declaration/expression.
-  const defaultRe =
-    /\bexport\s+default\s+(?:(?:async\s+)?function\s+|class\s+)?([A-Za-z_$][\w$]*)/g;
+  const defaultRe = /\bexport\s+default\s+(?:(?:async\s+)?function\s+|class\s+)?([A-Za-z_$][\w$]*)/g;
   for (const match of source.matchAll(defaultRe)) {
     if (match.index !== undefined && match[1] !== undefined) {
       symbols.push({ name: match[1], kind: 'definition', line: lineOf(source, match.index) });
@@ -217,16 +215,10 @@ function extractSource(source: string): {
 }
 
 type ResolveResult =
-  | { readonly status: 'local'; readonly target: string }
-  | { readonly status: 'ignored' }
-  | { readonly status: 'gap' };
+  { readonly status: 'local'; readonly target: string } | { readonly status: 'ignored' } | { readonly status: 'gap' };
 
 /** Resolve a relative specifier against the known file set (conservative). */
-function resolveSpecifier(
-  knownFiles: ReadonlySet<string>,
-  fromFile: string,
-  specifier: string,
-): ResolveResult {
+function resolveSpecifier(knownFiles: ReadonlySet<string>, fromFile: string, specifier: string): ResolveResult {
   if (isBare(specifier)) {
     // A package name or path alias we cannot map locally — safe to treat as a
     // gap (run the full suite) rather than guess which files it reaches.
@@ -239,11 +231,7 @@ function resolveSpecifier(
   const base = posix.normalize(posix.join(posix.dirname(fromFile), specifier));
   const candidates =
     ext === ''
-      ? [
-          base,
-          ...CODE_EXTENSIONS.map((e) => base + e),
-          ...CODE_EXTENSIONS.map((e) => posix.join(base, `index${e}`)),
-        ]
+      ? [base, ...CODE_EXTENSIONS.map((e) => base + e), ...CODE_EXTENSIONS.map((e) => posix.join(base, `index${e}`))]
       : [base];
   for (const candidate of candidates) {
     if (knownFiles.has(candidate)) {
@@ -254,11 +242,7 @@ function resolveSpecifier(
 }
 
 /** Index one source file's text into its symbols + resolved local edges. */
-export function indexFile(
-  file: string,
-  source: string,
-  knownFiles: ReadonlySet<string>,
-): IndexedFile {
+export function indexFile(file: string, source: string, knownFiles: ReadonlySet<string>): IndexedFile {
   const { specifiers, symbols, complete } = extractSource(source);
   const edges: IndexedEdge[] = [];
   let completeAfterResolve = complete;

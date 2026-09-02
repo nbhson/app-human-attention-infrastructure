@@ -36,9 +36,7 @@ export function resolveEventTransport(raw: string | null | undefined): EventTran
   if ((KNOWN_TRANSPORTS as readonly string[]).includes(trimmed)) {
     return trimmed as EventTransport;
   }
-  throw new Error(
-    `unknown EVENT_TRANSPORT "${trimmed}" — expected one of ${KNOWN_TRANSPORTS.join('|')}`,
-  );
+  throw new Error(`unknown EVENT_TRANSPORT "${trimmed}" — expected one of ${KNOWN_TRANSPORTS.join('|')}`);
 }
 
 /** Options accepted by {@link buildEventBus}. */
@@ -56,10 +54,7 @@ export interface BuildEventBusOptions {
  * `redis`/`sqs` need a {@link StreamTransport} (else this throws — the repo
  * ships no broker SDK, so a durable deployment supplies its own adapter).
  */
-export function buildEventBus(
-  transport: EventTransport,
-  options: BuildEventBusOptions = {},
-): IEventBus {
+export function buildEventBus(transport: EventTransport, options: BuildEventBusOptions = {}): IEventBus {
   if (transport === 'inproc') {
     return new InProcessEventBus(options.onHandlerError);
   }

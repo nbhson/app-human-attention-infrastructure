@@ -1,15 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  agentRuns,
-  artifacts,
-  changes,
-  contextSourceEmbeddings,
-  projects,
-  snapshots,
-  tasks,
-} from '@harness/db';
+import { agentRuns, artifacts, changes, contextSourceEmbeddings, projects, snapshots, tasks } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
 import {
@@ -23,13 +15,7 @@ import {
   newTaskID,
   uuidv7,
 } from '@harness/domain';
-import type {
-  AgentRunID,
-  ArtifactChangedPayload,
-  ArtifactCreatedPayload,
-  ArtifactID,
-  ChangeID,
-} from '@harness/domain';
+import type { AgentRunID, ArtifactChangedPayload, ArtifactCreatedPayload, ArtifactID, ChangeID } from '@harness/domain';
 import { createEvent, InProcessEventBus } from '@harness/event-bus';
 
 import { EmbeddingIndexer } from '../indexer.js';
@@ -60,9 +46,7 @@ beforeEach(async () => {
   await db.delete(projects);
 });
 
-function listener(
-  indexer = new EmbeddingIndexer(db, new StubEmbedder(1536, 'test-model')),
-): ReembedListener {
+function listener(indexer = new EmbeddingIndexer(db, new StubEmbedder(1536, 'test-model'))): ReembedListener {
   return new ReembedListener(db, indexer);
 }
 
@@ -90,20 +74,14 @@ async function seedChangedFixture(): Promise<ChangedFixture> {
   await db.insert(projects).values({ id: projectId, name: 'p', repo_path: '/tmp/repo' });
 
   const taskId = newTaskID();
-  await db
-    .insert(tasks)
-    .values({ id: taskId, project_id: projectId, title: 't', idempotency_key: `${taskId}:0` });
+  await db.insert(tasks).values({ id: taskId, project_id: projectId, title: 't', idempotency_key: `${taskId}:0` });
 
   const agentRunId = newAgentRunID();
-  await db
-    .insert(agentRuns)
-    .values({ id: agentRunId, task_id: taskId, status: 'COMPLETED', max_steps: 5 });
+  await db.insert(agentRuns).values({ id: agentRunId, task_id: taskId, status: 'COMPLETED', max_steps: 5 });
 
   const artifactId = newArtifactID();
   const filePath = 'src/app.ts';
-  await db
-    .insert(artifacts)
-    .values({ id: artifactId, project_id: projectId, file_path: filePath, status: 'DRAFT' });
+  await db.insert(artifacts).values({ id: artifactId, project_id: projectId, file_path: filePath, status: 'DRAFT' });
 
   const changeId = newChangeID();
   const contentHash = 'hash-updated';
@@ -129,10 +107,7 @@ async function seedChangedFixture(): Promise<ChangedFixture> {
 }
 
 async function embeddingRows(sourceId: string) {
-  return db
-    .select()
-    .from(contextSourceEmbeddings)
-    .where(eq(contextSourceEmbeddings.source_id, sourceId));
+  return db.select().from(contextSourceEmbeddings).where(eq(contextSourceEmbeddings.source_id, sourceId));
 }
 
 /** Poll until a row for `sourceId` appears (the listener runs fire-and-forget). */

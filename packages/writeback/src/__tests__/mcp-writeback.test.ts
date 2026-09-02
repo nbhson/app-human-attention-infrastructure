@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { GitProviderType, TicketProviderType, WritebackAction } from '@harness/domain';
-import type {
-  WriteBackIntent,
-  WritebackClaim,
-  WritebackFinalize,
-  WritebackLogStore,
-} from '@harness/domain';
+import type { WriteBackIntent, WritebackClaim, WritebackFinalize, WritebackLogStore } from '@harness/domain';
 import type { McpClient, McpServerRegistry, ToolResult } from '@harness/mcp';
 import { StaticGitToolMap } from '@harness/git-provider';
 import { StaticTicketToolMap } from '@harness/ticket-provider';
@@ -72,9 +67,7 @@ class FakeWritebackLogStore implements WritebackLogStore {
   }> = [];
 
   async claim(input: WritebackClaim): Promise<'claimed' | 'duplicate'> {
-    const duplicate = this.rows.some(
-      (row) => row.dedupKey === input.dedupKey && row.status === 'SUCCEEDED',
-    );
+    const duplicate = this.rows.some((row) => row.dedupKey === input.dedupKey && row.status === 'SUCCEEDED');
     this.rows.push({
       intentId: input.intentId,
       dedupKey: input.dedupKey,
@@ -110,9 +103,7 @@ function fakeRegistry(client: McpClient): McpServerRegistry & { gets: string[] }
   };
 }
 
-function gitIntent(
-  overrides: Partial<WriteBackIntent> & Pick<WriteBackIntent, 'action'>,
-): WriteBackIntent {
+function gitIntent(overrides: Partial<WriteBackIntent> & Pick<WriteBackIntent, 'action'>): WriteBackIntent {
   return {
     id: 'wb-git',
     provider: GitProviderType.GitHub,
@@ -122,9 +113,7 @@ function gitIntent(
   } satisfies WriteBackIntent;
 }
 
-function ticketIntent(
-  overrides: Partial<WriteBackIntent> & Pick<WriteBackIntent, 'action'>,
-): WriteBackIntent {
+function ticketIntent(overrides: Partial<WriteBackIntent> & Pick<WriteBackIntent, 'action'>): WriteBackIntent {
   return {
     id: 'wb-jira',
     provider: TicketProviderType.Jira,
@@ -139,15 +128,9 @@ function build(
   store: FakeWritebackLogStore = new FakeWritebackLogStore(),
 ) {
   const registry = fakeRegistry(client);
-  const service = new MCPWriteBack(
-    registry,
-    new StaticGitToolMap(),
-    new StaticTicketToolMap(),
-    store,
-    {
-      enabled,
-    },
-  );
+  const service = new MCPWriteBack(registry, new StaticGitToolMap(), new StaticTicketToolMap(), store, {
+    enabled,
+  });
   return { service, client, registry, store };
 }
 
@@ -167,17 +150,11 @@ describe('MCPWriteBack', () => {
     const { service, client, registry } = build(() => true);
 
     await service.write(gitIntent({ action: WritebackAction.Comment, body: 'LGTM' }));
-    await service.write(
-      gitIntent({ action: WritebackAction.Status, state: 'success', body: 'verified' }),
-    );
+    await service.write(gitIntent({ action: WritebackAction.Status, state: 'success', body: 'verified' }));
     await service.write(gitIntent({ action: WritebackAction.Label, label: 'approved' }));
 
     expect(registry.gets).toEqual(['github', 'github', 'github']);
-    expect(client.calls.map((c) => c.name)).toEqual([
-      'add_pr_comment',
-      'set_pr_status',
-      'add_pr_labels',
-    ]);
+    expect(client.calls.map((c) => c.name)).toEqual(['add_pr_comment', 'set_pr_status', 'add_pr_labels']);
     expect(client.calls[0]?.args).toEqual({
       owner: 'acme',
       repo: 'api',
@@ -202,9 +179,9 @@ describe('MCPWriteBack', () => {
   it('git hosts reject TRANSITION with WriteBackError', async () => {
     const { service, client } = build(() => true);
 
-    await expect(
-      service.write(gitIntent({ action: WritebackAction.Transition, toState: 'Merged' })),
-    ).rejects.toThrow(WriteBackError);
+    await expect(service.write(gitIntent({ action: WritebackAction.Transition, toState: 'Merged' }))).rejects.toThrow(
+      WriteBackError,
+    );
     expect(client.calls).toEqual([]);
   });
 
@@ -239,12 +216,12 @@ describe('MCPWriteBack', () => {
   it('Jira rejects STATUS/LABEL with WriteBackError', async () => {
     const { service, client } = build(() => true);
 
-    await expect(
-      service.write(ticketIntent({ action: WritebackAction.Status, state: 'success' })),
-    ).rejects.toThrow(WriteBackError);
-    await expect(
-      service.write(ticketIntent({ action: WritebackAction.Label, label: 'approved' })),
-    ).rejects.toThrow(WriteBackError);
+    await expect(service.write(ticketIntent({ action: WritebackAction.Status, state: 'success' }))).rejects.toThrow(
+      WriteBackError,
+    );
+    await expect(service.write(ticketIntent({ action: WritebackAction.Label, label: 'approved' }))).rejects.toThrow(
+      WriteBackError,
+    );
     expect(client.calls).toEqual([]);
   });
 
@@ -305,11 +282,7 @@ describe('MCPWriteBack', () => {
     );
 
     expect(registry.gets).toEqual(['gitlab', 'gitlab', 'gitlab']);
-    expect(client.calls.map((c) => c.name)).toEqual([
-      'create_mr_note',
-      'set_mr_status',
-      'add_mr_labels',
-    ]);
+    expect(client.calls.map((c) => c.name)).toEqual(['create_mr_note', 'set_mr_status', 'add_mr_labels']);
     expect(client.calls[0]?.args).toEqual({
       project: 'acme/api',
       merge_request_iid: 7,
@@ -361,11 +334,7 @@ describe('MCPWriteBack', () => {
     );
 
     expect(registry.gets).toEqual(['bitbucket', 'bitbucket', 'bitbucket']);
-    expect(client.calls.map((c) => c.name)).toEqual([
-      'add_pr_comment',
-      'set_pr_status',
-      'add_pr_labels',
-    ]);
+    expect(client.calls.map((c) => c.name)).toEqual(['add_pr_comment', 'set_pr_status', 'add_pr_labels']);
     expect(client.calls[0]?.args).toEqual({
       workspace: 'acme',
       repo_slug: 'api',
@@ -460,9 +429,7 @@ describe('MCPWriteBack audit + idempotency (day-08)', () => {
     const store = new FakeWritebackLogStore();
     const { service } = build(() => true, client, store);
 
-    await service.write(
-      gitIntent({ action: WritebackAction.Comment, body: 'LGTM', decisionId: 'dec-42' }),
-    );
+    await service.write(gitIntent({ action: WritebackAction.Comment, body: 'LGTM', decisionId: 'dec-42' }));
 
     expect(store.rows[0]?.decisionId).toBe('dec-42');
   });

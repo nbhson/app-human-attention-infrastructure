@@ -55,9 +55,7 @@ describe('ObjectStoreContentStore (day-21 §2.4)', () => {
     const ref = await store.put(content, { contentHash: hash, sizeBytes: content.length });
 
     expect(ref).toEqual({ hash, backend: 'object' });
-    expect((await streamToBuffer(await store.get(ref))).toString('utf8')).toBe(
-      'hello object store',
-    );
+    expect((await streamToBuffer(await store.get(ref))).toString('utf8')).toBe('hello object store');
     expect(await store.exists(ref)).toBe(true);
   });
 
@@ -70,9 +68,7 @@ describe('ObjectStoreContentStore (day-21 §2.4)', () => {
 
     port.tamper(`artifacts/${hash}`, Buffer.from('corrupted!!'));
 
-    await expect(streamToBuffer(await store.get(ref))).rejects.toBeInstanceOf(
-      ContentIntegrityError,
-    );
+    await expect(streamToBuffer(await store.get(ref))).rejects.toBeInstanceOf(ContentIntegrityError);
   });
 
   it('stores two identical objects under a single key (dedup for free)', async () => {
@@ -117,11 +113,7 @@ describe('RoutingContentStore (day-21 §2.2)', () => {
   const THRESHOLD = 1024 * 1024; // 1 MB
 
   function routed(): RoutingContentStore {
-    return new RoutingContentStore(
-      new InMemoryContentStore('db'),
-      new InMemoryContentStore('object'),
-      THRESHOLD,
-    );
+    return new RoutingContentStore(new InMemoryContentStore('db'), new InMemoryContentStore('object'), THRESHOLD);
   }
 
   it('routes a 2 MB artifact to backend=object', async () => {

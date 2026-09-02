@@ -56,9 +56,7 @@ describe('ensureImage (day-22 §3.2)', () => {
   it('throws SandboxInfraError when the build fails', async () => {
     const { docker } = stubDocker();
     process.env.FAKE_BUILD_EXIT = '1';
-    await expect(ensureImage('harness-verify:node20', docker)).rejects.toBeInstanceOf(
-      SandboxInfraError,
-    );
+    await expect(ensureImage('harness-verify:node20', docker)).rejects.toBeInstanceOf(SandboxInfraError);
   });
 });
 

@@ -6,11 +6,7 @@ import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils
 import type { Logger } from '@harness/di';
 import { uuidv7 } from '@harness/domain';
 
-import {
-  DbRankDefaultProvider,
-  RANK_METHOD_HYBRID,
-  RANK_METHOD_KEYWORD,
-} from '../retrieval/retriever-factory.js';
+import { DbRankDefaultProvider, RANK_METHOD_HYBRID, RANK_METHOD_KEYWORD } from '../retrieval/retriever-factory.js';
 
 const SCHEMA = 'harness_test_db_rank_default';
 

@@ -40,10 +40,7 @@ interface ReviewCardProps {
   readonly onQuickDecision: (id: string, decision: ReviewDecision) => void;
 }
 
-const VERDICT: Record<
-  ReviewsListItem['overallVerdict'],
-  { tone: Tone; label: string; color: string }
-> = {
+const VERDICT: Record<ReviewsListItem['overallVerdict'], { tone: Tone; label: string; color: string }> = {
   REQUEST_CHANGES: {
     tone: 'amber',
     label: 'Request changes',
@@ -105,11 +102,7 @@ export function ReviewCard({
 
   if (viewMode === 'compact') {
     const StatusIcon =
-      verdict.tone === 'amber'
-        ? AlertTriangle
-        : verdict.tone === 'emerald'
-          ? CheckCircle2
-          : MessageSquare;
+      verdict.tone === 'amber' ? AlertTriangle : verdict.tone === 'emerald' ? CheckCircle2 : MessageSquare;
     return (
       <li className="rq-compact" data-tone={verdict.tone}>
         <div className="rq-compact-main">
@@ -127,11 +120,7 @@ export function ReviewCard({
           <span className="rq-compact-findings">{review.findingCount} findings</span>
         </div>
         <time className="rq-compact-time">{timeAgo(review.createdAt)}</time>
-        <button
-          type="button"
-          className="rq-compact-action"
-          onClick={() => onQuickDecision(review.id, 'APPROVE')}
-        >
+        <button type="button" className="rq-compact-action" onClick={() => onQuickDecision(review.id, 'APPROVE')}>
           Review
         </button>
       </li>
@@ -151,11 +140,7 @@ export function ReviewCard({
               aria-label="Select review"
               aria-pressed={isSelected}
             >
-              {isSelected ? (
-                <CheckSquare className="rq-checkbox" />
-              ) : (
-                <Square className="rq-checkbox" />
-              )}
+              {isSelected ? <CheckSquare className="rq-checkbox" /> : <Square className="rq-checkbox" />}
             </button>
             <div className="rq-card-title-col">
               <Link to={reviewPath} className="rq-card-title">
@@ -221,19 +206,13 @@ export function ReviewCard({
               {verdict.label}
             </span>
             {review.triage.securityBlocked && (
-              <span
-                className="rq-triage-badge rq-triage-badge--security"
-                title="Security triage rule fired"
-              >
+              <span className="rq-triage-badge rq-triage-badge--security" title="Security triage rule fired">
                 <ShieldAlert size={13} />
                 Security block
               </span>
             )}
             {review.triage.schemaGate && (
-              <span
-                className="rq-triage-badge rq-triage-badge--schema"
-                title="Schema/data-integrity rule fired"
-              >
+              <span className="rq-triage-badge rq-triage-badge--schema" title="Schema/data-integrity rule fired">
                 <Sliders size={13} />
                 Schema
               </span>
@@ -303,9 +282,7 @@ export function ReviewCard({
                   <div className="rq-finding-left">
                     <span
                       className={`rq-finding-sev ${
-                        finding.severity === 'CRITICAL'
-                          ? 'rq-finding-sev--critical'
-                          : 'rq-finding-sev--other'
+                        finding.severity === 'CRITICAL' ? 'rq-finding-sev--critical' : 'rq-finding-sev--other'
                       }`}
                     >
                       {finding.severity}

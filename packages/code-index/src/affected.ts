@@ -28,10 +28,7 @@ export interface AffectedTestsResult {
  * changed file was never indexed — either way the graph cannot prove the
  * remaining tests irrelevant.
  */
-export function affectedTests(
-  changedFiles: readonly string[],
-  graph: DependencyGraph,
-): AffectedTestsResult {
+export function affectedTests(changedFiles: readonly string[], graph: DependencyGraph): AffectedTestsResult {
   let complete = true;
   const seen = new Set<string>();
   const queue: string[] = [];

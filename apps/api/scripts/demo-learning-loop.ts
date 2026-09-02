@@ -158,15 +158,9 @@ async function main(): Promise<void> {
   console.log(
     `     ranking acc   : inc ${round(c.incumbentRankingAccuracy)} → cand ${round(c.candidateRankingAccuracy)}`,
   );
-  console.log(
-    `     log-loss      : inc ${round(c.incumbentLogLoss)} → cand ${round(c.candidateLogLoss)}`,
-  );
-  console.log(
-    `     improvement   : ${c.improvement}   judgeSignalDominates: ${c.judgeSignalDominates}`,
-  );
-  console.log(
-    `     → promotion   : ${run.promotion!.outcome} (${run.promotion!.reasons.join('; ')})`,
-  );
+  console.log(`     log-loss      : inc ${round(c.incumbentLogLoss)} → cand ${round(c.candidateLogLoss)}`);
+  console.log(`     improvement   : ${c.improvement}   judgeSignalDominates: ${c.judgeSignalDominates}`);
+  console.log(`     → promotion   : ${run.promotion!.outcome} (${run.promotion!.reasons.join('; ')})`);
   console.log(`     → promoted    : ${run.promoted} (job never applies weights itself)`);
   assert(!run.promoted, 'the honest fixture does not manufacture a WIN');
   console.log();
@@ -176,15 +170,11 @@ async function main(): Promise<void> {
   assert(forced.promotion!.outcome === 'PROMOTE', 'a measured WIN promotes');
   assert(forced.promoted === true, 'promoted mirrors PROMOTE (and only PROMOTE)');
   console.log('  2. a measured WIN is the only path to PROMOTE:');
-  console.log(
-    `     → promotion   : ${forced.promotion!.outcome} (${forced.promotion!.reasons.join('; ')})`,
-  );
+  console.log(`     → promotion   : ${forced.promotion!.outcome} (${forced.promotion!.reasons.join('; ')})`);
   console.log(`     → promoted    : ${forced.promoted}`);
   console.log();
 
-  console.log(
-    'learning loop: new evidence → candidate (+ provenance) → measured gate; automation stops there. ✅',
-  );
+  console.log('learning loop: new evidence → candidate (+ provenance) → measured gate; automation stops there. ✅');
 }
 
 main().catch((err) => {

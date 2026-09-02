@@ -44,11 +44,8 @@ export function effectiveBody(intent: WriteBackIntent): string {
  * with the same action and the same (normalised) content.
  */
 export function dedupKey(intent: WriteBackIntent): string {
-  const joined = [
-    intent.provider,
-    intent.externalId,
-    String(intent.action),
-    normalizeBody(effectiveBody(intent)),
-  ].join('|');
+  const joined = [intent.provider, intent.externalId, String(intent.action), normalizeBody(effectiveBody(intent))].join(
+    '|',
+  );
   return createHash('sha256').update(joined).digest('hex');
 }

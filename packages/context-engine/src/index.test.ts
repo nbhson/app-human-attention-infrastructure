@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  ContextEngine,
-  FileCollector,
-  KeywordDependencyRanker,
-  TiktokenTokenizer,
-} from './index.js';
+import { ContextEngine, FileCollector, KeywordDependencyRanker, TiktokenTokenizer } from './index.js';
 
 describe('@harness/context-engine public surface', () => {
   it('exports the engine and its collaborators', () => {

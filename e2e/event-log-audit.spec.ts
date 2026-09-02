@@ -247,9 +247,7 @@ describe('event-log audit E2E (day-30)', () => {
     const auditBody = auditReply.json<{ items: Array<{ title: string }> }>();
     expect(auditBody.items.length).toBeGreaterThan(0);
     // At least one item should match our correlation_id events.
-    expect(auditBody.items.some((e) => correlated.some((ev) => ev.event_type === e.title))).toBe(
-      true,
-    );
+    expect(auditBody.items.some((e) => correlated.some((ev) => ev.event_type === e.title))).toBe(true);
   });
 
   it('each concurrent review keeps a distinct correlation_id', async () => {

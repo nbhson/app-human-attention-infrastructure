@@ -159,12 +159,8 @@ function InsightCard({
         <Icon size={14} />
       </span>
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--color-text)' }}>
-          {title}
-        </span>
-        <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-          {detail}
-        </span>
+        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--color-text)' }}>{title}</span>
+        <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>{detail}</span>
       </div>
     </div>
   );
@@ -452,9 +448,7 @@ export function SummaryMetricsPanel({
                   >
                     {findingTotal}
                   </span>
-                  <span
-                    style={{ fontSize: '0.6rem', color: 'var(--color-text-faint)', marginTop: 2 }}
-                  >
+                  <span style={{ fontSize: '0.6rem', color: 'var(--color-text-faint)', marginTop: 2 }}>
                     {findingTotal === 1 ? 'finding' : 'findings'}
                   </span>
                 </div>
@@ -511,9 +505,7 @@ export function SummaryMetricsPanel({
                       }}
                     >
                       {row.count}
-                      <span
-                        style={{ color: 'var(--color-text-faint)', width: 32, textAlign: 'right' }}
-                      >
+                      <span style={{ color: 'var(--color-text-faint)', width: 32, textAlign: 'right' }}>
                         {countPct(row.count, findingTotal)}
                       </span>
                     </span>

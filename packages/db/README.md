@@ -12,7 +12,7 @@ seeding, and the data-access surface every package reads/writes through.
 
 1. **Abstract PostgreSQL** behind Drizzle ORM (driver `postgres.js`).
 2. **Hold the schema** — 50 tables, each owned by exactly one package's logic.
-3. **Keep `event_log` append-only** — the source of truth for *what happened*.
+3. **Keep `event_log` append-only** — the source of truth for _what happened_.
 4. **Expose data access** — `createDb`, `asReadonlyDb`, `AbStore`, `EventLogWriter`,
    audit helpers, and the write-back / judge log/run stores (`WritebackLogStore`,
    `JudgeRunStore`, `JudgeAgreementStore`).
@@ -22,7 +22,7 @@ seeding, and the data-access surface every package reads/writes through.
 ## The append-only model
 
 One table — `event_log` — is **append-only** (no UPDATE/DELETE): it is the
-source of truth for "*what actually happened*". Every other table is a
+source of truth for "_what actually happened_". Every other table is a
 current-state snapshot that can be rebuilt by replaying `event_log`.
 
 ```text
@@ -42,24 +42,24 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 
 ## Schema — 50 tables, grouped by owning domain
 
-| Domain | Tables |
-| --- | --- |
-| **Orchestrator** | `projects`, `tasks`, `task_state_history`, `retry_log` ◌ |
-| **Agent runtime** | `llm_call_log`, `agent_runs` ◌, `trajectory_steps` ◌ |
-| **Artifact tracker** | `artifacts`, `changes`, `snapshots` |
-| **Context engine** | `contexts`, `source_usefulness`, `context_source_cache`, `context_source_embeddings`, `shadow_rank_comparisons` |
-| **Verification** | `verification_requests`, `verification_results`, `verification_check_results`, `verification_test_results`, `verification_reports` |
-| **Attention** | `assessments`, `assessment_feedback`, `attention_thresholds`, `calibration_datasets`, `calibration_weights`, `calibration_rows`, `auto_approve_kill_switch` |
-| **Review** | `review_queue`, `decisions`, `review_decisions`, `review_reports`, `review_findings`, `review_verifications`, `fix_suggestions` |
-| **Integration (writeback)** | `provider_configs`, `writeback_log` |
-| **Evidence** | `evidence`, `evidence_links` |
-| **Event log** | `event_log` |
-| **Memory** | `memory_entries`, `memory_entry_evidence` |
-| **Judge** | `judge_runs`, `judge_agreements` |
-| **Benchmark** | `review_examples` |
-| **Identity** | `users`, `sessions` |
-| **Observability** | `trace_correlation` |
-| **Evaluation (A/B)** | `evaluation_reports`, `ab_experiments`, `ab_runs` |
+| Domain                      | Tables                                                                                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Orchestrator**            | `projects`, `tasks`, `task_state_history`, `retry_log` ◌                                                                                                    |
+| **Agent runtime**           | `llm_call_log`, `agent_runs` ◌, `trajectory_steps` ◌                                                                                                        |
+| **Artifact tracker**        | `artifacts`, `changes`, `snapshots`                                                                                                                         |
+| **Context engine**          | `contexts`, `source_usefulness`, `context_source_cache`, `context_source_embeddings`, `shadow_rank_comparisons`                                             |
+| **Verification**            | `verification_requests`, `verification_results`, `verification_check_results`, `verification_test_results`, `verification_reports`                          |
+| **Attention**               | `assessments`, `assessment_feedback`, `attention_thresholds`, `calibration_datasets`, `calibration_weights`, `calibration_rows`, `auto_approve_kill_switch` |
+| **Review**                  | `review_queue`, `decisions`, `review_decisions`, `review_reports`, `review_findings`, `review_verifications`, `fix_suggestions`                             |
+| **Integration (writeback)** | `provider_configs`, `writeback_log`                                                                                                                         |
+| **Evidence**                | `evidence`, `evidence_links`                                                                                                                                |
+| **Event log**               | `event_log`                                                                                                                                                 |
+| **Memory**                  | `memory_entries`, `memory_entry_evidence`                                                                                                                   |
+| **Judge**                   | `judge_runs`, `judge_agreements`                                                                                                                            |
+| **Benchmark**               | `review_examples`                                                                                                                                           |
+| **Identity**                | `users`, `sessions`                                                                                                                                         |
+| **Observability**           | `trace_correlation`                                                                                                                                         |
+| **Evaluation (A/B)**        | `evaluation_reports`, `ab_experiments`, `ab_runs`                                                                                                           |
 
 > **◌ Orphaned by `review-reorient`.** Their writers (`AgentRunner`,
 > `TrajectoryRecorder`, the retry loop) were retired with the code-generation
@@ -95,18 +95,18 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 
 ## Data-access surface
 
-| Component | What it provides |
-| --- | --- |
-| `client.ts` | `createDb(connectionString)` → `DrizzleDB`. |
-| `readonly-db.ts` | `asReadonlyDb` / `ReadonlyDb` — read-only view for consumers. |
-| `event-log-writer.ts` | Subscribes every `EventType` to the bus and writes it to `event_log`; duplicate `event_id` is a no-op via `onConflictDoNothing()`. |
-| `ab-store.ts` | `AbStore` — A/B experiment storage. |
-| `writeback-log-store.ts` | `WritebackLogStore` — `writeback_log` read/update for the write-back audit surface. |
-| `judge-run-store.ts` | `JudgeRunStore` — persist/read `judge_runs`. |
-| `judge-agreement-store.ts` | `JudgeAgreementStore` — persist/read `judge_agreements`. |
-| `audit-orphans.ts` | Orphaned-state audit queries. |
-| `faults.ts` | Fault-injection helpers. |
-| `migrate.ts` / `seed.ts` | Migration runner / dev seed. |
+| Component                  | What it provides                                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `client.ts`                | `createDb(connectionString)` → `DrizzleDB`.                                                                                        |
+| `readonly-db.ts`           | `asReadonlyDb` / `ReadonlyDb` — read-only view for consumers.                                                                      |
+| `event-log-writer.ts`      | Subscribes every `EventType` to the bus and writes it to `event_log`; duplicate `event_id` is a no-op via `onConflictDoNothing()`. |
+| `ab-store.ts`              | `AbStore` — A/B experiment storage.                                                                                                |
+| `writeback-log-store.ts`   | `WritebackLogStore` — `writeback_log` read/update for the write-back audit surface.                                                |
+| `judge-run-store.ts`       | `JudgeRunStore` — persist/read `judge_runs`.                                                                                       |
+| `judge-agreement-store.ts` | `JudgeAgreementStore` — persist/read `judge_agreements`.                                                                           |
+| `audit-orphans.ts`         | Orphaned-state audit queries.                                                                                                      |
+| `faults.ts`                | Fault-injection helpers.                                                                                                           |
+| `migrate.ts` / `seed.ts`   | Migration runner / dev seed.                                                                                                       |
 
 ---
 

@@ -5,6 +5,7 @@
 Multi-pass code review workflow that eliminates the non-determinism of the built-in code-review plugin. The built-in review produces inconsistent results (~12 findings one run, ~5 findings the next) because it uses only 5 agents with a single pass and a magical 80-point verification threshold.
 
 This workflow solves that with four techniques:
+
 1. **N-pass review** — 3 rounds × 8 focus lenses (24 agents total) with loop-until-dry
 2. **Adversarial verification** — 3 judges per finding (2 neutral + 1 skeptical), majority vote
 3. **Critical safeguard** — rejected critical findings get re-verified with a lenient panel
@@ -28,9 +29,9 @@ claude --workflow thorough-review --args '{"branch": "fix/review-timeouts-and-ci
 // In a script or another workflow:
 Workflow({
   scriptPath: 'docs/workflows/thorough-review.wf.js',
-  args: { pr: '123' }
+  args: { pr: '123' },
   // or { branch: 'my-branch' }
-})
+});
 ```
 
 ## Architecture
@@ -93,50 +94,53 @@ The workflow returns a JSON object:
 ## Schema Reference
 
 ### FINDING
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `file` | string | ✅ | Source file path |
-| `line` | number | ✅ | Line number (1-indexed) |
-| `severity` | enum | ✅ | `critical` · `major` · `minor` |
-| `description` | string | ✅ | One-line bug description |
-| `evidence` | string | ✅ | Code snippet or quote |
-| `category` | enum | ✅ | `security` · `bug` · `performance` · `architecture` · `error_handling` · `code_quality` · `regression` · `compliance` |
+
+| Field         | Type   | Required | Description                                                                                                           |
+| ------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `file`        | string | ✅       | Source file path                                                                                                      |
+| `line`        | number | ✅       | Line number (1-indexed)                                                                                               |
+| `severity`    | enum   | ✅       | `critical` · `major` · `minor`                                                                                        |
+| `description` | string | ✅       | One-line bug description                                                                                              |
+| `evidence`    | string | ✅       | Code snippet or quote                                                                                                 |
+| `category`    | enum   | ✅       | `security` · `bug` · `performance` · `architecture` · `error_handling` · `code_quality` · `regression` · `compliance` |
 
 ### PR_INFO
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `eligible` | boolean | ✅ | Is the PR reviewable? |
-| `prNumber` | number \| null | ✅ | PR number or null for branch review |
-| `title` | string | ✅ | PR title or branch name |
-| `summary` | string | ✅ | PR description |
-| `files` | string[] | ✅ | Changed file paths |
-| `reason` | string | ✅ | `OK` or rejection reason |
+
+| Field      | Type           | Required | Description                         |
+| ---------- | -------------- | -------- | ----------------------------------- |
+| `eligible` | boolean        | ✅       | Is the PR reviewable?               |
+| `prNumber` | number \| null | ✅       | PR number or null for branch review |
+| `title`    | string         | ✅       | PR title or branch name             |
+| `summary`  | string         | ✅       | PR description                      |
+| `files`    | string[]       | ✅       | Changed file paths                  |
+| `reason`   | string         | ✅       | `OK` or rejection reason            |
 
 ### VERDICT
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `refuted` | boolean | ✅ | `true` = false positive, `false` = real issue |
-| `reason` | string | ✅ | Why the finding was accepted or rejected |
+
+| Field     | Type    | Required | Description                                   |
+| --------- | ------- | -------- | --------------------------------------------- |
+| `refuted` | boolean | ✅       | `true` = false positive, `false` = real issue |
+| `reason`  | string  | ✅       | Why the finding was accepted or rejected      |
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MAX_ROUNDS` | `3` | Maximum review rounds |
-| `DRY_LIMIT` | `2` | Consecutive dry rounds to stop early |
+| Variable     | Default | Description                          |
+| ------------ | ------- | ------------------------------------ |
+| `MAX_ROUNDS` | `3`     | Maximum review rounds                |
+| `DRY_LIMIT`  | `2`     | Consecutive dry rounds to stop early |
 
 Both can be overridden in the workflow script.
 
 ## Differences from Built-in code-review
 
-| Aspect | Built-in | thorough-review |
-|--------|----------|-----------------|
-| Agents | 5 Sonnet | 24 (8 × 3 rounds) |
-| Verification | 1 Haiku, score 0–100, threshold ≥ 80 | 3 judges, majority vote, no magical cutoff |
-| Coverage | Single pass | Loop-until-dry (up to 3 rounds) |
-| Bug types | General | 24 distinct focus lenses |
-| False positives | ~50% filter rate | Adversarial — skeptic judge actively refutes |
-| Critical bugs | Same threshold | Safeguard — re-verified with lenient panel |
+| Aspect          | Built-in                             | thorough-review                              |
+| --------------- | ------------------------------------ | -------------------------------------------- |
+| Agents          | 5 Sonnet                             | 24 (8 × 3 rounds)                            |
+| Verification    | 1 Haiku, score 0–100, threshold ≥ 80 | 3 judges, majority vote, no magical cutoff   |
+| Coverage        | Single pass                          | Loop-until-dry (up to 3 rounds)              |
+| Bug types       | General                              | 24 distinct focus lenses                     |
+| False positives | ~50% filter rate                     | Adversarial — skeptic judge actively refutes |
+| Critical bugs   | Same threshold                       | Safeguard — re-verified with lenient panel   |
 
 ## Known Limitations
 

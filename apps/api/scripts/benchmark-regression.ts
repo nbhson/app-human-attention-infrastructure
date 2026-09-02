@@ -30,12 +30,7 @@ import { computeGoldAgreement, loadSeedExamples, SCALE_VERSION } from '@harness/
 import type { JudgedExample } from '@harness/benchmark';
 
 import { runCalibration, renderCalibrationReport } from '@harness/evaluation';
-import type {
-  FactorScores,
-  FitConfig,
-  GoldAgreementSummary,
-  JudgeAugmentedSample,
-} from '@harness/evaluation';
+import type { FactorScores, FitConfig, GoldAgreementSummary, JudgeAugmentedSample } from '@harness/evaluation';
 
 import type { JudgeScores } from '@harness/domain';
 
@@ -60,12 +55,7 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-const toJudgeScores = (
-  severity: number,
-  routing: number,
-  evidence: number,
-  overall: number,
-): JudgeScores => ({
+const toJudgeScores = (severity: number, routing: number, evidence: number, overall: number): JudgeScores => ({
   severityAgreement: severity,
   routingAgreement: routing,
   evidenceSufficiency: evidence,
@@ -90,10 +80,7 @@ function factors(severity: number, routing: number, useful: boolean): FactorScor
   };
 }
 
-function buildSamples(
-  examples: ReturnType<typeof loadSeedExamples>,
-  judge: JudgeScores[],
-): JudgeAugmentedSample[] {
+function buildSamples(examples: ReturnType<typeof loadSeedExamples>, judge: JudgeScores[]): JudgeAugmentedSample[] {
   return examples.map((example, index) => {
     const f = factors(example.gold.severity, example.gold.routing, example.gold.useful);
     const judgeScores = judge[index]!;
@@ -196,9 +183,7 @@ async function main(): Promise<void> {
   }
 
   const examples = loadSeedExamples();
-  console.log(
-    `  corpus: ${examples.length} redacted gold-labelled review examples (scale ${corpusVersion})`,
-  );
+  console.log(`  corpus: ${examples.length} redacted gold-labelled review examples (scale ${corpusVersion})`);
   console.log('  judge:  deterministic two-rater demonstration scorer (no live LLM / no API key)');
   console.log(
     `  baseline: Day-25 Week-5 checkpoint (severity/routing ${fmt3(BASELINE.interJudgeSeverity)}/` +
@@ -209,12 +194,8 @@ async function main(): Promise<void> {
   // Run the full pipeline — the same compute `pnpm calibration:report` uses.
   const raterA = mulberry32(1);
   const raterB = mulberry32(2);
-  const judgeScores = examples.map((e) =>
-    score(e.gold.severity, e.gold.routing, e.gold.useful, raterA),
-  );
-  const secondScores = examples.map((e) =>
-    score(e.gold.severity, e.gold.routing, e.gold.useful, raterB),
-  );
+  const judgeScores = examples.map((e) => score(e.gold.severity, e.gold.routing, e.gold.useful, raterA));
+  const secondScores = examples.map((e) => score(e.gold.severity, e.gold.routing, e.gold.useful, raterB));
 
   const pairs: JudgeScorePair[] = examples.map((_, index) => ({
     a: judgeScores[index]!,
@@ -249,13 +230,7 @@ async function main(): Promise<void> {
   const lines: Line[] = [];
   const verdicts: Verdict[] = [];
 
-  const push = (
-    metric: string,
-    baseline: number,
-    current: number,
-    verdict: Verdict,
-    note: string,
-  ): void => {
+  const push = (metric: string, baseline: number, current: number, verdict: Verdict, note: string): void => {
     verdicts.push(verdict);
     lines.push({
       metric,
@@ -319,10 +294,7 @@ async function main(): Promise<void> {
     baseline: `${fmt3(BASELINE.refit.rankingIncumbent)} → ${fmt3(BASELINE.refit.rankingCandidate)}`,
     current: `${fmt3(report.fit.before.rankingAccuracy)} → ${fmt3(report.fit.after.rankingAccuracy)}`,
     delta: `${fmt4(report.fit.after.rankingAccuracy - report.fit.before.rankingAccuracy)} (Δ incumbent)`,
-    note:
-      report.fit.verdict === 'uplift'
-        ? report.fit.governanceNote
-        : `held: ${report.fit.governanceNote}`,
+    note: report.fit.verdict === 'uplift' ? report.fit.governanceNote : `held: ${report.fit.governanceNote}`,
   });
   verdicts.push(logLossRegressed ? 'FAIL' : 'PASS');
   lines.push({
@@ -335,11 +307,7 @@ async function main(): Promise<void> {
 
   // A/B + decision: unchanged is PASS; a *better* delta/decision is noted, not failed.
   const abChangedWorse = report.ab.winner !== BASELINE.abWinner && report.ab.winner === 'B';
-  const abVerdict: Verdict = abChangedWorse
-    ? 'FAIL'
-    : report.ab.winner === BASELINE.abWinner
-      ? 'PASS'
-      : 'WARN';
+  const abVerdict: Verdict = abChangedWorse ? 'FAIL' : report.ab.winner === BASELINE.abWinner ? 'PASS' : 'WARN';
   verdicts.push(abVerdict);
   lines.push({
     metric: 'A/B verdict (held-out ranking)',
@@ -364,15 +332,12 @@ async function main(): Promise<void> {
   console.log();
   for (const line of lines) {
     console.log(`  ${line.metric}`);
-    console.log(
-      `      baseline ${line.baseline}   current ${line.current}   Δ ${line.delta}   ${line.note}`,
-    );
+    console.log(`      baseline ${line.baseline}   current ${line.current}   Δ ${line.delta}   ${line.note}`);
   }
   console.log();
   const overall: Verdict = failed > 0 ? 'FAIL' : warned > 0 ? 'WARN' : 'PASS';
   console.log(
-    `  overall: ${overall}  (${verdicts.length - failed - warned} pass / ${warned} warn / ` +
-      `${failed} fail)`,
+    `  overall: ${overall}  (${verdicts.length - failed - warned} pass / ${warned} warn / ` + `${failed} fail)`,
   );
   console.log();
 

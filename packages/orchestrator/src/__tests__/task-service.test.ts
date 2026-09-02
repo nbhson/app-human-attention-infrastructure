@@ -2,12 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { EventType, newProjectID, newTaskID, TaskStatus } from '@harness/domain';
-import type {
-  EventEnvelope,
-  TaskID,
-  TaskStatus as TaskState,
-  TaskStateChangedPayload,
-} from '@harness/domain';
+import type { EventEnvelope, TaskID, TaskStatus as TaskState, TaskStateChangedPayload } from '@harness/domain';
 import type { EventHandler, IEventBus, UnsubscribeFn } from '@harness/event-bus';
 import { projects, tasks, taskStateHistory } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
@@ -88,9 +83,7 @@ describe('TaskService', () => {
 
     expect(task.state).toBe(TaskStatus.Pending);
     expect(task.attemptNumber).toBe(0);
-    expect(task.id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
+    expect(task.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it('transitionTask updates state, writes history, and publishes task.state_changed', async () => {
@@ -126,22 +119,20 @@ describe('TaskService', () => {
     const { service } = makeService();
     const task = await service.createTask({ projectId: PROJECT, title: 'hello' });
 
-    await expect(
-      service.transitionTask(task.id, TaskStatus.Executing, 'agent_runtime'),
-    ).rejects.toBeInstanceOf(IllegalTransitionError);
+    await expect(service.transitionTask(task.id, TaskStatus.Executing, 'agent_runtime')).rejects.toBeInstanceOf(
+      IllegalTransitionError,
+    );
 
-    await expect(
-      service.transitionTask(task.id, TaskStatus.Executing, 'agent_runtime'),
-    ).rejects.toThrow(/Legal targets from PENDING: QUEUED, CANCELLED/);
+    await expect(service.transitionTask(task.id, TaskStatus.Executing, 'agent_runtime')).rejects.toThrow(
+      /Legal targets from PENDING: QUEUED, CANCELLED/,
+    );
   });
 
   it('rejects a transition from a terminal state with TerminalStateError', async () => {
     const { service } = makeService();
     const id = await insertTask(TaskStatus.Completed);
 
-    await expect(service.transitionTask(id, TaskStatus.Queued, 'human')).rejects.toBeInstanceOf(
-      TerminalStateError,
-    );
+    await expect(service.transitionTask(id, TaskStatus.Queued, 'human')).rejects.toBeInstanceOf(TerminalStateError);
   });
 
   it('REWORK -> QUEUED increments attempt_number and regenerates the idempotency key', async () => {
@@ -190,10 +181,7 @@ describe('TaskService', () => {
     await service.transitionTask(task.id, TaskStatus.Executing, 'agent_runtime');
 
     const history = await service.getTaskHistory(task.id);
-    expect(history.map((entry) => entry.fromState)).toEqual([
-      TaskStatus.Pending,
-      TaskStatus.Queued,
-    ]);
+    expect(history.map((entry) => entry.fromState)).toEqual([TaskStatus.Pending, TaskStatus.Queued]);
   });
 
   it('rejects a duplicate idempotency key insert at the DB level', async () => {

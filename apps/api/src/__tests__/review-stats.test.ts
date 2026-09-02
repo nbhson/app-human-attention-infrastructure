@@ -193,10 +193,9 @@ describe('computeReviewStats', () => {
   });
 
   it('never tallies cleanup for non-source files', () => {
-    const stats = computeReviewStats(
-      { files: [{ path: 'README.md', additions: 20, deletions: 0 }] },
-      [{ severity: 'NIT', kind: 'cleanup', file: 'README.md', line: 1 }],
-    );
+    const stats = computeReviewStats({ files: [{ path: 'README.md', additions: 20, deletions: 0 }] }, [
+      { severity: 'NIT', kind: 'cleanup', file: 'README.md', line: 1 },
+    ]);
 
     expect(stats.cleanup.files).toBe(0);
     expect(stats.cleanup.findings).toBe(0);
@@ -219,13 +218,7 @@ describe('computeReviewStats', () => {
     );
 
     // Sorted by changed lines: 42 TS, 20 Markdown, 10 SCSS, 8 HTML, 4 Other.
-    expect(stats.languages.map((row) => row.language)).toEqual([
-      'TypeScript',
-      'Markdown',
-      'SCSS',
-      'HTML',
-      'Other',
-    ]);
+    expect(stats.languages.map((row) => row.language)).toEqual(['TypeScript', 'Markdown', 'SCSS', 'HTML', 'Other']);
     const ts = stats.languages.find((row) => row.language === 'TypeScript');
     expect(ts).toMatchObject({ files: 1, additions: 40, deletions: 2 });
     expect(ts?.share).toBeCloseTo(0.5, 4); // 42 / 84 changed lines

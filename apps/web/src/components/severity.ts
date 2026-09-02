@@ -51,9 +51,7 @@ export function severityLabel(severity: string): string {
 }
 
 /** Sort a report's findings worst-first, ties broken by the AI's original order. */
-export function sortFindingsBySeverity(
-  findings: readonly ReviewFinding[],
-): readonly ReviewFinding[] {
+export function sortFindingsBySeverity(findings: readonly ReviewFinding[]): readonly ReviewFinding[] {
   return [...findings].sort(
     (a, b) => severityRank(a.severity) - severityRank(b.severity) || a.orderIndex - b.orderIndex,
   );

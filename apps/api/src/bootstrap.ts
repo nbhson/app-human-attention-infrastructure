@@ -62,21 +62,11 @@ import {
 } from '@harness/context-engine';
 import type { ContextCache } from '@harness/context-engine';
 import { Container, TOKENS, createRootLogger } from '@harness/di';
-import {
-  DrizzleJudgeRunStore,
-  DrizzleWritebackLogStore,
-  EventLogWriter,
-  createDb,
-} from '@harness/db';
+import { DrizzleJudgeRunStore, DrizzleWritebackLogStore, EventLogWriter, createDb } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { AiProviderType } from '@harness/domain';
 import type { MemoryProvider } from '@harness/domain';
-import {
-  EmbeddingIndexer,
-  OpenAICompatibleEmbedder,
-  ReembedListener,
-  StubEmbedder,
-} from '@harness/embeddings';
+import { EmbeddingIndexer, OpenAICompatibleEmbedder, ReembedListener, StubEmbedder } from '@harness/embeddings';
 import type { Embedder } from '@harness/embeddings';
 import { MetricsComputer } from '@harness/evaluation';
 import { buildEventBus, resolveEventTransport } from '@harness/event-bus';
@@ -85,11 +75,7 @@ import { MemoryDistiller, MemoryIngestor, MemoryRetriever, MemoryStore } from '@
 import { MemoryLifecycle } from '@harness/memory';
 import { TaskService, TaskStateMachine } from '@harness/orchestrator';
 import type { ContentStore } from '@harness/object-store';
-import {
-  AwsS3ClientPort,
-  InMemoryContentStore,
-  ObjectStoreContentStore,
-} from '@harness/object-store';
+import { AwsS3ClientPort, InMemoryContentStore, ObjectStoreContentStore } from '@harness/object-store';
 import { ReviewService } from '@harness/review';
 import { Judge } from '@harness/judge';
 import { DockerSandbox } from '@harness/sandbox';
@@ -131,11 +117,7 @@ const SECRET_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
  * AttentionSubscriber + AttentionRouter). Tests verify they still throw
  * "not yet implemented" to prevent accidental unstubbing.
  */
-const ENGINE_STUB_TOKENS = [
-  TOKENS.Orchestrator,
-  TOKENS.AgentRuntime,
-  TOKENS.AttentionEngine,
-] as const;
+const ENGINE_STUB_TOKENS = [TOKENS.Orchestrator, TOKENS.AgentRuntime, TOKENS.AttentionEngine] as const;
 
 /**
  * Return a stand-in for an engine that has not been built yet. The stand-in is
@@ -246,18 +228,13 @@ export function buildContainer(): Container {
   c.register(TOKENS.Db, () => {
     const url = process.env.DATABASE_URL;
     if (!url || url.length === 0) {
-      throw new Error(
-        'DATABASE_URL is not set. Copy .env.example to .env (repo root) or export DATABASE_URL.',
-      );
+      throw new Error('DATABASE_URL is not set. Copy .env.example to .env (repo root) or export DATABASE_URL.');
     }
     return createDb(url);
   });
 
   c.register(TOKENS.EventLogWriter, (container) => {
-    const writer = new EventLogWriter(
-      container.resolve(TOKENS.Db),
-      container.resolve<Logger>(TOKENS.Logger),
-    );
+    const writer = new EventLogWriter(container.resolve(TOKENS.Db), container.resolve<Logger>(TOKENS.Logger));
     writer.subscribeTo(container.resolve<IEventBus>(TOKENS.EventBus));
     return writer;
   });
@@ -272,9 +249,7 @@ export function buildContainer(): Container {
     const clientId = process.env.OIDC_CLIENT_ID;
     const clientSecret = process.env.OIDC_CLIENT_SECRET;
     if (!issuerUrl || !clientId || !clientSecret) {
-      throw new Error(
-        'set OIDC_MOCK=true, or OIDC_ISSUER_URL + OIDC_CLIENT_ID + OIDC_CLIENT_SECRET for a real IdP',
-      );
+      throw new Error('set OIDC_MOCK=true, or OIDC_ISSUER_URL + OIDC_CLIENT_ID + OIDC_CLIENT_SECRET for a real IdP');
     }
     return new OpenIdClientProvider({ issuerUrl, clientId, clientSecret });
   });
@@ -317,9 +292,7 @@ export function buildContainer(): Container {
         bucket,
         endpoint,
         ...(region !== undefined ? { region } : {}),
-        ...(accessKeyId !== undefined
-          ? { accessKeyId, secretAccessKey: secretAccessKey ?? '' }
-          : {}),
+        ...(accessKeyId !== undefined ? { accessKeyId, secretAccessKey: secretAccessKey ?? '' } : {}),
       }),
       process.env.OBJECT_STORE_PREFIX ?? 'artifacts/',
     );
@@ -327,9 +300,7 @@ export function buildContainer(): Container {
 
   const objectStoreConfigured = Boolean(process.env.OBJECT_STORE_ENDPOINT);
   const objectStoreThreshold = objectStoreConfigured
-    ? Number(
-        process.env.OBJECT_STORE_THRESHOLD_BYTES ?? String(DEFAULT_OBJECT_STORE_THRESHOLD_BYTES),
-      )
+    ? Number(process.env.OBJECT_STORE_THRESHOLD_BYTES ?? String(DEFAULT_OBJECT_STORE_THRESHOLD_BYTES))
     : Infinity;
 
   // Day 14: the full Artifact Tracker. `SnapshotStore` is content-addressed
@@ -340,8 +311,7 @@ export function buildContainer(): Container {
   // snapshot writer as its Storage Manager for large content.
   c.register(
     TOKENS.SnapshotStore,
-    (container) =>
-      new SnapshotStore(container.resolve<ContentStore>(TOKENS.ContentStore), objectStoreThreshold),
+    (container) => new SnapshotStore(container.resolve<ContentStore>(TOKENS.ContentStore), objectStoreThreshold),
   );
 
   c.register(TOKENS.ArtifactTracker, (container) => {
@@ -379,10 +349,7 @@ export function buildContainer(): Container {
     c.register(
       TOKENS.WeightsProvider,
       (container) =>
-        new DbWeightsProvider(
-          () => container.resolve<DrizzleDB>(TOKENS.Db),
-          container.resolve<Logger>(TOKENS.Logger),
-        ),
+        new DbWeightsProvider(() => container.resolve<DrizzleDB>(TOKENS.Db), container.resolve<Logger>(TOKENS.Logger)),
     );
   } else {
     c.register(TOKENS.WeightsProvider, () => new StaticWeightsAdapter());
@@ -513,10 +480,7 @@ export function buildContainer(): Container {
   // so the live rank_method stays keyword unless a caller opts into
   // `resolveWithShadow`.
   c.register(TOKENS.SemanticRetriever, (container) => {
-    return new SemanticRetriever(
-      container.resolve<DrizzleDB>(TOKENS.Db),
-      container.resolve<Embedder>(TOKENS.Embedder),
-    );
+    return new SemanticRetriever(container.resolve<DrizzleDB>(TOKENS.Db), container.resolve<Embedder>(TOKENS.Embedder));
   });
 
   c.register(TOKENS.SemanticRanker, (container) => {
@@ -735,8 +699,7 @@ export function buildContainer(): Container {
       bus: container.resolve<IEventBus>(TOKENS.EventBus),
       gitProvider: container.resolve<GitProvider | null>(TOKENS.GitProvider),
       verifier: container.resolve<CloneVerifier>(TOKENS.ReviewVerifier),
-      enabled:
-        process.env.VERIFY_REVIEW_ENABLED !== '0' && process.env.VERIFY_REVIEW_ENABLED !== 'false',
+      enabled: process.env.VERIFY_REVIEW_ENABLED !== '0' && process.env.VERIFY_REVIEW_ENABLED !== 'false',
       logger: container.resolve<Logger>(TOKENS.Logger),
     });
     service.subscribe();

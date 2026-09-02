@@ -13,14 +13,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { gauges, register, setGauge } from '@harness/observability';
 
 import { applyGauges, MetricsComputer } from '../metrics-computer.js';
-import type {
-  DecisionRow,
-  InfraCounters,
-  MetricsInput,
-  ReworkRow,
-  RouteRow,
-  ShadowRow,
-} from '../report.js';
+import type { DecisionRow, InfraCounters, MetricsInput, ReworkRow, RouteRow, ShadowRow } from '../report.js';
 
 const T0 = new Date('2026-08-01T00:00:00Z');
 

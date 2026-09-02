@@ -208,16 +208,13 @@ export function renderCalibrationReport(report: CalibrationReport): string {
   lines.push('');
   lines.push('## 3. judge-signal refit (day 23)');
   lines.push(`    method:  ${report.fit.method}`);
-  lines.push(
-    `    split:   ${report.fit.trainCount} train / ${report.fit.validationCount} validation`,
-  );
+  lines.push(`    split:   ${report.fit.trainCount} train / ${report.fit.validationCount} validation`);
   lines.push(
     `    ranking: incumbent ${fmt(report.fit.before.rankingAccuracy)} → ` +
       `candidate ${fmt(report.fit.after.rankingAccuracy)}`,
   );
   lines.push(
-    `    logloss: incumbent ${fmt(report.fit.before.logLoss)} → ` +
-      `candidate ${fmt(report.fit.after.logLoss)}`,
+    `    logloss: incumbent ${fmt(report.fit.before.logLoss)} → ` + `candidate ${fmt(report.fit.after.logLoss)}`,
   );
   lines.push(
     `    fit verdict: ${report.fit.verdict.toUpperCase()}  ` +

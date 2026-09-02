@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  priorityFromRiskScore,
-  riskScoreFromSeverities,
-  summaryFromPayload,
-} from '../list-summary.js';
+import { priorityFromRiskScore, riskScoreFromSeverities, summaryFromPayload } from '../list-summary.js';
 
 describe('summaryFromPayload', () => {
   it('flattens author, branches, and summed diff stats', () => {

@@ -37,13 +37,13 @@ for `SandboxedCheck` — never importing the concrete `DockerSandbox`.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `sandbox.ts` | The `Sandbox` interface / contract. |
-| `docker-sandbox.ts` | Docker-backed implementation. |
-| `workdir-manifest.ts` | Input-output workdir/manifest mapping. |
-| `image.ts` | Sandbox image selection. |
-| `errors.ts` | Sandbox error types (timeouts, launch/exit failures). |
+| Module                | What it provides                                      |
+| --------------------- | ----------------------------------------------------- |
+| `sandbox.ts`          | The `Sandbox` interface / contract.                   |
+| `docker-sandbox.ts`   | Docker-backed implementation.                         |
+| `workdir-manifest.ts` | Input-output workdir/manifest mapping.                |
+| `image.ts`            | Sandbox image selection.                              |
+| `errors.ts`           | Sandbox error types (timeouts, launch/exit failures). |
 
 ---
 

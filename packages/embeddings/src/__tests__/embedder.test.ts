@@ -1,18 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { EmbedResult } from '../embedder.js';
-import {
-  OpenAICompatibleEmbedder,
-  type OpenAICompatibleConfig,
-} from '../providers/openai-compatible.js';
+import { OpenAICompatibleEmbedder, type OpenAICompatibleConfig } from '../providers/openai-compatible.js';
 import { StubEmbedder } from '../providers/stub.js';
 
 /** Build a mock `Response` from an OpenAI-style embeddings body. */
 function embeddingsResponse(vectors: number[][], status = 200): Response {
-  return new Response(
-    JSON.stringify({ data: vectors.map((embedding, index) => ({ index, embedding })) }),
-    { status, headers: { 'content-type': 'application/json' } },
-  );
+  return new Response(JSON.stringify({ data: vectors.map((embedding, index) => ({ index, embedding })) }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 /** A 3-dimension canned body, for an adapter configured with `dimensions: 3`. */
@@ -128,9 +125,7 @@ describe('OpenAICompatibleEmbedder', () => {
   });
 
   it('surfaces a non-retryable error without retrying on a 400', async () => {
-    const mockFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response('bad request', { status: 400 }));
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response('bad request', { status: 400 }));
     const adapter = new OpenAICompatibleEmbedder({
       ...baseConfig,
       fetchImpl: mockFetch,

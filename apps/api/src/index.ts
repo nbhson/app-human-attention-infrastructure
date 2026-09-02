@@ -60,11 +60,9 @@ const start = async (): Promise<void> => {
     // sub-second no-op when already built) and only `docker build`s when missing.
     // Kept non-fatal: a down daemon or a failed build logs a warning and the
     // server still boots — verification then reports SKIPPED as before.
-    await ensureImage(process.env.VERIFY_SANDBOX_IMAGE ?? 'harness-verify:node20').catch(
-      (error: unknown) => {
-        app.log.warn(`sandbox verification image not ensured: ${String(error)}`);
-      },
-    );
+    await ensureImage(process.env.VERIFY_SANDBOX_IMAGE ?? 'harness-verify:node20').catch((error: unknown) => {
+      app.log.warn(`sandbox verification image not ensured: ${String(error)}`);
+    });
     await app.listen({ port: 3000, host: '0.0.0.0' });
   } catch (err) {
     app.log.error(err as Error);

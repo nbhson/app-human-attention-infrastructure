@@ -74,22 +74,22 @@ fit. A fitted vector only lands in `@harness/attention` if it beats the placehol
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `metrics-computer.ts` | `MetricsComputer` (pure) + `applyGauges`. |
-| `loader.ts` | `loadMetricsInput`, `MetricsWindow`. |
-| `labels.ts` | Ground-truth labelling. |
-| `report.ts` / `report-generator.ts` | Report shape + `ReportGenerator` (`EmptyWindowError`). |
-| `report-store.ts` | Append-only `ReportStore`. |
-| `scheduler.ts` | `ReportScheduler` + `nodeCron`/`NOOP_CRON`. |
-| `trajectory-replayer.ts` | `TrajectoryReplayer` (`ReplayInput`, `ReplayStep`, `ReplayResult`). |
-| `replay/*` | loader, hash, stub-tool-executor, errors. |
-| `harness/ab-harness.ts` | `AbHarness`, `AbExperiment`. |
-| `harness/compare.ts` | `compare`, `AbOutcome`. |
-| `harness/variant.ts` | `PipelineVariant`, `RankCorpus`, relevance primitives. |
-| `ab/*` | ab-report, outcome-metrics, ranking-variants. |
-| `calibration/*` | coverage, extractor, fit-report, weight-fitter, writer. |
-| `cli.ts` / `report-cli.ts` / `replay-cli.ts` / `ab-cli.ts` / `fit-cli.ts` / `make-dataset-cli.ts` | The `pnpm eval:*` entrypoints. |
+| Module                                                                                            | What it provides                                                    |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `metrics-computer.ts`                                                                             | `MetricsComputer` (pure) + `applyGauges`.                           |
+| `loader.ts`                                                                                       | `loadMetricsInput`, `MetricsWindow`.                                |
+| `labels.ts`                                                                                       | Ground-truth labelling.                                             |
+| `report.ts` / `report-generator.ts`                                                               | Report shape + `ReportGenerator` (`EmptyWindowError`).              |
+| `report-store.ts`                                                                                 | Append-only `ReportStore`.                                          |
+| `scheduler.ts`                                                                                    | `ReportScheduler` + `nodeCron`/`NOOP_CRON`.                         |
+| `trajectory-replayer.ts`                                                                          | `TrajectoryReplayer` (`ReplayInput`, `ReplayStep`, `ReplayResult`). |
+| `replay/*`                                                                                        | loader, hash, stub-tool-executor, errors.                           |
+| `harness/ab-harness.ts`                                                                           | `AbHarness`, `AbExperiment`.                                        |
+| `harness/compare.ts`                                                                              | `compare`, `AbOutcome`.                                             |
+| `harness/variant.ts`                                                                              | `PipelineVariant`, `RankCorpus`, relevance primitives.              |
+| `ab/*`                                                                                            | ab-report, outcome-metrics, ranking-variants.                       |
+| `calibration/*`                                                                                   | coverage, extractor, fit-report, weight-fitter, writer.             |
+| `cli.ts` / `report-cli.ts` / `replay-cli.ts` / `ab-cli.ts` / `fit-cli.ts` / `make-dataset-cli.ts` | The `pnpm eval:*` entrypoints.                                      |
 
 ---
 

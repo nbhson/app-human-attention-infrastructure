@@ -4,11 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { agentRuns, artifacts, changes, projects, snapshots, tasks } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
-import {
-  InMemoryContentStore,
-  ObjectStoreUnavailableError,
-  streamToString,
-} from '@harness/object-store';
+import { InMemoryContentStore, ObjectStoreUnavailableError, streamToString } from '@harness/object-store';
 import type { ContentRef, ContentStore } from '@harness/object-store';
 import { resetInfraCounters, snapshotInfraCounters } from '@harness/observability';
 
@@ -98,9 +94,7 @@ describe('SnapshotStore object-store offload (day-21 §3.4)', () => {
     expect(rows[0]?.content_backend).toBe('object');
     expect(result.deduped).toBe(false);
 
-    const roundTripped = await streamToString(
-      await objectStore.get({ hash: sha256(content), backend: 'object' }),
-    );
+    const roundTripped = await streamToString(await objectStore.get({ hash: sha256(content), backend: 'object' }));
     expect(roundTripped).toBe(content);
   });
 
@@ -172,9 +166,7 @@ describe('SnapshotStore object-store failure injection (day-26 §3.2)', () => {
     const store = new SnapshotStore(new DownObjectStore(), 10);
     const content = 'a'.repeat(64); // over the tiny threshold → object path
 
-    await expect(store.save(testDb.db, changeId, content)).rejects.toBeInstanceOf(
-      ObjectStoreUnavailableError,
-    );
+    await expect(store.save(testDb.db, changeId, content)).rejects.toBeInstanceOf(ObjectStoreUnavailableError);
 
     // Loud (Spec 10) and fail-closed: the error is counted and nothing is inserted.
     expect(snapshotInfraCounters().objectStoreErrors).toBe(1);

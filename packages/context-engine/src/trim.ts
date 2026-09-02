@@ -54,11 +54,7 @@ function sha256(content: string): string {
 }
 
 /** Build a full-content {@link ContextSource} from a ranked file. */
-function toSource(
-  file: RankedFile,
-  tokenizer: Tokenizer,
-  metadata: Record<string, unknown>,
-): ContextSource {
+function toSource(file: RankedFile, tokenizer: Tokenizer, metadata: Record<string, unknown>): ContextSource {
   return createContextSource({
     type: ContextSourceType.File,
     sourceId: file.sourceId,
@@ -84,10 +80,7 @@ function truncateToFit(content: string, tokenizer: Tokenizer, budgetTokens: numb
 }
 
 /** Apply the §2.4 priority rules to a ranked candidate list. */
-export function applyBudget(
-  ranked: readonly RankedFile[],
-  options: BudgetOptions,
-): BudgetedContext {
+export function applyBudget(ranked: readonly RankedFile[], options: BudgetOptions): BudgetedContext {
   const { targetFiles, tokenizer, maxTokens, policy } = options;
   const targetSet = new Set(targetFiles);
 

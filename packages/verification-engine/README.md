@@ -44,30 +44,30 @@ The **check abstraction** is the plug-in point every check shares. A check is a
 read-only operation over the worktree returning a `CheckResult`; the engine owns
 timeouts, aggregation, persistence, and event publication — checks never do.
 
-| Concept | Values |
-| --- | --- |
-| `CheckKind` | `COMPILE`, `TEST`, `LINT` |
-| `CheckStatus` (per check) | `PASSED`, `FAILED`, `FLAKY`, `TIMED_OUT`, `SKIPPED` |
-| `OverallVerdict` | `PASSED` iff every check `PASSED` or `FLAKY` |
-| `ParsedTestResult` | Per-test leaf (`testFile`, `testName`, status, `durationMs`, truncated `error`) |
-| `VerificationReport` | `id`, `changeId`, `taskId`, `contentHash` (SHA-256 of verified bytes), `overall`, `checks`, `flaky`, `failedChecks` |
+| Concept                   | Values                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `CheckKind`               | `COMPILE`, `TEST`, `LINT`                                                                                           |
+| `CheckStatus` (per check) | `PASSED`, `FAILED`, `FLAKY`, `TIMED_OUT`, `SKIPPED`                                                                 |
+| `OverallVerdict`          | `PASSED` iff every check `PASSED` or `FLAKY`                                                                        |
+| `ParsedTestResult`        | Per-test leaf (`testFile`, `testName`, status, `durationMs`, truncated `error`)                                     |
+| `VerificationReport`      | `id`, `changeId`, `taskId`, `contentHash` (SHA-256 of verified bytes), `overall`, `checks`, `flaky`, `failedChecks` |
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `verification-engine.ts` | Check orchestration: run in order, aggregate, persist, publish `verification.completed`. |
-| `checks/compile-check.ts` / `checks/test-check.ts` | `CompileCheck` (`tsc --noEmit`), `TestCheck` (`vitest`, flaky retry). |
-| `executors/sandboxed-check.ts` | `SandboxedCheck` — runs through `TOKENS.Sandbox`. |
-| `clone-verifier.ts` | `CloneVerifier` — COMPILE → TEST over a `CloneWorktree` in the Docker sandbox. |
-| `clone-checks/*` | `CloneCompileCheck` / `CloneTestCheck` — package-script compile/test against the clone. |
-| `sandbox-runner.ts` | `SandboxRunner`, `parsePackageScripts`, `resolvePackageScripts`, `runScriptCheck`. |
-| `targeted-verifier.ts` | `TargetedVerifier` — affected set when complete, else the full suite. |
-| `parse-vitest-json.ts` | Vitest JSON report → `ParsedTestResult[]`. |
-| `report-flag.ts` / `report-render.ts` | `flagReport` / `renderFlag` — annotate (never gate) the report. |
-| `evidence-store.ts` | Persist check output as `CHECK_OUTPUT` evidence. |
-| `env.ts` | `sanitizedEnv` / `readInt` — sandbox env assembly (no leaked secrets). |
-| `timeout.ts` / `types.ts` | per-check timeout; the shared check/status types. |
+| Module                                             | What it provides                                                                         |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `verification-engine.ts`                           | Check orchestration: run in order, aggregate, persist, publish `verification.completed`. |
+| `checks/compile-check.ts` / `checks/test-check.ts` | `CompileCheck` (`tsc --noEmit`), `TestCheck` (`vitest`, flaky retry).                    |
+| `executors/sandboxed-check.ts`                     | `SandboxedCheck` — runs through `TOKENS.Sandbox`.                                        |
+| `clone-verifier.ts`                                | `CloneVerifier` — COMPILE → TEST over a `CloneWorktree` in the Docker sandbox.           |
+| `clone-checks/*`                                   | `CloneCompileCheck` / `CloneTestCheck` — package-script compile/test against the clone.  |
+| `sandbox-runner.ts`                                | `SandboxRunner`, `parsePackageScripts`, `resolvePackageScripts`, `runScriptCheck`.       |
+| `targeted-verifier.ts`                             | `TargetedVerifier` — affected set when complete, else the full suite.                    |
+| `parse-vitest-json.ts`                             | Vitest JSON report → `ParsedTestResult[]`.                                               |
+| `report-flag.ts` / `report-render.ts`              | `flagReport` / `renderFlag` — annotate (never gate) the report.                          |
+| `evidence-store.ts`                                | Persist check output as `CHECK_OUTPUT` evidence.                                         |
+| `env.ts`                                           | `sanitizedEnv` / `readInt` — sandbox env assembly (no leaked secrets).                   |
+| `timeout.ts` / `types.ts`                          | per-check timeout; the shared check/status types.                                        |
 
 ## Interaction with other packages
 
@@ -90,7 +90,7 @@ engine never names a Git host or imports the graph.
 
 - **Isolation for all tooling.** Every check that shells out runs in a sandbox;
   the harness process never runs a change's code in-process.
-- **Evidence, not just a verdict.** A failing check records *why* it failed — that's
+- **Evidence, not just a verdict.** A failing check records _why_ it failed — that's
   what the reviewer sees.
 - **Attributability.** `VerificationReport.contentHash` and the clone's `headSha`
   tie a report to an exact byte set.

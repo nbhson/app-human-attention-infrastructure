@@ -34,14 +34,8 @@ beforeAll(async () => {
     join(tmpRoot, 'src', 'PaymentService.ts'),
     "export class PaymentService {\n  process() {\n    return 'payment processed';\n  }\n}\n",
   );
-  writeFileSync(
-    join(tmpRoot, 'src', 'UnrelatedUtil.ts'),
-    "export const util = () => 'nothing relevant';\n",
-  );
-  writeFileSync(
-    join(tmpRoot, 'src', 'logging.ts'),
-    'export function log(msg: string) {\n  console.log(msg);\n}\n',
-  );
+  writeFileSync(join(tmpRoot, 'src', 'UnrelatedUtil.ts'), "export const util = () => 'nothing relevant';\n");
+  writeFileSync(join(tmpRoot, 'src', 'logging.ts'), 'export function log(msg: string) {\n  console.log(msg);\n}\n');
   writeFileSync(join(tmpRoot, 'node_modules', 'some-lib', 'index.js'), 'module.exports = {};\n');
 });
 
@@ -132,8 +126,7 @@ describe('ContextEngine.resolveFresh', () => {
       maxTokens: 4000,
     };
     const snapshot = await engine.resolveContext(request);
-    const staleContent =
-      'export class PaymentService {\n  process() {\n    return "updated!";\n  }\n}\n';
+    const staleContent = 'export class PaymentService {\n  process() {\n    return "updated!";\n  }\n}\n';
 
     // Mid-flight edit to a single source, then refresh.
     writeFileSync(join(tmpRoot, 'src', 'PaymentService.ts'), staleContent);

@@ -49,10 +49,7 @@ export async function loadTriageRuleState(db: DrizzleDB): Promise<TriageRuleStat
 }
 
 /** Upsert a partial patch onto the singleton row and return the merged state. */
-export async function saveTriageRuleState(
-  db: DrizzleDB,
-  patch: Partial<TriageRuleState>,
-): Promise<TriageRuleState> {
+export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRuleState>): Promise<TriageRuleState> {
   const current = await loadTriageRuleState(db);
   const next: TriageRuleState = {
     securityBlock: patch.securityBlock ?? current.securityBlock,

@@ -13,11 +13,7 @@ import type { PullRequestFile } from '@harness/domain';
 import { ReviewAgent } from './review-agent.js';
 import type { ReviewAgentOptions } from './review-agent.js';
 import type { ReviewPromptInput } from './review-prompt.js';
-import type {
-  ReviewAgentOutput,
-  ReviewFindingOutput,
-  FixSuggestionOutput,
-} from './review-output.js';
+import type { ReviewAgentOutput, ReviewFindingOutput, FixSuggestionOutput } from './review-output.js';
 
 /** Default max files per batch. */
 const DEFAULT_MAX_BATCH_SIZE = 5;
@@ -72,11 +68,7 @@ function buildReviewInput(
  * Build agent options, conditionally including optional fields for
  * `exactOptionalPropertyTypes` compatibility.
  */
-function buildAgentOptions(
-  model: string,
-  correlationId: string,
-  maxTokens?: number,
-): ReviewAgentOptions {
+function buildAgentOptions(model: string, correlationId: string, maxTokens?: number): ReviewAgentOptions {
   return {
     model,
     correlationId,
@@ -163,10 +155,7 @@ interface SplitOptions {
  * Split PR files into token-aware batches. Files are grouped by directory
  * prefix first, then split when a batch exceeds the token budget or size limit.
  */
-export function splitFiles(
-  files: readonly PullRequestFile[],
-  opts: SplitOptions,
-): PullRequestFile[][] {
+export function splitFiles(files: readonly PullRequestFile[], opts: SplitOptions): PullRequestFile[][] {
   if (files.length === 0) return [];
 
   // Filter to files with non-empty patches (reviewable).
@@ -197,8 +186,7 @@ export function splitFiles(
       // Can we add this group to the current batch?
       if (
         currentBatch.length > 0 &&
-        (currentBatch.length + group.length > opts.maxBatchSize ||
-          currentTokens + groupTokens > opts.maxBatchTokens)
+        (currentBatch.length + group.length > opts.maxBatchSize || currentTokens + groupTokens > opts.maxBatchTokens)
       ) {
         batches.push(currentBatch);
         currentBatch = [];

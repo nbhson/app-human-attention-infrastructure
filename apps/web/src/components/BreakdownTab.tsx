@@ -58,10 +58,7 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
   const noiseCount = NOISE.reduce((sum, band) => sum + (stats.severity[band] ?? 0), 0);
 
   return (
-    <div
-      data-testid="breakdown-tab"
-      style={{ display: 'grid', gap: 'var(--space-4)', marginTop: 16 }}
-    >
+    <div data-testid="breakdown-tab" style={{ display: 'grid', gap: 'var(--space-4)', marginTop: 16 }}>
       {/* 1 — the share, explained and proved */}
       <section>
         <h3 style={{ marginTop: 0 }}>Why {attentionPct}%?</h3>
@@ -70,9 +67,9 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
           <strong data-testid="attention-files">
             {stats.flaggedFiles} of {stats.totalFiles} files
           </strong>{' '}
-          carry a CRITICAL, MAJOR or MINOR finding. It counts files, not lines, and it counts every
-          file a human wrote — source, docs, config and infra; only generated artifacts (lockfiles,
-          build output) are excluded. NIT and INFO don't count.
+          carry a CRITICAL, MAJOR or MINOR finding. It counts files, not lines, and it counts every file a human wrote —
+          source, docs, config and infra; only generated artifacts (lockfiles, build output) are excluded. NIT and INFO
+          don't count.
         </p>
 
         {stats.flaggedFilesList.length > 0 ? (
@@ -112,9 +109,7 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
             </ul>
           </>
         ) : (
-          <p style={{ color: 'var(--color-text-muted)' }}>
-            No file carries an actionable finding — clean diff.
-          </p>
+          <p style={{ color: 'var(--color-text-muted)' }}>No file carries an actionable finding — clean diff.</p>
         )}
       </section>
 
@@ -133,9 +128,7 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
             <div data-testid="signal-count" style={{ fontSize: '1.25rem', fontWeight: 600 }}>
               {signalCount}
             </div>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
-              CRITICAL · MAJOR · MINOR
-            </div>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>CRITICAL · MAJOR · MINOR</div>
           </div>
           <div style={TILE}>
             <div style={SMALL}>Shown but not counted</div>
@@ -146,9 +139,8 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
           </div>
         </div>
         <p style={{ color: 'var(--color-text-muted)', margin: 'var(--space-2) 0 0' }}>
-          NIT findings are nitpicks (a missing trailing newline, a naming preference) and INFO is
-          praise — neither is a call for attention, so they stay in the findings list but never move
-          the percentage.
+          NIT findings are nitpicks (a missing trailing newline, a naming preference) and INFO is praise — neither is a
+          call for attention, so they stay in the findings list but never move the percentage.
         </p>
       </section>
 
@@ -196,16 +188,13 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
           {stats.excluded.files > 0
             ? `${stats.excluded.files} more files (+${stats.excluded.additions} lines) — generated artifacts like lockfiles and build output — sit outside the attention metric. `
             : ''}
-          Findings-per-line isn't linear: a greenfield PR of mostly test specs and styles has far
-          fewer findings than a dense logic change, so a low finding count on a big line count isn't
-          under-review.
+          Findings-per-line isn't linear: a greenfield PR of mostly test specs and styles has far fewer findings than a
+          dense logic change, so a low finding count on a big line count isn't under-review.
         </p>
 
         {stats.excluded.filesList.length > 0 ? (
           <>
-            <p style={{ ...SMALL, margin: 'var(--space-3) 0 var(--space-1)' }}>
-              Files outside the metric
-            </p>
+            <p style={{ ...SMALL, margin: 'var(--space-3) 0 var(--space-1)' }}>Files outside the metric</p>
             <ul data-testid="excluded-files" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {stats.excluded.filesList.map(({ path, additions }) => (
                 <li
@@ -250,10 +239,9 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
       <section>
         <h3 style={{ marginTop: 0 }}>Cleanup opportunities</h3>
         <p style={{ color: 'var(--color-text-muted)' }}>
-          Dead code, unused functions, duplication, magic numbers and confusing naming — findings
-          whose action is <em>remove / simplify</em>, not <em>fix</em>. They don't move the
-          attention percentage, but they're listed here so a redundant function isn't lost in the
-          noise.
+          Dead code, unused functions, duplication, magic numbers and confusing naming — findings whose action is{' '}
+          <em>remove / simplify</em>, not <em>fix</em>. They don't move the attention percentage, but they're listed
+          here so a redundant function isn't lost in the noise.
         </p>
 
         {stats.cleanup.files > 0 ? (
@@ -274,18 +262,12 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
               </div>
               <div style={TILE}>
                 <div style={SMALL}>Findings</div>
-                <div
-                  data-testid="cleanup-findings"
-                  style={{ fontSize: '1.25rem', fontWeight: 600 }}
-                >
+                <div data-testid="cleanup-findings" style={{ fontSize: '1.25rem', fontWeight: 600 }}>
                   {stats.cleanup.findings}
                 </div>
               </div>
             </div>
-            <ul
-              data-testid="cleanup-files-list"
-              style={{ listStyle: 'none', padding: 0, margin: 0 }}
-            >
+            <ul data-testid="cleanup-files-list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {stats.cleanup.filesList.map(({ file, count }) => (
                 <li
                   key={file}

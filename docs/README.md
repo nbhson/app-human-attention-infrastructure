@@ -10,10 +10,10 @@ The **as-built** contract now lives in two places: the single architecture spec
 here, and one `README.md` per package (the former one-spec-per-subsystem files are
 retired).
 
-| Where | Subject |
-| --- | --- |
-| [architecture/HAI_Harness_Architecture_v0.6](architecture/HAI_Harness_Architecture_v0.6.md) | Overall architecture, phases, exit criteria, subsystem→package map |
-| `packages/orchestrator` … `packages/evaluation` | One `README.md` per built subsystem — see the mapping table in the architecture spec §5 |
+| Where                                                                                       | Subject                                                                                 |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [architecture/HAI_Harness_Architecture_v0.6](architecture/HAI_Harness_Architecture_v0.6.md) | Overall architecture, phases, exit criteria, subsystem→package map                      |
+| `packages/orchestrator` … `packages/evaluation`                                             | One `README.md` per built subsystem — see the mapping table in the architecture spec §5 |
 
 The full package list (25 `@harness/*` packages + 2 apps) and their documentation
 live under [`../packages/`](../packages/) — each `README.md` covers modules,

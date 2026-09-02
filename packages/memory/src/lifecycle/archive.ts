@@ -55,10 +55,7 @@ export async function archiveBelowThreshold(
   // of one per row; the events stay per-row so provenance never merges.
   const ids = rows.map((row) => row.id);
   if (ids.length > 0) {
-    await db
-      .update(memoryEntries)
-      .set({ status: 'ARCHIVED' })
-      .where(inArray(memoryEntries.id, ids));
+    await db.update(memoryEntries).set({ status: 'ARCHIVED' }).where(inArray(memoryEntries.id, ids));
   }
 
   for (const row of rows) {

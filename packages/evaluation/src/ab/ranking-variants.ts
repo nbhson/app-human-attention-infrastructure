@@ -81,10 +81,7 @@ export function deriveRankingCorpus(trajectory: AgentRun): RankingCorpus {
 const NO_SIGNAL = -1;
 
 /** Append any target a ranker had no signal for, then re-sort best-first. */
-function ensureTargetsPresent(
-  ranked: ReadonlyArray<RankedSource>,
-  corpus: RankingCorpus,
-): RankedSource[] {
+function ensureTargetsPresent(ranked: ReadonlyArray<RankedSource>, corpus: RankingCorpus): RankedSource[] {
   const present = new Set(ranked.map((item) => item.sourceId));
   const result = [...ranked];
   for (const target of corpus.targetFiles) {
@@ -166,10 +163,7 @@ interface FusedSource {
  * the cosine similarity — which live on incomparable scales — never meet directly.
  * Ties break by sourceId ascending for full determinism.
  */
-function reciprocalRankFusion(
-  layers: readonly (readonly string[])[],
-  k = SHADOW_RRF_K,
-): FusedSource[] {
+function reciprocalRankFusion(layers: readonly (readonly string[])[], k = SHADOW_RRF_K): FusedSource[] {
   const scores = new Map<string, number>();
   for (const layer of layers) {
     const seen = new Set<string>();
@@ -223,9 +217,7 @@ export const hybridRanker: ContextRanker = {
       };
     });
 
-    return ranked.sort(
-      (a, b) => b.relevanceScore - a.relevanceScore || a.sourceId.localeCompare(b.sourceId),
-    );
+    return ranked.sort((a, b) => b.relevanceScore - a.relevanceScore || a.sourceId.localeCompare(b.sourceId));
   },
 };
 

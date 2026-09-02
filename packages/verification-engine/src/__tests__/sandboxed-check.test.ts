@@ -65,9 +65,7 @@ class ProcessSandbox implements Sandbox {
       });
       proc.on('error', (error) => resolve(result({ exitCode: 127, stderr: String(error) })));
       proc.on('close', (code) =>
-        resolve(
-          result({ exitCode: code ?? 137, stdout, stderr, durationMs: Date.now() - started }),
-        ),
+        resolve(result({ exitCode: code ?? 137, stdout, stderr, durationMs: Date.now() - started })),
       );
     });
   }

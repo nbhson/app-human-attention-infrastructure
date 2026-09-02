@@ -44,9 +44,7 @@ describe('ObjectStoreContentStore concurrency (day-26 §2.3)', () => {
     const hash = sha256Hex(content);
 
     const refs = await Promise.all(
-      Array.from({ length: 8 }, () =>
-        store.put(content, { contentHash: hash, sizeBytes: content.length }),
-      ),
+      Array.from({ length: 8 }, () => store.put(content, { contentHash: hash, sizeBytes: content.length })),
     );
 
     for (const ref of refs) {

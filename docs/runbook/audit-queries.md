@@ -1,7 +1,7 @@
 # Audit Query Cookbook (Day 27)
 
 > **`review-reorient` (v0.6) — scope note.** Q8/Q9 (orphan detector / reconciler
-> recovery) and the *Sample output* section below are historical: they reference
+> recovery) and the _Sample output_ section below are historical: they reference
 > `EXECUTING`/`VERIFYING` states, `task.orphan_recovered`, and the since-deleted
 > `scripts/e2e-happy-path.ts`, all retired with code-gen. The live trace for a
 > review is `review_reports` + `review_findings` + `fix_suggestions` (see Q10).
@@ -24,12 +24,12 @@ docker compose exec -T postgres psql -U harness -d harness
 **Table-name mapping** (the spec's §2.3 uses conceptual names; these are the real
 Drizzle tables):
 
-| Spec name | Actual table |
-| --- | --- |
-| `review_decisions` | `decisions` |
-| `attention_assessments` | `assessments` |
-| `assessment_feedback` | `assessment_feedback` |
-| `verification_test_results` / `verification_check_results` | same |
+| Spec name                                                  | Actual table          |
+| ---------------------------------------------------------- | --------------------- |
+| `review_decisions`                                         | `decisions`           |
+| `attention_assessments`                                    | `assessments`         |
+| `assessment_feedback`                                      | `assessment_feedback` |
+| `verification_test_results` / `verification_check_results` | same                  |
 
 ---
 
@@ -153,7 +153,7 @@ pnpm audit:orphans
 
 ## Q9 — Orphan recoveries ("what did the boot reconciler rescue?")
 
-Only the startup reconciler may *act* on an orphan (limitations.md §3). This lists
+Only the startup reconciler may _act_ on an orphan (limitations.md §3). This lists
 every `task.orphan_recovered` event — the `reason` is always `PROCESS_DIED`, and
 `payload->>'from_state'` names where the task was stranded.
 
@@ -229,13 +229,13 @@ curl -s 'localhost:3000/api/audit?limit=100' \
   --cookie 'sid=<operator-session>' | jq '.items[] | {kind, title, summary}'
 ```
 
-| Query param | Default | Meaning |
-| --- | --- | --- |
-| `limit` | 100 (max 500) | rows fetched per source before the cross-source merge |
-| `before` | now | ISO-8601 cursor; returns strictly-older rows |
-| `kind` | all | restrict to `event` \| `llm` \| `tool` \| `run` |
-| `eventType` | all | restrict events to one type (e.g. `system.started`) |
-| `correlationId` | all | restrict every source to one task/session id |
+| Query param     | Default       | Meaning                                               |
+| --------------- | ------------- | ----------------------------------------------------- |
+| `limit`         | 100 (max 500) | rows fetched per source before the cross-source merge |
+| `before`        | now           | ISO-8601 cursor; returns strictly-older rows          |
+| `kind`          | all           | restrict to `event` \| `llm` \| `tool` \| `run`       |
+| `eventType`     | all           | restrict events to one type (e.g. `system.started`)   |
+| `correlationId` | all           | restrict every source to one task/session id          |
 
 `kind` names the four row types: `event` (bus events, including the
 `system.started` / `system.stopped` boot markers), `llm` (model calls), `tool`

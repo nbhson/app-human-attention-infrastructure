@@ -25,9 +25,7 @@ const SHA_RE = /^[0-9a-f]{7,64}$/i;
 export function resolveHeadSha(pullRequest: PullRequest): string {
   const sha = pullRequest.head.sha.trim();
   if (!SHA_RE.test(sha)) {
-    throw new GitProviderError(
-      `pull request #${pullRequest.number} head SHA is not usable: "${pullRequest.head.sha}"`,
-    );
+    throw new GitProviderError(`pull request #${pullRequest.number} head SHA is not usable: "${pullRequest.head.sha}"`);
   }
   return sha;
 }

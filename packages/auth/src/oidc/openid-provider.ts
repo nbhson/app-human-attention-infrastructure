@@ -51,11 +51,7 @@ export class OpenIdClientProvider implements OidcProvider {
     return this.discovery;
   }
 
-  async getAuthorizationUrl(
-    state: string,
-    codeVerifier: string,
-    redirectUri: string,
-  ): Promise<string> {
+  async getAuthorizationUrl(state: string, codeVerifier: string, redirectUri: string): Promise<string> {
     const doc = await this.discover();
     const url = new URL(doc.authorization_endpoint);
     url.searchParams.set('response_type', 'code');
@@ -70,11 +66,7 @@ export class OpenIdClientProvider implements OidcProvider {
     return url.toString();
   }
 
-  async exchangeCode(
-    code: string,
-    codeVerifier: string,
-    redirectUri: string,
-  ): Promise<OidcTokenSet> {
+  async exchangeCode(code: string, codeVerifier: string, redirectUri: string): Promise<OidcTokenSet> {
     const doc = await this.discover();
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -127,9 +119,5 @@ export class OpenIdClientProvider implements OidcProvider {
 }
 
 function toBase64Url(buffer: ArrayBuffer): string {
-  return Buffer.from(buffer)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
+  return Buffer.from(buffer).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }

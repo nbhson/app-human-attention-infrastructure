@@ -36,11 +36,11 @@ view). This file is about the **runtime**, not the design history.
 
 ## The three entry points
 
-| Entry point | File | Loads | Runtime mode |
-| --- | --- | --- | --- |
-| **API server** | `apps/api/src/index.ts` | 23/25 `@harness/*` packages | Always on — this *is* the product |
-| **Web client** | `apps/web/src/main.tsx` (Vite) | 0 `@harness/*` packages | Browser SPA; HTTP → API |
-| **CLI scripts** | `apps/api/scripts/*.ts` | `@harness/code-index`, `@harness/benchmark` (+ helpers) | Out-of-band, on demand |
+| Entry point     | File                           | Loads                                                   | Runtime mode                      |
+| --------------- | ------------------------------ | ------------------------------------------------------- | --------------------------------- |
+| **API server**  | `apps/api/src/index.ts`        | 23/25 `@harness/*` packages                             | Always on — this _is_ the product |
+| **Web client**  | `apps/web/src/main.tsx` (Vite) | 0 `@harness/*` packages                                 | Browser SPA; HTTP → API           |
+| **CLI scripts** | `apps/api/scripts/*.ts`        | `@harness/code-index`, `@harness/benchmark` (+ helpers) | Out-of-band, on demand            |
 
 `@harness/code-index` is imported only by `apps/api/scripts/demo-verification.ts`;
 `@harness/benchmark` only by `apps/api/scripts/{benchmark-regression,judge-agreement-report,calibration-report}.ts`.
@@ -52,7 +52,7 @@ Neither appears anywhere under `apps/api/src/`, so neither loads on server boot.
 
 `apps/api/src/index.ts` is the only server entry point. Starting the app walks six
 stages in a fixed order; the one-line story is **nothing "runs" until stage 5 —
-stages 1–4 only *prepare* the graph.**
+stages 1–4 only _prepare_ the graph.**
 
 ```text
 start app  (pnpm dev / node apps/api)
@@ -66,19 +66,19 @@ start app  (pnpm dev / node apps/api)
 
 ### Stage by stage
 
-| # | Stage | Source | What actually starts here |
-| --- | --- | --- | --- |
-| 1 | `.env` load | `index.ts:18` | Read creds + toggles from `.env`, then `../../.env` (first existing wins; an already-exported `DATABASE_URL` is never overridden) |
-| 2 | `buildContainer()` | `index.ts:28` → `bootstrap.ts:202` | Register every token as a **lazy factory** — no engine is constructed. One real side effect: `mkdirSync(SANDBOX_ROOT)` |
-| 3 | `initApiTracing()` | `index.ts:31` → `observability.ts` | The first *resolutions*: `Db` + `Logger` are constructed, then the OpenTelemetry provider is installed (module-global singleton) with `trace_correlation` write-through |
-| 4 | `buildApp()` | `index.ts:32` → `app.ts:29` | Build the Fastify server: `/health`, the trace hook, the auth hook, then 10 route groups (auth · review · reviews · provenance · audit · ops · metrics · admin · settings · learning). Handlers run only on a request. (Between this and stage 5, `index.ts:33-35` logs each registered token — informational only) |
-| 5 | `bootContainer()` | `index.ts:37` → `bootstrap.ts:777` | Resolve the **13 eager tokens** — the first engine code that runs (the list below) |
-| 6 | `app.listen()` | `index.ts:41` | Bind `0.0.0.0:3000` and serve. The process is now idle until a request arrives |
+| #   | Stage              | Source                             | What actually starts here                                                                                                                                                                                                                                                                                           |
+| --- | ------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `.env` load        | `index.ts:18`                      | Read creds + toggles from `.env`, then `../../.env` (first existing wins; an already-exported `DATABASE_URL` is never overridden)                                                                                                                                                                                   |
+| 2   | `buildContainer()` | `index.ts:28` → `bootstrap.ts:202` | Register every token as a **lazy factory** — no engine is constructed. One real side effect: `mkdirSync(SANDBOX_ROOT)`                                                                                                                                                                                              |
+| 3   | `initApiTracing()` | `index.ts:31` → `observability.ts` | The first _resolutions_: `Db` + `Logger` are constructed, then the OpenTelemetry provider is installed (module-global singleton) with `trace_correlation` write-through                                                                                                                                             |
+| 4   | `buildApp()`       | `index.ts:32` → `app.ts:29`        | Build the Fastify server: `/health`, the trace hook, the auth hook, then 10 route groups (auth · review · reviews · provenance · audit · ops · metrics · admin · settings · learning). Handlers run only on a request. (Between this and stage 5, `index.ts:33-35` logs each registered token — informational only) |
+| 5   | `bootContainer()`  | `index.ts:37` → `bootstrap.ts:777` | Resolve the **13 eager tokens** — the first engine code that runs (the list below)                                                                                                                                                                                                                                  |
+| 6   | `app.listen()`     | `index.ts:41`                      | Bind `0.0.0.0:3000` and serve. The process is now idle until a request arrives                                                                                                                                                                                                                                      |
 
 Key property: **stage 2 executes no engine code.** `Container.register(token, factory)`
 stores a lazy factory. It is `bootContainer()` (stage 5) — and, later, the first
 route that touches a token — that actually constructs objects. That is why the app
-can boot *with most external providers unconfigured*: a `null` provider or a stub
+can boot _with most external providers unconfigured_: a `null` provider or a stub
 embedder is a perfectly valid graph node; it fails loudly only if a request
 actually tries to use it.
 
@@ -103,7 +103,7 @@ the event bus before the first request** — a side effect, not a value:
 13. MemoryIngestor            subscribes → review.report_created / review.report_decision_submitted → distill REVIEW/FINDING/DECISION memory (wedge #2)
 ```
 
-`AutoApproveGate` and `AutoApproveKillSwitch` are constructed *transitively* here as
+`AutoApproveGate` and `AutoApproveKillSwitch` are constructed _transitively_ here as
 inputs to `AutoApproveExecutor` (they have no bus subscription of their own).
 `@harness/memory`'s `MemoryStore` and `MemoryLifecycle` are registered but **not**
 eagerly started — `MemoryIngestor` (above) is the eager write-half of the memory
@@ -161,33 +161,33 @@ Layer 0 — pure leaf seams (import NO @harness/* package)
 
 The canonical edges (from each package's `package.json`, self-edges omitted):
 
-| Package | Depends on (`@harness/*`) |
-| --- | --- |
-| `domain` | — (imports nothing) |
-| `event-bus` | `domain` |
-| `di` | `domain` |
-| `object-store` | — |
-| `sandbox` | — |
-| `mcp` | — |
-| `code-index` | — |
-| `git-provider` | `domain`, `mcp` |
-| `ticket-provider` | `domain`, `mcp` |
-| `db` | `domain`, `event-bus` |
-| `observability` | `domain`, `db`, `di` |
-| `auth` | `domain`, `db`, `event-bus`, `di` |
-| `embeddings` | `domain`, `db`, `event-bus` |
-| `orchestrator` | `domain`, `event-bus`, `db`, `observability` |
-| `agent-runtime` | `domain`, `event-bus`, `db`, `observability`, `sandbox` |
-| `artifact-tracker` | `domain`, `event-bus`, `db`, `di`, `object-store`, `observability` |
-| `verification-engine` | `domain`, `event-bus`, `db`, `di`, `observability`, `sandbox` |
-| `attention-engine` | `domain`, `event-bus`, `db`, `di`, `object-store`, `observability` |
-| `context-engine` | `domain`, `event-bus`, `db`, `di`, `embeddings`, `observability` |
-| `review` | `domain`, `event-bus`, `db`, `di`, `observability` |
-| `memory` | `domain`, `event-bus`, `db`, `di` |
-| `judge` | `domain` |
-| `benchmark` | `domain`, `db`, `judge` |
-| `writeback` | `domain`, `mcp`, `git-provider`, `ticket-provider` |
-| `evaluation` | `domain`, `db`, `di`, `observability` |
+| Package               | Depends on (`@harness/*`)                                          |
+| --------------------- | ------------------------------------------------------------------ |
+| `domain`              | — (imports nothing)                                                |
+| `event-bus`           | `domain`                                                           |
+| `di`                  | `domain`                                                           |
+| `object-store`        | —                                                                  |
+| `sandbox`             | —                                                                  |
+| `mcp`                 | —                                                                  |
+| `code-index`          | —                                                                  |
+| `git-provider`        | `domain`, `mcp`                                                    |
+| `ticket-provider`     | `domain`, `mcp`                                                    |
+| `db`                  | `domain`, `event-bus`                                              |
+| `observability`       | `domain`, `db`, `di`                                               |
+| `auth`                | `domain`, `db`, `event-bus`, `di`                                  |
+| `embeddings`          | `domain`, `db`, `event-bus`                                        |
+| `orchestrator`        | `domain`, `event-bus`, `db`, `observability`                       |
+| `agent-runtime`       | `domain`, `event-bus`, `db`, `observability`, `sandbox`            |
+| `artifact-tracker`    | `domain`, `event-bus`, `db`, `di`, `object-store`, `observability` |
+| `verification-engine` | `domain`, `event-bus`, `db`, `di`, `observability`, `sandbox`      |
+| `attention-engine`    | `domain`, `event-bus`, `db`, `di`, `object-store`, `observability` |
+| `context-engine`      | `domain`, `event-bus`, `db`, `di`, `embeddings`, `observability`   |
+| `review`              | `domain`, `event-bus`, `db`, `di`, `observability`                 |
+| `memory`              | `domain`, `event-bus`, `db`, `di`                                  |
+| `judge`               | `domain`                                                           |
+| `benchmark`           | `domain`, `db`, `judge`                                            |
+| `writeback`           | `domain`, `mcp`, `git-provider`, `ticket-provider`                 |
+| `evaluation`          | `domain`, `db`, `di`, `observability`                              |
 
 > **Note on `git-provider` / `ticket-provider`.** The older boundary text
 > ("depends only on `@harness/domain`") predates the MCP re-scope. Today both also
@@ -198,33 +198,33 @@ The canonical edges (from each package's `package.json`, self-edges omitted):
 
 ## Every package — role, load-at-boot, dependency layer
 
-| # | Package | Layer | Load at boot? | What it contributes at runtime |
-| --- | --- | --- | --- | --- |
-| 1 | `domain` | foundation | ✅ (types only) | Branded IDs, aggregates, event vocabulary, `TaskStatus`, `HumanDecisionType`, `AiProviderType` |
-| 2 | `event-bus` | foundation | ✅ | `IEventBus` + in-process impl (+ optional `RedisEventsBus`) |
-| 3 | `di` | foundation | ✅ | `Container`, `TOKENS`, `createRootLogger` (pino) |
-| 4 | `db` | persistence | ✅ | Drizzle schema (50 tables), `createDb`, `EventLogWriter`, log/run stores |
-| 5 | `observability` | telemetry | ✅ | OpenTelemetry tracing + Prometheus metrics (module-global singleton) |
-| 6 | `auth` | engine | ✅ | OIDC identity + roles + `SessionService` (guards the review routes) |
-| 7 | `orchestrator` | engine | ✅ | `TaskStateMachine` + `TaskService` (transition seam) |
-| 8 | `agent-runtime` | engine | ✅ | `LLMProvider` seam (Anthropic / OpenAI-compatible / Mock) + `ReviewAgent` |
-| 9 | `artifact-tracker` | engine | ✅ | `ArtifactTracker`, `SnapshotStore`, `ChangeStatusSubscriber`, `DiffEngine` |
-| 10 | `verification-engine` | engine | ✅ | `CompileCheck` / `TestCheck` / `SandboxedCheck`, `EvidenceStore`, `CloneVerifier` (review clone → build → test, wedge #1) |
-| 11 | `attention-engine` | engine | ✅ | Scoring, routing, fatigue, auto-approve chain, learning loop |
-| 12 | `context-engine` | engine | ✅ | collect → rank → trim → render context (keyword default) |
-| 13 | `embeddings` | engine | ✅ | `Embedder` (stub default / OpenAI-compatible), indexer + re-embed listener |
-| 14 | `evaluation` | engine | ✅ | `MetricsComputer` (offline gauges; not on the hot path) |
-| 15 | `review` | review slice | ✅ | Review queue persistence + decision flow |
-| 16 | `memory` | review slice | ✅ | Review-memory tiers + lifecycle (read + write wired via `MemoryIngestor` at boot) |
-| 17 | `judge` | review slice | ✅ | Rubric-shadowed LLM-as-judge (pure measurement) |
-| 18 | `writeback` | review slice | ✅ | `MCPWriteBack` — comment/status write-back (on by default, opt-out via `WRITEBACK_ENABLED=0` / `WRITEBACK_<PROVIDER>=0`) |
-| 19 | `git-provider` | review slice | ✅ | `GitProvider` (GitHub/GitLab/Bitbucket via MCP), clone + head-sha |
-| 20 | `ticket-provider` | review slice | ✅ | `TicketProvider` (Jira via MCP) |
-| 21 | `object-store` | leaf | ✅ | `ContentStore` (S3/MinIO or in-memory fallback) |
-| 22 | `sandbox` | leaf | ✅ | `DockerSandbox` (Docker-isolated verification) |
-| 23 | `mcp` | leaf | ✅ | Generic MCP client + `McpServerRegistry` (the one config file) |
-| 24 | `code-index` | leaf | ❌ **CLI-only** | Dependency graph → targeted-test closure (verification demo) |
-| 25 | `benchmark` | leaf | ❌ **CLI-only** | Versioned review-quality corpus + regression reports |
+| #   | Package               | Layer        | Load at boot?   | What it contributes at runtime                                                                                            |
+| --- | --------------------- | ------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `domain`              | foundation   | ✅ (types only) | Branded IDs, aggregates, event vocabulary, `TaskStatus`, `HumanDecisionType`, `AiProviderType`                            |
+| 2   | `event-bus`           | foundation   | ✅              | `IEventBus` + in-process impl (+ optional `RedisEventsBus`)                                                               |
+| 3   | `di`                  | foundation   | ✅              | `Container`, `TOKENS`, `createRootLogger` (pino)                                                                          |
+| 4   | `db`                  | persistence  | ✅              | Drizzle schema (50 tables), `createDb`, `EventLogWriter`, log/run stores                                                  |
+| 5   | `observability`       | telemetry    | ✅              | OpenTelemetry tracing + Prometheus metrics (module-global singleton)                                                      |
+| 6   | `auth`                | engine       | ✅              | OIDC identity + roles + `SessionService` (guards the review routes)                                                       |
+| 7   | `orchestrator`        | engine       | ✅              | `TaskStateMachine` + `TaskService` (transition seam)                                                                      |
+| 8   | `agent-runtime`       | engine       | ✅              | `LLMProvider` seam (Anthropic / OpenAI-compatible / Mock) + `ReviewAgent`                                                 |
+| 9   | `artifact-tracker`    | engine       | ✅              | `ArtifactTracker`, `SnapshotStore`, `ChangeStatusSubscriber`, `DiffEngine`                                                |
+| 10  | `verification-engine` | engine       | ✅              | `CompileCheck` / `TestCheck` / `SandboxedCheck`, `EvidenceStore`, `CloneVerifier` (review clone → build → test, wedge #1) |
+| 11  | `attention-engine`    | engine       | ✅              | Scoring, routing, fatigue, auto-approve chain, learning loop                                                              |
+| 12  | `context-engine`      | engine       | ✅              | collect → rank → trim → render context (keyword default)                                                                  |
+| 13  | `embeddings`          | engine       | ✅              | `Embedder` (stub default / OpenAI-compatible), indexer + re-embed listener                                                |
+| 14  | `evaluation`          | engine       | ✅              | `MetricsComputer` (offline gauges; not on the hot path)                                                                   |
+| 15  | `review`              | review slice | ✅              | Review queue persistence + decision flow                                                                                  |
+| 16  | `memory`              | review slice | ✅              | Review-memory tiers + lifecycle (read + write wired via `MemoryIngestor` at boot)                                         |
+| 17  | `judge`               | review slice | ✅              | Rubric-shadowed LLM-as-judge (pure measurement)                                                                           |
+| 18  | `writeback`           | review slice | ✅              | `MCPWriteBack` — comment/status write-back (on by default, opt-out via `WRITEBACK_ENABLED=0` / `WRITEBACK_<PROVIDER>=0`)  |
+| 19  | `git-provider`        | review slice | ✅              | `GitProvider` (GitHub/GitLab/Bitbucket via MCP), clone + head-sha                                                         |
+| 20  | `ticket-provider`     | review slice | ✅              | `TicketProvider` (Jira via MCP)                                                                                           |
+| 21  | `object-store`        | leaf         | ✅              | `ContentStore` (S3/MinIO or in-memory fallback)                                                                           |
+| 22  | `sandbox`             | leaf         | ✅              | `DockerSandbox` (Docker-isolated verification)                                                                            |
+| 23  | `mcp`                 | leaf         | ✅              | Generic MCP client + `McpServerRegistry` (the one config file)                                                            |
+| 24  | `code-index`          | leaf         | ❌ **CLI-only** | Dependency graph → targeted-test closure (verification demo)                                                              |
+| 25  | `benchmark`           | leaf         | ❌ **CLI-only** | Versioned review-quality corpus + regression reports                                                                      |
 
 > "Load at boot?" = is its module imported anywhere under `apps/api/src/` (i.e. the
 > server's module graph). Type-only imports (e.g. `domain`) still count as "loaded":
@@ -235,22 +235,22 @@ The canonical edges (from each package's `package.json`, self-edges omitted):
 
 ## The env-conditional loads
 
-The graph *shape* is fixed; the *concrete instance* behind many tokens depends on
+The graph _shape_ is fixed; the _concrete instance_ behind many tokens depends on
 env. None of these prevent boot — an absent provider resolves to `null` or a stub.
 
-| Token | When real | When absent |
-| --- | --- | --- |
-| `GitProvider` | `GitHubProvider(token)` when `GITHUB_TOKEN` set | `null` (ingest fails with a clear status) |
-| `TicketProvider` | `JiraProvider(token, baseUrl)` when `JIRA_TOKEN`+`JIRA_BASE_URL` set | `null` |
-| `LLMProvider` | `AnthropicProvider(key)` → else `OpenAICompatibleProvider` when `AI_BASE_URL` set → else `MockLLM` | `MockLLM` (fails loudly on use) |
-| `Embedder` | `OpenAICompatibleEmbedder` when `EMBEDDINGS_BASE_URL` set | `StubEmbedder` (keyword path never reads it) |
-| `ContentStore` | `ObjectStoreContentStore(S3/MinIO)` when `OBJECT_STORE_ENDPOINT` set | `InMemoryContentStore` (offload disabled, threshold `∞`) |
-| `OidcProvider` | `OpenIdClientProvider` when `OIDC_ISSUER_URL`/client/secret set | `MockOidcProvider` |
-| `Sandbox` check | `SandboxedCheck` when `VERIFY_SANDBOX_ENABLED=1` | in-process `CompileCheck` only |
-| `ReviewVerificationService` | runs the review clone's `build`+`test` by default (opt out via `VERIFY_REVIEW_ENABLED=0`) | records a `SKIPPED` `review_verifications` row (best-effort, never a gate) |
-| `EventBus` | `RedisEventsBus` when `EVENT_TRANSPORT=redis|sqs` (+ operator transport) | `InProcessEventBus` (`inproc`, default) |
-| `McpServerRegistry` | parsed from `mcp.config.json` / `MCP_CONFIG_PATH` | empty registry (settings list empty) |
-| `WriteBackService` | armed by default (opt out via `WRITEBACK_ENABLED=0` / `WRITEBACK_<PROVIDER>=0`) | register `null`-safe, never writes externally |
+| Token                       | When real                                                                                          | When absent                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `GitProvider`               | `GitHubProvider(token)` when `GITHUB_TOKEN` set                                                    | `null` (ingest fails with a clear status)                                  |
+| `TicketProvider`            | `JiraProvider(token, baseUrl)` when `JIRA_TOKEN`+`JIRA_BASE_URL` set                               | `null`                                                                     |
+| `LLMProvider`               | `AnthropicProvider(key)` → else `OpenAICompatibleProvider` when `AI_BASE_URL` set → else `MockLLM` | `MockLLM` (fails loudly on use)                                            |
+| `Embedder`                  | `OpenAICompatibleEmbedder` when `EMBEDDINGS_BASE_URL` set                                          | `StubEmbedder` (keyword path never reads it)                               |
+| `ContentStore`              | `ObjectStoreContentStore(S3/MinIO)` when `OBJECT_STORE_ENDPOINT` set                               | `InMemoryContentStore` (offload disabled, threshold `∞`)                   |
+| `OidcProvider`              | `OpenIdClientProvider` when `OIDC_ISSUER_URL`/client/secret set                                    | `MockOidcProvider`                                                         |
+| `Sandbox` check             | `SandboxedCheck` when `VERIFY_SANDBOX_ENABLED=1`                                                   | in-process `CompileCheck` only                                             |
+| `ReviewVerificationService` | runs the review clone's `build`+`test` by default (opt out via `VERIFY_REVIEW_ENABLED=0`)          | records a `SKIPPED` `review_verifications` row (best-effort, never a gate) |
+| `EventBus`                  | `RedisEventsBus` when `EVENT_TRANSPORT=redis                                                       | sqs` (+ operator transport)                                                | `InProcessEventBus` (`inproc`, default) |
+| `McpServerRegistry`         | parsed from `mcp.config.json` / `MCP_CONFIG_PATH`                                                  | empty registry (settings list empty)                                       |
+| `WriteBackService`          | armed by default (opt out via `WRITEBACK_ENABLED=0` / `WRITEBACK_<PROVIDER>=0`)                    | register `null`-safe, never writes externally                              |
 
 ---
 
@@ -269,13 +269,13 @@ deliberate:
    (`auth`, `embeddings`, `evaluation`, `object-store`, `observability`,
    `sandbox`), and finally the review slice (`git-provider`, `ticket-provider`,
    `memory`, `judge`, `writeback`, `mcp`, `benchmark`, `code-index`). Each was
-   added as a seam because the seam *was* the delivery unit.
+   added as a seam because the seam _was_ the delivery unit.
 3. **Pure leaves for testability + safety.** `object-store`, `sandbox`, `mcp`,
    `code-index` import nothing internal on purpose — they can be unit-tested in
    isolation, and `sandbox`'s security property lives entirely in its own `docker
-   run` flags (nothing else to lean on).
+run` flags (nothing else to lean on).
 4. **Two of them are not even runtime.** `code-index` and `benchmark` exist for
-   offline tooling, not the request path. They inflate the *package* count but cost
+   offline tooling, not the request path. They inflate the _package_ count but cost
    the running app zero.
 
 If you only count what the **server actually needs to answer a review**, the

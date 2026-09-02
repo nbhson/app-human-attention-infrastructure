@@ -4,14 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { artifacts, contextSourceCache, projects } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
 import { createTestDb, destroyTestDb, type TestDb } from '@harness/db/test-utils';
-import {
-  EventType,
-  FileChangeType,
-  newAgentRunID,
-  newArtifactID,
-  newChangeID,
-  newProjectID,
-} from '@harness/domain';
+import { EventType, FileChangeType, newAgentRunID, newArtifactID, newChangeID, newProjectID } from '@harness/domain';
 import type { ArtifactChangedPayload, ArtifactCreatedPayload } from '@harness/domain';
 import { InProcessEventBus } from '@harness/event-bus';
 
@@ -51,9 +44,7 @@ async function seedCached(sourceId: string): Promise<void> {
 }
 
 async function cachedCount(sourceId: string): Promise<number> {
-  return (
-    await db.select().from(contextSourceCache).where(eq(contextSourceCache.source_id, sourceId))
-  ).length;
+  return (await db.select().from(contextSourceCache).where(eq(contextSourceCache.source_id, sourceId))).length;
 }
 
 function createdPayload(filePath: string): ArtifactCreatedPayload {

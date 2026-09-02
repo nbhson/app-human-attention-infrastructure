@@ -23,8 +23,7 @@ interface Rule {
 const RULES: readonly Rule[] = [
   {
     name: 'Critical security findings',
-    description:
-      'Any CRITICAL finding in auth, secrets, or injection paths blocks approval until a human reviews it.',
+    description: 'Any CRITICAL finding in auth, secrets, or injection paths blocks approval until a human reviews it.',
     category: 'Security',
     strictness: 'High strict',
     icon: ShieldAlert,
@@ -84,9 +83,7 @@ export default function TriageRulesPage(): JSX.Element {
         queryClient.setQueryData(['triageRules'], context.previous);
       }
       setSaveError(
-        error instanceof TriageRulesError || error instanceof Error
-          ? error.message
-          : 'Failed to update the rule',
+        error instanceof TriageRulesError || error instanceof Error ? error.message : 'Failed to update the rule',
       );
     },
   });
@@ -146,13 +143,9 @@ export default function TriageRulesPage(): JSX.Element {
         </div>
 
         {isLoading ? (
-          <p style={{ color: 'var(--color-text-muted)', padding: '16px 0' }}>
-            Loading triage rules…
-          </p>
+          <p style={{ color: 'var(--color-text-muted)', padding: '16px 0' }}>Loading triage rules…</p>
         ) : (
-          <div className="rq-rules-list">
-            {RULES.map((rule) => renderRule(rule, state[rule.stateKey]))}
-          </div>
+          <div className="rq-rules-list">{RULES.map((rule) => renderRule(rule, state[rule.stateKey]))}</div>
         )}
       </div>
     </div>

@@ -21,9 +21,7 @@ beforeAll(async () => {
   testDb = await createTestDb(SCHEMA);
   db = testDb.db;
   bus = new InProcessEventBus();
-  bus.subscribe<MemoryEntryCreatedPayload>(EventType.MemoryEntryCreated, (event) =>
-    published.push(event.payload),
-  );
+  bus.subscribe<MemoryEntryCreatedPayload>(EventType.MemoryEntryCreated, (event) => published.push(event.payload));
   store = new MemoryStore(db, bus);
 });
 

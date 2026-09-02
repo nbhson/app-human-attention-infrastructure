@@ -81,9 +81,7 @@ describe('auto-approve kill-switch E2E (day-14)', () => {
     await killSwitch.kill(TEST_USER_ID, 'safety shutdown');
 
     // Use raw SQL since Drizzle has a schema mapping issue with this table.
-    const row = await testDb.sql.unsafe(
-      `SELECT * FROM "auto_approve_kill_switch" WHERE "id" = 'singleton'`,
-    );
+    const row = await testDb.sql.unsafe(`SELECT * FROM "auto_approve_kill_switch" WHERE "id" = 'singleton'`);
     expect(row).toHaveLength(1);
     expect(row[0]?.killed_by).toBe(TEST_USER_ID);
     expect(row[0]?.reason).toBe('safety shutdown');

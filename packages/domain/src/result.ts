@@ -14,8 +14,7 @@
  * @typeParam T - the success value type.
  * @typeParam E - the error type (defaults to `Error`).
  */
-export type Result<T, E = Error> =
-  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: E };
+export type Result<T, E = Error> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: E };
 
 /**
  * Build a successful {@link Result}.

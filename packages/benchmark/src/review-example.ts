@@ -104,9 +104,6 @@ export function toReviewExample(row: ReviewExampleRow): ReviewExample {
 }
 
 /** Keep only the examples whose gold labels are valid under `scaleVersion`. */
-export function filterByScaleVersion(
-  examples: readonly ReviewExample[],
-  scaleVersion: string,
-): ReviewExample[] {
+export function filterByScaleVersion(examples: readonly ReviewExample[], scaleVersion: string): ReviewExample[] {
   return examples.filter((example) => example.scaleVersion === scaleVersion);
 }

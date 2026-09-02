@@ -60,33 +60,26 @@ export class ChangeStatusSubscriber {
       });
     });
 
-    bus.subscribe<ArtifactRollbackRequestedPayload>(
-      EventType.ArtifactRollbackRequested,
-      (event) => {
-        void this.onRollbackRequested(event.payload).catch((error) => {
-          this.logger?.error('change status: apply ROLLED_BACK failed', {
-            correlation_id: event.correlation_id,
-            change_id: event.payload.change_id,
-            error: String(error),
-          });
+    bus.subscribe<ArtifactRollbackRequestedPayload>(EventType.ArtifactRollbackRequested, (event) => {
+      void this.onRollbackRequested(event.payload).catch((error) => {
+        this.logger?.error('change status: apply ROLLED_BACK failed', {
+          correlation_id: event.correlation_id,
+          change_id: event.payload.change_id,
+          error: String(error),
         });
-      },
-    );
+      });
+    });
   }
 
   private async onVerificationCompleted(payload: VerificationCompletedPayload): Promise<void> {
     if (payload.status !== VerificationStatus.Passed) {
       return;
     }
-    await setChangeStatus(this.db, payload.change_id, ChangeStatus.Verified, [
-      ChangeStatus.Pending,
-    ]);
+    await setChangeStatus(this.db, payload.change_id, ChangeStatus.Verified, [ChangeStatus.Pending]);
   }
 
   private async onDecisionSubmitted(payload: DecisionSubmittedPayload): Promise<void> {
-    await setChangeStatus(this.db, payload.change_id, ChangeStatus.Reviewed, [
-      ChangeStatus.Verified,
-    ]);
+    await setChangeStatus(this.db, payload.change_id, ChangeStatus.Reviewed, [ChangeStatus.Verified]);
   }
 
   private async onRollbackRequested(payload: ArtifactRollbackRequestedPayload): Promise<void> {
@@ -101,8 +94,6 @@ async function setChangeStatus(
   next: ChangeStatus,
   from?: readonly ChangeStatus[],
 ): Promise<void> {
-  const guard = from?.length
-    ? and(eq(changes.id, changeId), inArray(changes.status, from))
-    : eq(changes.id, changeId);
+  const guard = from?.length ? and(eq(changes.id, changeId), inArray(changes.status, from)) : eq(changes.id, changeId);
   await db.update(changes).set({ status: next }).where(guard);
 }

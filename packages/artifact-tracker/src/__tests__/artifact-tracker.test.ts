@@ -100,10 +100,7 @@ describe('ArtifactTracker.capture', () => {
 
     const changeRows = await testDb.db.select().from(changes);
     expect(changeRows).toHaveLength(2);
-    expect(changeRows.map((c) => c.change_type)).toEqual([
-      FileChangeType.Created,
-      FileChangeType.Modified,
-    ]);
+    expect(changeRows.map((c) => c.change_type)).toEqual([FileChangeType.Created, FileChangeType.Modified]);
   });
 
   it('dedupes identical content across captures: one snapshot row', async () => {

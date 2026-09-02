@@ -27,18 +27,10 @@ export function isRejection(decision: string): boolean {
 }
 
 /** Did this task later re-enter a defect state *after* the route timestamp? */
-export function hasLaterDefect(
-  taskId: string,
-  after: Date,
-  reworkLog: readonly ReworkRow[],
-): boolean {
+export function hasLaterDefect(taskId: string, after: Date, reworkLog: readonly ReworkRow[]): boolean {
   const afterMs = after.getTime();
   for (const rework of reworkLog) {
-    if (
-      rework.taskId === taskId &&
-      DEFECT_STATES.has(rework.toState) &&
-      rework.occurredAt.getTime() >= afterMs
-    ) {
+    if (rework.taskId === taskId && DEFECT_STATES.has(rework.toState) && rework.occurredAt.getTime() >= afterMs) {
       return true;
     }
   }

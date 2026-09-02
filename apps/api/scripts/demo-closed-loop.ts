@@ -22,18 +22,8 @@
  * (default) durability is available-but-not-selected (see `demo:durable-queue`).
  */
 
-import {
-  CalibrationJob,
-  DEFAULT_LEARNING_FIT_CONFIG,
-  LearningLoop,
-} from '@harness/attention-engine';
-import type {
-  AttentionWeights,
-  CollectSeam,
-  FitSeam,
-  LearningCandidate,
-  ReviewFact,
-} from '@harness/attention-engine';
+import { CalibrationJob, DEFAULT_LEARNING_FIT_CONFIG, LearningLoop } from '@harness/attention-engine';
+import type { AttentionWeights, CollectSeam, FitSeam, LearningCandidate, ReviewFact } from '@harness/attention-engine';
 import { PRIORITY_WEIGHTS } from '@harness/attention-engine';
 import type { EventEnvelope } from '@harness/domain';
 import type { EventHandler, IEventBus, UnsubscribeFn } from '@harness/event-bus';
@@ -130,22 +120,13 @@ async function main(): Promise<void> {
 
   // --- 1. PROMOTE: a full cycle, forced WIN ------------------------------------
   const promoteLoop = new LearningLoop(
-    new CalibrationJob(
-      collect,
-      makeFit(true),
-      INCUMBENT,
-      DEFAULT_LEARNING_FIT_CONFIG,
-      undefined,
-      () => NOW,
-    ),
+    new CalibrationJob(collect, makeFit(true), INCUMBENT, DEFAULT_LEARNING_FIT_CONFIG, undefined, () => NOW),
     makeLoggingBus(logged),
   );
   console.log('  1. seeded window → fit → gate (PROMOTE):');
   const promote = await promoteLoop.runCycle(null);
   console.log(`     stages : ${promote.stages.map((s) => `${s.stage}=${s.status}`).join(' → ')}`);
-  console.log(
-    `     outcome: ${promote.outcome}   promoted: ${promote.promoted}   samples: ${promote.sampleCount}`,
-  );
+  console.log(`     outcome: ${promote.outcome}   promoted: ${promote.promoted}   samples: ${promote.sampleCount}`);
   assert(
     promote.stages.map((s) => s.stage).join(',') === 'evaluate,calibrate,deploy,observe',
     'PROMOTE cycle advances stage-by-stage',
@@ -155,14 +136,7 @@ async function main(): Promise<void> {
 
   // --- 2. HOLD: a no-improvement candidate parks at Deploy ---------------------
   const holdLoop = new LearningLoop(
-    new CalibrationJob(
-      collect,
-      makeFit(false),
-      INCUMBENT,
-      DEFAULT_LEARNING_FIT_CONFIG,
-      undefined,
-      () => NOW,
-    ),
+    new CalibrationJob(collect, makeFit(false), INCUMBENT, DEFAULT_LEARNING_FIT_CONFIG, undefined, () => NOW),
     makeLoggingBus(logged),
   );
   console.log('  2. seeded window → fit → gate (HOLD — the guardrail):');
@@ -199,9 +173,7 @@ async function main(): Promise<void> {
   );
   assert(before === snapshot(SEEDED), 'the seeded decisions are unchanged — the loop is read-only');
   const cycleIds = new Set(logged.map((e) => e.correlation_id));
-  console.log(
-    `  4. human gate: ${logged.length} events, ${cycleIds.size} cycle ids, all learning.* ✅`,
-  );
+  console.log(`  4. human gate: ${logged.length} events, ${cycleIds.size} cycle ids, all learning.* ✅`);
   console.log('     (APPROVE/REJECT decisions are inputs; AUTO_APPROVABLE is not consulted.)');
   console.log();
 

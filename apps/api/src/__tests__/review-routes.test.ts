@@ -166,9 +166,7 @@ async function seedQueuedItem(): Promise<ReviewQueueItemID> {
     state: TaskStatus.AwaitingReview,
     idempotency_key: `ik-${taskId}`,
   });
-  await db
-    .insert(agentRuns)
-    .values({ id: agentRunId, task_id: taskId, status: 'COMPLETED', max_steps: 10 });
+  await db.insert(agentRuns).values({ id: agentRunId, task_id: taskId, status: 'COMPLETED', max_steps: 10 });
   await db.insert(artifacts).values({
     id: artifactId,
     project_id: projectId,

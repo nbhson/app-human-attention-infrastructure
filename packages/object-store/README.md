@@ -36,9 +36,9 @@ swapped without touching the engines.
 
 ## Implementations
 
-| Implementation | When |
-| --- | --- |
-| `in-memory-content-store.ts` | Dev/test fallback — no external service. |
+| Implementation                  | When                                                   |
+| ------------------------------- | ------------------------------------------------------ |
+| `in-memory-content-store.ts`    | Dev/test fallback — no external service.               |
 | `object-store-content-store.ts` | S3/MinIO-backed — the real one behind MinIO or AWS S3. |
 
 The `aws-s3-port.ts` is a thin port over the AWS SDK so the store is testable
@@ -48,14 +48,14 @@ without S3; `streams.ts` keeps large bodies out of memory.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `content-store.ts` | The `ContentStore` interface / contract. |
-| `in-memory-content-store.ts` | In-memory implementation. |
-| `object-store-content-store.ts` | S3/MinIO-backed implementation. |
-| `routing-store.ts` | Routes content by size/kind. |
-| `aws-s3-port.ts` | Testable port over the AWS S3 SDK. |
-| `streams.ts` | Streaming helpers. |
+| Module                          | What it provides                         |
+| ------------------------------- | ---------------------------------------- |
+| `content-store.ts`              | The `ContentStore` interface / contract. |
+| `in-memory-content-store.ts`    | In-memory implementation.                |
+| `object-store-content-store.ts` | S3/MinIO-backed implementation.          |
+| `routing-store.ts`              | Routes content by size/kind.             |
+| `aws-s3-port.ts`                | Testable port over the AWS S3 SDK.       |
+| `streams.ts`                    | Streaming helpers.                       |
 
 ---
 

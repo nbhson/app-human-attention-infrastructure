@@ -74,8 +74,7 @@ export function VerificationTab({
   readonly onOpenReview: (id: string) => void;
 }): JSX.Element {
   const anchored = findings.filter((finding) => finding.anchor.status === 'verified').length;
-  const skipped =
-    verification !== null && verification !== undefined && verification.status === 'SKIPPED';
+  const skipped = verification !== null && verification !== undefined && verification.status === 'SKIPPED';
 
   return (
     <div data-testid="verification-tab" style={{ marginTop: 16 }}>
@@ -84,9 +83,8 @@ export function VerificationTab({
         <section style={{ marginBottom: 20 }}>
           <h3 style={{ margin: '0 0 6px' }}>Finding trust</h3>
           <p style={{ color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
-            {anchored} of {findings.length} findings have their cited <code>file:line</code>{' '}
-            anchored in the diff. An unanchored finding may point at code the AI never actually saw
-            — it needs your validation.
+            {anchored} of {findings.length} findings have their cited <code>file:line</code> anchored in the diff. An
+            unanchored finding may point at code the AI never actually saw — it needs your validation.
           </p>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {findings.map((finding) => {
@@ -98,9 +96,7 @@ export function VerificationTab({
                   key={finding.id}
                   className="verif-row"
                   style={{
-                    background: selected
-                      ? 'color-mix(in srgb, var(--color-info) 6%, transparent)'
-                      : undefined,
+                    background: selected ? 'color-mix(in srgb, var(--color-info) 6%, transparent)' : undefined,
                   }}
                 >
                   <button
@@ -124,17 +120,11 @@ export function VerificationTab({
                     <span aria-hidden="true">{ok ? '✓' : '⚠'}</span>
                     {ok ? 'Evidence in diff' : 'Unanchored — validate'}
                   </span>
-                  <span
-                    className={`finding-flag ${hasFix ? 'finding-flag-ok' : 'finding-flag-muted'}`}
-                  >
+                  <span className={`finding-flag ${hasFix ? 'finding-flag-ok' : 'finding-flag-muted'}`}>
                     <span aria-hidden="true">⚙</span>
                     {hasFix ? 'Fix suggested' : 'No fix'}
                   </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => onOpenReview(finding.id)}
-                  >
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onOpenReview(finding.id)}>
                     View in Review →
                   </button>
                 </li>
@@ -149,10 +139,10 @@ export function VerificationTab({
         <section>
           <h3 style={{ margin: '0 0 8px' }}>Machine verification</h3>
           <p style={{ color: 'var(--color-text-muted)' }}>
-            No verification run recorded for this report. Verification is opt-in (
-            <code>VERIFY_REVIEW_ENABLED=1</code>): when armed, the PR is cloned at its head SHA and
-            its own <code>build</code> then <code>test</code> scripts are run in the Docker sandbox
-            (<code>network: none</code>, never the harness process), and the result appears here.
+            No verification run recorded for this report. Verification is opt-in (<code>VERIFY_REVIEW_ENABLED=1</code>):
+            when armed, the PR is cloned at its head SHA and its own <code>build</code> then <code>test</code> scripts
+            are run in the Docker sandbox (<code>network: none</code>, never the harness process), and the result
+            appears here.
           </p>
         </section>
       ) : (
@@ -182,11 +172,7 @@ export function VerificationTab({
               <span style={field}>
                 overall{' '}
                 <strong>
-                  {verification.overall === null
-                    ? '—'
-                    : verification.overall === 'PASSED'
-                      ? 'PASSED'
-                      : 'FAILED'}
+                  {verification.overall === null ? '—' : verification.overall === 'PASSED' ? 'PASSED' : 'FAILED'}
                 </strong>
               </span>
             )}
@@ -200,31 +186,25 @@ export function VerificationTab({
 
           {skipped && (
             <p style={{ margin: '12px 0 0', color: 'var(--color-warning)' }}>
-              Skipped — nothing ran, so there is no pass/fail result. The head and duration above
-              are the sandbox preparation (clone), not a verification outcome.
+              Skipped — nothing ran, so there is no pass/fail result. The head and duration above are the sandbox
+              preparation (clone), not a verification outcome.
             </p>
           )}
 
           {verification.error !== null && verification.error.length > 0 && (
-            <p style={{ margin: '12px 0 0', color: 'var(--color-text-muted)' }}>
-              {verification.error}
-            </p>
+            <p style={{ margin: '12px 0 0', color: 'var(--color-text-muted)' }}>{verification.error}</p>
           )}
 
           {verification.failedKinds.length > 0 && (
             <section style={{ margin: '12px 0' }}>
-              <span style={{ ...field, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                Failed kinds
-              </span>{' '}
+              <span style={{ ...field, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Failed kinds</span>{' '}
               <code>{verification.failedKinds.join(', ')}</code>
             </section>
           )}
 
           {verification.timedOutKinds.length > 0 && (
             <section style={{ marginBottom: 12 }}>
-              <span style={{ ...field, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                Timed out
-              </span>{' '}
+              <span style={{ ...field, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Timed out</span>{' '}
               <code>{verification.timedOutKinds.join(', ')}</code>
             </section>
           )}
@@ -265,8 +245,8 @@ export function VerificationTab({
               fontSize: '0.75rem',
             }}
           >
-            Verification is a flag, not a gate: a FAILED run is evidence you weigh next to the
-            findings, never a blocker on your decision or on a write-back.
+            Verification is a flag, not a gate: a FAILED run is evidence you weigh next to the findings, never a blocker
+            on your decision or on a write-back.
           </p>
         </section>
       )}

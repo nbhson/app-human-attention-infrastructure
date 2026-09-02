@@ -35,11 +35,7 @@ import type { IEventBus } from '@harness/event-bus';
 import type { Logger } from '@harness/di';
 
 import { MemoryDistiller } from './memory-distiller.js';
-import type {
-  DecisionDistillInput,
-  ReviewDecisionDistillInput,
-  ReviewFindingDistill,
-} from './memory-distiller.js';
+import type { DecisionDistillInput, ReviewDecisionDistillInput, ReviewFindingDistill } from './memory-distiller.js';
 import { MemoryStore } from './memory-store.js';
 import { appendVersion } from './versioned-append.js';
 
@@ -82,17 +78,14 @@ export class MemoryIngestor {
       });
     });
 
-    this.bus.subscribe<ReviewDecisionSubmittedPayload>(
-      EventType.ReviewDecisionSubmitted,
-      (event) => {
-        void this.ingestReviewDecision(event.payload).catch((error) => {
-          this.logger?.error('memory: ingest review decision failed', {
-            decision_id: event.payload.decision_id,
-            error: String(error),
-          });
+    this.bus.subscribe<ReviewDecisionSubmittedPayload>(EventType.ReviewDecisionSubmitted, (event) => {
+      void this.ingestReviewDecision(event.payload).catch((error) => {
+        this.logger?.error('memory: ingest review decision failed', {
+          decision_id: event.payload.decision_id,
+          error: String(error),
         });
-      },
-    );
+      });
+    });
   }
 
   /**

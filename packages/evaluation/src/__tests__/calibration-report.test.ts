@@ -4,16 +4,8 @@ import type { AgreementDimension, JudgeAgreement } from '@harness/domain';
 
 import type { JudgeFitReport } from '../calibration/judge-fit-report.js';
 import { PLACEHOLDER_WEIGHTS } from '../calibration/weight-fitter.js';
-import type {
-  FitConfig,
-  JudgeAugmentedSample,
-  WeightsVector,
-} from '../calibration/weight-fitter.js';
-import {
-  buildCalibrationReport,
-  renderCalibrationReport,
-  runCalibration,
-} from '../calibration/calibration-report.js';
+import type { FitConfig, JudgeAugmentedSample, WeightsVector } from '../calibration/weight-fitter.js';
+import { buildCalibrationReport, renderCalibrationReport, runCalibration } from '../calibration/calibration-report.js';
 import type { GoldAgreementSummary } from '../calibration/calibration-report.js';
 
 function dimension(over: Partial<AgreementDimension> = {}): AgreementDimension {

@@ -29,9 +29,7 @@ describe('computeWorkdirManifest (day-22 §3.3)', () => {
 
     expect(manifest.files.map((file) => file.path)).toEqual(['src/index.ts', 'tsconfig.json']);
     const indexTs = manifest.files[0];
-    expect(indexTs?.contentHash).toBe(
-      createHash('sha256').update('export const x = 1;\n').digest('hex'),
-    );
+    expect(indexTs?.contentHash).toBe(createHash('sha256').update('export const x = 1;\n').digest('hex'));
     rmSync(dir, { recursive: true, force: true });
   });
 

@@ -26,10 +26,7 @@
  * @returns true only when both the request asks for a write AND the
  *   `WRITEBACK_ENABLED` ceiling is armed (armed unless set to `0`/`false`).
  */
-export function writebackEnabled(
-  writeback: unknown,
-  env: Record<string, string | undefined> = process.env,
-): boolean {
+export function writebackEnabled(writeback: unknown, env: Record<string, string | undefined> = process.env): boolean {
   const ceiling = env['WRITEBACK_ENABLED'];
   const ceilingOn = ceiling !== '0' && ceiling !== 'false';
   return writeback === true && ceilingOn;

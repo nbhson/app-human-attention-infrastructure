@@ -18,29 +18,10 @@
 
 import { desc, eq } from 'drizzle-orm';
 
-import {
-  agentRuns,
-  assessmentFeedback,
-  assessments,
-  changes,
-  reviewQueue,
-  verificationReports,
-} from '@harness/db';
+import { agentRuns, assessmentFeedback, assessments, changes, reviewQueue, verificationReports } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import {
-  brand,
-  EventType,
-  newAssessmentFeedbackID,
-  newReviewQueueItemID,
-  ReviewQueueStatus,
-} from '@harness/domain';
-import type {
-  AssessmentCreatedPayload,
-  AssessmentID,
-  ReviewQueueItemID,
-  RoutingAction,
-  TaskID,
-} from '@harness/domain';
+import { brand, EventType, newAssessmentFeedbackID, newReviewQueueItemID, ReviewQueueStatus } from '@harness/domain';
+import type { AssessmentCreatedPayload, AssessmentID, ReviewQueueItemID, RoutingAction, TaskID } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { recordRouted } from '@harness/observability';
@@ -82,9 +63,7 @@ export class AttentionRouter {
   ) {
     // The Day-13 budget gate reads `policy.fatigue.dailyReviewBudget`; a caller
     // may inject one (e.g. to pin `now` in tests).
-    this.budgetGate =
-      budgetGate ??
-      new DailyBudgetGate(db, { dailyReviewBudget: policy.fatigue.dailyReviewBudget });
+    this.budgetGate = budgetGate ?? new DailyBudgetGate(db, { dailyReviewBudget: policy.fatigue.dailyReviewBudget });
   }
 
   /** Wire the router to `attention.assessment_created` (fire-and-forget). */
@@ -175,25 +154,17 @@ export class AttentionRouter {
   }
 
   /** §4.1 feedback loop: record whether an assessment was worth the attention. */
-  async reportAssessmentFeedback(
-    assessmentId: AssessmentID,
-    wasUseful: boolean,
-    comment?: string,
-  ): Promise<void> {
+  async reportAssessmentFeedback(assessmentId: AssessmentID, wasUseful: boolean, comment?: string): Promise<void> {
     const base = {
       id: newAssessmentFeedbackID(),
       assessment_id: assessmentId,
       was_useful: wasUseful,
     };
-    await this.db
-      .insert(assessmentFeedback)
-      .values(comment === undefined ? base : { ...base, comment });
+    await this.db.insert(assessmentFeedback).values(comment === undefined ? base : { ...base, comment });
   }
 
   /** Assemble the policy signals, joining task + flaky onto the assessment row. */
-  private async toRoutingInput(
-    row: AssessmentRow,
-  ): Promise<RoutingInput & { readonly taskId: TaskID }> {
+  private async toRoutingInput(row: AssessmentRow): Promise<RoutingInput & { readonly taskId: TaskID }> {
     const taskRows = await this.db
       .select({ task_id: agentRuns.task_id })
       .from(changes)

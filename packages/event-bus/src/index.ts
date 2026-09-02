@@ -17,9 +17,5 @@ export { RedisEventsBus } from './redis-events-bus.js';
 export type { FlushStatus, RedisEventsBusOptions } from './redis-events-bus.js';
 export { InMemoryStreamTransport } from './stream-transport.js';
 export type { StreamEntry, StreamTransport } from './stream-transport.js';
-export {
-  DEFAULT_EVENT_TRANSPORT,
-  buildEventBus,
-  resolveEventTransport,
-} from './transport-resolver.js';
+export { DEFAULT_EVENT_TRANSPORT, buildEventBus, resolveEventTransport } from './transport-resolver.js';
 export type { BuildEventBusOptions, EventTransport } from './transport-resolver.js';

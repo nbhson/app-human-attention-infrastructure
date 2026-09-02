@@ -180,15 +180,13 @@ beforeEach(async () => {
   await db.delete(calibrationDatasets);
 
   // Reset the seeded singleton to live + flag-off so each test starts clean.
-  await db
-    .update(autoApproveKillSwitch)
-    .set({
-      auto_approve_enabled: false,
-      enabled: true,
-      killed_at: null,
-      killed_by: null,
-      reason: null,
-    });
+  await db.update(autoApproveKillSwitch).set({
+    auto_approve_enabled: false,
+    enabled: true,
+    killed_at: null,
+    killed_by: null,
+    reason: null,
+  });
 });
 
 interface Seed {
@@ -347,12 +345,7 @@ describe('AutoApproveExecutor (day-14 §3.3)', () => {
     });
 
     // Drives the task state machine under the machine trigger, and the queue flips.
-    expect(transitionSpy).toHaveBeenCalledWith(
-      taskId,
-      TaskStatus.Approved,
-      'auto_approve',
-      expect.any(Object),
-    );
+    expect(transitionSpy).toHaveBeenCalledWith(taskId, TaskStatus.Approved, 'auto_approve', expect.any(Object));
     const queue = await db.select().from(reviewQueue).where(eq(reviewQueue.id, queueId));
     expect(queue[0]?.status).toBe(ReviewQueueStatus.Decided);
   });
@@ -441,10 +434,7 @@ describe('AutoApproveExecutor (day-14 §3.3)', () => {
     expect(decision?.sample).toBe(true);
 
     // A second, sampled control row was routed to a human.
-    const controls = await db
-      .select()
-      .from(reviewQueue)
-      .where(eq(reviewQueue.assessment_id, assessmentId));
+    const controls = await db.select().from(reviewQueue).where(eq(reviewQueue.assessment_id, assessmentId));
     expect(controls).toHaveLength(2);
     const control = controls.find((row) => row.sampled);
     expect(control).toMatchObject({

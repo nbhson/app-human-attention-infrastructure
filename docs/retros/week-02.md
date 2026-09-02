@@ -1,9 +1,9 @@
 # Phase 2 · Week 2 Retro — Evaluation & Governance
 
-*Day-10 checkpoint (Phase 2). Second pass over the evaluation + observability
+_Day-10 checkpoint (Phase 2). Second pass over the evaluation + observability
 stack built across Phase-2 days 06–10. Same rule as prior retros: honest by
 design, numbers-first, blameless — and every acceptance criterion is green
-before this note is committed.*
+before this note is committed._
 
 ## What shipped this week
 
@@ -21,7 +21,7 @@ before this note is committed.*
   `unmatched` steps — a regression harness for "did the router change its mind".
 - **Day 09 — A/B shadow harness.** `AbHarness` runs two weight variants over the
   same trajectory with a compile-time read-only DB (`Pick<DrizzleDB,'select'>`),
-  so the shadow *cannot* mutate production rows by construction.
+  so the shadow _cannot_ mutate production rows by construction.
 - **Day 10 — Spec 10 promotion.** `docs/core/10_Observability_Governance_v0.1.md`
   is now a standalone contract (identity, observability, metrics, audit, policy)
   rather than plan-street-mentions — authored from what W1–W2 actually built.
@@ -32,15 +32,15 @@ The Week-2 checkpoint seeded a decidable window of four real decisions
 (real `actor_id`s, real `was_useful` feedback, real dwell), then computed the
 offline metrics over it:
 
-| Metric | Value | Read |
-|---|---|---|
-| `routing.precision` | **0.333** | 1 of 3 human-routed items actually warranted attention (the one `REJECTED` change) |
-| `routing.recall` | **0.5** | caught 1 of 2 items that needed attention — the flythrough that later defected slipped past |
-| `routing.escalationLeakage` | **1** | the single `AUTO_APPROVABLE` item later entered `REWORK`, i.e. every flythrough leaked |
-| `efficiency.humanMinutesPerAccept` | **2.5** | 5 human minutes across 2 accepted items (120s + 180s) |
-| `efficiency.inflationRatio` | **0.5** | 2 of 4 items labeled `HIGH` — the classic inflate-to-escalate signal |
+| Metric                             | Value     | Read                                                                                        |
+| ---------------------------------- | --------- | ------------------------------------------------------------------------------------------- |
+| `routing.precision`                | **0.333** | 1 of 3 human-routed items actually warranted attention (the one `REJECTED` change)          |
+| `routing.recall`                   | **0.5**   | caught 1 of 2 items that needed attention — the flythrough that later defected slipped past |
+| `routing.escalationLeakage`        | **1**     | the single `AUTO_APPROVABLE` item later entered `REWORK`, i.e. every flythrough leaked      |
+| `efficiency.humanMinutesPerAccept` | **2.5**   | 5 human minutes across 2 accepted items (120s + 180s)                                       |
+| `efficiency.inflationRatio`        | **0.5**   | 2 of 4 items labeled `HIGH` — the classic inflate-to-escalate signal                        |
 
-These are *real* numbers, but they are a four-row demo, not a population
+These are _real_ numbers, but they are a four-row demo, not a population
 estimate. The honest reading is:
 
 - **The pipeline is now measured, not yet calibrated.** Every gauge resolves to
@@ -51,17 +51,17 @@ estimate. The honest reading is:
 - **Escalation leakage is the number to watch, and it is currently 1.0.** The
   whole point of the auto-approvable path is to spend human attention only where
   it earns a return; a leakage of 1 (every flythrough defected) is the
-  worst-case end of the dial. It is also *the* reason Week 3 exists — the
+  worst-case end of the dial. It is also _the_ reason Week 3 exists — the
   calibration set is what will move it.
 - **Inflation is structurally visible.** `inflationRatio = 0.5` tripped the
   guardrail (Spec 6 §4.1 ceiling) on first run. That is not a bug; it is the
-  gauge doing its job. What it should change is the *threshold*, not the report.
+  gauge doing its job. What it should change is the _threshold_, not the report.
 
 ## What is still missing (and Week 3 must not paper over it)
 
 - **There is no benchmark corpus and no gold label.** The metrics can only say
-  "this happened"; they cannot yet say "this was *right*". Precision/recall here
-  are computed against *outcome* (approved/rejected/reworked) as a stand-in for
+  "this happened"; they cannot yet say "this was _right_". Precision/recall here
+  are computed against _outcome_ (approved/rejected/reworked) as a stand-in for
   truth, but the outcome is a human's judgment, not a labeled ground truth the
   pipeline can be fit against. Week 3 opens with exactly this: extracting the
   `was_useful` + assessment + outcome triple into a calibration dataset (Day 11),
@@ -72,7 +72,7 @@ estimate. The honest reading is:
   that the shadow path is safe, read-only, and produces a `winner`/`go`. It is
   **not** a claim that one weighting ranks better than the other — the
   `mean_target_relevance` delta is a mechanism check. Week 5 (Day 29) is where
-  the real *semantic-vs-keyword* comparison runs, and it must not borrow the
+  the real _semantic-vs-keyword_ comparison runs, and it must not borrow the
   Day-09 framing or it will over-claim.
 
 ## What is fragile
@@ -81,7 +81,7 @@ estimate. The honest reading is:
   model.** Day-06 pulls `decisions`, `taskStateHistory`, and `eventLog` through
   three separate shapes and reconciles them in TypeScript. It is correct and
   test-covered, but it is also the first place a schema drift will produce
-  *silently wrong* metrics (a renamed column reads as "no decisions this window"
+  _silently wrong_ metrics (a renamed column reads as "no decisions this window"
   rather than "loader broke"). A thin `@harness/db` query layer would collapse
   this — same debt flagged in the Week-1 retro for the smoke test's raw Drizzle
   reach.
@@ -95,7 +95,7 @@ estimate. The honest reading is:
 - **The seed window is `trend===UNKNOWN` by construction.** It produced one
   clean window under the real `source_version`; that is exactly what acceptance
   asked for, but anyone rerunning `seed:metrics-checkpoint` then `eval:report`
-  over a *different* window will silently mint a second version-line rather than
+  over a _different_ window will silently mint a second version-line rather than
   compare. The `(window_from, window_to, source_version)` unique index protects
   against duplicate inserts, not against confusing a seeded window for organic
   data. Keep seed rows labeled (they are, via `rationale`/`title`) and read them
@@ -113,18 +113,18 @@ estimate. The honest reading is:
 
 - **Fit weights, don't hand-tune them.** This week's variants are hand-picked
   (`0.7/0.3` vs `0.3/0.7`). Day 12 must derive weights from the Day-11
-  calibration set, and Day 13 must make the *thresholds* adaptive — otherwise
+  calibration set, and Day 13 must make the _thresholds_ adaptive — otherwise
   what we measured this week stays a demo and the leakage stays 1.
 - **A benchmark corpus + gold labels is the gate for every downstream claim.**
-  Until it exists, precision/recall/leakage are "what the routing *did*", and no
+  Until it exists, precision/recall/leakage are "what the routing _did_", and no
   Week-3 tuning can be validated as an improvement — only as a change.
 
 ---
 
-*Checkpoint rule applied: `pnpm eval:metrics` prints real precision/recall/leakage,
+_Checkpoint rule applied: `pnpm eval:metrics` prints real precision/recall/leakage,
 `pnpm eval:report` persisted one `evaluation_reports` row under
 `source_version "v0.2.0-harness"`, `pnpm eval:replay` replays with
 `unmatched===0`, and `pnpm eval:ab` emits a `winner`/`go` with
 `noProductionEffect===true`. lint, typecheck, full test suite, and E2E are green
 before this note is committed. R4/R7/R8 and the no-engine-imports-engine rule
-are asserted by `packages/di/src/__tests__/architecture.test.ts`.*
+are asserted by `packages/di/src/__tests__/architecture.test.ts`._

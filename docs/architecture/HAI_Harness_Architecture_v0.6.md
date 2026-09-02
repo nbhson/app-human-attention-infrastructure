@@ -1,4 +1,5 @@
 # Human Attention Infrastructure (HAI) Harness
+
 ## Architecture Overview
 
 **Status:** Living, v0.6 — `review-reorient`: the code-generation path is retired; the product is now a PR/MR **review** control plane.
@@ -14,7 +15,7 @@ The Harness is the **control plane for Human Attention in AI-native software dev
 
 > **AI can generate software changes faster than humans can inspect and validate them. Human attention is the bottleneck.**
 
-Its single job is to reduce the amount of human attention required to *safely* accept a (human- or AI-authored) change. As of `review-reorient` the harness does this by **reviewing external pull/merge requests**: fetch the PR diff + the linked requirement, ask the configured AI provider to act as *reviewer* (report + findings + fix suggestions), and present the result to a human. The AI no longer writes or commits code.
+Its single job is to reduce the amount of human attention required to _safely_ accept a (human- or AI-authored) change. As of `review-reorient` the harness does this by **reviewing external pull/merge requests**: fetch the PR diff + the linked requirement, ask the configured AI provider to act as _reviewer_ (report + findings + fix suggestions), and present the result to a human. The AI no longer writes or commits code.
 
 ---
 
@@ -77,7 +78,7 @@ The architecture exists to make this loop explicit, measurable, and auditable.
                 └───────────────────┘
 ```
 
-The Harness sits between human and AI: it turns raw AI output into *reviewable decisions*, and records everything along the way.
+The Harness sits between human and AI: it turns raw AI output into _reviewable decisions_, and records everything along the way.
 
 ---
 
@@ -124,27 +125,27 @@ Modular by design — but **not** microservices. It ships as a single monorepo (
 
 The eleven conceptual subsystems are now all built and documented in their packages (the former one-spec-per-subsystem files are retired).
 
-| # | Subsystem | Built as | Docs |
-|---|-----------|----------|------|
-| 1 | Architecture | *this document* | *this document* |
-| 2 | Task / Work Orchestrator | `@harness/orchestrator` | [`packages/orchestrator/README.md`](../../packages/orchestrator/README.md) |
-| 3 | AI Agent Runtime | `@harness/agent-runtime` | [`packages/agent-runtime/README.md`](../../packages/agent-runtime/README.md) |
-| 4 | Context Engine | `@harness/context-engine` | [`packages/context-engine/README.md`](../../packages/context-engine/README.md) |
-| 5 | Artifact / Change Tracker | `@harness/artifact-tracker` | [`packages/artifact-tracker/README.md`](../../packages/artifact-tracker/README.md) |
-| 6 | Attention Engine | `@harness/attention-engine` | [`packages/attention-engine/README.md`](../../packages/attention-engine/README.md) |
-| 7 | Verification Engine | `@harness/verification-engine` | [`packages/verification-engine/README.md`](../../packages/verification-engine/README.md) |
-| 8 | Human Review Interface | `@harness/review` + `apps/web` | [`packages/review/README.md`](../../packages/review/README.md) |
-| 9 | Memory / Evidence System | `@harness/domain` (events) + `db.event_log` | [`packages/db/README.md`](../../packages/db/README.md) |
-| 10 | Observability / Governance | `@harness/observability` | [`packages/observability/README.md`](../../packages/observability/README.md) |
-| 11 | Evaluation Engine (Learning Loop) | `@harness/evaluation` | [`packages/evaluation/README.md`](../../packages/evaluation/README.md) |
+| #   | Subsystem                         | Built as                                    | Docs                                                                                     |
+| --- | --------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | Architecture                      | _this document_                             | _this document_                                                                          |
+| 2   | Task / Work Orchestrator          | `@harness/orchestrator`                     | [`packages/orchestrator/README.md`](../../packages/orchestrator/README.md)               |
+| 3   | AI Agent Runtime                  | `@harness/agent-runtime`                    | [`packages/agent-runtime/README.md`](../../packages/agent-runtime/README.md)             |
+| 4   | Context Engine                    | `@harness/context-engine`                   | [`packages/context-engine/README.md`](../../packages/context-engine/README.md)           |
+| 5   | Artifact / Change Tracker         | `@harness/artifact-tracker`                 | [`packages/artifact-tracker/README.md`](../../packages/artifact-tracker/README.md)       |
+| 6   | Attention Engine                  | `@harness/attention-engine`                 | [`packages/attention-engine/README.md`](../../packages/attention-engine/README.md)       |
+| 7   | Verification Engine               | `@harness/verification-engine`              | [`packages/verification-engine/README.md`](../../packages/verification-engine/README.md) |
+| 8   | Human Review Interface            | `@harness/review` + `apps/web`              | [`packages/review/README.md`](../../packages/review/README.md)                           |
+| 9   | Memory / Evidence System          | `@harness/domain` (events) + `db.event_log` | [`packages/db/README.md`](../../packages/db/README.md)                                   |
+| 10  | Observability / Governance        | `@harness/observability`                    | [`packages/observability/README.md`](../../packages/observability/README.md)             |
+| 11  | Evaluation Engine (Learning Loop) | `@harness/evaluation`                       | [`packages/evaluation/README.md`](../../packages/evaluation/README.md)                   |
 
 The eleven subsystems above are all implemented as `@harness/*` engines. The
 remaining packages complete the 25-package inventory, grouped by the same four
 **dependency layers** used across the repo — the authoritative table is the
 [Packages table](../../README.md#packages), mirrored in [`packages/README.md`](../../packages/README.md):
 
-> **Why 11 subsystems but 25 packages?** Each subsystem maps to one *conceptual
-> capability* (e.g. Attention Engine, Verification Engine). The other 14 packages
+> **Why 11 subsystems but 25 packages?** Each subsystem maps to one _conceptual
+> capability_ (e.g. Attention Engine, Verification Engine). The other 14 packages
 > are infrastructure, integration, and tooling — not subsystems in their own right:
 > `event-bus`, `di`, `db`, `observability` (foundation); `git-provider`,
 > `ticket-provider`, `writeback`, `mcp` (integration seams); `object-store`,
@@ -162,7 +163,7 @@ remaining packages complete the 25-package inventory, grouped by the same four
 
 These rules hold regardless of subsystem; each is documented where it is enforced.
 
-- **Canonical Task state machine (13 states).** The single source of truth for Task transitions is `@harness/orchestrator`'s `TaskStateMachine`; the value list lives in `@harness/domain`'s `TaskStatus`. See [`packages/orchestrator/README.md`](../../packages/orchestrator/README.md). *(No other document redefines it.)*
+- **Canonical Task state machine (13 states).** The single source of truth for Task transitions is `@harness/orchestrator`'s `TaskStateMachine`; the value list lives in `@harness/domain`'s `TaskStatus`. See [`packages/orchestrator/README.md`](../../packages/orchestrator/README.md). _(No other document redefines it.)_
 - **Append-only `event_log` is the source of truth.** Every state change, LLM call, and decision lands there, joined by `correlation_id`; all other tables are current-state projections rebuildable by replay. See [`packages/db/README.md`](../../packages/db/README.md).
 - **Engine boundary rule.** An engine imports only shared packages (`domain`, `event-bus`, `db`, `di`) — never another engine. Enforced by `eslint.config.mjs` + `architecture.test.ts`; the full object graph is in [`docs/architecture/wiring-map.md`](../architecture/wiring-map.md).
 - **Human decisions are a closed set.** `HumanDecisionType` (7 values, the seventh `AUTO_APPROVED` — the one decision the system may make itself, under the gated auto-approve path with sampling audit). See [`packages/domain/README.md`](../../packages/domain/README.md).

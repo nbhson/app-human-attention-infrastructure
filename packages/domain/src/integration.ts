@@ -62,8 +62,7 @@ export const PullRequestFileStatus = {
   Renamed: 'RENAMED',
 } as const;
 /** A per-file change kind. */
-export type PullRequestFileStatus =
-  (typeof PullRequestFileStatus)[keyof typeof PullRequestFileStatus];
+export type PullRequestFileStatus = (typeof PullRequestFileStatus)[keyof typeof PullRequestFileStatus];
 
 /** A single file's contribution to a PR. */
 export interface PullRequestFile {

@@ -27,17 +27,10 @@ export interface Fault {
   readonly times?: number;
 }
 
-const FAULTABLE: ReadonlySet<string> = new Set<FaultOp>([
-  'select',
-  'insert',
-  'update',
-  'delete',
-  'transaction',
-]);
+const FAULTABLE: ReadonlySet<string> = new Set<FaultOp>(['select', 'insert', 'update', 'delete', 'transaction']);
 
 export class FaultyDb {
-  private readonly pending: Array<{ readonly op: FaultOp; readonly error: Error; times: number }> =
-    [];
+  private readonly pending: Array<{ readonly op: FaultOp; readonly error: Error; times: number }> = [];
 
   /** The proxied handle — hand this to a service in place of the real `DrizzleDB`. */
   readonly db: DrizzleDB;

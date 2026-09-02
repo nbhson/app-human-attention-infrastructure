@@ -118,9 +118,7 @@ describe('renderContextPrompt', () => {
 
     expect(memory).toBeGreaterThan(task);
     expect(files).toBeGreaterThan(memory);
-    expect(prompt).toContain(
-      '- [DECISION] reject until verified (confidence: 80, relevance: 0.91)',
-    );
+    expect(prompt).toContain('- [DECISION] reject until verified (confidence: 80, relevance: 0.91)');
   });
 
   it('omits the memory section when none is injected (backward compatible)', () => {

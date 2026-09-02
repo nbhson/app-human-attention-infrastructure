@@ -72,10 +72,7 @@ describe('EmbeddingIndexer.run (day-17 §2.2)', () => {
   it('embeds every source and writes provenance (model / dimensions / embedded_at)', async () => {
     const indexer = new EmbeddingIndexer(db, new StubEmbedder(1536, 'test-model'));
 
-    const progress = await indexer.run(
-      [source('src/a.ts', 'hash-a'), source('src/b.ts', 'hash-b')],
-      2,
-    );
+    const progress = await indexer.run([source('src/a.ts', 'hash-a'), source('src/b.ts', 'hash-b')], 2);
 
     expect(progress).toEqual({ total: 2, embedded: 2, failed: 0, stale: 0 });
     const rows = await readRows();
@@ -105,10 +102,7 @@ describe('EmbeddingIndexer.run (day-17 §2.2)', () => {
 
   it('leaves rows pending on a provider failure, then resumes on the next run', async () => {
     const failing = new EmbeddingIndexer(db, failingEmbedder());
-    const failed = await failing.run(
-      [source('src/a.ts', 'hash-a'), source('src/b.ts', 'hash-b')],
-      2,
-    );
+    const failed = await failing.run([source('src/a.ts', 'hash-a'), source('src/b.ts', 'hash-b')], 2);
 
     expect(failed).toEqual({ total: 2, embedded: 0, failed: 2, stale: 0 });
     const pending = await readRows();

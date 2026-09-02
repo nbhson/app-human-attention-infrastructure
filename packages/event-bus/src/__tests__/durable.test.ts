@@ -185,11 +185,7 @@ describe('transport selection (day-34 §3.2)', () => {
     expect(() => buildEventBus('sqs')).toThrow(/StreamTransport adapter/);
 
     const store = new InMemoryStreamTransport();
-    expect(
-      buildEventBus('redis', { transport: store, durable: { pollIntervalMs: 0 } }),
-    ).toBeInstanceOf(RedisEventsBus);
-    expect(
-      buildEventBus('sqs', { transport: store, durable: { pollIntervalMs: 0 } }),
-    ).toBeInstanceOf(RedisEventsBus);
+    expect(buildEventBus('redis', { transport: store, durable: { pollIntervalMs: 0 } })).toBeInstanceOf(RedisEventsBus);
+    expect(buildEventBus('sqs', { transport: store, durable: { pollIntervalMs: 0 } })).toBeInstanceOf(RedisEventsBus);
   });
 });

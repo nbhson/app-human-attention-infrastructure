@@ -27,14 +27,7 @@ import {
   verificationReports,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import {
-  brand,
-  EventType,
-  HumanDecisionType,
-  newDecisionID,
-  ReviewQueueStatus,
-  TaskStatus,
-} from '@harness/domain';
+import { brand, EventType, HumanDecisionType, newDecisionID, ReviewQueueStatus, TaskStatus } from '@harness/domain';
 import type {
   DecisionSubmittedPayload,
   EvidenceID,
@@ -101,13 +94,7 @@ interface AssessmentFactorRow {
 }
 
 /** The five factors, in display order (day-18 §2). */
-const FACTOR_KEYS: readonly ReviewFactorKey[] = [
-  'risk',
-  'impact',
-  'novelty',
-  'complexity',
-  'confidence',
-];
+const FACTOR_KEYS: readonly ReviewFactorKey[] = ['risk', 'impact', 'novelty', 'complexity', 'confidence'];
 
 /** The columns shared by list + detail reads (queue joined to its assessment). */
 const QUEUE_COLUMNS = {
@@ -161,17 +148,10 @@ export class ReviewService {
     const taskIds = [...new Set(rows.map((row) => row.task_id))];
     const changeIds = [...new Set(rows.map((row) => row.change_id))];
 
-    const [taskTitles, flakyByChange] = await Promise.all([
-      this.taskTitles(taskIds),
-      this.latestFlaky(changeIds),
-    ]);
+    const [taskTitles, flakyByChange] = await Promise.all([this.taskTitles(taskIds), this.latestFlaky(changeIds)]);
 
     return rows.map((row) =>
-      toQueueListItem(
-        row,
-        taskTitles.get(row.task_id) ?? '',
-        flakyByChange.get(row.change_id) ?? false,
-      ),
+      toQueueListItem(row, taskTitles.get(row.task_id) ?? '', flakyByChange.get(row.change_id) ?? false),
     );
   }
 
@@ -180,11 +160,7 @@ export class ReviewService {
     const row = await this.mustGetRow(queueId);
 
     const [taskRows, decisionRows, assessmentRows, checks, diffs] = await Promise.all([
-      this.db
-        .select({ title: tasks.title, state: tasks.state })
-        .from(tasks)
-        .where(eq(tasks.id, row.task_id))
-        .limit(1),
+      this.db.select({ title: tasks.title, state: tasks.state }).from(tasks).where(eq(tasks.id, row.task_id)).limit(1),
       this.db
         .select({
           decision: decisions.decision,
@@ -196,15 +172,9 @@ export class ReviewService {
         .where(eq(decisions.assessment_id, row.assessment_id))
         .orderBy(desc(decisions.created_at))
         .limit(1),
-      this.db
-        .select(ASSESSMENT_FACTOR_COLUMNS)
-        .from(assessments)
-        .where(eq(assessments.id, row.assessment_id))
-        .limit(1),
+      this.db.select(ASSESSMENT_FACTOR_COLUMNS).from(assessments).where(eq(assessments.id, row.assessment_id)).limit(1),
       this.checksFor(row.change_id),
-      this.diffProvider
-        ? this.diffProvider.diffChange(brand(row.change_id, 'ChangeID'))
-        : Promise.resolve([]),
+      this.diffProvider ? this.diffProvider.diffChange(brand(row.change_id, 'ChangeID')) : Promise.resolve([]),
     ]);
 
     const latest = decisionRows[0];
@@ -294,8 +264,7 @@ export class ReviewService {
         },
       },
       async () => {
-        const decision =
-          input.decision === 'APPROVE' ? HumanDecisionType.Approved : HumanDecisionType.Rejected;
+        const decision = input.decision === 'APPROVE' ? HumanDecisionType.Approved : HumanDecisionType.Rejected;
         const target = input.decision === 'APPROVE' ? TaskStatus.Approved : TaskStatus.Rejected;
 
         // 1. Guarded queue flip: CLAIMED → DECIDED. This UPDATE — not the
@@ -306,9 +275,7 @@ export class ReviewService {
         const flipped = await this.db
           .update(reviewQueue)
           .set({ status: ReviewQueueStatus.Decided })
-          .where(
-            and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)),
-          )
+          .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)))
           .returning({ id: reviewQueue.id });
         if (flipped.length === 0) {
           const current = await this.db
@@ -357,17 +324,11 @@ export class ReviewService {
           reviewer_id: input.reviewerId,
           actor_id: input.actorId,
         };
-        this.bus.publish(
-          createEvent(EventType.DecisionSubmitted, brand(row.task_id, 'CorrelationID'), payload, 2),
-        );
+        this.bus.publish(createEvent(EventType.DecisionSubmitted, brand(row.task_id, 'CorrelationID'), payload, 2));
 
         // 5. Feed the alert-fatigue loop — best-effort, must not roll back the decision.
         try {
-          await this.reportFeedback.reportAssessmentFeedback(
-            assessmentId,
-            input.wasUseful,
-            input.comment,
-          );
+          await this.reportFeedback.reportAssessmentFeedback(assessmentId, input.wasUseful, input.comment);
         } catch (error) {
           this.logger?.error('review: record feedback failed (best-effort)', {
             correlation_id: row.task_id,

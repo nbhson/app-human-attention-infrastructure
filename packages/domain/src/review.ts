@@ -62,8 +62,7 @@ export const ReviewQueueItemStatus = {
   Resolved: 'RESOLVED',
 } as const;
 /** A review-queue item status. */
-export type ReviewQueueItemStatus =
-  (typeof ReviewQueueItemStatus)[keyof typeof ReviewQueueItemStatus];
+export type ReviewQueueItemStatus = (typeof ReviewQueueItemStatus)[keyof typeof ReviewQueueItemStatus];
 
 /**
  * The persistence-level state of a `review_queue` row (attention spec §4). This
@@ -110,13 +109,8 @@ export interface ReviewQueueItem {
 }
 
 /** Input for {@link createHumanDecision}. */
-export type CreateHumanDecisionInput = Omit<
-  HumanDecision,
-  'timestamp' | 'metadata' | 'evidenceViewed'
-> &
-  Partial<
-    Pick<HumanDecision, 'timestamp' | 'metadata' | 'evidenceViewed' | 'targetChangeId' | 'result'>
-  >;
+export type CreateHumanDecisionInput = Omit<HumanDecision, 'timestamp' | 'metadata' | 'evidenceViewed'> &
+  Partial<Pick<HumanDecision, 'timestamp' | 'metadata' | 'evidenceViewed' | 'targetChangeId' | 'result'>>;
 
 /**
  * Build a {@link HumanDecision} defaulting `timestamp` to now and

@@ -51,11 +51,7 @@ export class DiffEngine {
    * as "no diff", never as an exception.
    */
   async diffChange(changeId: ChangeID): Promise<FileDiff[]> {
-    const changeRows = await this.db
-      .select()
-      .from(changes)
-      .where(eq(changes.id, changeId))
-      .limit(1);
+    const changeRows = await this.db.select().from(changes).where(eq(changes.id, changeId)).limit(1);
     const change = changeRows[0];
     if (!change) {
       return [];
@@ -91,9 +87,7 @@ export class DiffEngine {
     }
     if (row.content_backend === 'object' && this.contentStore !== undefined) {
       try {
-        return streamToString(
-          await this.contentStore.get({ hash: row.content_hash, backend: 'object' }),
-        );
+        return streamToString(await this.contentStore.get({ hash: row.content_hash, backend: 'object' }));
       } catch (error) {
         // Day-25 §3.2: an object-store read-back whose digest drifted is a data
         // integrity event worth counting — surface it on the report, then rethrow
@@ -128,14 +122,8 @@ export class DiffEngine {
   /** Build one {@link FileDiff} from base/current content. */
   private buildDiff(path: string, base: string, current: string, exists: boolean): FileDiff {
     const changesLines = diffLines(base, current);
-    const addedLines = changesLines.reduce(
-      (sum, change) => sum + (change.added ? change.count : 0),
-      0,
-    );
-    const removedLines = changesLines.reduce(
-      (sum, change) => sum + (change.removed ? change.count : 0),
-      0,
-    );
+    const addedLines = changesLines.reduce((sum, change) => sum + (change.added ? change.count : 0), 0);
+    const removedLines = changesLines.reduce((sum, change) => sum + (change.removed ? change.count : 0), 0);
     const patch = structuredPatch(path, path, base, current, '', '', { context: 3 });
     return {
       path,

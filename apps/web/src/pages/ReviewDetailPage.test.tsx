@@ -52,9 +52,7 @@ const DETAIL: QueueItemDetail = {
     { kind: 'COMPILE', status: 'PASSED', evidenceId: 'evt-1' },
     { kind: 'TEST', status: 'FLAKY', evidenceId: 'evt-2' },
   ],
-  diffs: [
-    { path: 'src/foo.ts', hunks: '+added', addedLines: 1, removedLines: 0, isNewFile: false },
-  ],
+  diffs: [{ path: 'src/foo.ts', hunks: '+added', addedLines: 1, removedLines: 0, isNewFile: false }],
   decision: null,
 };
 
@@ -62,10 +60,7 @@ function renderDetail(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        initialEntries={['/review/q-1']}
-      >
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/review/q-1']}>
         <Routes>
           <Route path="/review/:id" element={<ReviewDetailPage />} />
         </Routes>

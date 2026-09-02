@@ -64,11 +64,11 @@ unsubscribe();
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `ievent-bus.ts` | `IEventBus`, `EventHandler<T>`, `UnsubscribeFn`. |
+| Module                    | What it provides                                                                                                                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ievent-bus.ts`           | `IEventBus`, `EventHandler<T>`, `UnsubscribeFn`.                                                                                                                              |
 | `in-process-event-bus.ts` | `InProcessEventBus` — a `EventEmitter` behind `IEventBus`. A throwing handler is caught, reported via `onHandlerError` (default `console.error`), and does not stop the rest. |
-| `create-event.ts` | `createEvent()` — stamps UUIDv7 `event_id`, `occurred_at`, `event_version: 1`. |
+| `create-event.ts`         | `createEvent()` — stamps UUIDv7 `event_id`, `occurred_at`, `event_version: 1`.                                                                                                |
 
 ---
 
@@ -77,7 +77,7 @@ unsubscribe();
 - **Never import an engine here.** This package depends only on `@harness/domain`.
 - **Payloads live in `@harness/domain`.** `EventEnvelope`, `EventType`, and every
   `*Payload` type are re-exported from `@harness/domain`'s `events/` module — the
-  bus only *transports* them.
+  bus only _transports_ them.
 - **Handler isolation.** A throwing handler never prevents the remaining
   handlers from running.
 

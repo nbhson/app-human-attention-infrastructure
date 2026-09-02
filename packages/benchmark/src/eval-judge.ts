@@ -14,12 +14,7 @@
  * real {@link import('@harness/judge').Judge}.
  */
 
-import {
-  AiProviderType,
-  createReviewFinding,
-  createReviewReport,
-  FindingKind,
-} from '@harness/domain';
+import { AiProviderType, createReviewFinding, createReviewReport, FindingKind } from '@harness/domain';
 import type { JudgeScores, ReviewReport } from '@harness/domain';
 import type { Judge } from '@harness/judge';
 
@@ -118,8 +113,6 @@ export async function evaluateJudgeAgainstGold(
   if (examples.length === 0) {
     throw new Error('evaluateJudgeAgainstGold requires at least one example');
   }
-  const results = await Promise.all(
-    examples.map(async (example) => ({ example, judge: await score(example) })),
-  );
+  const results = await Promise.all(examples.map(async (example) => ({ example, judge: await score(example) })));
   return { n: results.length, agreement: computeGoldAgreement(results), results };
 }

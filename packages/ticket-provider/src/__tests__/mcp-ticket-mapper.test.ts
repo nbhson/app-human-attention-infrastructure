@@ -27,11 +27,7 @@ const ISSUE_PAYLOAD = {
 
 describe('mapMcpTicketIssue', () => {
   it('assembles an Issue identical to the REST mapper output', () => {
-    const issue = mapMcpTicketIssue(
-      TicketProviderType.Jira,
-      'https://acme.atlassian.net',
-      textResult(ISSUE_PAYLOAD),
-    );
+    const issue = mapMcpTicketIssue(TicketProviderType.Jira, 'https://acme.atlassian.net', textResult(ISSUE_PAYLOAD));
 
     expect(issue).toEqual({
       provider: 'jira',
@@ -69,19 +65,15 @@ describe('mapMcpTicketIssue', () => {
 
   it('throws when the tool returns isError', () => {
     expect(() =>
-      mapMcpTicketIssue(
-        TicketProviderType.Jira,
-        'https://acme.atlassian.net',
-        textResult(ISSUE_PAYLOAD, true),
-      ),
+      mapMcpTicketIssue(TicketProviderType.Jira, 'https://acme.atlassian.net', textResult(ISSUE_PAYLOAD, true)),
     ).toThrow(TicketProviderError);
   });
 
   it('throws on malformed content (no JSON payload)', () => {
     const result: ToolResult = { isError: false, content: [{ type: 'text', text: 'not json' }] };
-    expect(() =>
-      mapMcpTicketIssue(TicketProviderType.Jira, 'https://acme.atlassian.net', result),
-    ).toThrow(/no JSON payload/);
+    expect(() => mapMcpTicketIssue(TicketProviderType.Jira, 'https://acme.atlassian.net', result)).toThrow(
+      /no JSON payload/,
+    );
   });
 
   it('throws on a missing key', () => {

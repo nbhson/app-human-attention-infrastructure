@@ -40,11 +40,7 @@ import {
 } from '../index.js';
 
 /** Look up a metric component's current value by its label key/value. */
-async function labelValue(
-  name: string,
-  label: string,
-  labelValue: string,
-): Promise<number | undefined> {
+async function labelValue(name: string, label: string, labelValue: string): Promise<number | undefined> {
   const metric = register.getSingleMetric(name);
   const data = metric ? await metric.get() : undefined;
   return data?.values.find((p) => p.labels[label] === labelValue)?.value;
@@ -86,9 +82,7 @@ describe('counters', () => {
 
     expect(await labelValue('harness_assessment_usefulness_total', 'was_useful', 'true')).toBe(1);
     expect(await labelValue('harness_assessment_usefulness_total', 'was_useful', 'false')).toBe(1);
-    expect(await labelValue('harness_assessment_usefulness_total', 'was_useful', 'unknown')).toBe(
-      1,
-    );
+    expect(await labelValue('harness_assessment_usefulness_total', 'was_useful', 'unknown')).toBe(1);
   });
 
   it('resupply increments on each request', async () => {

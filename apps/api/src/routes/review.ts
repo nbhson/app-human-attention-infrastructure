@@ -107,10 +107,7 @@ export function registerReviewRoutes(app: FastifyInstance, container: Container)
         const { id } = request.params;
         const user = assertUser(request, reply);
         if (!user) return reply;
-        return await reviewService.claim(
-          brand(id, 'ReviewQueueItemID'),
-          brand(user.id, 'ReviewerID'),
-        );
+        return await reviewService.claim(brand(id, 'ReviewQueueItemID'), brand(user.id, 'ReviewerID'));
       } catch (error) {
         return toErrorReply(reply, error);
       }

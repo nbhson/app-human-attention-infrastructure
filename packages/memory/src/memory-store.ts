@@ -27,12 +27,7 @@ import {
   newMemoryID,
   uuidv7,
 } from '@harness/domain';
-import type {
-  MemoryEntry,
-  MemoryID,
-  MemoryKind,
-  MemoryStatus as MemoryStatusType,
-} from '@harness/domain';
+import type { MemoryEntry, MemoryID, MemoryKind, MemoryStatus as MemoryStatusType } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import type { Logger } from '@harness/di';
@@ -130,11 +125,7 @@ export class MemoryStore {
 
   /** Load one entry by id, with its evidence links (or `null` absent/link-less). */
   async getById(id: MemoryID): Promise<MemoryEntry | null> {
-    const rows = await this.db
-      .select()
-      .from(memoryEntries)
-      .where(eq(memoryEntries.id, id))
-      .limit(1);
+    const rows = await this.db.select().from(memoryEntries).where(eq(memoryEntries.id, id)).limit(1);
     const row = rows[0];
     if (!row) {
       return null;
@@ -159,9 +150,7 @@ export class MemoryStore {
     }
     const ids = rows.map((row) => row.id);
     const links = await this.linkEvidenceFor(ids);
-    return rows
-      .map((row) => toEntry(row, links.get(row.id) ?? []))
-      .filter((entry) => entry.sourceEvidence.length > 0);
+    return rows.map((row) => toEntry(row, links.get(row.id) ?? [])).filter((entry) => entry.sourceEvidence.length > 0);
   }
 
   /**

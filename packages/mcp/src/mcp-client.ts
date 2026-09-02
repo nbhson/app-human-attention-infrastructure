@@ -102,10 +102,7 @@ export class McpClientImpl implements McpClient {
     }
     const record = m as Record<string, unknown>;
     const rawId = record['id'];
-    if (
-      (typeof rawId === 'number' || typeof rawId === 'string') &&
-      ('result' in record || 'error' in record)
-    ) {
+    if ((typeof rawId === 'number' || typeof rawId === 'string') && ('result' in record || 'error' in record)) {
       const id = typeof rawId === 'number' ? rawId : Number(rawId);
       const entry = this.pending.get(id);
       if (!entry) {

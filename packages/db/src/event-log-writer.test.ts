@@ -37,10 +37,7 @@ describe('EventLogWriter', () => {
 
     await writer.write(event);
 
-    const rows = await testDb.db
-      .select()
-      .from(eventLog)
-      .where(eq(eventLog.event_id, event.event_id));
+    const rows = await testDb.db.select().from(eventLog).where(eq(eventLog.event_id, event.event_id));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.event_type).toBe(EventType.TaskCreated);
   });
@@ -52,10 +49,7 @@ describe('EventLogWriter', () => {
     await writer.write(event);
     await writer.write(event);
 
-    const rows = await testDb.db
-      .select()
-      .from(eventLog)
-      .where(eq(eventLog.event_id, event.event_id));
+    const rows = await testDb.db.select().from(eventLog).where(eq(eventLog.event_id, event.event_id));
     expect(rows).toHaveLength(1);
   });
 
@@ -75,10 +69,7 @@ describe('EventLogWriter', () => {
     bus.publish(event);
 
     await waitForEvent(event.event_id);
-    const rows = await testDb.db
-      .select()
-      .from(eventLog)
-      .where(eq(eventLog.event_id, event.event_id));
+    const rows = await testDb.db.select().from(eventLog).where(eq(eventLog.event_id, event.event_id));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.event_type).toBe(EventType.TaskStateChanged);
   });

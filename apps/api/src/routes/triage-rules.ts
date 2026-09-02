@@ -58,15 +58,11 @@ export function registerTriageRulesRoutes(app: FastifyInstance, container: Conta
 
   app.get('/api/triage-rules', { preHandler: canRead }, () => loadTriageRuleState(db));
 
-  app.put<{ Body: TriageRulesBody }>(
-    '/api/triage-rules',
-    { preHandler: canWrite },
-    async (request, reply) => {
-      const patch = pickBooleans(request.body);
-      if (Object.keys(patch).length === 0) {
-        return reply.code(400).send({ error: 'provide at least one boolean toggle to update' });
-      }
-      return saveTriageRuleState(db, patch);
-    },
-  );
+  app.put<{ Body: TriageRulesBody }>('/api/triage-rules', { preHandler: canWrite }, async (request, reply) => {
+    const patch = pickBooleans(request.body);
+    if (Object.keys(patch).length === 0) {
+      return reply.code(400).send({ error: 'provide at least one boolean toggle to update' });
+    }
+    return saveTriageRuleState(db, patch);
+  });
 }

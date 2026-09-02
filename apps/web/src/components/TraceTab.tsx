@@ -77,9 +77,7 @@ export function TraceTab({
           title="Repository context loaded"
           meta={
             stats !== undefined
-              ? [
-                  `${stats.totalFiles} files changed (+${stats.addedLines} / −${stats.removedLines})`,
-                ]
+              ? [`${stats.totalFiles} files changed (+${stats.addedLines} / −${stats.removedLines})`]
               : ['Differential loaded from the stored PR payload']
           }
           done
@@ -98,11 +96,7 @@ export function TraceTab({
           }
           done
         />
-        <Step
-          title="Final verdict generated"
-          meta={[VERDICT_LABEL[overallVerdict] ?? overallVerdict]}
-          done
-        />
+        <Step title="Final verdict generated" meta={[VERDICT_LABEL[overallVerdict] ?? overallVerdict]} done />
       </ol>
 
       {trace.calls.length > 0 && (
@@ -121,8 +115,8 @@ export function TraceTab({
               }}
             >
               <div>
-                <code>{call.model}</code> · {call.inputTokens} tokens in · {call.outputTokens}{' '}
-                tokens out · {call.stopReason ?? 'stop reason unknown'}
+                <code>{call.model}</code> · {call.inputTokens} tokens in · {call.outputTokens} tokens out ·{' '}
+                {call.stopReason ?? 'stop reason unknown'}
               </div>
               <div
                 style={{
@@ -177,8 +171,8 @@ export function TraceTab({
       )}
 
       <p style={{ margin: '20px 0 0', color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>
-        This shows observable execution metadata only. No prompt or response transcript is stored,
-        so no hidden chain-of-thought is exposed.
+        This shows observable execution metadata only. No prompt or response transcript is stored, so no hidden
+        chain-of-thought is exposed.
       </p>
     </div>
   );

@@ -2,13 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { auditApi, type AuditEntry, type AuditKind } from '../api/audit';
-import {
-  KIND_FILTERS,
-  KIND_LABEL,
-  kindClass,
-  repoFromEntry,
-  timeAgo,
-} from '../components/auditMeta';
+import { KIND_FILTERS, KIND_LABEL, kindClass, repoFromEntry, timeAgo } from '../components/auditMeta';
 import { Activity, Radio, RefreshCw } from '../components/Icons';
 import { Skeleton } from '../components/Skeleton';
 
@@ -133,23 +127,14 @@ export default function AuditPage(): JSX.Element {
   const [kind, setKind] = useState<AuditKind | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const {
-    data,
-    isLoading,
-    isError,
-    isFetching,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-    refetch,
-  } = useInfiniteQuery({
-    queryKey: ['audit', kind],
-    queryFn: ({ pageParam }) =>
-      auditApi.list({ kind: kind ?? undefined, limit: PAGE_SIZE, before: pageParam }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.nextBefore ?? undefined,
-    refetchInterval: 5_000,
-  });
+  const { data, isLoading, isError, isFetching, hasNextPage, fetchNextPage, isFetchingNextPage, refetch } =
+    useInfiniteQuery({
+      queryKey: ['audit', kind],
+      queryFn: ({ pageParam }) => auditApi.list({ kind: kind ?? undefined, limit: PAGE_SIZE, before: pageParam }),
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (last) => last.nextBefore ?? undefined,
+      refetchInterval: 5_000,
+    });
 
   const items = (data?.pages ?? []).flatMap((page) => page.items);
 
@@ -161,8 +146,7 @@ export default function AuditPage(): JSX.Element {
       if (repo !== null) repos.add(repo);
       if (entry.kind === 'llm') {
         const input = typeof entry.detail.input_tokens === 'number' ? entry.detail.input_tokens : 0;
-        const output =
-          typeof entry.detail.output_tokens === 'number' ? entry.detail.output_tokens : 0;
+        const output = typeof entry.detail.output_tokens === 'number' ? entry.detail.output_tokens : 0;
         tokens += input + output;
       }
     }
@@ -185,12 +169,7 @@ export default function AuditPage(): JSX.Element {
             Real-time event stream from webhooks, the AST analyzer, and triage heuristics.
           </p>
         </div>
-        <button
-          type="button"
-          className="sa-refresh"
-          onClick={() => void refetch()}
-          disabled={isFetching}
-        >
+        <button type="button" className="sa-refresh" onClick={() => void refetch()} disabled={isFetching}>
           <RefreshCw className={isFetching ? 'rq-spin' : undefined} />
           <span>Refresh Telemetry</span>
         </button>
@@ -210,9 +189,7 @@ export default function AuditPage(): JSX.Element {
             <span className="sa-metric-label">LLM Tokens</span>
             <span className="sa-metric-dot sa-metric-dot--purple" aria-hidden="true" />
           </div>
-          <span className="sa-metric-value">
-            {metrics.tokens > 0 ? formatCompact(metrics.tokens) : '—'}
-          </span>
+          <span className="sa-metric-value">{metrics.tokens > 0 ? formatCompact(metrics.tokens) : '—'}</span>
           <span className="sa-metric-sub sa-metric-sub--purple">consumed in this stream</span>
         </div>
       </div>
@@ -277,9 +254,7 @@ export default function AuditPage(): JSX.Element {
                 >
                   <span className="sa-log-left">
                     <span className="sa-log-time">{timeAgo(entry.occurredAt)}</span>
-                    <span className={`sa-log-type ${kindClass(entry.kind)}`}>
-                      {KIND_LABEL[entry.kind]}
-                    </span>
+                    <span className={`sa-log-type ${kindClass(entry.kind)}`}>{KIND_LABEL[entry.kind]}</span>
                     <span className="sa-log-body">
                       <span className="sa-log-message">{entry.title}</span>
                       <span className="sa-log-summary">{entry.summary}</span>
@@ -291,8 +266,7 @@ export default function AuditPage(): JSX.Element {
                 {isOpen && (
                   <div className="sa-log-detail">
                     <p className="sa-log-detail-correlation">
-                      correlation{' '}
-                      <code>{entry.correlationId === null ? '(none)' : entry.correlationId}</code>
+                      correlation <code>{entry.correlationId === null ? '(none)' : entry.correlationId}</code>
                     </p>
                     <Detail entry={entry} />
                   </div>

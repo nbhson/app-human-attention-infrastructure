@@ -104,8 +104,7 @@ export interface WritebackRecord {
 }
 
 /** The review-slice machine-verification lifecycle (clone → build → test). */
-export type ReviewVerificationStatus =
-  'PENDING' | 'RUNNING' | 'PASSED' | 'FAILED' | 'SKIPPED' | 'ERROR';
+export type ReviewVerificationStatus = 'PENDING' | 'RUNNING' | 'PASSED' | 'FAILED' | 'SKIPPED' | 'ERROR';
 
 /**
  * A machine-side verification run over the report (wedge #1): the PR is cloned at
@@ -215,8 +214,7 @@ export interface ReviewReport {
    * has finished processing; any other value means the background worker is
    * still working.
    */
-  readonly reviewStatus:
-    'pending' | 'fetching' | 'recalling' | 'reviewing' | 'storing' | 'complete' | 'error';
+  readonly reviewStatus: 'pending' | 'fetching' | 'recalling' | 'reviewing' | 'storing' | 'complete' | 'error';
   /**
    * Batch progress within the `reviewing` stage. `current` is the number of
    * batches completed, `total` is the total number of batches. Only present
@@ -374,9 +372,7 @@ export const reviewsApi = {
   create(input: { prUrl: string; jiraTicket?: string }): Promise<ReviewCreatedResult> {
     return post<ReviewCreatedResult>('', {
       prUrl: input.prUrl,
-      ...(input.jiraTicket !== undefined && input.jiraTicket.trim().length > 0
-        ? { jiraTicket: input.jiraTicket }
-        : {}),
+      ...(input.jiraTicket !== undefined && input.jiraTicket.trim().length > 0 ? { jiraTicket: input.jiraTicket } : {}),
     });
   },
   /** List reports; `pending=true` keeps only ones still awaiting a decision. */
@@ -403,9 +399,7 @@ export const reviewsApi = {
     return post<{ reportId: string; decision: string }>(`/${id}/decision`, {
       decision: input.decision,
       ...(input.writeback === true ? { writeback: true } : {}),
-      ...(input.comment !== undefined && input.comment.trim().length > 0
-        ? { comment: input.comment.trim() }
-        : {}),
+      ...(input.comment !== undefined && input.comment.trim().length > 0 ? { comment: input.comment.trim() } : {}),
     });
   },
 };

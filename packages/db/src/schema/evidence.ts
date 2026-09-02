@@ -42,10 +42,6 @@ export const evidenceLinks = pgTable(
   },
   (table) => [
     evidenceSubjectKindCheck,
-    uniqueIndex('evidence_links_evidence_subject_unique').on(
-      table.evidence_id,
-      table.subject_kind,
-      table.subject_id,
-    ),
+    uniqueIndex('evidence_links_evidence_subject_unique').on(table.evidence_id, table.subject_kind, table.subject_id),
   ],
 );

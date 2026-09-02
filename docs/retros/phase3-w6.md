@@ -1,6 +1,6 @@
 # Phase 3 · Week 6 Retro — The hybrid faces the gate, and the gate holds
 
-*Day-30 checkpoint (Phase 3). The Week-6 milestone was written as "hybrid
+_Day-30 checkpoint (Phase 3). The Week-6 milestone was written as "hybrid
 default"; the discipline says a default earns that word only by **winning its
 measured A/B**. Day 29 put hybrid in front of the gate over the shared replay
 corpus, and the gate said **HOLD** — hybrid reproduces keyword there, the corpus
@@ -8,7 +8,7 @@ cannot separate them, and a non-result must not flip a default. So the week ends
 **HOLD-verified**: the retrieval surface (Days 26–28) is real and exercised, the
 cutover seam (Day 29) is a one-line, reversible config, and the default remains
 `keyword` with `hybrid`/`rag_fusion` selectable. Numbers-first, blameless, green
-before committed.*
+before committed._
 
 ## What shipped this week (Days 26–30)
 
@@ -17,7 +17,7 @@ before committed.*
   `RetrieverFactory` (`rank_method` → retriever, default `keyword`).
 - **Day 27 — the re-rank.** `DependencyProximityResolver` behind a DI seam,
   `NEUTRAL_SIGNAL = 0.5`, placeholder weights `{fusion:0.5, dependency:0.3,
-  recency:0.1, usage:0.1}`, `ReRanker` (1:1, never widens).
+recency:0.1, usage:0.1}`, `ReRanker` (1:1, never widens).
 - **Day 28 — the opt-in RAG fusion.** `LLMQueryRewriter` behind `LLMProvider`
   (variant cap 5, latency timeout, throws on empty) and `RagFusionRetriever`
   (multi-query union + RRF, single-query fallback).
@@ -50,7 +50,7 @@ decision:      HOLD
 
 Day 30 validates that held state rather than manufacturing a WIN:
 
-- `DEFAULT_RANK_METHOD = RANK_METHOD_KEYWORD` — the one resolved value that *is*
+- `DEFAULT_RANK_METHOD = RANK_METHOD_KEYWORD` — the one resolved value that _is_
   the default.
 - `resolve('hybrid')` and `resolve('rag_fusion')` return their fused retrievers;
   `resolve(undefined)` stays `keyword`.
@@ -89,7 +89,7 @@ on the hot path; the seam is the available cutover point, not the engine's sourc
 ## The debt carried forward
 
 - **The corpus is the debt.** `top-k=5 ≥ |candidates|` on a replayed run means
-  outcome cannot differ, so `rank_correlation` never disagrees — a *measurement*
+  outcome cannot differ, so `rank_correlation` never disagrees — a _measurement_
   gap, not a finding. The default flips only when a **live** comparison, with real
   top-k pressure, moves `rework_rate` down on `context_acceptance_rate ≥` — never
   on a dry-run screen.
@@ -108,4 +108,4 @@ on the hot path; the seam is the available cutover point, not the engine's sourc
 
 ---
 
-*Next: Day 31 — Learning Pipeline: Review Decisions → Calibration Update (Automated)*
+_Next: Day 31 — Learning Pipeline: Review Decisions → Calibration Update (Automated)_

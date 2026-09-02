@@ -1,13 +1,13 @@
 # Phase 3 · Benchmark Retro — regression PASS, agreement recomputed from the audit rows
 
-*Day-39 checkpoint (Phase 3). The "measure-the-measurer" day: re-run the
+_Day-39 checkpoint (Phase 3). The "measure-the-measurer" day: re-run the
 review-quality corpus against the current system, diff every number against the
 recorded Day-25 baseline, and recompute inter-judge + judge-vs-gold agreement
-from the __audit rows__, not from the in-memory objects that originally produced
+from the **audit rows**, not from the in-memory objects that originally produced
 them. Same rule as every prior retro: numbers-first, blameless, and green before
 committed. The headline is deliberately unexciting — **no regression** — because
 the point of a regression harness is that a clean run is the pass, not a headline
-(days 39 §2.1, §6).*
+(days 39 §2.1, §6)._
 
 ## What shipped today (Day 39)
 
@@ -18,7 +18,7 @@ the point of a regression harness is that a clean run is the pass, not a headlin
   keyless: the judge is the deterministic two-rater demonstration scorer, so the
   run is byte-reproducible.
 - **`scripts/judge-agreement-report.ts`** (`pnpm judge:agreement-report`) — the
-  provenance half. It persists the demo judges' runs through the *real*
+  provenance half. It persists the demo judges' runs through the _real_
   `judge_runs` / `judge_agreements` stores (an isolated Postgres schema), then
   **reads them back** and recomputes the agreement from the stored rows, proving
   the numbers are reproducible from the audit trail. Hermetic: the schema is
@@ -29,33 +29,33 @@ the point of a regression harness is that a clean run is the pass, not a headlin
 ## The regression diff (baseline → current)
 
 The baseline is the Day-25 Week-5 checkpoint (recorded at 3 decimals in
-`phase3-w5.md`); "current" is today's re-run of the *same* corpus and the *same*
+`phase3-w5.md`); "current" is today's re-run of the _same_ corpus and the _same_
 seeded scorer. Every metric reproduces within float-display rounding, so every
 verdict is **PASS**:
 
-| Metric | Baseline | Current | Δ | Verdict |
-|---|---|---|---|---|
-| judge-vs-gold severity | 0.935 | 0.935 | +0.0002 | PASS (±0.03) |
-| judge-vs-gold routing | 0.958 | 0.958 | +0.0003 | PASS (±0.03) |
-| judge-vs-gold usefulness | 1.000 | 1.000 | ±0.0000 | PASS (floor 0.5) |
-| inter-judge severity agreement | 0.920 | 0.920 | +0.0001 | PASS (floor 0.7) |
-| inter-judge routing agreement | 0.945 | 0.945 | −0.0002 | PASS (±0.03) |
-| inter-judge κ (severity) | 1.000 | 1.000 | ±0.0000 | PASS |
-| refit ranking (incumbent → candidate) | 1.000 → 1.000 | 1.000 → 1.000 | — | PASS |
-| refit log-loss (incumbent → candidate) | 0.440 → 0.205 | 0.440 → 0.205 | — | PASS |
-| A/B verdict | TIE (Δ 0.0000) | TIE (Δ 0.0000) | — | PASS |
-| decision | HOLD | HOLD | unchanged | PASS |
+| Metric                                 | Baseline       | Current        | Δ         | Verdict          |
+| -------------------------------------- | -------------- | -------------- | --------- | ---------------- |
+| judge-vs-gold severity                 | 0.935          | 0.935          | +0.0002   | PASS (±0.03)     |
+| judge-vs-gold routing                  | 0.958          | 0.958          | +0.0003   | PASS (±0.03)     |
+| judge-vs-gold usefulness               | 1.000          | 1.000          | ±0.0000   | PASS (floor 0.5) |
+| inter-judge severity agreement         | 0.920          | 0.920          | +0.0001   | PASS (floor 0.7) |
+| inter-judge routing agreement          | 0.945          | 0.945          | −0.0002   | PASS (±0.03)     |
+| inter-judge κ (severity)               | 1.000          | 1.000          | ±0.0000   | PASS             |
+| refit ranking (incumbent → candidate)  | 1.000 → 1.000  | 1.000 → 1.000  | —         | PASS             |
+| refit log-loss (incumbent → candidate) | 0.440 → 0.205  | 0.440 → 0.205  | —         | PASS             |
+| A/B verdict                            | TIE (Δ 0.0000) | TIE (Δ 0.0000) | —         | PASS             |
+| decision                               | HOLD           | HOLD           | unchanged | PASS             |
 
 **Overall: PASS (10 pass / 0 warn / 0 fail).** The micro-Δs (`+0.0002`,
-`−0.0002`, …) are *display* rounding: the baseline was scribed at 3 decimals and
+`−0.0002`, …) are _display_ rounding: the baseline was scribed at 3 decimals and
 the re-run carries full float precision — not drift. A tolerance of ±0.03 (WARN
 ≤ ±0.05) makes that explicit rather than buried.
 
 ## The recompute proof (agreement from the audit rows)
 
 `pnpm judge:agreement-report` writes 12 `judge_runs` rows (6 reports × 2 raters)
-and one `judge_agreements` row, then re-derives the same two numbers *from those
-rows*:
+and one `judge_agreements` row, then re-derives the same two numbers _from those
+rows_:
 
 - **inter-judge** severity 0.920 / routing 0.945 (κ 1.000, `n=6`) — recomputed
   phrase-by-phrase from the read-back `judge_runs` score columns, paired by
@@ -72,12 +72,12 @@ very `run_a_ids` / `run_b_ids` / `report_hashes` it was computed from. That is
 the "numbers reproducible from stored rows" acceptance criterion made literal:
 a screenshot is not an audit (day-39 §2.2).
 
-## The honesty boundary (what today does *not* prove)
+## The honesty boundary (what today does _not_ prove)
 
-- **The regression proves the *pipeline math* is regression-free, not that the
+- **The regression proves the _pipeline math_ is regression-free, not that the
   judge is good.** The only LLM call is a seeded PRNG stand-in (`mulberry32`,
   seeds 1 & 2) that perturbs the gold — so the near-1.0 agreements are circular,
-  and the Δ=0.000 regression is *by construction*. It catches a drift in the
+  and the Δ=0.000 regression is _by construction_. It catches a drift in the
   agreement/refit/A-B `compute` path; it cannot catch live-model drift, which
   needs a keyed corpus × live-judge run this repo deliberately never carries
   (compile-tested-only `.env` hygiene).
@@ -85,7 +85,7 @@ a screenshot is not an audit (day-39 §2.2).
   larger, independently-labelled corpus is the precondition for deployable
   weights (carried from day-25 §6).
 - **No code-generation content anywhere.** The corpus is review-quality gold
-  labels; the regression asserts *review* quality only (day-39 §2.4).
+  labels; the regression asserts _review_ quality only (day-39 §2.4).
 
 ## Acceptance criteria
 
@@ -97,4 +97,4 @@ a screenshot is not an audit (day-39 §2.2).
 
 ---
 
-*Next: Day 40 — Phase-3 Exit Review: Learning Closed + Demonstrable; Tag Release*
+_Next: Day 40 — Phase-3 Exit Review: Learning Closed + Demonstrable; Tag Release_

@@ -79,18 +79,12 @@ export class UsageLearner {
       const ageMs = nowMs - observation.observedAtMs;
       const decay = clamp(Math.pow(2, -ageMs / this.config.halfLifeMs), 0, 1);
       const contribution = (observation.useful ? 1 : -1) * this.config.maxSingleMark * decay;
-      accumulated.set(
-        observation.sourceId,
-        (accumulated.get(observation.sourceId) ?? 0) + contribution,
-      );
+      accumulated.set(observation.sourceId, (accumulated.get(observation.sourceId) ?? 0) + contribution);
     }
 
     const signal = new Map<string, number>();
     for (const [sourceId, total] of accumulated) {
-      signal.set(
-        sourceId,
-        clamp(this.config.neutral + total, this.config.minSignal, this.config.maxSignal),
-      );
+      signal.set(sourceId, clamp(this.config.neutral + total, this.config.minSignal, this.config.maxSignal));
     }
     return signal;
   }

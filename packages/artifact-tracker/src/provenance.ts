@@ -100,10 +100,7 @@ export interface TrackedProvenanceChain {
  * task that has gone through an agent run; a task with no runs yields only
  * `task` populated and the rest empty.
  */
-export async function buildProvenanceChain(
-  db: DrizzleDB,
-  taskId: TaskID,
-): Promise<TrackedProvenanceChain> {
+export async function buildProvenanceChain(db: DrizzleDB, taskId: TaskID): Promise<TrackedProvenanceChain> {
   const taskRows = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   const taskRow = taskRows[0];
 
@@ -116,8 +113,7 @@ export async function buildProvenanceChain(
   // Rows keyed on the task's agent runs. Guarded: `inArray(…, [])` is invalid SQL.
   let llmCalls: readonly ProvenanceLlmCall[] = [];
   let trajectory: readonly ProvenanceTrajectoryStep[] = [];
-  let changeRows: { id: string; artifact_id: string; content_hash: string; created_at: Date }[] =
-    [];
+  let changeRows: { id: string; artifact_id: string; content_hash: string; created_at: Date }[] = [];
   if (runIds.length > 0) {
     llmCalls = await db
       .select({ id: llmCallLog.id, model: llmCallLog.model })
@@ -223,10 +219,7 @@ async function loadArtifacts(
  * and the evidence ids linked to those check results (both `CHECK_OUTPUT` and
  * `TEST_RESULTS` evidence are bound to their check result via `evidence_links`).
  */
-async function loadVerification(
-  db: DrizzleDB,
-  changeIds: readonly string[],
-): Promise<ProvenanceVerification> {
+async function loadVerification(db: DrizzleDB, changeIds: readonly string[]): Promise<ProvenanceVerification> {
   if (changeIds.length === 0) {
     return { reports: [], checkResults: [], evidenceIds: [] };
   }

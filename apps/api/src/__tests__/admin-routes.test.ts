@@ -44,15 +44,13 @@ beforeEach(async () => {
   // killed_by) before touching users.
   await testDb.db.delete(eventLog);
   await testDb.db.delete(sessions);
-  await testDb.db
-    .update(autoApproveKillSwitch)
-    .set({
-      auto_approve_enabled: false,
-      enabled: true,
-      killed_at: null,
-      killed_by: null,
-      reason: null,
-    });
+  await testDb.db.update(autoApproveKillSwitch).set({
+    auto_approve_enabled: false,
+    enabled: true,
+    killed_at: null,
+    killed_by: null,
+    reason: null,
+  });
   await testDb.db.delete(users);
 });
 

@@ -59,7 +59,7 @@ REWORK, COMPLETED, FAILED, AWAITING_HUMAN_INTERVENTION, CANCELLED, RETRYING
 ```
 
 `createTask()` defaults: `PENDING`, `owner: 'system'`, `priority: MEDIUM`,
-`retryCount: 0`, `maxRetries: 3`, `timeoutSeconds: 3600`. The *transition graph*
+`retryCount: 0`, `maxRetries: 3`, `timeoutSeconds: 3600`. The _transition graph_
 over these states lives in `@harness/orchestrator` (`TaskStateMachine`), not here.
 
 ---
@@ -156,20 +156,20 @@ The bus that transports these lives in `@harness/event-bus`. `TaskTrigger`
 
 ## Module map
 
-| File | Holds |
-| --- | --- |
-| `ids.ts` | 22 branded IDs + `uuidv7()` + factories. |
-| `result.ts` | `Result<T,E>`. |
-| `task.ts` | `TaskStatus`, `Task`, `createTask`. |
-| `agent-run.ts` | agent lifecycle, trajectory, execution request. |
-| `artifact.ts` | artifacts & changes. |
-| `context.ts` | context snapshots. |
-| `verification.ts` | trust pipeline. |
-| `attention.ts` | attention assessment. |
-| `review.ts` | decisions & review queue. |
-| `identity.ts` / `actor-context.ts` | users/sessions + request actor. |
-| `provenance.ts` | provenance read-model. |
-| `events/` | event types + payloads. |
+| File                               | Holds                                           |
+| ---------------------------------- | ----------------------------------------------- |
+| `ids.ts`                           | 22 branded IDs + `uuidv7()` + factories.        |
+| `result.ts`                        | `Result<T,E>`.                                  |
+| `task.ts`                          | `TaskStatus`, `Task`, `createTask`.             |
+| `agent-run.ts`                     | agent lifecycle, trajectory, execution request. |
+| `artifact.ts`                      | artifacts & changes.                            |
+| `context.ts`                       | context snapshots.                              |
+| `verification.ts`                  | trust pipeline.                                 |
+| `attention.ts`                     | attention assessment.                           |
+| `review.ts`                        | decisions & review queue.                       |
+| `identity.ts` / `actor-context.ts` | users/sessions + request actor.                 |
+| `provenance.ts`                    | provenance read-model.                          |
+| `events/`                          | event types + payloads.                         |
 
 ## Dependency rule
 

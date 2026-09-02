@@ -42,15 +42,10 @@ export async function appendVersion(
   const dedupKey = memoryDedupKey(candidate.kind, candidate.subject);
 
   // `listByKind` returns newest-first, so the head is the first sibling (if any).
-  const siblings = (await store.listByKind(candidate.kind)).filter(
-    (entry) => entry.metadata.dedup_key === dedupKey,
-  );
+  const siblings = (await store.listByKind(candidate.kind)).filter((entry) => entry.metadata.dedup_key === dedupKey);
   const head: MemoryEntry | null = siblings[0] ?? null;
 
-  const confidence = Math.min(
-    candidate.confidence + siblings.length * CONFIDENCE_RECURRENCE_INCREMENT,
-    MAX_CONFIDENCE,
-  );
+  const confidence = Math.min(candidate.confidence + siblings.length * CONFIDENCE_RECURRENCE_INCREMENT, MAX_CONFIDENCE);
 
   return store.create({
     kind: candidate.kind,

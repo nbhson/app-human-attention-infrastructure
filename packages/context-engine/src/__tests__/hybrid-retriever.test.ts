@@ -8,11 +8,7 @@ function fake(method: string, docs: RetrievedDoc[]): Retriever {
   return { method, retrieve: async () => docs };
 }
 
-function doc(
-  sourceId: string,
-  score: number,
-  matchedBy: RetrievedDoc['matchedBy'] = 'lexical',
-): RetrievedDoc {
+function doc(sourceId: string, score: number, matchedBy: RetrievedDoc['matchedBy'] = 'lexical'): RetrievedDoc {
   return { sourceId, content: `content:${sourceId}`, score, matchedBy };
 }
 

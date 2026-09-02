@@ -316,9 +316,7 @@ describe('MemoryIngestor (day-17 §2.3 §3.4)', () => {
   });
 
   it('versioned append keys the same idea by kind|subject', () => {
-    expect(memoryDedupKey(MemoryKind.REVIEW, 'report:https://x/p/2')).toBe(
-      'REVIEW|report:https://x/p/2',
-    );
+    expect(memoryDedupKey(MemoryKind.REVIEW, 'report:https://x/p/2')).toBe('REVIEW|report:https://x/p/2');
     expect(memoryDedupKey(MemoryKind.FINDING, 'finding:MAJOR:missing null check')).toBe(
       'FINDING|finding:MAJOR:missing null check',
     );

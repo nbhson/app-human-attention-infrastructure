@@ -10,13 +10,7 @@ import type { MemoryArchivedPayload, MemoryConsolidatedPayload, MemoryID } from 
 import { InProcessEventBus } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 
-import {
-  MemoryLifecycle,
-  MemoryStore,
-  applyDecay,
-  archiveBelowThreshold,
-  consolidateChains,
-} from '../index.js';
+import { MemoryLifecycle, MemoryStore, applyDecay, archiveBelowThreshold, consolidateChains } from '../index.js';
 
 const SCHEMA = 'harness_test_memory_lifecycle';
 const NOW = new Date('2026-08-24T00:00:00Z');

@@ -20,14 +20,7 @@
 
 import { and, eq } from 'drizzle-orm';
 
-import {
-  ArtifactStatus,
-  ChangeStatus,
-  FileChangeType,
-  brand,
-  newArtifactID,
-  newChangeID,
-} from '@harness/domain';
+import { ArtifactStatus, ChangeStatus, FileChangeType, brand, newArtifactID, newChangeID } from '@harness/domain';
 import type { AgentRunID, ArtifactID, ChangeID, ProjectID } from '@harness/domain';
 import { agentRuns, artifacts, changes, tasks } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';

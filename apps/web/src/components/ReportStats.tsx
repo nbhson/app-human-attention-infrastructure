@@ -56,15 +56,7 @@ const TILE_STYLE: CSSProperties = {
   minWidth: 0,
 };
 
-function Tile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-}): JSX.Element {
+function Tile({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
   return (
     <div style={TILE_STYLE}>
       <div style={{ color: 'var(--color-text-faint)', fontSize: '0.72rem' }}>{label}</div>
@@ -104,9 +96,7 @@ export function ReportStats({
           marginTop: 'var(--space-3)',
         }}
       >
-        <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-          Statistics are unavailable for this report.
-        </p>
+        <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>Statistics are unavailable for this report.</p>
       </section>
     );
   }
@@ -161,9 +151,7 @@ export function ReportStats({
           >
             {verdict.label}
           </span>
-          <p style={{ margin: 'var(--space-2) 0 0', color: 'var(--color-text-muted)' }}>
-            {verdict.note}
-          </p>
+          <p style={{ margin: 'var(--space-2) 0 0', color: 'var(--color-text-muted)' }}>{verdict.note}</p>
         </div>
 
         <div>
@@ -235,9 +223,7 @@ export function ReportStats({
             background: 'var(--color-border)',
           }}
         >
-          {stats.findingTotal === 0 && (
-            <div style={{ flex: 1, background: 'var(--color-surface)' }} />
-          )}
+          {stats.findingTotal === 0 && <div style={{ flex: 1, background: 'var(--color-surface)' }} />}
           {nonZero.map((row) => (
             <div
               key={row.band}

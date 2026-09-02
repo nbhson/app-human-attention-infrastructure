@@ -31,15 +31,11 @@ function isCriticalPath(path: string): boolean {
  * plus `+0.1` when a secrets-adjacent path (`*.env*`, `*credentials*`) was
  * touched, capped at `1.0`. Returns `null` when there is no verification report.
  */
-export function extractRisk(
-  verdict: VerificationVerdict | null,
-  paths: readonly string[],
-): number | null {
+export function extractRisk(verdict: VerificationVerdict | null, paths: readonly string[]): number | null {
   if (verdict === null) {
     return null;
   }
-  const base =
-    verdict === 'FAILED' ? 0.9 : verdict === 'FLAKY' ? 0.6 : verdict === 'TIMED_OUT' ? 0.7 : 0.1;
+  const base = verdict === 'FAILED' ? 0.9 : verdict === 'FLAKY' ? 0.6 : verdict === 'TIMED_OUT' ? 0.7 : 0.1;
   const secrets = paths.some((path) => SECRETS_PATH.test(path));
   return Math.min(1, base + (secrets ? 0.1 : 0));
 }
@@ -85,11 +81,7 @@ export function extractNovelty(priorAssessmentCount: number): number {
  * length `min(1, steps/20)`. Always available (a small diff or a single answer
  * are valid scores, not missing evidence).
  */
-export function extractComplexity(
-  addedLines: number,
-  removedLines: number,
-  trajectoryStepCount: number,
-): number {
+export function extractComplexity(addedLines: number, removedLines: number, trajectoryStepCount: number): number {
   const lineRatio = Math.min(1, (addedLines + removedLines) / 500);
   const stepRatio = Math.min(1, trajectoryStepCount / 20);
   return 0.5 * lineRatio + 0.5 * stepRatio;
@@ -106,10 +98,7 @@ export function extractComplexity(
  * > Phase 2 calibration replaces **this one function** — keep it clearly
  * > marked and free of side effects so it can be swapped, not excavated.
  */
-export function extractConfidence(
-  verdict: VerificationVerdict | null,
-  retryCount: number,
-): number | null {
+export function extractConfidence(verdict: VerificationVerdict | null, retryCount: number): number | null {
   const verifyRisk =
     verdict === 'FAILED'
       ? 0.9

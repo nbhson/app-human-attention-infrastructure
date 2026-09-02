@@ -15,8 +15,7 @@ type TextBlock = Extract<Anthropic.ContentBlock, { type: 'text' }>;
 type ToolUseBlock = Extract<Anthropic.ContentBlock, { type: 'tool_use' }>;
 
 const isTextBlock = (block: Anthropic.ContentBlock): block is TextBlock => block.type === 'text';
-const isToolUseBlock = (block: Anthropic.ContentBlock): block is ToolUseBlock =>
-  block.type === 'tool_use';
+const isToolUseBlock = (block: Anthropic.ContentBlock): block is ToolUseBlock => block.type === 'tool_use';
 
 export function mapAnthropicResponse(message: Anthropic.Message): LLMResponse {
   const content = message.content

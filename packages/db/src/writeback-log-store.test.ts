@@ -21,10 +21,7 @@ afterAll(async () => {
 
 /** Read every row for a dedup key, keyed by row id, so assertions are order-independent. */
 async function rowsFor(dedupKey: string) {
-  const rows = await testDb.db
-    .select()
-    .from(writebackLog)
-    .where(eq(writebackLog.dedup_key, dedupKey));
+  const rows = await testDb.db.select().from(writebackLog).where(eq(writebackLog.dedup_key, dedupKey));
   return rows;
 }
 

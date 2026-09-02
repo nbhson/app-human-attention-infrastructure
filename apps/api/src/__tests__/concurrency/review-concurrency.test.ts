@@ -24,12 +24,7 @@ import {
   users,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import {
-  createTestDb,
-  destroyTestDb,
-  openTestDbConnection,
-  type TestDb,
-} from '@harness/db/test-utils';
+import { createTestDb, destroyTestDb, openTestDbConnection, type TestDb } from '@harness/db/test-utils';
 import {
   newAgentRunID,
   newArtifactID,
@@ -171,10 +166,7 @@ describe('Day-28 C4 — double review claim', () => {
     const svcA = buildService(testDb.db, new InProcessEventBus(), transitionSpy, reportSpy);
     const svcB = buildService(peer.db, new InProcessEventBus(), transitionSpy, reportSpy);
 
-    const results = await Promise.allSettled([
-      svcA.claim(queueId, reviewerA),
-      svcB.claim(queueId, reviewerB),
-    ]);
+    const results = await Promise.allSettled([svcA.claim(queueId, reviewerA), svcB.claim(queueId, reviewerB)]);
 
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rejected = results.filter((r) => r.status === 'rejected');
@@ -223,10 +215,7 @@ describe('Day-28 C5 — double decide', () => {
       actorEmail: 'reviewer@example.com',
     };
 
-    const results = await Promise.allSettled([
-      svcA.decide(queueId, input),
-      svcB.decide(queueId, input),
-    ]);
+    const results = await Promise.allSettled([svcA.decide(queueId, input), svcB.decide(queueId, input)]);
 
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rejected = results.filter((r) => r.status === 'rejected');

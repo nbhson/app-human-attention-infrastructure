@@ -134,8 +134,7 @@ export function toToolEntry(row: ToolStepRow): AuditEntry {
 
 /** Normalise an agent run into a timeline entry, with a computed duration. */
 export function toRunEntry(row: AgentRunRow): AuditEntry {
-  const durationMs =
-    row.finished_at === null ? null : row.finished_at.getTime() - row.started_at.getTime();
+  const durationMs = row.finished_at === null ? null : row.finished_at.getTime() - row.started_at.getTime();
   return {
     id: row.id,
     kind: 'run',
@@ -190,10 +189,7 @@ export function summarizeEvent(eventType: string, payload: Record<string, unknow
 /** Newest-first k-way merge of already-fetched per-source pages, sliced to `limit`.
  *  Uses a min-heap so merging N sorted pages is O(limit × log N) instead of
  *  O(Total × log Total) from a full flatten + sort. */
-export function mergeEntries(
-  sources: ReadonlyArray<readonly AuditEntry[]>,
-  limit: number,
-): AuditEntry[] {
+export function mergeEntries(sources: ReadonlyArray<readonly AuditEntry[]>, limit: number): AuditEntry[] {
   // Simple approach: since each source page is already sorted newest-first and
   // the common case has ≤4 sources, a bounded merge is fast enough. For the
   // rare case of many sources, fall back to full sort.

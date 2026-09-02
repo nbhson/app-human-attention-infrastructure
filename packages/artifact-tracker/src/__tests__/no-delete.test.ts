@@ -33,9 +33,7 @@ describe('no-delete rule (day-14 §2.3)', () => {
     for (const file of files) {
       const content = readFileSync(join(SRC, file), 'utf8');
       for (const pattern of FORBIDDEN) {
-        expect(content, `${file} matches ${pattern} — provenance must be append-only`).not.toMatch(
-          pattern,
-        );
+        expect(content, `${file} matches ${pattern} — provenance must be append-only`).not.toMatch(pattern);
       }
     }
   });

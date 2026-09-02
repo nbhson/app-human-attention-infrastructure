@@ -31,15 +31,11 @@ export class AgreementReport {
   async record(pairs: readonly JudgeRunPair[]): Promise<JudgeAgreement> {
     for (const pair of pairs) {
       if (pair.a.reportHash !== pair.b.reportHash) {
-        throw new Error(
-          `AgreementReport: run ${pair.a.id} and ${pair.b.id} judged different report content`,
-        );
+        throw new Error(`AgreementReport: run ${pair.a.id} and ${pair.b.id} judged different report content`);
       }
     }
 
-    const agreement = computeAgreement(
-      pairs.map((pair) => ({ a: pair.a.scores, b: pair.b.scores })),
-    );
+    const agreement = computeAgreement(pairs.map((pair) => ({ a: pair.a.scores, b: pair.b.scores })));
 
     await this.store.record({
       aRunIds: pairs.map((pair) => pair.a.id),

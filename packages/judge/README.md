@@ -24,11 +24,11 @@ and measures the judge's own quality via inter-judge agreement.
 
 ## Rubric dimensions
 
-| Dimension | Weight | Meaning |
-| --- | --- | --- |
-| severity | 0.4 | how well the reviewer attributed severity. |
-| routing | 0.4 | how well the reviewer routed (review vs auto-approve). |
-| evidence | 0.2 | whether findings are evidenced, not asserted. |
+| Dimension | Weight | Meaning                                                |
+| --------- | ------ | ------------------------------------------------------ |
+| severity  | 0.4    | how well the reviewer attributed severity.             |
+| routing   | 0.4    | how well the reviewer routed (review vs auto-approve). |
+| evidence  | 0.2    | whether findings are evidenced, not asserted.          |
 
 `overall` folds the three; every dimension is numeric `[0,1]`. The prompt shows only
 the report's findings + verdict — never the diff — so the judge can't leak judgment
@@ -36,21 +36,21 @@ onto the code.
 
 ## Data shapes
 
-| Type | What it is |
-| --- | --- |
-| `JudgeScores` | `severityAgreement` / `routingAgreement` / `evidenceSufficiency` / `overall`, each `[0,1]`. |
-| `JudgeRun` | one audited run (id, reportId, promptVersion, model, temperature, reportHash, scores, reasoning). |
-| `JudgeAgreement` | per-dimension agreement + κ over N matched pairs. |
+| Type             | What it is                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `JudgeScores`    | `severityAgreement` / `routingAgreement` / `evidenceSufficiency` / `overall`, each `[0,1]`.       |
+| `JudgeRun`       | one audited run (id, reportId, promptVersion, model, temperature, reportHash, scores, reasoning). |
+| `JudgeAgreement` | per-dimension agreement + κ over N matched pairs.                                                 |
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `rubric.ts` | `RUBRIC_PROMPT_VERSION`, `RUBRIC_WEIGHTS`, `buildRubricPrompt`, `parseJudgeOutput`. |
-| `judge.ts` | `Judge` — rubric prompt → `LLMProvider.complete` → parse → `JudgeRunStore.record`. |
-| `report-hash.ts` | `canonicalReportHash` — content hash a run is stamped with (reproducibility). |
-| `agreement.ts` | `computeAgreement` — the pure agreement/κ math over score pairs. |
-| `agreement-report.ts` | `AgreementReport` — persists one `judge_agreements` row per computation. |
+| Module                | What it provides                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `rubric.ts`           | `RUBRIC_PROMPT_VERSION`, `RUBRIC_WEIGHTS`, `buildRubricPrompt`, `parseJudgeOutput`. |
+| `judge.ts`            | `Judge` — rubric prompt → `LLMProvider.complete` → parse → `JudgeRunStore.record`.  |
+| `report-hash.ts`      | `canonicalReportHash` — content hash a run is stamped with (reproducibility).       |
+| `agreement.ts`        | `computeAgreement` — the pure agreement/κ math over score pairs.                    |
+| `agreement-report.ts` | `AgreementReport` — persists one `judge_agreements` row per computation.            |
 
 ## Test strategy
 

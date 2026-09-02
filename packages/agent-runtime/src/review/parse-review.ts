@@ -14,11 +14,7 @@ import type {
   ReviewVerdict as ReviewVerdictT,
 } from '@harness/domain';
 
-import type {
-  FixSuggestionOutput,
-  ReviewAgentOutput,
-  ReviewFindingOutput,
-} from './review-output.js';
+import type { FixSuggestionOutput, ReviewAgentOutput, ReviewFindingOutput } from './review-output.js';
 
 const SEVERITIES = new Set<string>(Object.values(ReviewSeverity));
 const KINDS = new Set<string>(Object.values(FindingKind));
@@ -97,9 +93,7 @@ function normalizeFindings(raw: unknown): ReviewFindingOutput[] {
       file,
       message,
       ...(line !== undefined ? { line } : {}),
-      ...(typeof f.suggestion === 'string' && f.suggestion.length > 0
-        ? { suggestion: f.suggestion }
-        : {}),
+      ...(typeof f.suggestion === 'string' && f.suggestion.length > 0 ? { suggestion: f.suggestion } : {}),
     });
   }
   return out;

@@ -91,8 +91,7 @@ Rules:
 - Be conservative: default to "low" unless you see a clear reason to flag it higher.
 - Summarise concisely — this is a triage pass, not a full review.`;
 
-  const requirement =
-    input.requirement.trim().length > 0 ? input.requirement.trim() : '(none provided)';
+  const requirement = input.requirement.trim().length > 0 ? input.requirement.trim() : '(none provided)';
   const userMessage = [
     `PULL REQUEST: ${input.prUrl}`,
     `TITLE: ${input.prTitle}`,

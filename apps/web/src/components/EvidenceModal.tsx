@@ -57,9 +57,7 @@ export function EvidenceModal({
           {isError && <p>Could not load evidence {evidenceId}.</p>}
           {data && (
             <>
-              <p style={{ color: 'var(--color-text-faint)', fontSize: '0.85rem' }}>
-                kind: {data.kind}
-              </p>
+              <p style={{ color: 'var(--color-text-faint)', fontSize: '0.85rem' }}>kind: {data.kind}</p>
               <pre
                 data-testid="evidence-body"
                 style={{

@@ -5,10 +5,7 @@ import type { EmbeddingRowSignature } from '../health.js';
 import { truncateSource } from '../indexer.js';
 
 /** Build a stored-row signature with sensible defaults, overridable per test. */
-function row(
-  sourceId: string,
-  overrides: Partial<EmbeddingRowSignature> = {},
-): EmbeddingRowSignature {
+function row(sourceId: string, overrides: Partial<EmbeddingRowSignature> = {}): EmbeddingRowSignature {
   return { sourceId, contentHash: 'v1', embedded: true, ...overrides };
 }
 
@@ -17,13 +14,9 @@ describe('isFreshVector (day-17 §2.4 read-path guard)', () => {
     const currentHash = 'abc';
     expect(isFreshVector(row('s', { contentHash: 'abc', embedded: true }), currentHash)).toBe(true);
     // Hash drifted → stale, even though a vector exists.
-    expect(isFreshVector(row('s', { contentHash: 'def', embedded: true }), currentHash)).toBe(
-      false,
-    );
+    expect(isFreshVector(row('s', { contentHash: 'def', embedded: true }), currentHash)).toBe(false);
     // No vector → pending, never servable.
-    expect(isFreshVector(row('s', { contentHash: 'abc', embedded: false }), currentHash)).toBe(
-      false,
-    );
+    expect(isFreshVector(row('s', { contentHash: 'abc', embedded: false }), currentHash)).toBe(false);
   });
 });
 

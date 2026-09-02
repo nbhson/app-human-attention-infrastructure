@@ -57,19 +57,14 @@ describe('Day-28 C6 — event idempotency', () => {
     bus.publish(event);
 
     await waitFor(
-      async () =>
-        (await testDb.db.select().from(eventLog).where(eq(eventLog.event_id, event.event_id)))
-          .length === 1,
+      async () => (await testDb.db.select().from(eventLog).where(eq(eventLog.event_id, event.event_id))).length === 1,
       5_000,
       'event_log dedup',
     );
 
     // Give any stray write a beat, then assert it never grew past one.
     await new Promise((resolve) => setTimeout(resolve, 150));
-    const rows = await testDb.db
-      .select()
-      .from(eventLog)
-      .where(eq(eventLog.event_id, event.event_id));
+    const rows = await testDb.db.select().from(eventLog).where(eq(eventLog.event_id, event.event_id));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.correlation_id).toBe(taskId);
     expect(rows[0]?.event_type).toBe(EventType.TaskFailed);

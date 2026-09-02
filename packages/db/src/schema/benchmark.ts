@@ -1,12 +1,4 @@
-import {
-  boolean,
-  doublePrecision,
-  index,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-} from 'drizzle-orm/pg-core';
+import { boolean, doublePrecision, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
  * The review-quality benchmark corpus (review-reorient Phase 3 day-24 §2.1) —

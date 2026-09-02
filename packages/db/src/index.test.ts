@@ -94,14 +94,10 @@ describe('@harness/db schema', () => {
     await testDb.db.insert(projects).values({ id: projectId, name: 'p', repo_path: '/r' });
     const key = 'duplicate-key';
 
-    await testDb.db
-      .insert(tasks)
-      .values({ id: newTaskID(), project_id: projectId, title: 't1', idempotency_key: key });
+    await testDb.db.insert(tasks).values({ id: newTaskID(), project_id: projectId, title: 't1', idempotency_key: key });
 
     await expect(
-      testDb.db
-        .insert(tasks)
-        .values({ id: newTaskID(), project_id: projectId, title: 't2', idempotency_key: key }),
+      testDb.db.insert(tasks).values({ id: newTaskID(), project_id: projectId, title: 't2', idempotency_key: key }),
     ).rejects.toThrow();
   });
 
@@ -136,10 +132,7 @@ describe('@harness/db schema', () => {
       { event_id: newEventID(), correlation_id: other, ...base },
     ]);
 
-    const rows = await testDb.db
-      .select()
-      .from(eventLog)
-      .where(eq(eventLog.correlation_id, correlationId));
+    const rows = await testDb.db.select().from(eventLog).where(eq(eventLog.correlation_id, correlationId));
     expect(rows).toHaveLength(2);
   });
 

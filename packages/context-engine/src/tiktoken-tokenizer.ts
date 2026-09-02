@@ -24,8 +24,7 @@ import r50k_base from 'js-tiktoken/ranks/r50k_base';
 import type { Tokenizer } from './types.js';
 
 /** The encodings js-tiktoken can resolve and this package ships locally. */
-export type TiktokenEncodingName =
-  'gpt2' | 'r50k_base' | 'p50k_base' | 'p50k_edit' | 'cl100k_base' | 'o200k_base';
+export type TiktokenEncodingName = 'gpt2' | 'r50k_base' | 'p50k_base' | 'p50k_edit' | 'cl100k_base' | 'o200k_base';
 
 /** Statically linked rank tables — no runtime network fetch (§1 deterministic). */
 const RANKS: Record<TiktokenEncodingName, TiktokenBPE> = {

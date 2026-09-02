@@ -21,13 +21,7 @@ import {
   newReviewQueueItemID,
   ReviewQueueStatus,
 } from '@harness/domain';
-import type {
-  AssessmentID,
-  ChangeID,
-  DecisionSubmittedPayload,
-  ReviewQueueItemID,
-  TaskID,
-} from '@harness/domain';
+import type { AssessmentID, ChangeID, DecisionSubmittedPayload, ReviewQueueItemID, TaskID } from '@harness/domain';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import type { Logger } from '@harness/di';

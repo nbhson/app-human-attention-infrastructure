@@ -22,9 +22,7 @@ export function initApiTracing(container: Container): void {
   initTracing({
     // OTLP export is opt-in via env; otherwise devs and tests use the in-memory
     // sink (day-03 §2.5). OTel's own exporter swallows batch errors.
-    ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT
-      ? { otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT }
-      : {}),
+    ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? { otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT } : {}),
     console: process.env.OTEL_CONSOLE === 'true',
     // One row per ROOT span (day-03 §2.3); onConflictDoNothing keeps a re-run
     // idempotent. Errors are logged and dropped — never rethrown.

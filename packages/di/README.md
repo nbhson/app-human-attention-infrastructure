@@ -1,7 +1,7 @@
 # @harness/di — Dependency Injection Container
 
 The hand-rolled dependency-injection container that joins the packages together
-at startup — packages depend on *interfaces*, this package wires the concretes.
+at startup — packages depend on _interfaces_, this package wires the concretes.
 
 **Status:** complete (as-built) ·
 **Boundary rule:** does not import the engine packages — it wires them, never depends on them.
@@ -46,9 +46,9 @@ import { Container, TOKENS, ContainerError } from '@harness/di';
 const c = new Container();
 
 c.register(TOKENS.EventBus, () => new InProcessEventBus()); // lazy factory
-const bus = c.resolve(TOKENS.EventBus);                    // cached singleton
-c.has(TOKENS.EventBus);                                     // true
-c.reset();                                                  // clears instances, keeps registrations
+const bus = c.resolve(TOKENS.EventBus); // cached singleton
+c.has(TOKENS.EventBus); // true
+c.reset(); // clears instances, keeps registrations
 ```
 
 **Why string tokens, not `Symbol`/class references?** Class-reference DI
@@ -59,12 +59,12 @@ separate registration from resolution and are readable/loggable.
 
 ## Modules
 
-| Module | What it provides |
-| --- | --- |
-| `container.ts` | `Container` + `Factory<T>`. |
-| `tokens.ts` | `TOKENS` (string constants) + `Token` type. |
-| `errors.ts` | `ContainerError`. |
-| `logger.ts` | `createRootLogger` / `withCorrelation`. |
+| Module         | What it provides                            |
+| -------------- | ------------------------------------------- |
+| `container.ts` | `Container` + `Factory<T>`.                 |
+| `tokens.ts`    | `TOKENS` (string constants) + `Token` type. |
+| `errors.ts`    | `ContainerError`.                           |
+| `logger.ts`    | `createRootLogger` / `withCorrelation`.     |
 
 ---
 

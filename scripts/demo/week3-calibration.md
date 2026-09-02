@@ -1,19 +1,19 @@
 # Week 3 Live Demo — Calibration & Auto-Approve
 
-*Phase 2 · day-15 checkpoint. A narrated runbook: extract a frozen calibration
+_Phase 2 · day-15 checkpoint. A narrated runbook: extract a frozen calibration
 dataset from the live decision log, fit five weights from it, read the before/after
 table the fit actually produced — then drive the gated auto-approve path and trip
 its kill-switch. Every command below is the real code path; the fit numbers in
 §2 are the ones `pnpm eval:fit` printed into this repo's dev database, not a
-hand-authored table.*
+hand-authored table._
 
 > Two of the three beats are **honest by construction**, and the honest result is
 > a red one: on this repo's tiny seed corpus the fitted weights did **not** beat the
 > Phase-1 placeholder (log-loss 0.316 vs 0.262 on a one-row held-out set), so the
 > gate refuses auto-approve and the placeholder stays active. That is the correct
 > outcome of a hard checkpoint (§6 of the day-15 spec) — the pipeline measured the
-> fit and *declined* to promote it. The third beat then proves the auto-approve
-> machinery works *when* calibration is green, using an explicit green fixture
+> fit and _declined_ to promote it. The third beat then proves the auto-approve
+> machinery works _when_ calibration is green, using an explicit green fixture
 > (the same one the Day-14 tests use), and shows the kill-switch re-opening an
 > in-flight item to a human.
 
@@ -85,7 +85,7 @@ pnpm eval:make-dataset --label=outcome
 
 **Beat:** five rows, class balance 4 APPROVED vs 1 REJECTED, 40% of rows carry no
 feedback. That is a **real** dataset, hash-sealed so no later retcon changes what
-the fit saw — and it is also a *five-row* dataset, which is exactly the number the
+the fit saw — and it is also a _five-row_ dataset, which is exactly the number the
 retro must not wave away.
 
 ---
@@ -126,17 +126,17 @@ pnpm eval:fit --dataset=01a02937-859f-784e-bbef-56d9cdb5e4d6
 
 The before/after table, read straight off that JSON:
 
-| | `log_loss` | `ranking_accuracy` | weight vector |
-|---|---|---|---|
-| **Placeholder (v0.2 Phase-1)** | **0.262** | 1.0 | `risk .35 · impact .25 · novelty .15 · complexity .10 · confidence .15` |
-| **Fitted (logistic-regression-v0)** | 0.316 | 1.0 | uniform 0.2 across all five factors |
+|                                     | `log_loss` | `ranking_accuracy` | weight vector                                                           |
+| ----------------------------------- | ---------- | ------------------ | ----------------------------------------------------------------------- |
+| **Placeholder (v0.2 Phase-1)**      | **0.262**  | 1.0                | `risk .35 · impact .25 · novelty .15 · complexity .10 · confidence .15` |
+| **Fitted (logistic-regression-v0)** | 0.316      | 1.0                | uniform 0.2 across all five factors                                     |
 
-**Beat:** the fit is *measured, not asserted* — `improvement: false`, and the
-governance note is set. Fitted log-loss (0.316) is *worse* than the placeholder
+**Beat:** the fit is _measured, not asserted_ — `improvement: false`, and the
+governance note is set. Fitted log-loss (0.316) is _worse_ than the placeholder
 (0.262); ranking accuracy ties at 1.0 because a one-row held-out set can only be
 perfect or perfectly wrong. The honest consequence demonstrates itself in the next
 beat: with this red fit on record, the auto-approve gate refuses to fire, even if
-an admin flips the flag. The system *declines to promote a regression* — which is
+an admin flips the flag. The system _declines to promote a regression_ — which is
 the checkpoint working as designed, not a failure to ship.
 
 ---
@@ -160,7 +160,7 @@ curl -s -b /tmp/harness.jar -X POST http://localhost:3000/api/admin/auto-approve
 #   { "autoApproveEnabled": true }
 ```
 
-Route a LOW item (combined priority 0.1 < bar 0.2, so it *would* clear part 3):
+Route a LOW item (combined priority 0.1 < bar 0.2, so it _would_ clear part 3):
 
 ```bash
 psql "${DATABASE_URL:-postgres://harness:harness@localhost:5432/harness}" <<'SQL'
@@ -180,7 +180,7 @@ SQL
 ```
 
 When `attention.item_routed` fires for that queue row, the executor denies it —
-and because the denial is *not silent*, the refusal is visible in the log and the
+and because the denial is _not silent_, the refusal is visible in the log and the
 item stays `QUEUED` (no decision row is written):
 
 ```bash
@@ -191,8 +191,8 @@ psql "$DATABASE_URL" -c "SELECT status FROM review_queue WHERE id = 'demo-q';"  
 ### 3.2 A green fit unlocks the path
 
 Seed an explicit green fit (the same `GREEN_CALIBRATION` fixture the Day-14 tests
-use — fitted log-loss *below* placeholder, ranking not worse). This is a **fixture**,
-clearly marked: it is *not* a claim that §2's fit was green, it is the precondition
+use — fitted log-loss _below_ placeholder, ranking not worse). This is a **fixture**,
+clearly marked: it is _not_ a claim that §2's fit was green, it is the precondition
 that makes the auto-approve machinery demonstrable.
 
 ```bash
@@ -246,7 +246,7 @@ curl -s -b /tmp/harness.jar -X POST http://localhost:3000/api/admin/auto-approve
 #   { "ok": true, "killed": true }
 ```
 
-The one UPDATE both disables auto-approve *and* requeues every in-flight
+The one UPDATE both disables auto-approve _and_ requeues every in-flight
 `AUTO_APPROVABLE` item to a human (rule `kill-switch-requeue`, action flipped to
 `REVIEW_REQUIRED`) — and a subsequent auto-approve attempt is denied as tripped:
 

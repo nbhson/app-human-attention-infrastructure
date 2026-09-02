@@ -49,15 +49,9 @@ function parseArgs(argv: readonly string[]): { datasetId: string | null; config:
   for (const arg of argv) {
     if (arg.startsWith('--dataset=')) datasetId = arg.slice('--dataset='.length);
     else if (arg.startsWith('--seed=')) seed = Number.parseInt(arg.slice('--seed='.length), 10);
-    else if (arg.startsWith('--val='))
-      validationShare = Number.parseFloat(arg.slice('--val='.length));
+    else if (arg.startsWith('--val=')) validationShare = Number.parseFloat(arg.slice('--val='.length));
   }
-  if (
-    Number.isNaN(seed) ||
-    !Number.isFinite(validationShare) ||
-    validationShare <= 0 ||
-    validationShare >= 1
-  ) {
+  if (Number.isNaN(seed) || !Number.isFinite(validationShare) || validationShare <= 0 || validationShare >= 1) {
     throw new Error('--seed must be an integer and --val a share strictly between 0 and 1');
   }
   return {
@@ -117,10 +111,7 @@ interface CalibrationRowDatum {
 }
 
 /** Load the fit samples for one dataset (row → feature vector + binary label). */
-async function loadSamples(
-  db: DrizzleDB,
-  datasetId: string,
-): Promise<{ samples: FitSample[]; labelSource: string }> {
+async function loadSamples(db: DrizzleDB, datasetId: string): Promise<{ samples: FitSample[]; labelSource: string }> {
   const [datasetRows, rowData] = await Promise.all([
     db
       .select({ labelSource: calibrationDatasets.label_source })

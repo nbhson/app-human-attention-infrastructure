@@ -1,12 +1,12 @@
 # Phase 3 · Week 6 Cutover — hybrid faces the gate, and the gate holds
 
-*Day-29 checkpoint (Phase 3). The Day-26/27/28 retrieval work — hybrid
+_Day-29 checkpoint (Phase 3). The Day-26/27/28 retrieval work — hybrid
 (`HybridRetriever`, lexical ⊕ semantic fused by RRF, then re-ranked) behind the
 single `Retriever` seam — is finally put in front of the measured A/B gate that
 every default must clear before it ships. The verdict is **HOLD**: the default
 `rank_method` stays `keyword`, hybrid remains *selectable* per request, and the
 one-line cutover seam is documented, reversible, and — as the plan demands —
-did **not** flip without a measured WIN.*
+did **not** flip without a measured WIN._
 
 ## What shipped this week (Days 26–28) — the retrieval surface
 
@@ -17,7 +17,7 @@ did **not** flip without a measured WIN.*
   (k=60); `RetrieverFactory` resolves `rank_method` (default `keyword`).
 - **Day 27 — the re-rank.** `DependencyProximityResolver` behind a DI seam,
   `NEUTRAL_SIGNAL = 0.5`, placeholder weights `{fusion:0.5, dependency:0.3,
-  recency:0.1, usage:0.1}`, and `ReRanker` (1:1 re-order, never widens).
+recency:0.1, usage:0.1}`, and `ReRanker` (1:1 re-order, never widens).
 - **Day 28 — the opt-in RAG fusion.** `LLMQueryRewriter` behind `LLMProvider`
   (variant cap 5, latency timeout, throws on empty) and `RagFusionRetriever`
   (multi-query union + RRF, graceful single-query fallback).
@@ -55,25 +55,25 @@ decision:      HOLD
 
 Three facts, read together:
 
-1. **Hybrid *agrees* with keyword over this corpus** (`tau = 1.0` on every
+1. **Hybrid _agrees_ with keyword over this corpus** (`tau = 1.0` on every
    computable input). The Phase-2 semantic-shadow run (`week6-ab-results.md`)
-   found the two layers *exact reversals* (`tau = -1`): semantic surfaces the
+   found the two layers _exact reversals_ (`tau = -1`): semantic surfaces the
    content-rich helper, keyword surfaces the dependency-central target. Hybrid's
    re-rank closes that gap — its dependency signal (target = 1.0 vs helper =
    0.1) restores the target to the top, reproducing keyword's order on fixtures
-   whose target is dependency-central. The fusion is not broken; it is *doing the
-   re-rank's job*.
+   whose target is dependency-central. The fusion is not broken; it is _doing the
+   re-rank's job_.
 
 2. **The replay corpus is under-powered to separate them.** Two of the three
    fixtures are multi-file, but neither makes a consumed file leave one arm's
    top-5 while staying in the other's, so acceptance is `1.0` and rework `0.0`
-   for *both* arms — a replayed run's consumed files are fixed by the record.
+   for _both_ arms — a replayed run's consumed files are fixed by the record.
    With `top-k=5 ≥ |candidates|`, outcome cannot differ, so `rank_correlation`
    never disagrees. That is a **measurement gap**, not a finding.
 
 3. **Under the plan's gate, a non-result is a HOLD, not a flip.** §6 is explicit:
-   if the corpus can't produce a clean verdict, the answer is *HOLD + fix the
-   measurement* — never "flip and see". The harness emits `keep-shadow` with its
+   if the corpus can't produce a clean verdict, the answer is _HOLD + fix the
+   measurement_ — never "flip and see". The harness emits `keep-shadow` with its
    reason trace, and the default does not move.
 
 ## The gate, made explicit and reversible
@@ -89,7 +89,7 @@ export const DEFAULT_RANK_METHOD: RankMethod = RANK_METHOD_KEYWORD;
 dependency is absent). Flipping the default to `hybrid`, when a live A/B wins on
 the pre-agreed primary metric (**rework down, context acceptance ≥**), is a
 one-line change with the A/B report + this decision as its audit trail. The
-docstring records *why* it is `keyword` today, so the next person does not need to
+docstring records _why_ it is `keyword` today, so the next person does not need to
 reverse-engineer the gate.
 
 ## The invariants, and what holds them
@@ -103,7 +103,7 @@ reverse-engineer the gate.
 - **Vary one thing.** Both arms share the tokenizer, the corpus, the top-k, and
   target-preservation; only the rank function differs. `ranking-variants.test.ts`
   proves the mechanism both ways — the arms deterministically reorder a pure
-  corpus, and a new case shows hybrid *re-ranks* keyword (dependency restores a
+  corpus, and a new case shows hybrid _re-ranks_ keyword (dependency restores a
   target keyword under-ranked) so the hybrid seam is a real, exercised function,
   not a pass-through.
 - **No boundary was crossed.** The hybrid arm is a shadow copy — no
@@ -113,7 +113,7 @@ reverse-engineer the gate.
 
 ## Decisions / debts carried forward
 
-- **Default stays `keyword`.** Hybrid and `rag_fusion` remain *selectable* for a
+- **Default stays `keyword`.** Hybrid and `rag_fusion` remain _selectable_ for a
   live, outcome-measuring A/B; neither ships as the default until it wins there.
 - **The corpus is the debt.** The next comparison must run where top-k pressure
   actually bites — real traffic with enough candidates that a consumed file can
@@ -125,7 +125,7 @@ reverse-engineer the gate.
 
 ---
 
-*Checkpoint rule applied: `pnpm lint`, `pnpm typecheck`, and `pnpm test` are
+_Checkpoint rule applied: `pnpm lint`, `pnpm typecheck`, and `pnpm test` are
 green; the `eval:ab-report` numbers above reproduce verbatim from the isolated
 `ab_*` tables via `--run`, with the guardrail HELD. The served default remains
-`keyword`; arm B's `hybrid` ranking exists only in `ab_runs.report`.*
+`keyword`; arm B's `hybrid` ranking exists only in `ab_runs.report`._

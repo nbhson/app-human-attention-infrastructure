@@ -23,16 +23,7 @@ import { extname, isAbsolute, resolve } from 'node:path';
 import { count, eq } from 'drizzle-orm';
 import { config } from 'dotenv';
 
-import {
-  abExperiments,
-  abRuns,
-  AbStore,
-  asReadonlyDb,
-  contexts,
-  createDb,
-  decisions,
-  tasks,
-} from '@harness/db';
+import { abExperiments, abRuns, AbStore, asReadonlyDb, contexts, createDb, decisions, tasks } from '@harness/db';
 import type { AbRunReport, ReadonlyDb } from '@harness/db';
 
 import { loadTrajectory } from '../replay/loader.js';
@@ -122,13 +113,10 @@ export class RankingDryRun {
 
     for (const input of config.fixtures) {
       const corpus = deriveRankingCorpus(input.trajectory);
-      const consumed = [
-        ...new Set([...corpus.candidateFiles.map((file) => file.sourceId), ...corpus.targetFiles]),
-      ];
+      const consumed = [...new Set([...corpus.candidateFiles.map((file) => file.sourceId), ...corpus.targetFiles])];
       const elapsedMinutes =
         input.trajectory.endTimestamp !== undefined
-          ? (input.trajectory.endTimestamp.getTime() - input.trajectory.startTimestamp.getTime()) /
-            60_000
+          ? (input.trajectory.endTimestamp.getTime() - input.trajectory.startTimestamp.getTime()) / 60_000
           : undefined;
 
       const aOrder = keywordRanker.rank(corpus).map((source) => source.sourceId);
@@ -161,32 +149,12 @@ export class RankingDryRun {
     const evidence = evaluateEvidence(bar, config.fixtures.length, correlation, signalsA, signalsB);
     const recommendation = recommend(evidence, signalsA, signalsB);
 
-    await this.recordArm(
-      experimentId,
-      'A',
-      metric,
-      topK,
-      signalsA,
-      aOrders,
-      sourceHashes,
-      recommendation,
-    );
-    await this.recordArm(
-      experimentId,
-      'B',
-      metric,
-      topK,
-      signalsB,
-      bOrders,
-      sourceHashes,
-      recommendation,
-    );
+    await this.recordArm(experimentId, 'A', metric, topK, signalsA, aOrders, sourceHashes, recommendation);
+    await this.recordArm(experimentId, 'B', metric, topK, signalsB, bOrders, sourceHashes, recommendation);
 
     const after = await this.liveCounts();
     const noProductionEffect =
-      before.tasks === after.tasks &&
-      before.decisions === after.decisions &&
-      before.contexts === after.contexts;
+      before.tasks === after.tasks && before.decisions === after.decisions && before.contexts === after.contexts;
 
     if (!noProductionEffect) {
       throw new Error(
@@ -379,9 +347,7 @@ export function renderReport(result: RankingDryRunResult): string {
     `rank_correlation (hybrid vs keyword, top-k=${result.topK}): ` +
       `[${corr.values.map((v) => v.toFixed(3)).join(', ')}]`,
   );
-  lines.push(
-    `  count=${corr.count}  min=${fmt(corr.min)}  max=${fmt(corr.max)}  mean=${fmt(corr.mean)}`,
-  );
+  lines.push(`  count=${corr.count}  min=${fmt(corr.min)}  max=${fmt(corr.max)}  mean=${fmt(corr.mean)}`);
   lines.push('');
   lines.push(`evidence:      ${result.evidence.verdict.toUpperCase()}`);
   for (const reason of result.evidence.reasons) lines.push(`  - ${reason}`);
@@ -447,9 +413,7 @@ async function main(): Promise<void> {
 
   const topK = topKArg !== undefined ? Number(topKArg) : DEFAULT_TOP_K;
   const bar: EvidenceBar =
-    minTasksArg !== undefined
-      ? { ...DEFAULT_EVIDENCE_BAR, minTasks: Number(minTasksArg) }
-      : DEFAULT_EVIDENCE_BAR;
+    minTasksArg !== undefined ? { ...DEFAULT_EVIDENCE_BAR, minTasks: Number(minTasksArg) } : DEFAULT_EVIDENCE_BAR;
 
   const db = createDb(connectionString);
   try {

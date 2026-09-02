@@ -16,10 +16,7 @@ import type { DrizzleDB } from '@harness/db';
 import type { RoutingAction } from '@harness/domain';
 
 /** Actions the budget gates. ESCALATE/REVIEW_REQUIRED always pass (§2.4). */
-export const DEFERRABLE_ACTIONS: ReadonlySet<RoutingAction> = new Set([
-  'REVIEW_RECOMMENDED',
-  'AUTO_APPROVABLE',
-]);
+export const DEFERRABLE_ACTIONS: ReadonlySet<RoutingAction> = new Set(['REVIEW_RECOMMENDED', 'AUTO_APPROVABLE']);
 
 /** Midnight UTC for a given instant — fatigue math is timezone-explicit (§6). */
 export function startOfUtcDay(date: Date): Date {
