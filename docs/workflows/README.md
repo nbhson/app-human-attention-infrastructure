@@ -62,16 +62,16 @@ Phase 4: Synthesize
 
 ## Key Differences from HAI Harness
 
-| Aspect | Thorough Review (this workflow) | HAI Harness |
-|--------|--------------------------------|-------------|
-| Agents | 24 (8 × 3 rounds) | 1 (ReviewAgent) |
-| Verification | 3 judges per finding | 1 judge (rubric-scored) |
-| Cost | ~300 LLM calls per PR | ~2 LLM calls per PR |
-| Determinism | Loop-until-dry | Structured prompt + versioned rubric |
-| Integration | Standalone CLI | Full control plane (ingest → review → decision → write-back) |
-| Memory | None | Review memory with consolidation/decay/archive |
-| Attention routing | None | 5-factor scoring + adaptive thresholds |
-| Verification | None | Docker sandbox build/test |
+| Aspect            | Thorough Review (this workflow) | HAI Harness                                                  |
+| ----------------- | ------------------------------- | ------------------------------------------------------------ |
+| Agents            | 24 (8 × 3 rounds)               | 1 (ReviewAgent)                                              |
+| Verification      | 3 judges per finding            | 1 judge (rubric-scored)                                      |
+| Cost              | ~300 LLM calls per PR           | ~2 LLM calls per PR                                          |
+| Determinism       | Loop-until-dry                  | Structured prompt + versioned rubric                         |
+| Integration       | Standalone CLI                  | Full control plane (ingest → review → decision → write-back) |
+| Memory            | None                            | Review memory with consolidation/decay/archive               |
+| Attention routing | None                            | 5-factor scoring + adaptive thresholds                       |
+| Verification      | None                            | Docker sandbox build/test                                    |
 
 ## History
 

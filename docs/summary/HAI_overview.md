@@ -24,10 +24,10 @@ Kiến trúc biến "sự chú ý" thành tài nguyên có thể đo lường, �
 
 Đầu vào là một **code change cần review** cùng ngữ cảnh của nó — không phải "yêu cầu phải làm gì". Change đến từ bên ngoài qua PR/MR (GitHub hôm nay qua REST; GitLab/Bitbucket/Jira nối qua **MCP** — một client + một file config, không build REST SDK từng host); ở ranh giới input, HAI luôn nhận **một change để review**.
 
-| Trường                    | Kiểu          | Mô tả                                                                                         | Ví dụ                                            |
-| ------------------------- | ------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `pr_url`                  | string        | URL Pull / Merge Request — HAI tự fetch diff + metadata                                        | `https://github.com/acme/api/pull/482`           |
-| `jira_ticket` _(tuỳ chọn)_ | string        | Ticket tương ứng — tiêu chí & context để đối chiếu ("change có giải quyết đúng ticket không") | `"ACME-1234"`                                    |
+| Trường                     | Kiểu   | Mô tả                                                                                         | Ví dụ                                  |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `pr_url`                   | string | URL Pull / Merge Request — HAI tự fetch diff + metadata                                       | `https://github.com/acme/api/pull/482` |
+| `jira_ticket` _(tuỳ chọn)_ | string | Ticket tương ứng — tiêu chí & context để đối chiếu ("change có giải quyết đúng ticket không") | `"ACME-1234"`                          |
 
 > **Review-only flow:** Harness nhận URL PR, fetch diff qua MCP, fetch ticket (nếu có), hỏi AI review, và trả về report + findings + fix suggestions. Không có code generation, không có auto-commit.
 
