@@ -45,12 +45,22 @@ const RULES: readonly Rule[] = [
     icon: Sliders,
     stateKey: 'schemaIntegrity',
   },
+  {
+    name: 'Auto-review mode',
+    description:
+      'When enabled, the AI review agent returns ALL findings (including MINOR, NIT, INFO) — covering naming, style, architecture, and maintainability. When disabled (default), only high-signal findings (CRITICAL/MAJOR) are shown.',
+    category: 'Review Mode',
+    strictness: 'All severities',
+    icon: Zap,
+    stateKey: 'autoReviewEnabled',
+  },
 ];
 
 const FALLBACK_STATE: TriageRuleState = {
   securityBlock: true,
   performanceRegression: true,
   schemaIntegrity: true,
+  autoReviewEnabled: false,
 };
 
 export default function TriageRulesPage(): JSX.Element {

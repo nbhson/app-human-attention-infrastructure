@@ -36,3 +36,15 @@ pnpm demo:closed-loop
 ## Architecture Note
 
 HAI Harness is a **review-only control plane** (`review-reorient`). The code-generation path (AgentRunner, Dispatcher, ToolRegistry, reconcile.ts) was retired in Phase 3. See `docs/runbook/limitations.md` §3.
+
+## Auto-Review Mode
+
+When enabled in the Triage Rules settings, the AI reviewer operates in **full code-review mode** — surfacing ALL findings including MINOR, NIT, and INFO (naming, style, architecture, maintainability).
+
+- **Default**: OFF (human-review mode, only CRITICAL/MAJOR shown)
+- **Endpoint**: `POST /api/reviews/auto` (separate from the async `POST /api/reviews`)
+- **Config**: Toggles in the Triage Rules page (Admin/Reviewer role required)
+
+## Memory
+
+Project memory is stored in `.claude/memory/` and indexed in `MEMORY.md`.

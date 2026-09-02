@@ -26,6 +26,12 @@ export interface ReviewPromptInput {
   /** The unified diff (per-file patches concatenated). */
   readonly diff: string;
   /**
+   * When true, the reviewer operates in full code-review mode — surfacing ALL
+   * findings including MINOR, NIT, and INFO (style, naming, architecture, etc.).
+   * When false (default), the reviewer filters to high-signal items only.
+   */
+  readonly autoReviewMode?: boolean;
+  /**
    * Past review memories (findings, decisions, project context) retrieved for
    * this PR. When present, the prompt includes a "Related past reviews" section
    * so the AI can consider historical patterns.
@@ -47,8 +53,9 @@ export interface ReviewPrompt {
  * Bump on any wording/section change so a stored `ReviewReport` can name which
  * prompt produced it. v2: compacted sections, added safety guardrail, added
  * few-shot examples, added chain-of-thought instruction, expanded kind guidance.
+ * v3: added `autoReviewMode` flag for full code-review mode (surfaces MINOR/NIT/INFO).
  */
-export const REVIEW_PROMPT_VERSION = 'reviewer-v2';
+export const REVIEW_PROMPT_VERSION = 'reviewer-v3';
 
 const SYSTEM_PROMPT = `You are a senior code reviewer in the role of a Human-Attention Routing Engine.
 
@@ -320,8 +327,13 @@ NEVER INVENT PROBLEMS. NEVER HIDE A MEANINGFUL CONCERN MERELY BECAUSE IT IS NOT 
 
 export function buildReviewPrompt(input: ReviewPromptInput): ReviewPrompt {
   const requirement = input.requirement.trim().length > 0 ? input.requirement.trim() : '(none provided)';
+  const autoReviewMode = input.autoReviewMode ?? false;
 
   const memoriesSection = buildMemoriesSection(input.relatedMemories);
+
+  const modeSection = autoReviewMode
+    ? `REVIEW MODE: FULL CODE REVIEW\nWhen autoReviewMode is enabled, you are a comprehensive code review tool (like GitHub Copilot Review, SonarQube, or DeepCode). Review ALL aspects of the code: correctness, security, performance, architecture, naming, style, maintainability, and best practices. Report every finding regardless of severity — CRITICAL, MAJOR, MINOR, NIT, and INFO. For MINOR/NIT/INFO findings, focus on genuine engineering value: naming consistency, code organization, potential refactoring opportunities, style improvements, and maintainability concerns. This is NOT a human-attention router — it is a thorough code reviewer.\n`
+    : '';
 
   const userMessage = [
     `PULL REQUEST: ${input.prUrl}`,
@@ -329,6 +341,7 @@ export function buildReviewPrompt(input: ReviewPromptInput): ReviewPrompt {
     '',
     'REQUIREMENT:',
     requirement,
+    modeSection.length > 0 ? ['', modeSection] : [],
     ...(memoriesSection.length > 0 ? ['', memoriesSection] : []),
     '',
     'DIFF:',

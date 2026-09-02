@@ -12,6 +12,12 @@ export interface TriageRuleState {
   readonly securityBlock: boolean;
   readonly performanceRegression: boolean;
   readonly schemaIntegrity: boolean;
+  /**
+   * When true, the review agent returns ALL findings (including MINOR, NIT, INFO)
+   * — full code-review mode. When false (default), only high-signal findings
+   * (CRITICAL/MAJOR) are shown.
+   */
+  readonly autoReviewEnabled: boolean;
 }
 
 /** An API failure carrying a status code so the page can branch on it. */

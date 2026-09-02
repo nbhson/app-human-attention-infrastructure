@@ -54,7 +54,7 @@ function pickBooleans(body: TriageRulesBody | undefined): Partial<{
 export function registerTriageRulesRoutes(app: FastifyInstance, container: Container): void {
   const db = container.resolve<DrizzleDB>(TOKENS.Db);
   const canRead = requireRole(container, Role.Operate, Role.Reviewer, Role.Admin);
-  const canWrite = requireRole(container, Role.Reviewer, Role.Admin);
+  const canWrite = requireRole(container, Role.Operate, Role.Reviewer, Role.Admin);
 
   app.get('/api/triage-rules', { preHandler: canRead }, () => loadTriageRuleState(db));
 

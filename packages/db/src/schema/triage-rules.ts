@@ -24,5 +24,6 @@ export const triageRules = pgTable('triage_rules', {
   security_block: boolean('security_block').notNull().default(true),
   performance_regression: boolean('performance_regression').notNull().default(true),
   schema_integrity: boolean('schema_integrity').notNull().default(true),
+  auto_review_enabled: boolean('auto_review_enabled').notNull().default(false),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
