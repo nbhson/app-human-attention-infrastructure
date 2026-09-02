@@ -29,6 +29,7 @@ key invariants, and its boundary rules.
 ## Operations (`runbook/`)
 
 - [README](runbook/README.md) — startup, oversight, incidents, escalation
+- [users-permissions](runbook/users-permissions.md) — user model, role hierarchy, route permissions, and common operations
 - [operations](runbook/operations.md) — DevOps + audit procedures (v1.0-candidate)
 - [audit-queries](runbook/audit-queries.md) — SQL cookbook for "what actually happened"
 - [limitations](runbook/limitations.md) — known scope cuts
