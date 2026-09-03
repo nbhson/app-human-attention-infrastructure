@@ -38,11 +38,11 @@ key invariants, and its boundary rules.
 
 Honest weekly/phase post-mortems — numbers and slips, not marketing.
 
-## Summaries (`summary/`, tiếng Việt)
+## Summaries (`summary/`)
 
-- [HAI_overview](summary/HAI_overview.md) — tổng quan kiến trúc
-- [HAI_flow](summary/HAI_flow.md) — flow hoạt động end-to-end
-- [harness-fit-analysis](summary/harness-fit-analysis.md) — bản đồ từ framework nguồn → HAI
+- [HAI_overview](summary/HAI_overview.md) — architecture overview
+- [HAI_flow](summary/HAI_flow.md) — end-to-end operational flow
+- [harness-fit-analysis](summary/harness-fit-analysis.md) — source framework → HAI mapping
 
 ## Developer guide
 

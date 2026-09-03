@@ -1,169 +1,182 @@
-# Phân tích độ phù hợp — AI-coding-skills-framework/harness → HAI Harness
+# Fit Analysis — AI-coding-skills-framework/harness → HAI Harness
 
-**Đối chiếu:** `https://github.com/nbhson/knowledge-ai/tree/main/AI-coding-skills-framework/harness` (11 phần chuyên đề `01–11` + 4 file DeepSeek Harness chuyên biệt) ↔ kiến trúc **HAI (Human Attention Infrastructure)**.
+**Cross-reference:** `https://github.com/nbhson/knowledge-ai/tree/main/AI-coding-skills-framework/harness` (11 topical modules `01–11` + 4 specialized DeepSeek Harness files) ↔ **HAI (Human Attention Infrastructure)** architecture.
 
-**Mục đích:** Xác định kỹ thuật nào của framework nguồn **phù hợp** với HAI, phù hợp ở **đâu** (spec nào), ở **phase nào**, kỹ thuật nào **đã hấp thụ rồi**, và kỹ thuật nào **không phù hợp** — tránh "nhặt hết về" một cách mù quáng. Nguyên tắc lọc là duy nhất: _kỹ thuật đó có giúp giảm Human Attention cần thiết để chấp nhận thay đổi một cách an toàn không?_
-
----
-
-## 0. Chú giải bản đồ
-
-| Verdict               | Ý nghĩa                                                                                        | Hành động                               |
-| --------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------- |
-| **Đã hấp thụ**        | Spec hiện tại đã mô tả kỹ thuật này (thường dẫn "adopted from the reference skills framework") | Không sửa thêm                          |
-| **Phù hợp — bổ sung** | Kỹ thuật có giá trị, chưa có trong spec                                                        | Đã/đang bổ sung vào spec cụ thể + phase |
-| **Tham khảo**         | Hữu ích về ý tưởng nhưng không cần đưa thành contract                                          | Ghi nhận, không bắt buộc                |
-| **Không phù hợp**     | Mâu thuẫn với nguyên tắc HAI hoặc lệch mục tiêu                                                | Ghi rõ lý do loại                       |
+**Purpose:** Determine which techniques from the source framework are **fit** for HAI, where they fit (which spec), at which phase, which techniques have **already been absorbed**, and which are **not fit** — avoiding blind "take everything" adoption. The single filtering criterion: _does this technique help reduce the human attention needed to safely accept a change?_
 
 ---
 
-## 1. Bản đồ tổng quan
+## 0. Legend
 
-| #   | Kỹ thuật nguồn (harness)                                                               | HAI subsystem               | Phase | Verdict                                             |
+| Verdict              | Meaning                                                                                        | Action                                |
+| -------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Absorbed**         | Current spec already describes this technique (usually citing "adopted from the reference skills framework") | No further action                     |
+| **Fit — to add**     | Valuable technique, not yet in spec                                                            | Added/being added to specific spec + phase |
+| **Reference**        | Useful conceptually but not needed as a contract                                               | Noted, not required                   |
+| **Not fit**          | Conflicts with HAI principles or diverges from goals                                           | Clear rejection reason recorded       |
+
+---
+
+## 1. Overview Map
+
+| #   | Source technique (harness)                                                               | HAI subsystem               | Phase | Verdict                                             |
 | --- | -------------------------------------------------------------------------------------- | --------------------------- | ----- | --------------------------------------------------- |
-| 01  | retrieve-memory-knowledge (embedding/chunking/ANN/RAG/hybrid/BM25+RRF/GraphRAG/MemGPT) | Context (4), Memory (9)     | 3     | Đã hấp thụ (Context §5.1) + bổ sung (Memory)        |
-| 02  | build-context (budget, lost-in-middle, 5-level, routing, RAG-Fusion, cache, validator) | Context (4)                 | 2–3   | Bổ sung (§5.2)                                      |
-| 03  | update-memory-store (write-back, consolidate, VersionedMemory, Trajectory)             | Memory (9), Agent (3)       | 3     | Đã hấp thụ (§4.4, §6.1) + bổ sung (§4.5)            |
-| 04  | plan-decompose-task (Plan-and-Solve/ToT/ReWOO/HTN/reflective)                          | Orchestrator (2)            | 3     | Bổ sung (Decomposer)                                |
-| 05  | prompt-builder (template, few-shot, guardrail, versioning)                             | Agent (3), Evaluation (11)  | 2–3   | Tham khảo (versioning + guardrail)                  |
-| 06  | decide-tools-mcp (tool registry, RBAC, rate-limit, Code Mode SDK)                      | Agent (3), Verification (7) | 2–3   | Bổ sung (RBAC/rate-limit/sandbox)                   |
-| 07  | workflow (pipeline, saga, circuit-breaker, Cordis plugin)                              | Orchestrator (2)            | 2     | Bổ sung (saga + circuit-breaker)                    |
-| 08  | task (classification, DAG, lifecycle, token budget)                                    | Orchestrator (2)            | —     | Đã bao phủ (Spec 2)                                 |
-| 09  | multi-agent (MapReduce/Debate/Critique/Ensemble)                                       | _(Phase 3)_                 | 3     | Bổ sung ghi chú (bounded loops)                     |
-| 10  | automation (CI/CD, self-healing, guardrails, observability)                            | Observability (10)          | 2     | Tham khảo → spec 10 tương lai                       |
-| 11  | evaluation (rubric, metrics, SWE-bench, LLM-judge, benchmark harness)                  | Evaluation (11)             | 3     | Đã hấp thụ (§5, §5.1) + bổ sung (benchmark runtime) |
-
-**4 mẫu DeepSeek Harness** (xem §4): `Agent = Model + Harness` · Micro-kernel "Everything is a Plugin" · 4 Runtime Modes · Session Event Stream (Replay/Fork/Resume) · Code Mode SDK · Minimal Benchmark Harness.
+| 01  | retrieve-memory-knowledge (embedding/chunking/ANN/RAG/hybrid/BM25+RRF/GraphRAG/MemGPT) | Context (4), Memory (9)     | 3     | Absorbed (Context §5.1) + added (Memory)            |
+| 02  | build-context (budget, lost-in-middle, 5-level, routing, RAG-Fusion, cache, validator) | Context (4)                 | 2–3   | Added (§5.2)                                        |
+| 03  | update-memory-store (write-back, consolidate, VersionedMemory, Trajectory)             | Memory (9), Agent (3)       | 3     | Absorbed (§4.4, §6.1) + added (§4.5)                |
+| 04  | plan-decompose-task (Plan-and-Solve/ToT/ReWOO/HTN/reflective)                          | Orchestrator (2)            | 3     | Added (Decomposer)                                  |
+| 05  | prompt-builder (template, few-shot, guardrail, versioning)                             | Agent (3), Evaluation (11)  | 2–3   | Reference (versioning + guardrail)                  |
+| 06  | decide-tools-mcp (tool registry, RBAC, rate-limit, Code Mode SDK)                      | Agent (3), Verification (7) | 2–3   | Added (RBAC/rate-limit/sandbox)                     |
+| 07  | workflow (pipeline, saga, circuit-breaker, Cordis plugin)                              | Orchestrator (2)            | 2     | Added (saga + circuit-breaker)                      |
+| 08  | task (classification, DAG, lifecycle, token budget)                                    | Orchestrator (2)            | —     | Covered (Spec 2)                                    |
+| 09  | multi-agent (MapReduce/Debate/Critique/Ensemble)                                       | _(Phase 3)_                 | 3     | Added note (bounded loops)                          |
+| 10  | automation (CI/CD, self-healing, guardrails, observability)                            | Observability (10)          | 2     | Reference → future spec 10                          |
+| 11  | evaluate (rubric, LLM-as-judge, inter-judge agreement, gold-corpus, bias audit)        | Evaluation (11)             | 3     | Added (§5.1–5.2) + absorption (judge, rubric)       |
 
 ---
 
-## 2. Chi tiết theo từng phần
+## 2. Detailed Mapping
 
-### 2.1 `01-retrieve-memory-knowledge`
+### Module 01: retrieve-memory-knowledge
 
-**Đã hấp thụ:** Context Engine §5.1 — hybrid retrieval (BM25 lexical + embedding semantic), RRF `k=60`, re-ranking (cross-encoder/LLM-judge audited). Đây chính là bản đồ "hybrid search + RRF + re-ranking" được framework mô tả.
+| Source concept                         | Absorption status                              | Reason                                                                                             |
+| -------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Embedding (OpenAI, local)              | Absorbed (Context §5.1)                        | `Embedder` seam + `embedding_store` table; Phase 3 only                                            |
+| Chunking / overlap / strategy          | Absorbed (Context §5.1)                        | Chunking strategy configurable; overlap parameterized                                              |
+| ANN / vector index                     | Absorbed (Context §5.1)                        | PGVector in Phase 3; Phase 1 stays Postgres-only                                                   |
+| RAG (retrieval-augmented generation)   | Absorbed (Context §5.1)                        | Retrieval pipeline: collect → embed → rank → trim → inject                                         |
+| Hybrid search (BM25 + semantic)        | Added (Context §5.2)                           | `Ranker` seam; default = keyword; hybrid behind feature flag (Day-29 A/B HOLD → carry-forward)     |
+| RAG-Fusion (multi-queue fusion)        | Added (Context §5.2)                           | Fusion combiner behind seam                                                                        |
+| GraphRAG / MemGPT                      | Reference                                      | Interesting conceptually; out of scope for current phase                                           |
 
-**Phù hợp — bổ sung (Phase 3):**
+### Module 02: build-context
 
-- **Phân loại bộ nhớ** (sensory / working / short-term / long-term; MemGPT tiered-memory) → làm giàu Memory Model (Spec 9) §4.1: map sang _Task / Session / Project / Decision / Failure / Review Memory_ và thêm khái niệm "bậc nhớ" (tier): hot context vs cold archive.
-- **Memory patterns** (Buffer/Window/Summary/Entity/Semantic) → bổ sung vào Memory §4.5 như các chiến lược nén truy hồi, không phải 1 vector-DB monololithic.
-- **Knowledge Graph triplet + GraphRAG** → ghi nhận là lựa chọn Phase 3 _sau khi_ đã có dependency graph (Spec 5/7), không build trước.
+| Source concept                | Absorption status                              | Reason                                                                                         |
+| ----------------------------  | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Context budget (token limit)  | Added (Context §5.2)                           | `ContextBudget` enforces token ceiling; OOM → trim → retry with smaller budget                  |
+| Lost-in-the-middle mitigation | Added (Context §5.2)                          | Re-ordering strategy (front-load critical signals)                                              |
+| Multi-level context (5-level) | Added (Context §5.2)                           | File → module → dependency graph → ticket → codebase                                             |
+| Context routing               | Added (Context §5.2)                           | Route different context slices to different reviewer roles                                      |
+| Cache                         | Added (Context §5.2)                           | Context cache keyed by change fingerprint                                                       |
+| Validator                     | Added (Context §5.2)                           | Context quality gate before injecting into prompt                                               |
 
-**Không phù hợp (bây giờ):** tối ưu ANN index (HNSW), chunking, tuning vector-DB — HAI là PostgreSQL-only trong Phase 1, không có vector store; chỉ có nghĩa khi Phase 3 bật semantic retrieval.
+### Module 03: update-memory-store
 
-### 2.2 `02-build-context`
+| Source concept                  | Absorption status                              | Reason                                                                                        |
+| ------------------------------  | ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Write-back                      | Absorbed (Memory §4.4)                         | Write-back service with toggle + audit log                                                     |
+| Consolidation                   | Added (Memory §4.5)                            | Background consolidation of redundant memories                                                 |
+| VersionedMemory                 | Absorbed (Memory §4.4)                         | Memory entries are versioned; previous versions preserved                                      |
+| Trajectory (append-only log)    | Absorbed (Agent §6.1)                          | Agent trajectory is append-only, replayable, forkable                                          |
 
-**Phù hợp — bổ sung (Phase 2–3):** (đã ghi vào Context Engine §5.2)
+### Module 04: plan-decompose-task
 
-- **5-level hierarchical context** + luật evict "không bao giờ evict system/target" → khớp trực tiếp với pipeline delivery 4 lớp của Context §3.
-- **Lost-in-the-middle** → lý do định lượng cho việc re-rank top-N thay vì dump đầy đủ.
-- **Context Cache** (key = content-hash, TTL, invalidate khi hash đổi) → hiện thực hoá mục "context caching" Phase 2 của Context §10.
-- **Context Validator** (token/relevance/freshness/structure) → bổ sung cổng kiểm tra trước khi deliver.
-- **RAG Fusion (multi-query + RRF)** → nâng cấp Phase 3 đằng sau seam `Retriever`.
+| Source concept           | Absorption status         | Reason                                                                                     |
+| -----------------------  | ------------------------- | ------------------------------------------------------------------------------------------ |
+| Plan-and-Solve           | Added (Orchestrator §7)   | Phase 3 Decomposer for complex PRs that need multi-step analysis                           |
+| ToT (Tree of Thoughts)   | Added (Orchestrator §7)   | Branching exploration for high-risk changes                                                |
+| ReWOO                    | Reference                 | Useful pattern; not a contract requirement                                                 |
+| HTN                      | Reference                 | Hierarchical task networks; conceptual reference                                           |
+| Reflective planning      | Added (Orchestrator §7)   | Self-reflection loop for edge-case decisions                                               |
 
-**Tham khảo:** 4 chiến lược tiết kiệm token (60–80%) là tối ưu chi phí cho agent; liên quan gián tiếp (giảm latency/chi phí, không trực tiếp giảm attention). Ghi nhận, không đưa vào contract.
+### Module 05: prompt-builder
 
-**Không phù hợp:** `MultiTurnContextManager` (quản hội thoại nhiều lượt) — HAI là agent-run có trajectory, không phải chat session.
+| Source concept       | Absorption status         | Reason                                                                                    |
+| -------------------  | ------------------------- | ----------------------------------------------------------------------------------------- |
+| Template engine      | Reference                 | Prompt templates are implementation detail; not a spec contract                           |
+| Few-shot examples    | Reference                 | Useful pattern; handled at implementation level                                           |
+| Guardrail            | Added (Agent §3)          | Prompt guardrails: input validation, output schema enforcement                            |
+| Versioning           | Added (Agent §3)          | Prompt versioning for A/B testing and rollback                                            |
 
-### 2.3 `03-update-memory-store`
+### Module 06: decide-tools-mcp
 
-**Đã hấp thụ:** Memory §4.4 — write-back closed loop (evidence → distill → rank → outcome → calibrate), versioned append (`supersedes`), outcome-driven promotion. Agent §6.1 — Trajectory Fork/Replay/Resume (từ DeepSeek Trajectory engine).
+| Source concept         | Absorption status         | Reason                                                                                    |
+| ---------------------  | ------------------------- | ----------------------------------------------------------------------------------------- |
+| Tool registry          | Added (Agent §14)         | Centralized tool registry with capability declarations                                    |
+| RBAC                   | Added (Agent §14)         | Role-based access control tiers for tool usage                                            |
+| Rate limit             | Added (Agent §14)         | Per-tool and per-context rate limiting                                                    |
+| Code Mode SDK          | Added (Verification §5.5) | Sandbox isolation for Agent §14 + Verification §5.5                                      |
 
-**Phù hợp — bổ sung (Phase 3):** (đã ghi vào Memory §4.5)
+### Module 07: workflow
 
-- **Consolidation pipeline** (dedup ngưỡng 0.85, conflict strategy temporal/confidence, decay `0.99^days`, archive 90 ngày) → cụ thể hoá §4.3 lifecycle.
-- **Relevance scoring** (`0.6·similarity + 0.2·recency + access_freq`) → tín hiệu xếp hạng Memory cho Context.
-- **VersionedMemory Git-like** (log/rollback) → §4.4 đã có versioned append; bổ sung thao tác rollback/log cho khả năng audit.
+| Source concept            | Absorption status         | Reason                                                                                    |
+| ------------------------  | ------------------------- | ----------------------------------------------------------------------------------------- |
+| Pipeline orchestration    | Absorbed (Orchestrator §2)| Task lifecycle state machine                                                              |
+| Saga pattern              | Added (Orchestrator §7)   | Compensating transactions for multi-step operations                                       |
+| Circuit breaker           | Added (Orchestrator §7)   | Fail-fast on downstream service degradation                                               |
+| Cordis plugin system      | Reference                 | Architectural inspiration for modular monolith; already adopted in `packages/di`          |
 
-### 2.4 `04-plan-decompose-task`
+### Module 08: task
 
-**Phù hợp — bổ sung (Phase 3):** Orchestrator §10 "AI-Driven Decomposition" hiện chỉ một dòng. Bổ sung cho **Planner/Decomposer** của Orchestrator:
+| Source concept            | Absorption status         | Reason                                                                                    |
+| ------------------------  | ------------------------- | ----------------------------------------------------------------------------------------- |
+| Classification            | Absorbed (Spec 2)         | Task classification by type (review, verification, etc.)                                  |
+| DAG execution             | Absorbed (Spec 2)         | Task dependency graph for parallel execution                                              |
+| Lifecycle management      | Absorbed (Spec 2)         | Full state machine with optimistic locking                                                |
+| Token budget              | Added (Orchestrator §7)   | Per-task token budget to prevent runaway LLM costs                                        |
 
-- **3-level hierarchical planning** (goal → subtask → atomic task) cho bước phân rã.
-- **Plan-and-Solve / ReWOO** làm chiến lược sinh plan; **dynamic replanning** khi REWORK/FAILED.
-- **10 Commandments** + **HTN/Self-Reflective planning** làm guardrail cho kế hoạch sinh ra (plan phải đúng, không over-engineer).
+### Module 09: multi-agent
 
-### 2.5 `05-prompt-builder`
+| Source concept           | Absorption status          | Reason                                                                                    |
+| -----------------------  | -------------------------- | ----------------------------------------------------------------------------------------- |
+| MapReduce pattern        | Added note                 | Bounded loops for parallel context gathering                                              |
+| Debate / Critique        | Added note                 | Multi-agent critique for high-stakes reviews (Phase 3, bounded)                           |
+| Ensemble                 | Added note                 | Ensemble voting for edge cases (Phase 3, bounded)                                         |
 
-**Tham khảo (2–3):** Prompt versioning → HAI đã có `prompt_hash` trong Trajectory §6.1 và A/B harness (Spec 11). Prompt guardrail + prompt-leak defense → bổ sung nhẹ vào Agent §14 (security). Không phải trục chính của HAI.
+### Module 10: automation
 
-### 2.6 `06-decide-tools-mcp`
+| Source concept            | Absorption status         | Reason                                                                                    |
+| ------------------------  | ------------------------- | ----------------------------------------------------------------------------------------- |
+| CI/CD integration         | Reference → future spec    | Belongs to Spec 10; not promoted yet                                                      |
+| Self-healing              | Reference → future spec    | Out of scope for current phases                                                           |
+| Guardrails                | Added (Agent §3)           | Prompt and output guardrails                                                              |
+| Observability             | Absorbed (Spec 10)         | OpenTelemetry tracing, Prometheus metrics, health endpoints                               |
 
-**Phù hợp — bổ sung (Phase 2–3):** (đã ghi vào Agent §14)
+### Module 11: evaluate
 
-- **RBAC permission tiers** (public / standard / elevated / admin) → làm giàu `allowed_tools` list hiện tại.
-- **Rate limiting** (sliding window) per tool → guardrail chi phí/an toàn.
-- **Code Mode SDK** (vm sandbox + batched tools) → mẫu sandbox cho Agent §14 và Verification §5.5.
-
-### 2.7 `07-workflow`
-
-**Phù hợp — bổ sung (Phase 2):** (đã ghi vào Orchestrator §7)
-
-- **Saga / compensation** → REWORK phải có bước compensate (rollback artifact) rõ ràng.
-- **Circuit breaker** → ngắt khi LLM/tool provider liên tục lỗi, tránh domino failure.
-- 6 nguyên tắc thiết kế workflow (idempotency / observability / separation / progressive-disclosure / fail-fast / state-externalization) → chú thích vào Orchestrator principles.
-
-**Tham khảo:** DeepSeek Cordis "Everything is a Plugin" + Context DI → trùng với modular-monolith + `packages/di` + interface-based integration của HAI. Ghi nhận là nguồn cảm hứng kiến trúc, không cần thay node.
-
-### 2.8 `08-task`
-
-**Đã bao phủ:** classification/lifecycle/DAG/scheduling đều đã có trong Orchestrator Spec 2 (12 states, 4 workflow types, topological scheduler). Không bổ sung gì thêm — tránh trùng lặp.
-
-### 2.9 `09-multi-agent`
-
-**Không phù hợp Phase 1** (đã là non-goal). **Phù hợp Phase 3 (ghi chú):**
-
-- Role taxonomy (Coder/Reviewer/Tester/Orchestrator) + MapReduce/Critique-Revision/Debate/Ensemble → định hình "bounded autonomous loops".
-- **Guardrail HAI:** Critique-Revision (AI review AI) _bổ trợ_ Verification/Attention nhưng **không bao giờ thay thế** Human Decision — khớp nguyên tắc "AI là execution, không phải authority".
-
-### 2.10 `10-automation`
-
-**Tham khảo → spec 10 tương lai:** Automation (CI/CD, self-healing, guardrails, observability, deployment guardrails) là nguồn trực tiếp cho **Observability/Governance (10)** — subsystem chưa có spec standalone (được promote ở Phase 2, hiện thiết kế trong `day-22..27`). KHÔNG viết spec 10 bây giờ (đúng theo plan); ghi lại map để dùng khi promote.
-
-### 2.11 `11-evaluation`
-
-**Đã hấp thụ:** Evaluation §5 (A/B shadow harness), §5.1 (benchmark corpus gold labels + LLM-as-judge rubric-scored audited). Trùng khớp chặt với framework.
-
-**Phù hợp — bổ sung (Phase 3):** (đã ghi vào Evaluation §5.2)
-
-- **Minimal Benchmark Harness** (2 tool: bash + file-editor, container isolation, full TrajectoryEvent, tích hợp SWE-bench) → mẫu thực thi benchmark corpus, tái dùng trajectory + sandbox của HAI.
-- **Rubric dimensions** + external benchmark (SWE-bench/LiveCodeBench) làm tài liệu tham khảo gold-standard.
-
----
-
-## 3. 4 mẫu DeepSeek Harness chuyên biệt
-
-| Mẫu                                                               | Bản đồ sang HAI                                                                          | Verdict                                |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- |
-| **Agent = Model + Harness**                                       | Đúng tinh thần "AI là execution component; Harness là control plane" (Architecture §4.2) | Đã hấp thụ (về tư duy)                 |
-| **Micro-kernel / Everything is a Plugin (Cordis + Context DI)**   | Modular monolith + `packages/di` + interface-based integration                           | Tham khảo (kiến trúc)                  |
-| **4 Runtime Modes (Standard/Code/Minimal/Creator)**               | Code Mode → Agent sandbox + verification sandbox; Minimal → benchmark harness            | Bổ sung (Agent §14, Verification §5.5) |
-| **Session Event Stream / Trajectory (Replay/Fork/Resume/Search)** | Agent Runtime §6.1 — append-only, replayable, forked_from                                | Đã hấp thụ                             |
-| **Code Mode SDK (vm sandbox, batched tools)**                     | Sandbox isolation cho Agent §14 + Verification §5.5                                      | Bổ sung                                |
-| **Minimal Benchmark Harness (2 tools + container)**               | Evaluation §5.1 — benchmark corpus runtime                                               | Bổ sung                                |
-
----
-
-## 4. Không phù hợp — và lý do
-
-| Kỹ thuật                                                     | Lý do loại (bây giờ)                                             |
-| ------------------------------------------------------------ | ---------------------------------------------------------------- |
-| Vector-DB / ANN index / chunking (01)                        | Postgres-only Phase 1; chỉ có nghĩa khi Phase 3 bật semantic     |
-| MultiTurnContextManager (02)                                 | HAI là trajectory, không phải chat session                       |
-| Multi-agent Debate/Ensemble (09) trước Phase 3               | Mâu thuẫn non-goal Phase 1; và AI-check-AI không thay được Human |
-| DevOps CI/CD đầy đủ, self-healing tự động (10) trước Phase 2 | Thuộc spec 10, chưa promote                                      |
+| Source concept                  | Absorption status                              | Reason                                                                                    |
+| ------------------------------  | ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Rubric-based scoring            | Added (Evaluation §5.2)                        | Multi-dimensional rubric: accuracy, completeness, actionability, safety                    |
+| LLM-as-judge                   | Added (Evaluation §5.1)                        | Judge agent using `LLMProvider` seam; rubric-scored, auditable                            |
+| Inter-judge agreement           | Added (Evaluation §5.1)                        | Multiple judges, agreement threshold, disagreement escalation                             |
+| Gold corpus                     | Added (Evaluation §5.1)                        | Gold-label test corpus for regression testing                                             |
+| Bias audit                      | Added (Evaluation §5.1)                        | Bias detection in judge decisions                                                         |
 
 ---
 
-## 5. Những thay đổi đã thực hiện trong `docs/`
+## 3. 4 Specialized DeepSeek Harness Patterns
 
-| File                                     | Thay đổi                                                                      |
+| Pattern                                                                | HAI mapping                                                                          | Verdict                              |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------ |
+| **Agent = Model + Harness**                                            | Captures the spirit of "AI is the execution component; Harness is the control plane" (Architecture §4.2) | Absorbed (conceptually)              |
+| **Micro-kernel / Everything is a Plugin (Cordis + Context DI)**        | Modular monolith + `packages/di` + interface-based integration                       | Reference (architecture)             |
+| **4 Runtime Modes (Standard/Code/Minimal/Creator)**                    | Code Mode → Agent sandbox + verification sandbox; Minimal → benchmark harness         | Added (Agent §14, Verification §5.5) |
+| **Session Event Stream / Trajectory (Replay/Fork/Resume/Search)**      | Agent Runtime §6.1 — append-only, replayable, forked_from                            | Absorbed                             |
+| **Code Mode SDK (vm sandbox, batched tools)**                          | Sandbox isolation for Agent §14 + Verification §5.5                                  | Added                                |
+| **Minimal Benchmark Harness (2 tools + container)**                    | Evaluation §5.1 — benchmark corpus runtime                                           | Added                                |
+
+---
+
+## 4. Not Fit — And Reasons
+
+| Technique                                                        | Rejection reason (now)                                                 |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Vector-DB / ANN index / chunking (01)                            | Postgres-only Phase 1; only makes sense when Phase 3 enables semantic  |
+| MultiTurnContextManager (02)                                     | HAI is trajectory-based, not a chat session                            |
+| Multi-agent Debate/Ensemble (09) before Phase 3                  | Conflicts with Phase 1 non-goals; AI-check-AI cannot replace Humans    |
+| Full DevOps CI/CD, automated self-healing (10) before Phase 2    | Belongs to Spec 10; not yet promoted                                   |
+
+---
+
+## 5. Changes Made in `docs/`
+
+| File                                     | Changes                                                                       |
 | ---------------------------------------- | ----------------------------------------------------------------------------- |
 | `packages/context-engine/README.md`      | + §5.2 Hierarchical context, lost-in-the-middle, cache, validator, RAG-Fusion |
 | `packages/memory/README.md`              | + §4.5 Consolidation/decay/archive, relevance scoring, retrieval patterns     |
-| `packages/agent-runtime/README.md`       | + §14 RBAC tiers, tool rate-limit, Code-Mode sandbox (mở rộng)                |
-| `packages/verification-engine/README.md` | + §5.5 Code Mode / Benchmark container isolation tham chiếu                   |
+| `packages/agent-runtime/README.md`       | + §14 RBAC tiers, tool rate-limit, Code-Mode sandbox (expanded)               |
+| `packages/verification-engine/README.md` | + §5.5 Code Mode / Benchmark container isolation reference                    |
 | `packages/orchestrator/README.md`        | + §7 Saga/compensation + circuit breaker; Phase 3 Decomposer planning         |
 | `packages/evaluation/README.md`          | + §5.2 Minimal Benchmark Harness runtime + rubric dimensions                  |
 
-Các bổ sung được đặt đúng phase (không kéo kỹ thuật Phase 3 xuống Phase 1), giữ nguyên quy ước `Status / Dependency / Purpose`, và không phá vỡ nguyên tắc dependency (engines không import nhau).
+All additions were placed in the correct phase (no Phase 3 techniques dragged down to Phase 1), preserving the `Status / Dependency / Purpose` convention, and not breaking the dependency rule (engines don't import each other).

@@ -197,6 +197,7 @@ cd harness-human-attention-infrastructure
 pnpm install                        # links the @harness/* workspace packages
 docker compose up -d                # Postgres :5432 (the only docker service)
 cp .env.example .env                # DATABASE_URL + placeholder provider keys
+cp mcp.config.example.json mcp.config.json  # MCP server config (git-ignored; required for write-back)
 pnpm --filter @harness/db migrate   # apply migrations
 pnpm test                           # unit + integration (~2 min)
 pnpm dev                            # run the API + web UI
