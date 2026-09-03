@@ -5,9 +5,10 @@
  *  - `GET /api/triage-rules` — the current rule state (readable by any review
  *    principal, so the rules page can render without elevating).
  *  - `PUT /api/triage-rules` — upsert a partial `{ securityBlock?,
- *    performanceRegression?, schemaIntegrity?, autoReviewEnabled? }` patch.
- *    Absent keys are left unchanged; only booleans are accepted. Guarded by
- *    `Reviewer`/`Admin` (the same guard as the review decision route —
+ *    performanceRegression?, schemaIntegrity?, autoReviewEnabled?,
+ *    includeInstructions?, instructionsContent? }` patch. Absent keys are left
+ *    unchanged; booleans must be booleans and `instructionsContent` a string.
+ *    Guarded by `Reviewer`/`Admin` (the same guard as the review decision route —
  *    reviewers may tune their own triage), matching the "operator-mutable at
  *    runtime" intent, not a secret-bearing ADMIN-only control.
  */
@@ -21,21 +22,19 @@ import { Role } from '@harness/domain';
 import type { DrizzleDB } from '@harness/db';
 
 import { loadTriageRuleState, saveTriageRuleState } from '../triage-rules-store.js';
+import type { TriageRuleState } from '../triage-rules-store.js';
 
-/** `PUT` body: the wired toggles, all optional (absent = leave unchanged). */
+/** `PUT` body: the wired toggles + instructions, all optional (absent = unchanged). */
 interface TriageRulesBody {
   readonly securityBlock?: unknown;
   readonly performanceRegression?: unknown;
   readonly schemaIntegrity?: unknown;
   readonly autoReviewEnabled?: unknown;
+  readonly includeInstructions?: unknown;
+  readonly instructionsContent?: unknown;
 }
 
-function pickBooleans(body: TriageRulesBody | undefined): Partial<{
-  securityBlock: boolean;
-  performanceRegression: boolean;
-  schemaIntegrity: boolean;
-  autoReviewEnabled: boolean;
-}> {
+function pickBooleans(body: TriageRulesBody | undefined): Partial<TriageRuleState> {
   if (body === undefined) {
     return {};
   }
@@ -44,6 +43,8 @@ function pickBooleans(body: TriageRulesBody | undefined): Partial<{
     performanceRegression?: boolean;
     schemaIntegrity?: boolean;
     autoReviewEnabled?: boolean;
+    includeInstructions?: boolean;
+    instructionsContent?: string;
   } = {};
   if (typeof body.securityBlock === 'boolean') patch.securityBlock = body.securityBlock;
   if (typeof body.performanceRegression === 'boolean') {
@@ -51,6 +52,8 @@ function pickBooleans(body: TriageRulesBody | undefined): Partial<{
   }
   if (typeof body.schemaIntegrity === 'boolean') patch.schemaIntegrity = body.schemaIntegrity;
   if (typeof body.autoReviewEnabled === 'boolean') patch.autoReviewEnabled = body.autoReviewEnabled;
+  if (typeof body.includeInstructions === 'boolean') patch.includeInstructions = body.includeInstructions;
+  if (typeof body.instructionsContent === 'string') patch.instructionsContent = body.instructionsContent;
   return patch;
 }
 
@@ -65,7 +68,7 @@ export function registerTriageRulesRoutes(app: FastifyInstance, container: Conta
   app.put<{ Body: TriageRulesBody }>('/api/triage-rules', { preHandler: canWrite }, async (request, reply) => {
     const patch = pickBooleans(request.body);
     if (Object.keys(patch).length === 0) {
-      return reply.code(400).send({ error: 'provide at least one boolean toggle to update' });
+      return reply.code(400).send({ error: 'provide at least one toggle or instruction to update' });
     }
     return saveTriageRuleState(db, patch);
   });

@@ -37,6 +37,21 @@ describe('ReviewAgent', () => {
     expect(call?.messages[0]?.content).toContain('--- a/src/loop.ts');
   });
 
+  it('injects operator instructions (text.md) into the review prompt when provided', async () => {
+    const llm = new MockLLM([mockTextResponse(REVIEW_JSON)]);
+    const agent = new ReviewAgent(llm);
+
+    const out = await agent.review(
+      { ...INPUT, instructions: 'Always flag any unhandled promise rejections.' },
+      { model: 'claude-sonnet-4-6' },
+    );
+
+    expect(out.findings).toHaveLength(1);
+    const content = llm.calls[0]?.messages[0]?.content;
+    expect(content).toContain('OPERATOR INSTRUCTIONS (must be followed)');
+    expect(content).toContain('Always flag any unhandled promise rejections.');
+  });
+
   it('exposes a versioned prompt for provenance', () => {
     expect(REVIEW_PROMPT_VERSION).toMatch(/^reviewer-v\d+$/);
   });
@@ -120,5 +135,26 @@ describe('ReviewAgent', () => {
     await agent.review(INPUT, { model: 'm', correlationId: 'corr-42' });
 
     expect(llm.calls[0]?.correlation_id).toBe('corr-42');
+  });
+
+  it('surfaces truncation when the provider stops at the token limit (OpenAI-compatible finish_reason="length")', async () => {
+    // A fast/proxied model whose output budget was exhausted: partial or empty
+    // content with stopReason "length" — the OpenAI-compatible mapping passes
+    // finish_reason straight through, unlike Anthropic's "max_tokens".
+    const llm = new MockLLM([
+      { content: '', toolCalls: [], usage: { inputTokens: 810, outputTokens: 4096 }, stopReason: 'length' },
+    ]);
+    const agent = new ReviewAgent(llm);
+
+    await expect(agent.review(INPUT, { model: 'agnes-2.5-flash' })).rejects.toThrow(/truncated/);
+  });
+
+  it('surfaces truncation for Anthropic-style stop_reason="max_tokens" with no content', async () => {
+    const llm = new MockLLM([
+      { content: '', toolCalls: [], usage: { inputTokens: 100, outputTokens: 8000 }, stopReason: 'max_tokens' },
+    ]);
+    const agent = new ReviewAgent(llm);
+
+    await expect(agent.review(INPUT, { model: 'claude-sonnet-4-6' })).rejects.toThrow(/truncated/);
   });
 });

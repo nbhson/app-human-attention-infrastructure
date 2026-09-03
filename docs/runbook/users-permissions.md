@@ -32,7 +32,7 @@ The system uses three additive roles (each superset includes the one below):
 | `/api/reviews/:id`                          | GET    | OPERATOR       | Full report + findings                                   |
 | `/api/reviews/:id/decision`                 | POST   | **REVIEWER**   | Approve/reject + optional write-back                     |
 | `/api/triage-rules`                         | GET    | OPERATOR       | Read current rule state                                  |
-| `/api/triage-rules`                         | PUT    | **REVIEWER**   | Toggle triage rules (autoReviewEnabled, security, etc.)  |
+| `/api/triage-rules`                         | PUT    | **REVIEWER**   | Toggle triage rules (autoReviewEnabled, security, etc.) + upload review instructions (text.md)  |
 | `/api/settings/providers`                   | GET    | **ADMIN**      | List MCP providers with redacted hints                   |
 | `/api/settings/providers`                   | PUT    | **ADMIN**      | Update provider config                                   |
 | `/api/admin/*`                              | ANY    | **ADMIN**      | Kill-switch, maintenance endpoints                       |

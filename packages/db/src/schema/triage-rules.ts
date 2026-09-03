@@ -15,8 +15,16 @@ import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
  *  - `schema_integrity` — a PR touching a migration/schema file is flagged so
  *    write-back only proceeds on an explicit, conscious APPROVE (rule 3).
  *
- * All three default `true`, matching the rules page's `enabledByDefault`. The
- * state lives in the DB (not in code/ATTENTION policy) because it is
+ * `auto_review_enabled` switches between full code-review mode (ALL severities)
+ * and high-signal filtering (CRITICAL/MAJOR only).
+ *
+ * `include_instructions` + `instructions_content` implement the optional
+ * "PR + Jira + text.md + AI" flow: when the toggle is ON, the uploaded
+ * instructions/skill text is injected into the review prompt alongside the PR
+ * diff and Jira requirement. When OFF (default), the flow stays PR + Jira + AI.
+ *
+ * All three rules default `true`, matching the rules page's `enabledByDefault`.
+ * The state lives in the DB (not in code/ATTENTION policy) because it is
  * operator-mutable at runtime via `PUT /api/triage-rules`.
  */
 export const triageRules = pgTable('triage_rules', {
@@ -25,5 +33,7 @@ export const triageRules = pgTable('triage_rules', {
   performance_regression: boolean('performance_regression').notNull().default(true),
   schema_integrity: boolean('schema_integrity').notNull().default(true),
   auto_review_enabled: boolean('auto_review_enabled').notNull().default(false),
+  include_instructions: boolean('include_instructions').notNull().default(false),
+  instructions_content: text('instructions_content'),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

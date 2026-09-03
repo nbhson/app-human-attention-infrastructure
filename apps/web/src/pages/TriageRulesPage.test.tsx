@@ -34,6 +34,8 @@ const DEFAULT_STATE = {
   performanceRegression: true,
   schemaIntegrity: true,
   autoReviewEnabled: false,
+  includeInstructions: false,
+  instructionsContent: '',
 };
 
 describe('TriageRulesPage', () => {
@@ -47,6 +49,8 @@ describe('TriageRulesPage', () => {
       performanceRegression: false,
       schemaIntegrity: true,
       autoReviewEnabled: false,
+      includeInstructions: false,
+      instructionsContent: '',
     });
 
     renderPage();

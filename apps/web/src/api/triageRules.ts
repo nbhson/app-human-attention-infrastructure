@@ -3,11 +3,13 @@
  * The three wired rules map one-to-one onto the `triage_rules` singleton row:
  * `securityBlock` (rule 1), `performanceRegression` (rule 2), `schemaIntegrity`
  * (rule 3). Rules 4 & 5 have no backend state and never reach this client.
+ * The optional "instructions" flow (PR + Jira + text.md + AI) is exposed via
+ * `includeInstructions` + `instructionsContent`.
  */
 
 const BASE = '/api/triage-rules';
 
-/** The three wired rule toggles. */
+/** The triage-rule toggles + optional operator instructions ("text.md"). */
 export interface TriageRuleState {
   readonly securityBlock: boolean;
   readonly performanceRegression: boolean;
@@ -18,6 +20,14 @@ export interface TriageRuleState {
    * (CRITICAL/MAJOR) are shown.
    */
   readonly autoReviewEnabled: boolean;
+  /**
+   * When true and {@link instructionsContent} is non-empty, the uploaded
+   * instructions/skill text is injected into the review prompt (PR + Jira +
+   * text.md + AI flow). When false (default), the flow stays PR + Jira + AI.
+   */
+  readonly includeInstructions: boolean;
+  /** The operator-supplied instructions / skill text (markdown). */
+  readonly instructionsContent: string;
 }
 
 /** An API failure carrying a status code so the page can branch on it. */

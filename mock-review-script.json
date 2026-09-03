@@ -1,0 +1,8 @@
+[
+  {
+    "content": "```json\n{\"summary\":\"Mock review summary\",\"overallVerdict\":\"APPROVE\",\"findings\":[],\"suggestions\":[]}\n```",
+    "toolCalls": [],
+    "usage": {"inputTokens": 10, "outputTokens": 20},
+    "stopReason": "end_turn"
+  }
+]

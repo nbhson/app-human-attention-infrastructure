@@ -54,10 +54,15 @@ behind progressive findings:
 ```typescript
 batchReview(
   agent, files,
-  { prUrl, prTitle, requirement, model, correlationId, maxBatchSize, maxBatchTokens },
+  { prUrl, prTitle, requirement, model, correlationId,
+    maxBatchSize, maxBatchTokens, instructions? },
   onBatch?, // (batchIndex, batchCount, output) => Promise<void>
 )
 ```
+
+When `instructions` is provided (the operator-uploaded "text.md" skills file
+from the Triage Rules page), it is injected into every batch's prompt as an
+authoritative guidance section — the PR + Jira + text.md + AI flow.
 
 ### Context-aware file budgeting
 
@@ -101,6 +106,7 @@ interface FileSummary {
 | `review/review-agent.ts`            | `ReviewAgent` — read-only reviewer.                                                     |
 | `review/review-output.ts`           | `ReviewAgentOutput` / `ReviewFindingOutput` / `FixSuggestionOutput` value objects.      |
 | `review/review-batch.ts`            | `batchReview()` — split files into parallel batches, merge results, per-batch callback. |
+| `review/review-prompt.ts`           | `buildReviewPrompt()` — system + user prompt with instructions, memories, mode support. |
 | `review/review-budget.ts`           | `budgetFiles()` — context-aware file prioritisation by keyword overlap.                 |
 
 ---

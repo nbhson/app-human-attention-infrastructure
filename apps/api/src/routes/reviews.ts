@@ -291,15 +291,16 @@ export function registerReviewIngestRoutes(
       const total = totalRow[0]?.total ?? 0;
       const decidedRows = await db
         .select({ reportId: reviewDecisions.report_id, decision: reviewDecisions.decision })
-        .from(reviewDecisions)
-        .groupBy(reviewDecisions.report_id)
-        .orderBy(desc(reviewDecisions.created_at));
+        .from(reviewDecisions);
       const decisionByReport = new Map<string, string>();
       for (const row of decidedRows) {
         decisionByReport.set(row.reportId, row.decision);
       }
       const decidedCount = decisionByReport.size;
-      const approvedCount = [...decisionByReport.values()].filter((decision) => decision === 'APPROVE').length;
+      const approvedCount = [...decisionByReport.entries()]
+        .filter(([, d]) => d === 'APPROVE')
+        .map(([id]) => id)
+        .filter((id, idx, arr) => arr.indexOf(id) === idx).length;
       return {
         pendingCount: total - decidedCount,
         decidedCount,
@@ -690,6 +691,52 @@ export function registerReviewIngestRoutes(
         }
         throw error;
       }
+    },
+  );
+
+  // ── POST /api/reviews/:id/retry ──────────────────────────────────────────
+  // Reset a failed report to pending, clear stale findings/suggestions, and
+  // re-publish the review.requested event so the background worker re-runs.
+  app.post<{ Params: { id: string } }>(
+    '/api/reviews/:id/retry',
+    { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
+    async (request, reply) => {
+      const id = request.params.id as ReviewReportID;
+      const reportRows = await db.select().from(reviewReports).where(eq(reviewReports.id, id)).limit(1);
+      const report = reportRows[0];
+      if (!report) {
+        return reply.code(404).send({ error: 'review report not found' });
+      }
+      if (report.review_status !== 'error') {
+        return reply.code(400).send({ error: 'only failed reports can be retried' });
+      }
+
+      // 1. Clear stale findings + suggestions.
+      await db.delete(reviewFindings).where(eq(reviewFindings.report_id, id));
+      await db.delete(fixSuggestions).where(eq(fixSuggestions.report_id, id));
+
+      // 2. Reset report status to pending.
+      await db
+        .update(reviewReports)
+        .set({
+          review_status: 'pending',
+          summary: '',
+          overall_verdict: 'COMMENT',
+          batch_progress: null,
+        })
+        .where(eq(reviewReports.id, id));
+
+      // 3. Re-publish the review.requested event so the worker picks it up.
+      const ruleState = await loadTriageRuleState(db);
+      const payload: ReviewRequestedPayload = {
+        task_id: report.task_id !== null ? brand(report.task_id, 'TaskID') : brand(id, 'TaskID'),
+        review_report_id: id,
+        pr_url: report.pr_url,
+        ...(ruleState.autoReviewEnabled ? { autoReviewMode: true } : {}),
+      };
+      bus.publish(createEvent(EventType.ReviewRequested, brand(id, 'CorrelationID'), payload));
+
+      return reply.code(202).send({ reportId: id, status: 'pending' });
     },
   );
 }

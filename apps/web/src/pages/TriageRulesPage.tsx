@@ -17,7 +17,8 @@ interface Rule {
   readonly strictness: string;
   readonly icon: typeof ShieldAlert;
   /** Which backend toggle this rule maps to. */
-  readonly stateKey: keyof TriageRuleState;
+  readonly stateKey:
+    'securityBlock' | 'performanceRegression' | 'schemaIntegrity' | 'autoReviewEnabled' | 'includeInstructions';
 }
 
 const RULES: readonly Rule[] = [
@@ -54,6 +55,15 @@ const RULES: readonly Rule[] = [
     icon: Zap,
     stateKey: 'autoReviewEnabled',
   },
+  {
+    name: 'Review instructions (text.md)',
+    description:
+      'Upload a markdown skills/instructions file and enable the PR + Jira + text.md + AI flow. When ON with a file uploaded, the instructions are injected into the AI review prompt alongside the PR diff and Jira requirement.',
+    category: 'Flow',
+    strictness: 'Optional',
+    icon: Sliders,
+    stateKey: 'includeInstructions',
+  },
 ];
 
 const FALLBACK_STATE: TriageRuleState = {
@@ -61,7 +71,19 @@ const FALLBACK_STATE: TriageRuleState = {
   performanceRegression: true,
   schemaIntegrity: true,
   autoReviewEnabled: false,
+  includeInstructions: false,
+  instructionsContent: '',
 };
+
+/** Clear an uploaded `.md` file's text content from a FileReader. */
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(new Error('Failed to read the file'));
+    reader.readAsText(file);
+  });
+}
 
 export default function TriageRulesPage(): JSX.Element {
   const queryClient = useQueryClient();
@@ -98,8 +120,23 @@ export default function TriageRulesPage(): JSX.Element {
     },
   });
 
-  const toggle = (ruleKey: keyof TriageRuleState): void => {
+  const toggle = (
+    ruleKey:
+      'securityBlock' | 'performanceRegression' | 'schemaIntegrity' | 'autoReviewEnabled' | 'includeInstructions',
+  ): void => {
     mutation.mutate({ [ruleKey]: !state[ruleKey] } as Partial<TriageRuleState>);
+  };
+
+  const handleFile = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const content = await readFileAsText(file);
+      mutation.mutate({ instructionsContent: content });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to read the file');
+    }
   };
 
   const renderRule = (rule: Rule, checked: boolean): JSX.Element => {
@@ -156,6 +193,82 @@ export default function TriageRulesPage(): JSX.Element {
           <p style={{ color: 'var(--color-text-muted)', padding: '16px 0' }}>Loading triage rules…</p>
         ) : (
           <div className="rq-rules-list">{RULES.map((rule) => renderRule(rule, state[rule.stateKey]))}</div>
+        )}
+
+        {!isLoading && (
+          <div
+            className="rq-rule rq-instructions"
+            style={{
+              marginTop: '18px',
+              flexDirection: 'column',
+              alignItems: 'stretch',
+              justifyContent: 'flex-start',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', width: '100%' }}>
+              <span className="rq-rule-icon" style={{ marginTop: '2px' }}>
+                <Sliders />
+              </span>
+              <div style={{ flex: '1 1 auto', minWidth: '0' }}>
+                <div className="rq-rule-head">
+                  <span className="rq-rule-name">Upload text.md (instructions)</span>
+                  <span className="rq-rule-cat">PR + Jira + text.md + AI</span>
+                </div>
+                <p className="rq-rule-desc">
+                  {state.includeInstructions
+                    ? 'Instructions are ON — this file is injected into every AI review prompt.'
+                    : 'Enable "Review instructions (text.md)" above to inject this file into AI reviews.'}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', marginTop: '10px' }}>
+              <label
+                className="rq-toggle-upload"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-border, #333)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Choose .md file
+                <input type="file" accept=".md,.markdown,text/markdown" hidden onChange={handleFile} />
+              </label>
+              {state.instructionsContent.trim().length > 0 && (
+                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
+                  {state.instructionsContent.trim().split('\n').length} line(s),{' '}
+                  {state.instructionsContent.length.toLocaleString()} chars
+                </span>
+              )}
+            </div>
+
+            <textarea
+              aria-label="Review instructions (text.md)"
+              value={state.instructionsContent}
+              onChange={(event) => mutation.mutate({ instructionsContent: event.target.value })}
+              placeholder="Paste your markdown skills / instructions here, or upload a .md file…"
+              rows={10}
+              style={{
+                width: '100%',
+                marginTop: '10px',
+                padding: '10px',
+                borderRadius: '8px',
+                border: '1px solid var(--color-border, #333)',
+                background: 'var(--color-surface-raised, #1b1c20)',
+                color: 'inherit',
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

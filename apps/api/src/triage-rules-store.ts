@@ -25,6 +25,16 @@ export interface TriageRuleState {
    * attention-worthy bugs. Defaults to false (human-review mode).
    */
   readonly autoReviewEnabled: boolean;
+  /**
+   * When true, the uploaded {@link instructionsContent} (the "text.md" skills /
+   * instructions file) is injected into the review prompt alongside the PR diff
+   * and Jira requirement — the PR + Jira + text.md + AI flow. When false
+   * (default), the flow stays PR + Jira + AI. Mutually meaningful only when
+   * instructions are uploaded.
+   */
+  readonly includeInstructions: boolean;
+  /** The uploaded instructions / skill text (markdown) sent to the AI. */
+  readonly instructionsContent: string;
 }
 
 const SINGLETON_ID = 'singleton';
@@ -35,6 +45,8 @@ const DEFAULT_STATE: TriageRuleState = {
   performanceRegression: true,
   schemaIntegrity: true,
   autoReviewEnabled: false,
+  includeInstructions: false,
+  instructionsContent: '',
 };
 
 function toState(row: {
@@ -42,12 +54,16 @@ function toState(row: {
   performance_regression: boolean;
   schema_integrity: boolean;
   auto_review_enabled: boolean;
+  include_instructions: boolean;
+  instructions_content: string | null;
 }): TriageRuleState {
   return {
     securityBlock: row.security_block,
     performanceRegression: row.performance_regression,
     schemaIntegrity: row.schema_integrity,
     autoReviewEnabled: row.auto_review_enabled,
+    includeInstructions: row.include_instructions,
+    instructionsContent: row.instructions_content ?? '',
   };
 }
 
@@ -58,7 +74,12 @@ export async function loadTriageRuleState(db: DrizzleDB): Promise<TriageRuleStat
   return row === undefined ? DEFAULT_STATE : toState(row);
 }
 
-/** Upsert a partial patch onto the singleton row and return the merged state. */
+/**
+ * Upsert a partial patch onto the singleton row and return the merged state.
+ *
+ * `instructionsContent` may be explicitly set to `''` to clear the uploaded
+ * skills file; `undefined` leaves it unchanged.
+ */
 export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRuleState>): Promise<TriageRuleState> {
   const current = await loadTriageRuleState(db);
   const next: TriageRuleState = {
@@ -66,6 +87,8 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
     performanceRegression: patch.performanceRegression ?? current.performanceRegression,
     schemaIntegrity: patch.schemaIntegrity ?? current.schemaIntegrity,
     autoReviewEnabled: patch.autoReviewEnabled ?? current.autoReviewEnabled,
+    includeInstructions: patch.includeInstructions ?? current.includeInstructions,
+    instructionsContent: patch.instructionsContent ?? current.instructionsContent,
   };
 
   await db
@@ -76,6 +99,8 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
       performance_regression: next.performanceRegression,
       schema_integrity: next.schemaIntegrity,
       auto_review_enabled: next.autoReviewEnabled,
+      include_instructions: next.includeInstructions,
+      instructions_content: next.instructionsContent,
     })
     .onConflictDoUpdate({
       target: triageRules.id,
@@ -84,6 +109,8 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
         performance_regression: next.performanceRegression,
         schema_integrity: next.schemaIntegrity,
         auto_review_enabled: next.autoReviewEnabled,
+        include_instructions: next.includeInstructions,
+        instructions_content: next.instructionsContent,
       },
     });
 

@@ -17,7 +17,7 @@
 
 import type { LLMProvider } from '../llm/llm-provider.js';
 
-import { parseReviewOutput } from './parse-review.js';
+import { parseReviewOutput, ReviewParseError } from './parse-review.js';
 import { buildReviewPrompt } from './review-prompt.js';
 import type { ReviewPromptInput } from './review-prompt.js';
 import type { FileSummary, ReviewAgentOutput } from './review-output.js';
@@ -48,6 +48,17 @@ export class ReviewAgent {
       systemPrompt: prompt.systemPrompt,
       ...(opts.correlationId !== undefined ? { correlation_id: opts.correlationId } : {}),
     });
+    // A reasoning model exhausted its output budget: the review JSON is partial
+    // or missing entirely. OpenAI-compatible endpoints report this as
+    // `finish_reason = "length"`, Anthropic as `"max_tokens"` — both must be
+    // treated as truncation BEFORE the parser sees the (empty/partial) text,
+    // otherwise the user gets a misleading "not valid JSON — try again".
+    if (response.stopReason === 'max_tokens' || response.stopReason === 'length') {
+      throw new ReviewParseError(
+        `AI review output was truncated (stop_reason=${response.stopReason}, output_tokens=${response.usage.outputTokens}). ` +
+          `Increase AI_MAX_TOKENS or reduce the diff size.`,
+      );
+    }
     return parseReviewOutput(response.content);
   }
 

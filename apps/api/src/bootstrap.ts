@@ -652,9 +652,9 @@ export function buildContainer(): Container {
       logger: container.resolve<Logger>(TOKENS.Logger),
       memoryProvider: container.resolve<MemoryProvider>(TOKENS.MemoryProvider),
       maxBatchSize: envInt('REVIEW_MAX_BATCH_SIZE', 5),
-      maxBatchTokens: envInt('REVIEW_MAX_BATCH_TOKENS', 8000),
+      maxBatchTokens: envInt('REVIEW_MAX_BATCH_TOKENS', 30_000),
       twoPassEnabled: process.env.REVIEW_TWO_PASS === 'true',
-      maxConcurrency: envInt('REVIEW_MAX_CONCURRENCY', 10),
+      maxConcurrency: envInt('REVIEW_MAX_CONCURRENCY', 4),
     });
   });
 

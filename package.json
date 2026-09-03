@@ -39,6 +39,7 @@
     "eslint": "^9.16.0",
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-boundaries": "^5.4.0",
+    "github-mcp-server-js": "^0.1.7",
     "lint-staged": "^15.2.10",
     "prettier": "^3.4.1",
     "simple-git-hooks": "^2.11.1",

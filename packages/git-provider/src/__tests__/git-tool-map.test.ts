@@ -22,9 +22,9 @@ describe('StaticGitToolMap', () => {
     expect(map.resolve(GitProviderType.GitHub)).toEqual({
       getPrTool: 'get_pull_request',
       getFilesTool: 'list_pull_request_files',
-      commentTool: 'add_pr_comment',
+      commentTool: 'add_comment',
       statusTool: 'set_pr_status',
-      labelTool: 'add_pr_labels',
+      labelTool: 'add_labels',
     });
     expect(map.resolve(GitProviderType.GitLab)).toEqual({
       getPrTool: 'get_merge_request',
@@ -67,7 +67,7 @@ describe('StaticGitToolMap', () => {
         number: 1,
         body: 'LGTM',
       }),
-    ).toEqual({ owner: 'acme', repo: 'api', pull_number: 1, body: 'LGTM' });
+    ).toEqual({ owner: 'acme', repo: 'api', issue_number: 1, body: 'LGTM' });
     expect(
       map.buildCommentArgs(GitProviderType.GitLab, {
         owner: 'acme/sub',
@@ -98,7 +98,7 @@ describe('StaticGitToolMap', () => {
     ).toEqual({
       owner: 'acme',
       repo: 'api',
-      pull_number: 1,
+      issue_number: 1,
       state: 'success',
       description: 'verified',
     });
@@ -141,7 +141,7 @@ describe('StaticGitToolMap', () => {
         number: 1,
         label: 'approved',
       }),
-    ).toEqual({ owner: 'acme', repo: 'api', pull_number: 1, label: 'approved' });
+    ).toEqual({ owner: 'acme', repo: 'api', issue_number: 1, labels: ['approved'] });
     expect(
       map.buildLabelArgs(GitProviderType.GitLab, {
         owner: 'acme',

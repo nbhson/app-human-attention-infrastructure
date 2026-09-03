@@ -303,8 +303,13 @@ is controlled by three env vars:
 ```sh
 # Max files per batch (default 5). Lower = smaller AI calls, less timeout risk.
 REVIEW_MAX_BATCH_SIZE=5
-# Max tokens per batch (default 8000). Lower = faster per-batch completion.
-REVIEW_MAX_BATCH_TOKENS=8000
+# Max tokens per batch (default 30000). Lower = faster per-batch completion.
+REVIEW_MAX_BATCH_TOKENS=30000
+# Max concurrent AI requests (default 4). Lower = gentler on rate limits; a
+# free-tier / proxied endpoint is often burst-limited and will 429 with high
+# concurrency. Each batch is also retried on transient failures, and a batch
+# that still fails is skipped so the rest of the review completes.
+REVIEW_MAX_CONCURRENCY=4
 # Two-pass mode: ON by default. When ON, a lightweight summary pass runs first
 # to identify high/medium risk files, then only those files are deep-reviewed.
 REVIEW_TWO_PASS=true
@@ -314,6 +319,14 @@ Without `REVIEW_TWO_PASS`, every file is reviewed in detail. With it, the
 pipeline calls `ReviewAgent.summarizeFiles()` to triage risks first, then
 passes only high/medium files to the full batch review — roughly halving the
 timeout window on a typical PR.
+
+**Review instructions (text.md).** The Triage Rules page lets operators upload a
+markdown instructions/skills file. When the `includeInstructions` toggle is ON
+and the file is non-empty, its content is injected verbatim into every AI review
+prompt (both `summarizeFiles` and `batchReview`) as an authoritative guidance
+section — the PR + Jira + text.md + AI flow. When OFF (default), the flow stays
+PR + Jira + AI. See `ReviewPromptInput.instructions` in
+`packages/agent-runtime/src/review/review-prompt.ts`.
 
 **Background worker (async review).** The review endpoint (`POST /api/reviews`)
 returns 202 immediately with a pending report. A background worker

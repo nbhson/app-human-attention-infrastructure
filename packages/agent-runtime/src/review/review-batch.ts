@@ -10,6 +10,8 @@
 
 import type { PullRequestFile } from '@harness/domain';
 
+import { OpenAICompatibleError } from '../llm/openai-compatible-provider.js';
+import { ReviewParseError } from './parse-review.js';
 import { ReviewAgent } from './review-agent.js';
 import type { ReviewAgentOptions } from './review-agent.js';
 import type { ReviewPromptInput } from './review-prompt.js';
@@ -19,6 +21,16 @@ import type { ReviewAgentOutput, ReviewFindingOutput, FixSuggestionOutput } from
 const DEFAULT_MAX_BATCH_SIZE = 5;
 /** Default max tokens per batch (conservative, 8k leaves room for the system prompt + response). */
 const DEFAULT_MAX_BATCH_TOKENS = 8000;
+/** Default concurrent AI requests — kept low so free-tier/proxied endpoints
+ *  aren't hammered into 429s (they fire request-burst rate limits fast). */
+const DEFAULT_MAX_CONCURRENCY = 4;
+/** Attempts per batch before giving up (1 initial + 2 retries). */
+const MAX_BATCH_ATTEMPTS = 3;
+/** Base delay in ms; doubled per attempt (e.g. 1s → 2s → 4s). */
+const BATCH_RETRY_BASE_MS = 1_000;
+
+/** Called whenever a batch has exhausted its retries and will be skipped (multi-batch only). */
+export type BatchFailureCallback = (batchIndex: number, attempts: number, error: unknown) => void;
 
 /** Options for {@link batchReview}. */
 export interface BatchReviewOptions {
@@ -33,12 +45,15 @@ export interface BatchReviewOptions {
   readonly maxBatchSize?: number;
   /** Optional past memories to inject into every batch's prompt. */
   readonly relatedMemories?: ReviewPromptInput['relatedMemories'];
+  /** Optional operator instructions / skill text injected into every batch's prompt. */
+  readonly instructions?: ReviewPromptInput['instructions'];
   /** Max tokens for the agent's response per batch (default 8000). */
   readonly maxAgentTokens?: number;
   /**
-   * Max concurrent AI requests (default 3).
+   * Max concurrent AI requests (default 4).
    * Prevents overwhelming the provider with too many parallel calls.
-   * Raise on a provider with generous rate limits; lower on a strict one.
+   * Raise on a provider with generous rate limits; lower on a strict one
+   * (free-tier endpoints often burst-limited to 1–3 concurrent calls).
    */
   readonly maxConcurrency?: number;
   /**
@@ -47,6 +62,12 @@ export interface BatchReviewOptions {
    * When false (default), the reviewer filters to high-signal items only.
    */
   readonly autoReviewMode?: boolean;
+  /**
+   * Called when a batch has exhausted its retries and will be SKIPPED so the
+   * rest of the review can still complete (multi-batch reviews only). A single
+   * batch that fails still surfaces as a hard error and is not reported here.
+   */
+  readonly onBatchFailure?: BatchFailureCallback;
 }
 
 /**
@@ -59,6 +80,7 @@ function buildReviewInput(
     prTitle: string;
     requirement: string;
     relatedMemories?: ReviewPromptInput['relatedMemories'];
+    instructions?: ReviewPromptInput['instructions'];
     autoReviewMode?: boolean;
   },
 ): ReviewPromptInput {
@@ -69,6 +91,7 @@ function buildReviewInput(
     diff: buildDiff(batch),
     autoReviewMode: opts.autoReviewMode,
     ...(opts.relatedMemories !== undefined ? { relatedMemories: opts.relatedMemories } : {}),
+    ...(opts.instructions !== undefined ? { instructions: opts.instructions } : {}),
   } as ReviewPromptInput;
 }
 
@@ -108,50 +131,123 @@ export async function batchReview(
     return { summary: '', overallVerdict: 'COMMENT' as const, findings: [], suggestions: [] };
   }
 
-  // Single batch — fast path, no merge overhead.
+  const concurrency = opts.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY;
+
+  // Single batch — fast path, no merge overhead. A failure here is the whole
+  // review, so it is retried but never silently skipped (never yields null).
   if (batches.length === 1) {
-    const firstBatch = batches[0]!;
-    const output = await agent.review(
-      buildReviewInput(firstBatch, {
-        prUrl: opts.prUrl,
-        prTitle: opts.prTitle,
-        requirement: opts.requirement,
-        relatedMemories: opts.relatedMemories,
-        ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
-      }),
-      buildAgentOptions(opts.model, opts.correlationId, opts.maxAgentTokens),
-    );
+    const output = (await reviewBatchWithRetry(agent, batches[0]!, 0, 1, opts)) as ReviewAgentOutput;
     if (onBatch) {
       await onBatch(0, 1, output);
     }
     return output;
   }
 
-  // Multiple batches — limited concurrency so the provider doesn't get overwhelmed.
-  const concurrency = opts.maxConcurrency ?? 10;
-  const outputs = await mapConcurrent(
+  // Multiple batches — limited concurrency so the provider doesn't get
+  // overwhelmed. Each batch is retried on transient failures, and a batch that
+  // permanently fails is SKIPPED so the other batches' findings still land.
+  const results = await mapConcurrent(
     batches,
-    async (batch, index) => {
-      const output = await agent.review(
-        buildReviewInput(batch, {
-          prUrl: opts.prUrl,
-          prTitle: opts.prTitle,
-          requirement: opts.requirement,
-          // Only pass memories to the first batch to avoid repetition.
-          relatedMemories: index === 0 ? opts.relatedMemories : undefined,
-          ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
-        }),
-        buildAgentOptions(opts.model, opts.correlationId, opts.maxAgentTokens),
-      );
-      if (onBatch) {
-        await onBatch(index, batches.length, output);
-      }
-      return output;
-    },
+    async (batch, index) =>
+      reviewBatchWithRetry(agent, batch, index, batches.length, opts).then((output) => {
+        if (output !== null && onBatch) {
+          return onBatch(index, batches.length, output).then(() => output);
+        }
+        return output;
+      }),
     concurrency,
   );
 
-  return mergeOutputs(outputs);
+  const succeeded = results.filter((output): output is ReviewAgentOutput => output !== null);
+  if (succeeded.length === 0) {
+    // Every batch failed — surface the original failure rather than a hollow
+    // "complete" report with zero findings.
+    throw new ReviewParseError('AI review failed: every batch was skipped after retries');
+  }
+  return mergeOutputs(succeeded);
+}
+
+/**
+ * Run a single batch's review with retry + exponential backoff.
+ *
+ * Transient failures (provider timeout, network drop, HTTP 429/5xx, and model
+ * JSON/truncation flakiness that the parser rejects) are retried up to
+ * `MAX_BATCH_ATTEMPTS`. On final failure:
+ *  - a single-batch review throws, so the caller sees an honest error;
+ *  - a multi-batch review returns `null` (the caller skips it and keeps the rest).
+ *
+ * `onBatch` runs exactly once per successfully-reviewed batch, AFTER retries,
+ * so a restored batch never double-inserts findings.
+ */
+async function reviewBatchWithRetry(
+  agent: ReviewAgent,
+  batch: readonly PullRequestFile[],
+  index: number,
+  totalBatches: number,
+  opts: BatchReviewOptions,
+): Promise<ReviewAgentOutput | null> {
+  const input = buildReviewInput(batch, {
+    prUrl: opts.prUrl,
+    prTitle: opts.prTitle,
+    requirement: opts.requirement,
+    // Only pass memories to the first batch to avoid repetition.
+    ...(index === 0 && opts.relatedMemories !== undefined ? { relatedMemories: opts.relatedMemories } : {}),
+    // Instructions apply to every batch — the operator's guidance is uniform.
+    ...(opts.instructions !== undefined ? { instructions: opts.instructions } : {}),
+    ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
+  });
+  const agentOpts = buildAgentOptions(opts.model, opts.correlationId, opts.maxAgentTokens);
+
+  let lastError: unknown;
+  let attempts = 0;
+  for (let attempt = 1; attempt <= MAX_BATCH_ATTEMPTS; attempt++) {
+    attempts = attempt;
+    try {
+      return await agent.review(input, agentOpts);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= MAX_BATCH_ATTEMPTS || !isTransientBatchError(error)) {
+        break;
+      }
+      const delayMs = BATCH_RETRY_BASE_MS * 2 ** (attempt - 1);
+      await sleep(delayMs);
+    }
+  }
+
+  // A single batch that truly fails must fail the review honestly.
+  if (totalBatches === 1) {
+    throw lastError;
+  }
+  // Otherwise report the skip so callers can log it, then continue the review.
+  opts.onBatchFailure?.(index, attempts, lastError);
+  return null;
+}
+
+/**
+ * Classify a per-batch failure. `timeout`/`network`/HTTP 429/5xx are transient
+ * provider pressure; a JSON parse failure is model flakiness that almost always
+ * clears on a fresh generation (the parser already salvages most shapes, so a
+ * surviving `ReviewParseError` is worth one more roll of the dice). Everything
+ * else (auth, malformed request, …) is permanent and fails fast.
+ */
+function isTransientBatchError(error: unknown): boolean {
+  if (error instanceof OpenAICompatibleError) {
+    if (error.kind === 'timeout' || error.kind === 'network') {
+      return true;
+    }
+    if (error.kind === 'http' && /\b429\b|5\d\d|rate limit/i.test(error.message)) {
+      return true;
+    }
+    return false;
+  }
+  if (error instanceof ReviewParseError) {
+    return true;
+  }
+  return error instanceof Error && /truncated|timed out|ECONNRESET|ETIMEDOUT|429|5\d\d|rate limit/i.test(error.message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ─── File splitting ───────────────────────────────────────────────────────────

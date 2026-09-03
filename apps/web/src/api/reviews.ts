@@ -387,6 +387,10 @@ export const reviewsApi = {
   getReport(id: string): Promise<ReviewReport> {
     return json<ReviewReport>(fetch(`${BASE}/${id}`));
   },
+  /** Re-run a failed review: resets status to pending and re-publishes the worker event. */
+  retry(id: string): Promise<{ reportId: string; status: 'pending' }> {
+    return post<{ reportId: string; status: 'pending' }>(`/${id}/retry`, {});
+  },
   /**
    * Record the human verdict on a report, optionally arming a PR write-back.
    * `writeback` arms the request-level flag; `comment` overrides the default

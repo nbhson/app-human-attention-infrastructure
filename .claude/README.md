@@ -45,6 +45,16 @@ When enabled in the Triage Rules settings, the AI reviewer operates in **full co
 - **Endpoint**: `POST /api/reviews/auto` (separate from the async `POST /api/reviews`)
 - **Config**: Toggles in the Triage Rules page (Admin/Reviewer role required)
 
+## Review Instructions (text.md)
+
+The Triage Rules page includes a **Review instructions** toggle and a text.md file upload. When enabled:
+
+1. Upload a markdown instructions/skills file via the "Choose .md file" button or paste directly into the textarea
+2. Toggle **"Review instructions (text.md)"** ON
+3. Every subsequent AI review (both the quick summarize pass and the full batch review) will inject the instructions verbatim into the prompt as authoritative guidance
+
+This enables the **PR + Jira + text.md + AI** flow — project-specific rules, coding standards, or domain knowledge that the AI reviewer must follow on top of its general review capabilities. Toggle OFF to return to the standard PR + Jira + AI flow.
+
 ## Memory
 
 Project memory is stored in `.claude/memory/` and indexed in `MEMORY.md`.

@@ -154,25 +154,25 @@ describe('MCPWriteBack', () => {
     await service.write(gitIntent({ action: WritebackAction.Label, label: 'approved' }));
 
     expect(registry.gets).toEqual(['github', 'github', 'github']);
-    expect(client.calls.map((c) => c.name)).toEqual(['add_pr_comment', 'set_pr_status', 'add_pr_labels']);
+    expect(client.calls.map((c) => c.name)).toEqual(['add_comment', 'set_pr_status', 'add_labels']);
     expect(client.calls[0]?.args).toEqual({
       owner: 'acme',
       repo: 'api',
-      pull_number: 42,
+      issue_number: 42,
       body: 'LGTM',
     });
     expect(client.calls[1]?.args).toEqual({
       owner: 'acme',
       repo: 'api',
-      pull_number: 42,
+      issue_number: 42,
       state: 'success',
       description: 'verified',
     });
     expect(client.calls[2]?.args).toEqual({
       owner: 'acme',
       repo: 'api',
-      pull_number: 42,
-      label: 'approved',
+      issue_number: 42,
+      labels: ['approved'],
     });
   });
 

@@ -172,6 +172,12 @@ export default function ReviewReportPage(): JSX.Element {
     onError: (error: unknown) => setSubmitError(error instanceof Error ? error.message : 'Decision failed.'),
   });
 
+  const retry = useMutation({
+    mutationFn: () => reviewsApi.retry(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviewReport', id] }),
+    onError: (error: unknown) => setSubmitError(error instanceof Error ? error.message : 'Retry failed.'),
+  });
+
   if (isLoading) {
     return reviewSkeleton();
   }
@@ -346,9 +352,14 @@ export default function ReviewReportPage(): JSX.Element {
               <Link to="/review" className="btn btn-primary">
                 Back to Review Queue
               </Link>
-              <button type="button" className="btn btn-ghost" onClick={() => void refetch()}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={retry.isPending}
+                onClick={() => void retry.mutate()}
+              >
                 <RefreshCw size={13} />
-                Retry
+                {retry.isPending ? 'Retrying…' : 'Retry'}
               </button>
             </div>
           </section>

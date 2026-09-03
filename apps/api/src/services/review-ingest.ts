@@ -49,6 +49,7 @@ import type {
 } from '@harness/domain';
 import { fixSuggestions, projects, reviewFindings, reviewReports } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
+import { loadTriageRuleState } from '../triage-rules-store.js';
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import type { Logger } from '@harness/di';
@@ -276,6 +277,9 @@ export class ReviewIngestService {
         maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
         ...(this.deps.autoReviewMode !== undefined ? { autoReviewMode: this.deps.autoReviewMode } : {}),
         ...(input.autoReviewMode !== undefined ? { autoReviewMode: input.autoReviewMode } : {}),
+        ...(await this.resolveInstructions().then((instructions) =>
+          instructions !== undefined ? { instructions } : {},
+        )),
       },
       correlationId,
     ).catch((error: unknown) => {
@@ -286,10 +290,13 @@ export class ReviewIngestService {
       // Server Error.
       if (error instanceof OpenAICompatibleError) {
         const isTimeout = error.kind === 'timeout';
+        const isRateLimited = error.kind === 'http' && /\b429\b|rate limit/i.test(error.message);
         throw new ReviewIngestError(
           isTimeout
             ? `the AI provider did not respond in time — ${error.message}`
-            : `the AI provider failed — ${error.message}`,
+            : isRateLimited
+              ? 'the AI provider is rate-limited (HTTP 429) — wait a moment and try again, or raise /REVIEW_MAX_CONCURRENCY, or upgrade the provider plan'
+              : `the AI provider failed — ${error.message}`,
           isTimeout ? 504 : 502,
         );
       }
@@ -298,7 +305,13 @@ export class ReviewIngestService {
       // upstream/AI problem (retry-able, not a code defect), so surface it as
       // a 502 rather than leaking an unhelpful 500.
       if (error instanceof ReviewParseError) {
-        throw new ReviewIngestError(`the AI returned an unusable review (${error.message}) — try again`, 502);
+        const isTruncated = error.message.includes('truncated');
+        throw new ReviewIngestError(
+          isTruncated
+            ? 'AI output was truncated — increase AI_MAX_TOKENS or reduce the diff size'
+            : 'AI review output was not valid JSON — try again',
+          isTruncated ? 502 : 400,
+        );
       }
       throw error;
     });
@@ -530,6 +543,9 @@ export class ReviewIngestService {
           maxAgentTokens: envInt('AI_MAX_TOKENS', 32_000),
           ...(this.deps.autoReviewMode !== undefined ? { autoReviewMode: this.deps.autoReviewMode } : {}),
           ...(input.autoReviewMode !== undefined ? { autoReviewMode: input.autoReviewMode } : {}),
+          ...(await this.resolveInstructions().then((instructions) =>
+            instructions !== undefined ? { instructions } : {},
+          )),
         },
         brand(reportId, 'CorrelationID'),
         // Per-batch callback: insert findings + suggestions immediately, update progress.
@@ -606,7 +622,29 @@ export class ReviewIngestService {
 
       logger.info('review report processed (async)', { report_id: reportId, pr_url: pr.url });
     } catch (error) {
-      logger.error('review processing failed', { report_id: reportId, error: String(error) });
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const isTruncated = errorMsg.includes('truncated');
+      const isParseError = error instanceof ReviewParseError || errorMsg.includes('not valid JSON');
+      const isRateLimited = /\b429\b|rate limit/i.test(errorMsg);
+      let rawOutput: string | undefined;
+      if (error instanceof ReviewParseError && error.cause instanceof Error) {
+        rawOutput = error.cause.message;
+      }
+      logger.error('review processing failed', {
+        report_id: reportId,
+        error: errorMsg,
+        is_truncated: isTruncated,
+        is_parse_error: isParseError,
+        is_rate_limited: isRateLimited,
+        ...(rawOutput !== undefined ? { raw_output: rawOutput.slice(0, 3000) } : {}),
+      });
+      const userMessage = isTruncated
+        ? '❌ Review failed: AI output was truncated — try with a smaller PR or increase AI_MAX_TOKENS'
+        : isRateLimited
+          ? '❌ Review failed: the AI provider is rate-limited (HTTP 429) — wait a moment and hit Retry, or reduce REVIEW_MAX_CONCURRENCY, or upgrade the provider plan'
+          : isParseError
+            ? '❌ Review failed: AI review output was not valid JSON — try again'
+            : `❌ Review failed: ${errorMsg}`;
       await retryTransient(
         'status error fallback',
         () =>
@@ -614,7 +652,7 @@ export class ReviewIngestService {
             .update(reviewReports)
             .set({
               review_status: 'error',
-              summary: `❌ Review failed: ${error instanceof Error ? error.message : String(error)}`,
+              summary: userMessage,
               overall_verdict: 'COMMENT' as const,
             })
             .where(eq(reviewReports.id, reportId)),
@@ -643,6 +681,8 @@ export class ReviewIngestService {
       correlationId: string;
       maxAgentTokens?: number;
       autoReviewMode?: boolean;
+      /** Operator instructions / skill text ("text.md") to inject into the prompt. */
+      instructions?: string;
     },
     _correlationId: string,
     onBatch?: (batchIndex: number, batchCount: number, output: ReviewAgentOutput) => Promise<void>,
@@ -688,6 +728,7 @@ export class ReviewIngestService {
           prTitle: opts.prTitle,
           requirement: opts.requirement,
           diff: summaryDiff,
+          ...(opts.instructions !== undefined ? { instructions: opts.instructions } : {}),
         },
         {
           model: opts.model,
@@ -716,7 +757,7 @@ export class ReviewIngestService {
     const uniqueKeywords = [...new Set(keywords)];
     const budgeted = budgetFiles(targetFiles, {
       keywords: uniqueKeywords.length > 0 ? uniqueKeywords : ['review'],
-      maxTokens: maxBatchTokens ?? 8000,
+      maxTokens: maxBatchTokens ?? 16_000,
       maxSources: maxBatchSize ?? 5,
     });
 
@@ -737,13 +778,51 @@ export class ReviewIngestService {
         model: opts.model,
         correlationId: opts.correlationId,
         maxBatchSize: maxBatchSize ?? 5,
-        maxBatchTokens: maxBatchTokens ?? 8000,
-        maxConcurrency: maxConcurrency ?? 10,
+        maxBatchTokens: maxBatchTokens ?? 16_000,
+        maxConcurrency: maxConcurrency ?? 4,
         ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
         ...(opts.maxAgentTokens !== undefined ? { maxAgentTokens: opts.maxAgentTokens } : {}),
         ...(relatedMemories !== undefined && relatedMemories.length > 0 ? { relatedMemories } : {}),
+        ...(opts.instructions !== undefined && opts.instructions.length > 0 ? { instructions: opts.instructions } : {}),
+        // A batch that permanently fails (after retries) is skipped so the rest
+        // of the review still completes — log it here for visibility/audit.
+        onBatchFailure: (batchIndex: number, attempts: number, error: unknown) => {
+          const logger = this.deps.logger;
+          if (attempts >= 3) {
+            logger.warn('review batch skipped after retries', {
+              correlation_id: opts.correlationId,
+              report_id: opts.correlationId,
+              batch_index: batchIndex,
+              attempts,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          } else {
+            logger.warn('review batch failed (permanent error, not retried)', {
+              correlation_id: opts.correlationId,
+              report_id: opts.correlationId,
+              batch_index: batchIndex,
+              attempts,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        },
       } as unknown as BatchReviewOptions,
       onBatch,
     );
+  }
+
+  /**
+   * Resolve the operator-supplied instructions / skill text ("text.md") for the
+   * PR + Jira + text.md + AI flow. Returns the uploaded content when the
+   * `includeInstructions` triage toggle is ON and the content is non-empty,
+   * otherwise `undefined` (falling back to the PR + Jira + AI flow).
+   */
+  private async resolveInstructions(): Promise<string | undefined> {
+    const state = await loadTriageRuleState(this.deps.db);
+    if (!state.includeInstructions) {
+      return undefined;
+    }
+    const content = state.instructionsContent.trim();
+    return content.length > 0 ? content : undefined;
   }
 }

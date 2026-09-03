@@ -42,6 +42,12 @@ export interface ReviewPromptInput {
     readonly confidence: number;
     readonly metadata: Record<string, unknown>;
   }[];
+  /**
+   * Optional operator-supplied instructions / skill text (the "text.md" file
+   * from the PR + Jira + text.md + AI flow). When present, injected verbatim
+   * into the prompt so the AI can follow project-specific guidance.
+   */
+  readonly instructions?: string;
 }
 
 export interface ReviewPrompt {
@@ -333,6 +339,7 @@ export function buildReviewPrompt(input: ReviewPromptInput): ReviewPrompt {
   const autoReviewMode = input.autoReviewMode ?? false;
 
   const memoriesSection = buildMemoriesSection(input.relatedMemories);
+  const instructionsSection = buildInstructionsSection(input.instructions);
 
   const modeSection = autoReviewMode
     ? `REVIEW MODE: FULL CODE REVIEW
@@ -348,12 +355,33 @@ When autoReviewMode is disabled (default), you are a human-attention router. ONL
     requirement,
     modeSection.length > 0 ? ['', modeSection] : [],
     ...(memoriesSection.length > 0 ? ['', memoriesSection] : []),
+    ...(instructionsSection.length > 0 ? ['', instructionsSection] : []),
     '',
     'DIFF:',
     input.diff.trim(),
   ].join('\n');
 
   return { systemPrompt: SYSTEM_PROMPT, userMessage };
+}
+
+/**
+ * Format the operator-supplied instructions / skill text ("text.md") into a
+ * clearly-delimited section. May be disabled by an empty string.
+ */
+function buildInstructionsSection(instructions: string | undefined): string {
+  const trimmed = instructions?.trim() ?? '';
+  if (trimmed.length === 0) {
+    return '';
+  }
+  return [
+    'OPERATOR INSTRUCTIONS (must be followed):',
+    'The following instructions/skills were supplied by the human operator. Treat them as',
+    'authoritative guidance for this review — apply them on top of your general review rules.',
+    '',
+    trimmed,
+    '',
+    'Ensure every finding and suggestion below respects these instructions.',
+  ].join('\n');
 }
 
 /** Format related memories into a "Related past reviews" section for the prompt. */

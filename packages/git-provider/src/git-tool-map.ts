@@ -113,28 +113,31 @@ export const DEFAULT_GIT_TOOL_MAP: readonly GitToolMapEntry[] = [
     domains: ['github.com', 'www.github.com'],
     getPrTool: 'get_pull_request',
     getFilesTool: 'list_pull_request_files',
-    commentTool: 'add_pr_comment',
+    // Tool names match the `github-mcp-server-js` server (mcp.config.json).
+    // This server's comment/label tools operate on an issue number and cannot
+    // set commit statuses (no status tool exists).
+    commentTool: 'add_comment',
     statusTool: 'set_pr_status',
-    labelTool: 'add_pr_labels',
+    labelTool: 'add_labels',
     buildArgs: ({ owner, name, number }) => ({ owner, repo: name, pull_number: number }),
     buildCommentArgs: ({ owner, name, number, body }) => ({
       owner,
       repo: name,
-      pull_number: number,
+      issue_number: number,
       body,
     }),
     buildStatusArgs: ({ owner, name, number, state, description }) => ({
       owner,
       repo: name,
-      pull_number: number,
+      issue_number: number,
       state,
       description,
     }),
     buildLabelArgs: ({ owner, name, number, label }) => ({
       owner,
       repo: name,
-      pull_number: number,
-      label,
+      issue_number: number,
+      labels: [label],
     }),
   },
   {

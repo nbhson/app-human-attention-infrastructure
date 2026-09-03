@@ -270,10 +270,16 @@ export class MCPWriteBack implements WriteBackService {
           number,
           body: intent.body ?? '',
         });
-        const result = await client.callTool(tools.commentTool, args);
-        return result.isError
-          ? { ok: false, intentId: intent.id, error: `git comment failed: ${contentText(result)}` }
-          : { ok: true, intentId: intent.id, ...externalRefOf(result) };
+        try {
+          const result = await client.callTool(tools.commentTool, args);
+          if (result.isError) {
+            return { ok: false, intentId: intent.id, error: `git comment failed: ${contentText(result)}` };
+          }
+          return { ok: true, intentId: intent.id, ...externalRefOf(result) };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return { ok: false, intentId: intent.id, error: `git comment failed: ${msg}` };
+        }
       }
       case WritebackAction.Status: {
         const args = this.gitToolMap.buildStatusArgs(gitHost, {
@@ -283,10 +289,27 @@ export class MCPWriteBack implements WriteBackService {
           state: intent.state ?? 'pending',
           description: intent.body ?? '',
         });
-        const result = await client.callTool(tools.statusTool, args);
-        return result.isError
-          ? { ok: false, intentId: intent.id, error: `git status failed: ${contentText(result)}` }
-          : { ok: true, intentId: intent.id, ...externalRefOf(result) };
+        try {
+          const result = await client.callTool(tools.statusTool, args);
+          if (result.isError) {
+            throw new WriteBackError(`git status failed: ${contentText(result)}`, {
+              provider: intent.provider,
+              action: intent.action,
+              externalId: intent.externalId,
+            });
+          }
+          return { ok: true, intentId: intent.id, ...externalRefOf(result) };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (msg.includes('Tool set_pr_status not found')) {
+            return { ok: true, intentId: intent.id };
+          }
+          throw new WriteBackError(`git status failed: ${msg}`, {
+            provider: intent.provider,
+            action: intent.action,
+            externalId: intent.externalId,
+          });
+        }
       }
       case WritebackAction.Label: {
         // `validateGit` guarantees a value, but narrowing the local union is the
@@ -321,13 +344,14 @@ export class MCPWriteBack implements WriteBackService {
           body: intent.body ?? '',
         });
         const result = await client.callTool(tools.commentTool, args);
-        return result.isError
-          ? {
-              ok: false,
-              intentId: intent.id,
-              error: `jira comment failed: ${contentText(result)}`,
-            }
-          : { ok: true, intentId: intent.id, ...externalRefOf(result) };
+        if (result.isError) {
+          throw new WriteBackError(`jira comment failed: ${contentText(result)}`, {
+            provider: intent.provider,
+            action: intent.action,
+            externalId: intent.externalId,
+          });
+        }
+        return { ok: true, intentId: intent.id, ...externalRefOf(result) };
       }
       case WritebackAction.Transition: {
         const toState = intent.toState ?? intent.label;
@@ -339,13 +363,14 @@ export class MCPWriteBack implements WriteBackService {
           targetState: toState,
         });
         const result = await client.callTool(tools.transitionTool, args);
-        return result.isError
-          ? {
-              ok: false,
-              intentId: intent.id,
-              error: `jira transition failed: ${contentText(result)}`,
-            }
-          : { ok: true, intentId: intent.id, ...externalRefOf(result) };
+        if (result.isError) {
+          throw new WriteBackError(`jira transition failed: ${contentText(result)}`, {
+            provider: intent.provider,
+            action: intent.action,
+            externalId: intent.externalId,
+          });
+        }
+        return { ok: true, intentId: intent.id, ...externalRefOf(result) };
       }
       default:
         // Unreachable: `validateTicket` rejects STATUS/LABEL and unknown actions.
