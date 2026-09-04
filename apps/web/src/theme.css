@@ -1664,15 +1664,20 @@ button {
   border-bottom: none;
 }
 
-/* Sticky decision bar. Sits above the (also sticky) tab bar so the human gate
-   is never hidden behind a tab while both are pinned. */
+/* Sticky decision bar. Stays pinned to the bottom of the viewport so the human
+   verdict can always be submitted regardless of scroll depth. */
 .decision-bar {
   position: sticky;
   bottom: 0;
-  z-index: 20;
-  background: var(--color-bg);
-  border-top: 1px solid var(--color-border);
-  padding-top: 12px;
+  z-index: 100;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  padding: 16px 20px;
+  margin-top: 32px;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
 }
 
 .decision-options {

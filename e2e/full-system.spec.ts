@@ -40,6 +40,7 @@ import {
   reviewDecisions,
   reviewFindings,
   reviewReports,
+  reviewVerifications,
   taskStateHistory,
   tasks,
   users,
@@ -292,6 +293,7 @@ async function resetReviewTables(db: DrizzleDB): Promise<void> {
   await db.delete(memoryEntries);
   await db.delete(writebackLog);
   await db.delete(reviewDecisions);
+  await db.delete(reviewVerifications);
   await db.delete(reviewFindings);
   await db.delete(fixSuggestions);
   await db.delete(judgeRuns);
@@ -446,6 +448,12 @@ describe('full-system E2E (day-37)', () => {
     });
     const { reportId } = ingest.json<{ reportId: string }>();
 
+    // Wait for the async review to finish before asserting.
+    await waitForCount(async () => {
+      const rows = await db.select().from(reviewReports);
+      return rows.filter((r) => r.id === reportId && r.review_status === 'complete').length;
+    }, 1);
+
     const decision = await app.inject({
       method: 'POST',
       url: `/api/reviews/${reportId}/decision`,
@@ -478,6 +486,12 @@ describe('full-system E2E (day-37)', () => {
       payload: { prUrl: 'https://github.com/acme/api/pull/44' },
     });
     const { reportId } = ingest.json<{ reportId: string }>();
+
+    // Wait for the async review to finish before asserting.
+    await waitForCount(async () => {
+      const rows = await db.select().from(reviewReports);
+      return rows.filter((r) => r.id === reportId && r.review_status === 'complete').length;
+    }, 1);
 
     const decision = await app.inject({
       method: 'POST',
