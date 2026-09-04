@@ -244,6 +244,22 @@ export interface ReviewStats {
   readonly severity: Record<ReviewSeverity, number>;
 }
 
+/** PR Health Score categories for the Detail tab. */
+export interface PRHealthScore {
+  readonly architecture: HealthRating;
+  readonly codeQuality: HealthRating;
+  readonly security: HealthRating;
+  readonly performance: HealthRating;
+  readonly testing: HealthRating;
+  readonly overallRisk: OverallRiskLevel;
+}
+
+/** Health rating with color indicator. */
+export type HealthRating = 'excellent' | 'good' | 'fair' | 'poor';
+
+/** Overall risk level. */
+export type OverallRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
 /** The composed report as returned by `GET /api/reviews/:id`. */
 export interface ReviewReport {
   readonly id: string;
@@ -255,6 +271,7 @@ export interface ReviewReport {
   readonly model: string;
   readonly summary: string;
   readonly overallVerdict: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+  readonly healthScore?: PRHealthScore;
   /**
    * Current stage of the async review pipeline. `'complete'` means the review
    * has finished processing; any other value means the background worker is
