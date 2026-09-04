@@ -97,6 +97,7 @@ const report: ReviewReport = {
   decisions: [],
   writebacks: [],
   writeback: { enabled: true },
+  recalledMemories: null,
 };
 
 function renderReport(): void {

@@ -1,0 +1,1 @@
+ALTER TABLE "review_reports" ADD COLUMN "recalled_memories" jsonb;

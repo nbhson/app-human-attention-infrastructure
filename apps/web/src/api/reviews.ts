@@ -76,6 +76,15 @@ export interface JudgeRun {
   readonly createdAt: string;
 }
 
+/** A recalled memory entry during the "recalling" stage. */
+export interface RecalledMemory {
+  readonly kind: string;
+  readonly content: string;
+  readonly confidence: number;
+  readonly metadata: Record<string, unknown>;
+  readonly relevance: number;
+}
+
 /** The "AI trace" payload: metadata about how this report was produced. */
 export interface ReviewTrace {
   readonly calls: readonly LlmCall[];
@@ -101,6 +110,43 @@ export interface WritebackRecord {
   readonly error: string | null;
   readonly decisionId: string | null;
   readonly createdAt: string;
+}
+
+/** A commit in a PR. */
+export interface PullRequestCommit {
+  readonly sha: string;
+  readonly message: string;
+  readonly author: string;
+  readonly authorDate: string;
+  readonly url: string;
+}
+
+/** A single CI check run. */
+export interface PullRequestCheck {
+  readonly name: string;
+  readonly status:
+    'pending' | 'success' | 'failure' | 'error' | 'neutral' | 'skipped' | 'cancelled' | 'timed_out' | 'action_required';
+  readonly conclusion:
+    'success' | 'failure' | 'neutral' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null;
+  readonly url: string;
+  readonly startedAt: string | null;
+  readonly completedAt: string | null;
+}
+
+/** Aggregated CI/check status for the PR head commit. */
+export interface PullRequestCheckStatus {
+  readonly state: 'pending' | 'success' | 'failure' | 'error' | 'neutral';
+  readonly totalCount: number;
+  readonly passedCount: number;
+  readonly failedCount: number;
+  readonly pendingCount: number;
+  readonly checks: readonly PullRequestCheck[];
+}
+
+/** PR metadata from the Git provider. */
+export interface PullRequestMetadata {
+  readonly commits?: readonly PullRequestCommit[];
+  readonly checkStatus?: PullRequestCheckStatus;
 }
 
 /** The review-slice machine-verification lifecycle (clone → build → test). */
@@ -232,6 +278,10 @@ export interface ReviewReport {
   readonly createdAt: string;
   /** Derived statistics; absent when the backend serves a report without them. */
   readonly stats?: ReviewStats;
+  /** Recalled memory entries from the "recalling" stage; null if none or stage not reached. */
+  readonly recalledMemories: readonly RecalledMemory[] | null;
+  /** PR metadata (commits, CI status) from the Git provider. */
+  readonly pullRequestMetadata?: PullRequestMetadata;
   readonly findings: readonly ReviewFinding[];
   readonly suggestions: readonly FixSuggestion[];
   readonly diff: readonly PrFile[];

@@ -32,6 +32,8 @@ export const reviewReports = pgTable(
     review_status: text('review_status').notNull().default('pending'),
     /** Batch progress within the `reviewing` stage: `{ current, total }` or null. */
     batch_progress: jsonb('batch_progress'),
+    /** Recalled memory entries during the "recalling" stage (JSON array of MemoryRetrievalResult). */
+    recalled_memories: jsonb('recalled_memories'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

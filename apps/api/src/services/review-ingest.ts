@@ -505,9 +505,34 @@ export class ReviewIngestService {
       }
 
       // Stage: recalling — retrieve past review context.
+      // Do memory recall first so we can store the results.
+      let recalledMemories: unknown = null;
+      if (this.deps.memoryProvider) {
+        const rawMemories = await this.deps.memoryProvider.retrieve({
+          text: `${pr.title} ${requirement}`,
+          limit: 5,
+        });
+        if (rawMemories !== undefined && rawMemories.length > 0) {
+          recalledMemories = rawMemories.map((m) => ({
+            kind: m.entry.kind,
+            content: m.entry.content,
+            confidence: m.entry.confidence,
+            metadata: m.entry.metadata,
+            relevance: m.relevance,
+          }));
+        }
+      }
+
       await retryTransient(
         'status recalling',
-        () => db.update(reviewReports).set({ review_status: 'recalling' }).where(eq(reviewReports.id, reportId)),
+        () =>
+          db
+            .update(reviewReports)
+            .set({
+              review_status: 'recalling',
+              recalled_memories: recalledMemories,
+            })
+            .where(eq(reviewReports.id, reportId)),
         logger,
         reportId,
       );

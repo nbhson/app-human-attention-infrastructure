@@ -100,6 +100,41 @@ export interface PullRequest {
   /** The repo host path, e.g. `github.com/acme/api`. */
   readonly repo: string;
   readonly files: PullRequestFile[];
+  /** Commits in the PR (newest first). */
+  readonly commits?: readonly PullRequestCommit[];
+  /** CI/check status for the head commit. */
+  readonly checkStatus?: PullRequestCheckStatus;
+}
+
+/** A commit in a PR. */
+export interface PullRequestCommit {
+  readonly sha: string;
+  readonly message: string;
+  readonly author: string;
+  readonly authorDate: string;
+  readonly url: string;
+}
+
+/** Aggregated CI/check status for the PR head commit. */
+export interface PullRequestCheckStatus {
+  readonly state: 'pending' | 'success' | 'failure' | 'error' | 'neutral';
+  readonly totalCount: number;
+  readonly passedCount: number;
+  readonly failedCount: number;
+  readonly pendingCount: number;
+  readonly checks: readonly PullRequestCheck[];
+}
+
+/** A single CI check run. */
+export interface PullRequestCheck {
+  readonly name: string;
+  readonly status:
+    'pending' | 'success' | 'failure' | 'error' | 'neutral' | 'skipped' | 'cancelled' | 'timed_out' | 'action_required';
+  readonly conclusion:
+    'success' | 'failure' | 'neutral' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null;
+  readonly url: string;
+  readonly startedAt: string | null;
+  readonly completedAt: string | null;
 }
 
 // --- Ticket model ----------------------------------------------------------

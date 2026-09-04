@@ -1,15 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { reviewsApi, type ReviewDecision, type ReviewFinding, type TriageRuleId } from '../api/reviews';
+import {
+  reviewsApi,
+  type ReviewDecision,
+  type ReviewFinding,
+  type TriageRuleId,
+  type WritebackRecord,
+} from '../api/reviews';
 import { BreakdownTab } from '../components/BreakdownTab';
 import { DiffTab } from '../components/DiffTab';
+import { PRMetadataPanel } from '../components/PRMetadataPanel';
+import { RecalledMemoriesPanel } from '../components/RecalledMemoriesPanel';
 import { ReportStats } from '../components/ReportStats';
 import { ReviewTab } from '../components/ReviewTab';
 import { Skeleton, SkeletonLines } from '../components/Skeleton';
 import { SummaryMetricsPanel } from '../components/SummaryMetricsPanel';
 import { TraceTab } from '../components/TraceTab';
 import { VerificationTab } from '../components/VerificationTab';
+import { WritebackDetailModal } from '../components/WritebackDetailModal';
 import { severityColor, sortFindingsBySeverity } from '../components/severity';
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldAlert, Sliders, Zap } from '../components/Icons';
 
@@ -151,6 +160,7 @@ export default function ReviewReportPage(): JSX.Element {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ReviewTabKey>('review');
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
+  const [writebackDetail, setWritebackDetail] = useState<WritebackRecord | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['reviewReport', id],
@@ -605,6 +615,11 @@ export default function ReviewReportPage(): JSX.Element {
                 </div>
               </div>
             )}
+
+            {/* Recalled memories — show during "recalling" stage */}
+            {data.reviewStatus === 'recalling' && data.recalledMemories && data.recalledMemories.length > 0 && (
+              <RecalledMemoriesPanel memories={data.recalledMemories} />
+            )}
           </section>
         )}
       </main>
@@ -798,6 +813,14 @@ export default function ReviewReportPage(): JSX.Element {
           </p>
         </div>
       </header>
+
+      {/* PR Metadata (commits, CI status) */}
+      {data.pullRequestMetadata && (
+        <PRMetadataPanel
+          commits={data.pullRequestMetadata.commits}
+          checkStatus={data.pullRequestMetadata.checkStatus}
+        />
+      )}
 
       {/* 1b — triage rule flags, if any fired */}
       {data.triage.matchedRules.length > 0 && (
@@ -1040,14 +1063,32 @@ export default function ReviewReportPage(): JSX.Element {
               </div>
             ))}
             {data.writebacks.map((record) => (
-              <div key={record.id} style={{ marginLeft: 16 }}>
+              <button
+                key={record.id}
+                type="button"
+                onClick={() => setWritebackDetail(record)}
+                style={{
+                  marginLeft: 16,
+                  padding: '4px 8px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--color-info)',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  fontSize: '0.82rem',
+                  textAlign: 'left',
+                  font: 'inherit',
+                }}
+              >
                 {record.provider}/{record.action}: {record.status}
                 {record.error !== null && ` — ${record.error}`}
-              </div>
+              </button>
             ))}
           </div>
         )}
       </section>
+
+      {writebackDetail && <WritebackDetailModal record={writebackDetail} onClose={() => setWritebackDetail(null)} />}
     </main>
   );
 }

@@ -48,6 +48,14 @@ import {
   writebackLog,
 } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
+
+interface RecalledMemory {
+  readonly kind: string;
+  readonly content: string;
+  readonly confidence: number;
+  readonly metadata: Record<string, unknown>;
+  readonly relevance: number;
+}
 import { createEvent } from '@harness/event-bus';
 import type { IEventBus } from '@harness/event-bus';
 import { GitProviderError, parseRepoPath, StaticGitToolMap } from '@harness/git-provider';
@@ -396,6 +404,13 @@ export function registerReviewIngestRoutes(
         // per-provider WRITEBACK_<PROVIDER> arm is a further, host-level gate
         // still enforced at decision time.
         writeback: { enabled: writebackEnabled(true, process.env) },
+        recalledMemories: (report.recalled_memories as unknown as readonly RecalledMemory[] | null) ?? null,
+        pullRequestMetadata: (report.pr_payload as { commits?: unknown; checkStatus?: unknown })
+          ? {
+              commits: (report.pr_payload as { commits?: unknown }).commits,
+              checkStatus: (report.pr_payload as { checkStatus?: unknown }).checkStatus,
+            }
+          : undefined,
         stats: computeReviewStats(report.pr_payload, findingsRows),
         findings: findingsRows.map((f) => ({
           id: f.id,

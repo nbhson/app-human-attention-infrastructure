@@ -9,7 +9,7 @@
  */
 
 import { GitProviderType } from '@harness/domain';
-import type { PullRequest } from '@harness/domain';
+import type { PullRequest, PullRequestCommit, PullRequestCheckStatus, PullRequestCheck } from '@harness/domain';
 
 import { GitProviderError, parseRepoPath } from './git-provider.js';
 import type { CloneInput, CloneResult, FetchPullRequestInput, GitProvider } from './git-provider.js';
@@ -75,7 +75,137 @@ export class GitHubProvider implements GitProvider {
       // capped page; a merge-base divergence must never under-count the cap.
       files = compareFiles.length >= pagedFiles.length ? compareFiles : pagedFiles;
     }
-    return mapGithubPullRequest(this.type, input.repo, meta, files);
+
+    // Fetch commits (up to 50)
+    const commits = await this.fetchCommits(owner, name, input.number);
+
+    // Fetch check status for the head commit
+    const checkStatus = await this.fetchCheckStatus(owner, name, meta.head.sha);
+
+    return mapGithubPullRequest(this.type, input.repo, meta, files, commits, checkStatus);
+  }
+
+  private async fetchCommits(owner: string, name: string, number: number): Promise<PullRequestCommit[]> {
+    try {
+      const commitsPath = `/repos/${owner}/${name}/pulls/${number}/commits`;
+      const commitsData = (await this.requestAllArrayPages(commitsPath)) as Array<{
+        sha: string;
+        commit: { message: string | null; author: { name: string; date: string } };
+        author: { login: string } | null;
+        html_url: string;
+      }>;
+      return commitsData.slice(0, 50).map((c) => {
+        const rawMessage = c.commit.message;
+        const msg = rawMessage === null ? '' : rawMessage;
+        const message = msg.split('\n')[0];
+        return {
+          sha: c.sha,
+          message: message as string,
+          author: c.author?.login ?? c.commit.author.name,
+          authorDate: c.commit.author.date,
+          url: c.html_url,
+        } as PullRequestCommit;
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  private async fetchCheckStatus(
+    owner: string,
+    name: string,
+    headSha: string,
+  ): Promise<PullRequestCheckStatus | undefined> {
+    try {
+      const checksPath = `/repos/${owner}/${name}/commits/${headSha}/check-runs`;
+      const checksData = (await this.request(checksPath, 'GET')) as {
+        check_runs: Array<{
+          name: string;
+          status: string;
+          conclusion: string | null;
+          html_url: string;
+          started_at: string | null;
+          completed_at: string | null;
+        }>;
+      };
+      const checks = checksData.check_runs;
+      if (checks.length === 0) {
+        // Try statuses API as fallback
+        return this.fetchStatuses(owner, name, headSha);
+      }
+      const passed = checks.filter((c) => c.conclusion === 'success').length;
+      const failed = checks.filter((c) => c.conclusion === 'failure').length;
+      const pending = checks.filter(
+        (c) => c.status === 'in_progress' || c.status === 'queued' || c.status === 'pending',
+      ).length;
+      let state: PullRequestCheckStatus['state'] = 'neutral';
+      if (pending > 0) state = 'pending';
+      else if (failed > 0) state = 'failure';
+      else if (passed > 0) state = 'success';
+
+      return {
+        state,
+        totalCount: checks.length,
+        passedCount: passed,
+        failedCount: failed,
+        pendingCount: pending,
+        checks: checks.map((c) => ({
+          name: c.name,
+          status: c.status as PullRequestCheck['status'],
+          conclusion: c.conclusion as PullRequestCheck['conclusion'],
+          url: c.html_url,
+          startedAt: c.started_at,
+          completedAt: c.completed_at,
+        })),
+      };
+    } catch {
+      return this.fetchStatuses(owner, name, headSha);
+    }
+  }
+
+  private async fetchStatuses(owner: string, name: string, sha: string): Promise<PullRequestCheckStatus | undefined> {
+    try {
+      const statusesPath = `/repos/${owner}/${name}/commits/${sha}/statuses`;
+      const statusesData = (await this.request(statusesPath, 'GET')) as Array<{
+        state: 'pending' | 'success' | 'failure' | 'error';
+        context: string;
+        target_url: string | null;
+        created_at: string;
+      }>;
+      if (statusesData.length === 0) return undefined;
+      const passed = statusesData.filter((s) => s.state === 'success').length;
+      const failed = statusesData.filter((s) => s.state === 'failure' || s.state === 'error').length;
+      const pending = statusesData.filter((s) => s.state === 'pending').length;
+      let state: PullRequestCheckStatus['state'] = 'neutral';
+      if (pending > 0) state = 'pending';
+      else if (failed > 0) state = 'failure';
+      else if (passed > 0) state = 'success';
+
+      return {
+        state,
+        totalCount: statusesData.length,
+        passedCount: passed,
+        failedCount: failed,
+        pendingCount: pending,
+        checks: statusesData.map((s) => ({
+          name: s.context,
+          status: s.state === 'pending' ? 'pending' : ('success' as const),
+          conclusion:
+            s.state === 'success'
+              ? 'success'
+              : s.state === 'failure'
+                ? 'failure'
+                : s.state === 'error'
+                  ? 'failure'
+                  : 'neutral',
+          url: s.target_url ?? '',
+          startedAt: s.created_at,
+          completedAt: s.state !== 'pending' ? s.created_at : null,
+        })),
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   async postComment(input: FetchPullRequestInput, body: string): Promise<void> {

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ReviewFinding, ReviewStats, ReviewTrace } from '../api/reviews';
+import { ShadowJudgePanel } from './ShadowJudgePanel';
 
 /**
  * AI trace tab — the honest "what did the AI actually inspect and do?" surface.
@@ -133,41 +134,45 @@ export function TraceTab({
       )}
 
       {trace.judge.length > 0 && (
-        <section style={{ marginTop: 20 }}>
-          <h3 style={{ margin: '0 0 8px' }}>Independent judge</h3>
-          {trace.judge.map((run, index) => (
-            <div
-              key={index}
-              style={{
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius)',
-                padding: '8px 12px',
-                marginBottom: 8,
-                background: 'var(--color-surface-2)',
-                fontSize: '0.85rem',
-              }}
-            >
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <span>
-                  <strong>overall</strong> {Math.round(run.overall * 100)}%
-                </span>
-                <span>
-                  <strong>severity</strong> {Math.round(run.severityAgreement * 100)}%
-                </span>
-                <span>
-                  <strong>routing</strong> {Math.round(run.routingAgreement * 100)}%
-                </span>
-                <span>
-                  <strong>evidence</strong> {Math.round(run.evidenceSufficiency * 100)}%
-                </span>
-                <code>{run.model}</code>
+        <>
+          <section style={{ marginTop: 20 }}>
+            <h3 style={{ margin: '0 0 8px' }}>Independent judge (legacy view)</h3>
+            {trace.judge.map((run, index) => (
+              <div
+                key={index}
+                style={{
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '8px 12px',
+                  marginBottom: 8,
+                  background: 'var(--color-surface-2)',
+                  fontSize: '0.85rem',
+                }}
+              >
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <span>
+                    <strong>overall</strong> {Math.round(run.overall * 100)}%
+                  </span>
+                  <span>
+                    <strong>severity</strong> {Math.round(run.severityAgreement * 100)}%
+                  </span>
+                  <span>
+                    <strong>routing</strong> {Math.round(run.routingAgreement * 100)}%
+                  </span>
+                  <span>
+                    <strong>evidence</strong> {Math.round(run.evidenceSufficiency * 100)}%
+                  </span>
+                  <code>{run.model}</code>
+                </div>
+                {run.reasoning !== null && run.reasoning.length > 0 && (
+                  <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{run.reasoning}</p>
+                )}
               </div>
-              {run.reasoning !== null && run.reasoning.length > 0 && (
-                <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{run.reasoning}</p>
-              )}
-            </div>
-          ))}
-        </section>
+            ))}
+          </section>
+
+          <ShadowJudgePanel judgeRuns={trace.judge} />
+        </>
       )}
 
       <p style={{ margin: '20px 0 0', color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>

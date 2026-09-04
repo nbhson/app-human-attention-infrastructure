@@ -5,7 +5,14 @@
  * split used by `map-anthropic-response.ts`.
  */
 
-import type { GitProviderType, PullRequest, PullRequestFile, PullRequestFileStatus } from '@harness/domain';
+import type {
+  GitProviderType,
+  PullRequest,
+  PullRequestFile,
+  PullRequestFileStatus,
+  PullRequestCommit,
+  PullRequestCheckStatus,
+} from '@harness/domain';
 
 /** Subset of the GitHub PR object (`/repos/{owner}/{repo}/pulls/{number}`). */
 export interface GithubPullPayload {
@@ -53,8 +60,10 @@ export function mapGithubPullRequest(
   repo: string,
   meta: GithubPullPayload,
   files: GithubPrFilePayload[],
+  commits?: readonly PullRequestCommit[],
+  checkStatus?: PullRequestCheckStatus,
 ): PullRequest {
-  return {
+  const base = {
     provider,
     number: meta.number,
     title: meta.title,
@@ -67,5 +76,16 @@ export function mapGithubPullRequest(
     url: meta.html_url,
     repo,
     files: files.map(mapFile),
-  };
+  } satisfies Omit<PullRequest, 'commits' | 'checkStatus'>;
+
+  if (commits !== undefined && checkStatus !== undefined) {
+    return { ...base, commits, checkStatus };
+  }
+  if (commits !== undefined) {
+    return { ...base, commits };
+  }
+  if (checkStatus !== undefined) {
+    return { ...base, checkStatus };
+  }
+  return base;
 }
