@@ -14,6 +14,10 @@ queryable, and auditable.
 
 ![HAI Review UI](./HAI.png)
 
+![SCORE Review UI](./SCORE.png)
+
+![SCORE Review UI](./DETAILS.png)
+
 |                    |                                                                                            |
 | ------------------ | ------------------------------------------------------------------------------------------ |
 | **Status**         | Feature-complete · tagged `v0.4.0-harness` · review-only control plane (`review-reorient`) |
