@@ -62,6 +62,7 @@ import { GitProviderError, parseRepoPath, StaticGitToolMap } from '@harness/git-
 import { WriteBackError } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
+import { formatRejectWritebackBody } from '../format-review-writeback.js';
 import { ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
 import { computeFindingAnchor } from '../finding-anchor.js';
 import { computeReviewStats } from '../review-stats.js';
@@ -672,9 +673,37 @@ export function registerReviewIngestRoutes(
 
       const writeback = container.resolve<WriteBackService>(TOKENS.WriteBackService);
       const approved = decision === ReviewDecisionType.Approve;
+      const isReject = decision === ReviewDecisionType.Reject;
       const decisionSummary = `Review decision: ${decision}${rationale === undefined ? '' : ` — ${rationale}`}`;
       const userComment = request.body?.comment?.trim();
-      const commentBody = userComment && userComment.length > 0 ? userComment : decisionSummary;
+
+      let commentBody: string;
+      if (isReject) {
+        // For REJECT, attach full AI review findings and suggestions alongside human comments
+        const [findingsRows, suggestionsRows] = await Promise.all([
+          db
+            .select()
+            .from(reviewFindings)
+            .where(eq(reviewFindings.report_id, id))
+            .orderBy(asc(reviewFindings.order_index)),
+          db
+            .select()
+            .from(fixSuggestions)
+            .where(eq(fixSuggestions.report_id, id))
+            .orderBy(asc(fixSuggestions.order_index)),
+        ]);
+
+        commentBody = formatRejectWritebackBody({
+          decision,
+          rationale,
+          userComment: userComment && userComment.length > 0 ? userComment : undefined,
+          summary: report.summary,
+          findings: findingsRows,
+          suggestions: suggestionsRows,
+        });
+      } else {
+        commentBody = userComment && userComment.length > 0 ? userComment : decisionSummary;
+      }
 
       const commentIntent: WriteBackIntent = {
         id: newWritebackID(),

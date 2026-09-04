@@ -286,6 +286,9 @@ describe('POST /api/reviews/:id/decision (day-09 write-back toggle)', () => {
 
     expect(res.statusCode).toBe(200);
     expect(intents).toHaveLength(2);
+    expect(intents[0]?.action).toBe(WritebackAction.Comment);
+    expect(intents[0]?.body).toContain('## ❌ PR Review: REJECTED');
+    expect(intents[0]?.body).toContain('breaks CI');
     expect(intents[1]?.action).toBe(WritebackAction.Status);
     expect(intents[1]?.state).toBe('failure');
 
