@@ -3,7 +3,7 @@
 [![CI](https://github.com/nbhson/human-attention-infrastructure-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/actions)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A5%2020-339933.svg)](package.json)
-[![Version](https://img.shields.io/badge/version-v0.4.0--harness-7a3f3f.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/tags)
+[![Version](https://img.shields.io/badge/version-v0.6.0--harness-7a3f3f.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/tags)
 
 **AI reviews external pull requests; a human decides.** Paste a PR / MR URL
 (+ an optional Jira ticket), and the harness fetches the diff + the requirement,
