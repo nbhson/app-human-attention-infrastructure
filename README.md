@@ -1,7 +1,7 @@
 # HAI Harness — Human-Attention Infrastructure
 
 [![CI](https://github.com/nbhson/human-attention-infrastructure-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/actions)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A5%2020-339933.svg)](package.json)
 [![Version](https://img.shields.io/badge/version-v0.4.0--harness-7a3f3f.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/tags)
 
@@ -215,9 +215,8 @@ pnpm dev                            # run the API + web UI
 > [`http://localhost:3000/api/auth/login`](http://localhost:3000/api/auth/login) in your browser. This triggers the mock OIDC
 > flow: it redirects to a self-callback, creates a user + session in the database,
 > and sets the `sid` httpOnly cookie. After that, the UI at
-> [`http://localhost:5173`](http://localhost:5173) works without 401s. Alternatively, set
-> `APP_URL=http://localhost:5173` in `.env` and visit
-> [`http://localhost:5173/api/auth/login`](http://localhost:5173/api/auth/login) through the Vite proxy instead.
+> [`http://localhost:5173`](http://localhost:5173) works without 401s — the Vite proxy
+> forwards `/api` requests transparently.
 
 **Requirements:** Node.js ≥ 20, pnpm ≥ 9 (pinned `9.15.4`), Docker. Full walkthrough
 in the [Developer Guide](docs/dev-guide.md).
@@ -277,4 +276,4 @@ The green gate is `pnpm test && pnpm lint && pnpm e2e`.
 
 ## License
 
-[MIT](LICENSE) © 2026 Sơn Nguyễn.
+[Apache-2.0](LICENSE) © 2026 Sơn Nguyễn.

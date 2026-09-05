@@ -1,400 +1,176 @@
 # Developer Guide
 
-> **Goal:** a clean machine + this guide → a green `pnpm test` in under 15 minutes,
-> with no tribal knowledge. If any step below stumbles, that is a _guide bug_ — fix
-> the guide, not your memory.
-
-HAI Harness is a TypeScript monorepo (pnpm workspaces + Turborepo) that turns a
-pasted PR / MR URL (+ an optional Jira ticket) into a **stored AI review** — a
-report with findings and fix suggestions — ready for a human decision. A task
-state machine, attention routing, independent verification, and an append-only
-event log back the loop; the code-generation path (AI writes + commits code) is
-retired.
+HAI Harness turns a PR / MR URL into a stored AI review — a report with findings
+and fix suggestions, ready for a human decision.
 
 ---
 
-## 1. Prerequisites
+## Quick Start
 
-| Requirement | Version    | Why                                                |
-| ----------- | ---------- | -------------------------------------------------- |
-| Node.js     | ≥ 20       | Engine runtime + `engines` field                   |
-| pnpm        | ≥ 9        | `packageManager` pins `9.15.4`                     |
-| Docker      | any recent | local PostgreSQL (+ pgvector) via `docker compose` |
-
-Nothing else. No global TypeScript, no Postgres client install, no service mesh.
-
-## 2. Setup (clone-to-green)
-
-````bash
+```sh
 git clone <repo-url> harness-human-attention-infrastructure
 cd harness-human-attention-infrastructure
 
-pnpm install             # links the @harness/* workspace packages
-docker compose up -d     # starts postgres:16 (pgvector) — the only docker service
-
-cp .env.example .env     # DATABASE_URL + placeholder provider keys + review pipeline config
-
-# optional — connect real Git/Jira tools over MCP (git-ignored; never commit it):
-cp mcp.config.example.json mcp.config.json   # tokenEnv references, no secrets
-
-pnpm --filter @harness/db migrate   # apply migrations
-
-pnpm test                # unit + integration, ~2 min
-pnpm dev                 # run the API + web UI
-
-### First-time login
-
-The API requires authentication for every protected route (enforced by
-`requireRole`). With `OIDC_MOCK=true` (the default in `.env.example`), the mock
-OIDC provider handles login locally — no external IdP needed.
-
-Open **http://localhost:3000/api/auth/login** in your browser. This triggers
-the mock OIDC flow: it redirects to a self-callback (`/api/auth/callback`),
-creates a user + session row in the database, and sets the `sid` httpOnly
-cookie. After that, the UI at **http://localhost:5173** works without 401s.
-
-Alternatively, set `APP_URL=http://localhost:5173` in `.env` and visit
-**http://localhost:5173/api/auth/login** through the Vite proxy instead.
-
-What each command actually does:
-
-- `pnpm install` links the 25 `@harness/*` packages via workspace protocol, so
-  importing `@harness/db` from another package resolves to `packages/db`, not npm.
-- `docker compose up -d` runs the one service in `docker-compose.yml`: **Postgres**
-  (the `pgvector/pgvector:pg16` image — vector column + plain SQL in one), bound to
-  `localhost:5432` with user/password/db `harness`/`harness`/`harness` in the
-  `pgdata` volume. No Prometheus, Grafana, or MinIO is bundled: the metrics are
-  served in Prometheus text format at `GET /metrics` for your own scraper, and the
-  object store needs your own S3-compatible endpoint (see §7).
-- `cp .env.example .env` — the `.env` is auto-loaded (best-effort) by
-  `packages/db/src/env.ts`'s dotenv config; `migrate`/`seed` **throw** without a
-  `DATABASE_URL`. Tests have a hard-coded fallback of the same local URL, but the
-  scripts don't.
-- `cp mcp.config.example.json mcp.config.json` is **optional** — without it the
-  API boots fine and the providers resolve to `null` (the REST path for
-  GitHub/Jira, via `GITHUB_TOKEN`/`JIRA_TOKEN`). With it, GitHub/GitLab/Bitbucket/
-  Jira all connect through the MCP layer driven by one file; each entry's
-  `tokenEnv` is a *reference to* an env var, never a secret (the value is reduced
-  to a last-4 `tokenHint` at load). Resolved from `MCP_CONFIG_PATH` (default
-  `./mcp.config.json`).
-- `pnpm --filter @harness/db migrate` runs the Drizzle migrator against
-  `packages/db/migrations/`.
-- `pnpm test` runs Vitest across the workspace. Tests create and drop their own
-  per-suite `harness_test_*` schemas, so they never touch your dev database.
-
-> **Why there is no `pnpm db:migrate` / `pnpm db:reset` / `pnpm setup`:** those
-> conveniences are still not wired (a carried backlog item). The canonical commands
-> above are the source of truth; if they feel long, the fix is a `pnpm setup`
-> meta-script (a tracked backlog item), not a longer guide.
-
-## 3. Repository tour
-
-| Path | Package | What it owns |
-| --- | --- | --- |
-| `packages/domain` | `@harness/domain` | Branded IDs, core types, `TaskStatus`, canonical event types (incl. `learning.*`, `memory.*`, `writeback.*`) |
-| `packages/event-bus` | `@harness/event-bus` | `IEventBus` + `InProcessEventBus` (default), `RedisEventsBus` (durable), `transport-resolver` (`EVENT_TRANSPORT`) |
-| `packages/db` | `@harness/db` | Drizzle schema (50 tables), migrations, `createDb`, `EventLogWriter`, `WritebackLogStore`/`JudgeRunStore`/`JudgeAgreementStore`, `FaultyDb` |
-| `packages/di` | `@harness/di` | `Container`, `TOKENS`, `Logger` (pino), architecture test |
-| `packages/orchestrator` | `@harness/orchestrator` | `TaskStateMachine`, `TaskService` (the dispatch/workflow/retry loop was retired) |
-| `packages/agent-runtime` | `@harness/agent-runtime` | `LLMProvider` (Anthropic + OpenAI-compatible), `MockLLM`, `ReviewAgent` (the ReAct write path was retired) |
-| `packages/artifact-tracker` | `@harness/artifact-tracker` | `ArtifactTracker`, `SnapshotStore`, `ChangeStatusSubscriber`, diff engine |
-| `packages/verification-engine` | `@harness/verification-engine` | `CompileCheck`/`TestCheck`/`SandboxedCheck`, `CloneVerifier`, `TargetedVerifier`, evidence store, env sanitization |
-| `packages/attention-engine` | `@harness/attention-engine` | Scoring (`PRIORITY_WEIGHTS`), `Router`, adaptive thresholds, `learning/*` closed loop (`LearningLoop`, `decidePromotion`) |
-| `packages/context-engine` | `@harness/context-engine` | collect → rank → trim → render, freshness, `RetrieverFactory` (`rank_method`), memory resolver |
-| `packages/review` | `@harness/review` | Review queue persistence + decision flow |
-| `packages/git-provider` | `@harness/git-provider` | `GitProvider` seam + `GitHubProvider` (REST) + `MCPGitProvider`/`GitToolMap` (multi-host); `clone`/`head-sha` |
-| `packages/ticket-provider` | `@harness/ticket-provider` | `TicketProvider` seam + `JiraProvider` (REST) + `MCPTicketProvider`/`TicketToolMap` |
-| `packages/mcp` | `@harness/mcp` | `McpServerRegistry`/`McpServerRegistryImpl`, `MCPGitProvider`/`MCPTicketProvider`/`MCPWriteBack`, config loader |
-| `packages/writeback` | `@harness/writeback` | `WriteBackService`/`MCPWriteBack`, `WritebackAction`, dedup + redact, 3-layer toggle |
-| `packages/memory` | `@harness/memory` | `MemoryStore`/`MemoryDistiller`/`MemoryRetriever`/`MemoryLifecycle` (REVIEW/FINDING/DECISION/PROJECT tiers) |
-| `packages/code-index` | `@harness/code-index` | hand-rolled lexical scanner → dependency graph → `affectedTests` (no tree-sitter needed) |
-| `packages/judge` | `@harness/judge` | `Judge` (rubric v1), `JudgeShadow`, `AgreementReport` |
-| `packages/benchmark` | `@harness/benchmark` | `review_examples` gold corpus + `evaluateJudge` (read-only evaluator) |
-| `packages/auth` | `@harness/auth` | `requireRole`, session/OIDC identity |
-| `packages/evaluation` | `@harness/evaluation` | `eval:*` jobs, metrics, A/B report generator |
-| `packages/embeddings` | `@harness/embeddings` | `Embedder` seam (`StubEmbedder` default), `EmbeddingIndexer` |
-| `packages/object-store` | `@harness/object-store` | `ContentStore` seam (S3/MinIO vs in-memory fallback) |
-| `packages/sandbox` | `@harness/sandbox` | Docker sandbox execution (pinned image) |
-| `packages/observability` | `@harness/observability` | pino logging + OTel tracing/monitoring |
-| `apps/api` | — | Fastify API (`bootstrap.ts`, routes, the review slice in `services/review-ingest.ts`) |
-| `apps/web` | — | React + Vite review UI (minimal) |
-
-### "Where do I change X?"
-
-| You want to… | Look at |
-| --- | --- |
-| Change the task state machine | `packages/orchestrator/README.md` + `packages/orchestrator/src/state-machine/` |
-| Change how changes are scored | `packages/attention-engine/README.md` + `packages/attention-engine/src/scoring.ts` / `factors.ts` |
-| Change context ranking | `packages/context-engine/README.md` + `packages/context-engine/src/rank.ts` + `retrieval/retriever-factory.ts` |
-| Add/rename a ranking method | `packages/context-engine/src/retrieval/retriever-factory.ts` (`rank_method`) |
-| Add a verification check | `packages/verification-engine/README.md` + `packages/verification-engine/src/checks/` |
-| Add a clone/targeted check | `packages/verification-engine/src/clone-checks/` + `targeted-verifier.ts` |
-| Change review endpoints | `apps/api/src/routes/review.ts` + `packages/review/` |
-| Change the review-slice ingest flow | `apps/api/src/services/review-ingest.ts` + `apps/api/src/routes/reviews.ts` |
-| Change the background review worker | `apps/api/src/services/review-worker.ts` + `apps/api/src/bootstrap.ts` (wiring) |
-| Change review batch splitting / merging | `packages/agent-runtime/src/review/review-batch.ts` |
-| Change write-back behaviour | `packages/writeback/src/writeback-service.ts` + `apps/api/src/writeback-gate.ts` |
-| Change review memory | `packages/memory/src/memory-store.ts` / `memory-distiller.ts` / `lifecycle/` |
-| Change the dependency graph / affected tests | `packages/code-index/src/graph.ts` / `affected.ts` (hand-rolled lexical — no tree-sitter) |
-| Change the judge rubric | `packages/judge/src/rubric.ts` + `judge.ts` |
-| Change the benchmark corpus | `packages/benchmark/src/corpus.ts` + `evaluateJudge` |
-| Add an MCP-connected host | `mcp.config.json` (one file, per-host entry) + `packages/git-provider/src/git-tool-map.ts` |
-| Add a DB table/column | `packages/db/src/schema/` + a new migration |
-| Add a domain event | `packages/domain/src/events/event-types.ts` |
-| Add/rename a container token | `packages/di/src/tokens.ts` + `apps/api/src/bootstrap.ts` |
-
-## 4. Daily workflow
-
-```sh
-pnpm dev                  # turbo run dev — runs apps/api via tsx watch
-# After starting, log in at http://localhost:3000/api/auth/login
-# (one-time per session, sets the sid cookie).
-pnpm test                 # full suite (unit + integration)
-pnpm test -- packages/orchestrator   # run one package's tests only
-pnpm lint                 # eslint across the repo (boundaries enforced here)
-pnpm typecheck            # turbo run typecheck (tsc --noEmit everywhere)
-pnpm build                # turbo run build (each package emits dist)
-pnpm e2e                  # full-system e2e over the real stack (see below)
-pnpm audit:orphans        # exit-code orphan alarm (see runbook R1)
-````
-
-**`pnpm e2e`** runs the end-to-end suites in `e2e/` (config
-`e2e/vitest.config.ts`) against a live Postgres. It expects a seeded fixture:
-
-```sh
-pnpm seed:e2e-fixture     # one-time; then run e2e repeatedly
-pnpm e2e
+pnpm install
+docker compose up -d
+cp .env.example .env
+pnpm --filter @harness/db migrate
+pnpm test          # green = you're set
+pnpm dev           # start the API + web UI
 ```
 
-**Adding a migration:** edit the schema in `packages/db/src/schema/`, then
-`pnpm --filter @harness/db generate` (drizzle-kit emits `NNNN_<slug>.sql` into
-`packages/db/migrations/`), then `pnpm --filter @harness/db migrate`. **Never edit
-an applied migration** — append a new one; people's databases are already past it.
+Open **http://localhost:3000/api/auth/login** to log in (mock OIDC, no external
+IdP needed). The UI runs at **http://localhost:5173**.
+
+---
+
+## Environment Variables
+
+`.env` is loaded automatically. All values below come from `.env.example` — copy
+it and fill in what you need.
+
+### Required (minimum viable)
+
+```sh
+DATABASE_URL=postgres://harness:harness@localhost:5432/harness
+```
+Postgres must be running (`docker compose up -d`). That's all you need to boot
+and run tests. Everything else falls back to a local mock.
+
+### AI Provider (pick one)
+
+```sh
+# Option A: Ollama (local, free)
+AI_BASE_URL=http://localhost:11434/v1
+AI_API_KEY=
+AI_PROVIDER=custom
+AI_MODEL=qwen3.5:2b-mlx
+
+# Option B: OpenAI-compatible cloud
+# AI_BASE_URL=https://api.openai.com/v1
+# AI_API_KEY=sk-...
+# AI_PROVIDER=openai
+# AI_MODEL=gpt-4.1
+```
+Leave `ANTHROPIC_API_KEY` unset to use `AI_BASE_URL`. Set it to switch to
+Anthropic (`claude-sonnet-4-6` by default).
+
+### Review Pipeline (optional tuning)
+
+```sh
+REVIEW_MAX_BATCH_SIZE=10
+REVIEW_MAX_BATCH_TOKENS=8000
+REVIEW_TWO_PASS=true
+```
+Defaults: 5 files / 30k tokens per batch, concurrency 4. Two-pass mode is ON by
+default — a lightweight summary pass runs first, then only high/medium risk
+files are deep-reviewed. Lower these values if the AI provider is rate-limited.
+
+### Git Providers (optional — for real PR reviews)
+
+```sh
+GITHUB_TOKEN=ghp_...
+GITHUB_BASE_URL=https://api.github.com
+JIRA_TOKEN=your-jira-token-here
+JIRA_BASE_URL=https://your-site.atlassian.net
+GITLAB_TOKEN=your-gitlab-token-here
+BITBUCKET_TOKEN=your-bitbucket-token-here
+```
+Only set the ones you need. Leave others unset — the app falls back to REST or null providers gracefully.
+
+### Identity (local dev)
+
+```sh
+OIDC_MOCK=true
+JWT_SECRET=dev-only-insecure-secret-change-me-before-deploy
+COOKIE_SECURE=true
+APP_URL=http://localhost:3000
+```
+`OIDC_MOCK=true` is the default. For a real IdP, set `OIDC_MOCK=false` and fill
+in `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`.
+
+`JWT_SECRET` must be ≥32 bytes. The app warns at boot if the default is unchanged.
+`COOKIE_SECURE=true` enforces Secure flag on the session cookie; keep it
+`false` if testing over HTTP without TLS.
+
+---
+
+## Running
+
+```sh
+pnpm dev          # API (:3000) + web UI (:5173) with hot reload
+pnpm test         # full test suite (~2 min)
+pnpm lint         # eslint with architecture boundary enforcement
+pnpm typecheck    # tsc --noEmit across all packages
+```
+
+**Login once per session:** open http://localhost:3000/api/auth/login. After the
+mock OIDC flow completes, http://localhost:5173 works without 401s — the Vite
+proxy forwards `/api` requests to the backend transparently.
+
+---
+
+## Common Tasks
+
+**Add a database migration:**
+```sh
+pnpm --filter @harness/db generate   # creates SQL from schema changes
+pnpm --filter @harness/db migrate    # applies it
+```
+Never edit an applied migration — always append a new one.
 
 **Full reset (dev only):**
-
 ```sh
 docker compose down -v && docker compose up -d && pnpm --filter @harness/db migrate
 ```
+This destroys the `pgdata` volume — only use on throwaway environments.
 
-`down -v` destroys the `pgdata` volume. This is destructive and has no guard — it
-is for throwaway dev environments only (runbook R7).
-
-## 5. Architecture rules (R1–R14)
-
-Dependency direction points inward; the domain never imports infrastructure. The
-rules are enforced by `eslint-plugin-boundaries` at lint time and asserted by
-`packages/di/src/__tests__/architecture.test.ts`:
-
-| Rule | Constraint                                                                                          |
-| ---- | --------------------------------------------------------------------------------------------------- |
-| R1   | `@harness/domain` imports nothing (internal)                                                        |
-| R2   | `@harness/event-bus` → `domain` only                                                                |
-| R3   | `@harness/db` → `domain`, `event-bus` only                                                          |
-| R4   | engines (`orchestrator`, `agent-runtime`, etc.) → `domain`, `event-bus`, `db`, `di` only            |
-| R5   | `apps/*` → anything                                                                                 |
-| R6   | `@harness/review` → `domain`, `event-bus`, `db`, `di` only                                          |
-| R7   | `@harness/auth` → `domain`, `db`, `event-bus`, `di` only (never an engine)                          |
-| R8   | `@harness/observability` → `domain`, `db`, `di` only; every telemetry-carrying engine depends on it |
-| R9   | `@harness/evaluation` → `domain`, `db`, `di`, `observability` only (never an engine)                |
-| R10  | `@harness/embeddings` → `domain`, `db`, `event-bus` only (never `di`/`observability`/an engine)     |
-| R11  | `@harness/object-store` → no `@harness/*` dependency (leaf seam)                                    |
-| R12  | `@harness/sandbox` → no `@harness/*` dependency (leaf seam)                                         |
-| R13  | `@harness/git-provider` → `domain` only (never an engine)                                           |
-| R14  | `@harness/ticket-provider` → `domain` only (never an engine)                                        |
-
-**The rule you'll actually hit:** if you `import { X } from '@harness/db'` inside
-`@harness/attention-engine`, `pnpm lint` fails with a `boundaries` error naming the
-violated rule. Fix it by passing the dependency through the constructor (wired in
-`apps/api/src/bootstrap.ts`), not by widening the rule.
-
-**"Engines never import engines" in two sentences:** an engine's contract to its
-neighbours is _events and data_, not method calls — so a change to the Agent
-Runtime cannot silently alter the Attention Engine's behaviour. It keeps each
-engine independently testable and replaceable, which is the whole point of the
-modular monolith (Architecture spec §7, cross-cutting invariants).
-
-## 6. Testing philosophy
-
-- **Real PostgreSQL for integration.** Tests spin up a real connection and an
-  isolated `harness_test_<name>` schema per suite (created in `beforeAll`,
-  dropped in `afterAll`). There is no SQLite/in-memory substitute — Drizzle
-  semantics (`FOR UPDATE SKIP LOCKED`, `ON CONFLICT DO NOTHING`) only behave
-  correctly against Postgres.
-- **`MockLLM` for review-agent tests.** `@harness/agent-runtime` ships a scripted mock
-  whose responses are keyed by `correlation_id` (== task id). Review-agent tests
-  never touch a real model, so they are fast and deterministic.
-- **No mocks across package boundaries.** A package's tests use its real
-  collaborators (or the container's real registrations). The only sanctioned
-  substitute is `FaultyDb` (`@harness/db/test-utils`), a `Proxy` wrapping a real
-  `DrizzleDB` to inject _queued_ faults at the head of the next matching query.
-- **Concurrency tests use barriers, not sleeps.** Concurrency suites coordinate
-  with explicit promise/event barriers so assertions are race-free and
-  deterministic; `await delay(...)` is a smell that hides a real race.
-
-### The full gate
-
+**Run a single package's tests:**
 ```sh
-pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm e2e
+pnpm test -- packages/orchestrator
 ```
 
-`pnpm e2e` is the outermost gate (needs a seeded fixture, see §4); the first four
-(`lint`, `typecheck`, `build`, `test`) are the CI-critical core every commit must
-pass. This is what CI and every day's work must pass before a commit is pushed.
+---
 
-## 7. Opt-in subsystems (env-gated)
+## What Runs Where
 
-The default run stays on the deterministic, no-external-service path. Each of
-these subsystems is opt-in via an env var; flip it on only when you need
-that behaviour.
+| Port | Service | Notes |
+| --- | --- | --- |
+| 3000 | API (Fastify) | `/api/auth/*`, `/api/reviews`, `GET /metrics` |
+| 5173 | Web UI (Vite) | Proxies `/api` → :3000, serves React app |
+| 5432 | Postgres (pgvector) | `docker compose up -d` starts this |
 
-**Object store (day-21).** Unset `OBJECT_STORE_ENDPOINT` keeps snapshot content
-inline in Postgres (the default). Set it to a S3-compatible endpoint — the repo
-provisions none, so point it at your own S3/MinIO — to offload large (`> 1 MiB`)
-snapshots, keyed by content hash:
+---
 
+## Troubleshooting
+
+**"Connection refused" on port 5432** — Postgres isn't running:
 ```sh
-OBJECT_STORE_ENDPOINT=https://s3.example.com \
-OBJECT_STORE_BUCKET=harness-artifacts \
-OBJECT_STORE_ACCESS_KEY_ID=... \
-OBJECT_STORE_SECRET_ACCESS_KEY=... \
-OBJECT_STORE_THRESHOLD_BYTES=1048576 \
-pnpm dev
+docker compose up -d
 ```
 
-The `ContentStore` seam resolves to `ObjectStoreContentStore(AwsS3ClientPort)` in
-that case, else the ephemeral `InMemoryContentStore` dev fallback (wiring-map
-`ContentStore` row). On a read-back integrity failure the `DiffEngine` records
-`harness_object_store_integrity_error_total` before rethrow — never a silent
-return.
+**401 on every API call** — session cookie missing. Log in at http://localhost:3000/api/auth/login first.
 
-**Container sandbox (day-22).** Verification runs the in-process COMPILE parity
-path by default. To force the container path, build the pinned image once and set
-the flag (an image that isn't built degrades back to in-process, not to a false
-`FAILED`):
+**Tests fail with schema errors** — migrations not applied:
+```sh
+pnpm --filter @harness/db migrate
+```
 
+**`harness-verify:node20` image not found** — sandbox is opt-in. Run:
 ```sh
 docker build -t harness-verify:node20 packages/sandbox
-VERIFY_SANDBOX_ENABLED=1 pnpm dev
 ```
+If you don't set `VERIFY_SANDBOX_ENABLED=1`, the app falls back to the
+in-process path (no sandbox, no Docker needed).
 
-The parity holds by construction: `SandboxedCheck` runs `tsc --noEmit` inside the
-`--network none` container, and `sandboxed-check.test.ts` asserts sandboxed and
-in-process verdicts agree.
+---
 
-**Semantic shadow (day-18).** The keyword→dependency ranker is the served default
-and stays so; the semantic retriever runs _alongside_ it, writing a
-`shadow_rank_comparisons` row never read by the hot path. It needs an embedding
-index — populate it to opt the shadow in:
+## Architecture
 
-```sh
-pnpm embed:populate          # batch/resumable index population over context_sources
-SEMANTIC_SHADOW_ENABLED=1 pnpm dev
-```
+- Monorepo: pnpm workspaces + Turborepo. 25 `@harness/*` packages, 2 apps.
+- Dependency direction: inward toward `domain`. Lint enforces it via
+  `eslint-plugin-boundaries`.
+- Tests use real Postgres with isolated `harness_test_*` schemas per suite.
+- No SQLite, no mocks across package boundaries.
 
-A real embedder is optional: unset `EMBEDDINGS_BASE_URL` uses the deterministic
-`StubEmbedder`; set it (plus `EMBEDDINGS_API_KEY`/`EMBEDDINGS_MODEL`) for
-OpenAI-compatible embeddings.
-
-**Review pipeline (batch + two-pass + progressive).** Large PRs are split into
-parallel batches so each AI call stays under the provider timeout. The pipeline
-is controlled by three env vars:
-
-```sh
-# Max files per batch (default 5). Lower = smaller AI calls, less timeout risk.
-REVIEW_MAX_BATCH_SIZE=5
-# Max tokens per batch (default 30000). Lower = faster per-batch completion.
-REVIEW_MAX_BATCH_TOKENS=30000
-# Max concurrent AI requests (default 4). Lower = gentler on rate limits; a
-# free-tier / proxied endpoint is often burst-limited and will 429 with high
-# concurrency. Each batch is also retried on transient failures, and a batch
-# that still fails is skipped so the rest of the review completes.
-REVIEW_MAX_CONCURRENCY=4
-# Two-pass mode: ON by default. When ON, a lightweight summary pass runs first
-# to identify high/medium risk files, then only those files are deep-reviewed.
-REVIEW_TWO_PASS=true
-```
-
-Without `REVIEW_TWO_PASS`, every file is reviewed in detail. With it, the
-pipeline calls `ReviewAgent.summarizeFiles()` to triage risks first, then
-passes only high/medium files to the full batch review — roughly halving the
-timeout window on a typical PR.
-
-**Review instructions (text.md).** The Triage Rules page lets operators upload a
-markdown instructions/skills file. When the `includeInstructions` toggle is ON
-and the file is non-empty, its content is injected verbatim into every AI review
-prompt (both `summarizeFiles` and `batchReview`) as an authoritative guidance
-section — the PR + Jira + text.md + AI flow. When OFF (default), the flow stays
-PR + Jira + AI. See `ReviewPromptInput.instructions` in
-`packages/agent-runtime/src/review/review-prompt.ts`.
-
-**Background worker (async review).** The review endpoint (`POST /api/reviews`)
-returns 202 immediately with a pending report. A background worker
-(`ReviewWorkerSubscriber`) subscribes to `review.requested` events and processes
-the AI review asynchronously. The report's `review_status` column tracks the
-current stage (`pending` → `fetching` → `recalling` → `reviewing` → `storing` →
-`complete` / `error`), and the frontend polls automatically.
-
-**Progressive findings.** During the `reviewing` stage, findings are inserted
-into the database as each batch completes — the user sees partial results before
-the entire review finishes. The `batch_progress` column (`{ current, total }`)
-tracks how many batches are done. The frontend displays the current stage,
-batch progress, and any findings already available.
-
-## 8. Configuration stack (env + MCP)
-
-The configuration surface is **configuration-first**: external systems connect
-through **one `mcp.config.json`**, write-back is behind a fail-safe toggle, and the
-AI provider is swappable. All of it is env-gated; the default run stays local and
-deterministic.
-
-**MCP connectivity (day-02).** `mcp.config.json` is the single connectivity file:
-each `servers` entry names a transport (`stdio` command + args, or an `sse` url)
-and a `tokenEnv` _reference_ (never a secret). At load the token's presence is
-checked and reduced to a non-reversible last-4 `tokenHint`, then discarded; the
-real token lives only in the MCP server's environment and is injected at connect
-time. Resolve path: `MCP_CONFIG_PATH` (default `./mcp.config.json`).
-
-```sh
-MCP_CONFIG_PATH=./mcp.config.json pnpm dev
-```
-
-**AI provider (any provider, not just Anthropic).** Unset `AI_BASE_URL` → the
-Anthropic path (`ANTHROPIC_API_KEY`, model `ANTHROPIC_MODEL` default
-`claude-sonnet-4-6`). Set `AI_BASE_URL` to an OpenAI-compatible endpoint to switch
-to "any provider" (`AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL` default `gpt-4.1`):
-
-```sh
-AI_BASE_URL=https://api.openai.com/v1 \
-AI_PROVIDER=openai \
-AI_API_KEY=... \
-AI_MODEL=gpt-4.1 \
-pnpm dev
-```
-
-**Write-back toggles (day-09) — on by default, three opt-out layers.** An external
-write fires when no layer opts out: (1) the global ceiling `WRITEBACK_ENABLED` is
-unset (⇒ `0` disables fleet-wide), (2) the per-provider flag (`WRITEBACK_GITHUB`/
-`WRITEBACK_GITLAB`/`WRITEBACK_BITBUCKET`/`WRITEBACK_JIRA`) is unset (⇒ `0` disables
-a host), and (3) the decision carries `writeback: true` (the review UI ticks it by
-default). `provider_configs` holds only a `token_redacted` hint, never a token.
-(See runbook [operations.md](runbook/operations.md) OP-1/OP-2.)
-
-```sh
-# The historical off-at-rest behavior, if you want it back fleet-wide:
-WRITEBACK_ENABLED=0 pnpm dev
-```
-
-**Durable queue (day-34).** `EVENT_TRANSPORT=inproc|redis|sqs` selects the event
-bus; the default is the zero-config in-process bus. `redis`/`sqs` require the
-operator to supply a `StreamTransport` adapter (the repo ships none — live brokers
-are opt-in); an unknown value throws at startup rather than silently degrading.
-
-```sh
-EVENT_TRANSPORT=redis pnpm dev   # throws without a wired StreamTransport adapter
-```
-
-**Sandbox + object store + embeddings** carry over from §7 (`VERIFY_SANDBOX_*`,
-`OBJECT_STORE_*`, `EMBEDDINGS_*`). **No tree-sitter install is required** — the
-`@harness/code-index` dependency graph is a hand-rolled lexical scanner over
-Node-builtins, so the dependency toolchain above (§1) is complete.
+See `docs/runbook/` for operational runbooks.
