@@ -14,13 +14,17 @@ cd harness-human-attention-infrastructure
 pnpm install
 docker compose up -d
 cp .env.example .env
+cp mcp.config.example.json mcp.config.json  # required for real PR fetch / write-back (empty registry if skipped)
 pnpm --filter @harness/db migrate
+pnpm build         # needed before pnpm test on a fresh clone (stale dist/ breaks typecheck)
 pnpm test          # green = you're set
 pnpm dev           # start the API + web UI
 ```
 
 Open **http://localhost:3000/api/auth/login** to log in (mock OIDC, no external
 IdP needed). The UI runs at **http://localhost:5173**.
+
+> **Without `mcp.config.json`:** the app still boots but `McpServerRegistry` is empty — pasting a PR URL will fail with `UnknownProviderHostError` and write-back writes nothing. Copy the example file even if you keep the placeholder tokens for local dev.
 
 ---
 
@@ -101,11 +105,14 @@ pnpm test          # full test suite (~2 min)
 pnpm lint          # eslint with architecture boundary enforcement
 pnpm typecheck     # tsc --noEmit across all packages
 pnpm test:coverage # same suite with v8 coverage + 50/45/50/50 gate (needs docker compose up -d)
+pnpm e2e           # full-system E2E (7 specs, serial, ~80s, needs docker compose up -d) — see e2e/README.md
 ```
 
 **Login once per session:** open http://localhost:3000/api/auth/login. After the
 mock OIDC flow completes, http://localhost:5173 works without 401s — the Vite
 proxy forwards `/api` requests to the backend transparently.
+
+> **401 loop after login?** If you set `COOKIE_SECURE=true` on plain `http://localhost:3000` the browser drops the `sid` cookie. Keep `COOKIE_SECURE=false` locally; set `true` only behind TLS (see [Environment Variables](#environment-variables) and `docs/deploy.md`).
 
 ---
 
@@ -148,7 +155,7 @@ pnpm test -- packages/orchestrator
 docker compose up -d
 ```
 
-**401 on every API call** — session cookie missing. Log in at http://localhost:3000/api/auth/login first.
+**401 on every API call** — session cookie missing. Log in at http://localhost:3000/api/auth/login first. If the loop persists after login, check `COOKIE_SECURE` — `true` on plain HTTP drops the `sid` cookie (see Environment Variables above).
 
 **Tests fail with schema errors** — migrations not applied:
 ```sh

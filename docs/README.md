@@ -25,6 +25,8 @@ key invariants, and its boundary rules.
 - [runtime-startup](architecture/runtime-startup.md) — which packages load at start and how they depend on each other
 - [artifact-tracker-vs-git](architecture/artifact-tracker-vs-git.md) — ADR: pre-commit truth vs post-merge Git
 - [idempotency-audit](architecture/idempotency-audit.md) — per-table idempotency guard inventory
+- [package-value-map](architecture/package-value-map.md) — which package is visible, conditional, or foundational (the moat analysis)
+- [observability](observability.md) — metrics, tracing, Prometheus & Grafana wiring
 
 ## Operations (`runbook/`)
 
@@ -33,6 +35,14 @@ key invariants, and its boundary rules.
 - [operations](runbook/operations.md) — DevOps + audit procedures (v1.0-candidate)
 - [audit-queries](runbook/audit-queries.md) — SQL cookbook for "what actually happened"
 - [limitations](runbook/limitations.md) — known scope cuts
+
+## API & deployment
+
+- [api](api.md) — HTTP route catalog (10 groups, 31 handlers, auth, request/response shapes)
+- [env](env.md) — single env-var reference (every var, default, effect, code pointer)
+- [deploy](deploy.md) — build, run, systemd/Docker, reverse proxy, TLS
+- [observability](observability.md) — metric inventory, PromQL, `prometheus.yml`
+- [e2e](../e2e/README.md) — how E2E differs from `pnpm test`, how to run one file
 
 ## Retrospectives (`retros/`)
 

@@ -35,6 +35,11 @@ The most useful sources of truth live next door:
   below that needs a database answer.
 - **[limitations.md](limitations.md)** — deliberate boundaries. Read the
   first section of any incident against this; many "bugs" are the design.
+- **[../api.md](../api.md)** — route catalog (10 groups, auth, shapes) for the HTTP surface these entries diagnose.
+- **[../env.md](../env.md)** — single env-var reference for every toggle mentioned below.
+- **[../observability.md](../observability.md)** + **`../../prometheus.yml`** — metric inventory and scrape config for R9.
+- **[../architecture/package-value-map.md](../architecture/package-value-map.md)** — which package is visible vs conditional vs foundational.
+- **[../architecture/idempotency-audit.md](../architecture/idempotency-audit.md)** — per-table idempotency guard inventory.
 
 **Scoping facts:** one API process, one Postgres, one shared `SANDBOX_ROOT`. The
 API listens on `localhost:3000`. The database is reachable with:

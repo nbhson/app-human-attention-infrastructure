@@ -1,0 +1,30 @@
+# Minimal Prometheus scrape config for the HAI Harness (v0.6).
+# Point Prometheus at the API's GET /metrics (unauthenticated, Prometheus text format).
+# See docs/observability.md for the full metric inventory and PromQL alerts.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'harness-api'
+    static_configs:
+      - targets: ['localhost:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    # No auth — GET /metrics is intentionally unauthenticated (apps/api/src/routes/metrics.ts).
+    # If you front the API with auth, add basic_auth or bearer_token here.
+
+  # Optional: scrape a second replica if you run one (see docs/runbook/limitations.md §1
+  # before running more than one API process).
+  # - job_name: 'harness-api-replica2'
+  #   static_configs:
+  #     - targets: ['replica2:3000']
+
+# Optional: alerting (wire to Alertmanager if you have one).
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['localhost:9093']
+# rule_files:
+#   - 'prometheus.rules.yml'
