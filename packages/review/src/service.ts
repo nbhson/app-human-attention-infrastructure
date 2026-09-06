@@ -267,45 +267,48 @@ export class ReviewService {
         const decision = input.decision === 'APPROVE' ? HumanDecisionType.Approved : HumanDecisionType.Rejected;
         const target = input.decision === 'APPROVE' ? TaskStatus.Approved : TaskStatus.Rejected;
 
-        // 1. Guarded queue flip: CLAIMED → DECIDED. This UPDATE — not the
-        //    `row.status` read above — is the concurrency authority, because a
-        //    racing decide can flip the row between our read and our write. A
-        //    second decide on an already-DECIDED row is a state conflict
+        // 1+2. Guarded queue flip + decision insert — atomic so a flip
+        //    without its decision row cannot exist (and vice versa). The UPDATE
+        //    — not the `row.status` read above — is the concurrency authority,
+        //    because a racing decide can flip the row between our read and write.
+        //    A second decide on an already-DECIDED row is a state conflict
         //    (QueueStateError); on a never-claimed row it stays an illegal move.
-        const flipped = await this.db
-          .update(reviewQueue)
-          .set({ status: ReviewQueueStatus.Decided })
-          .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)))
-          .returning({ id: reviewQueue.id });
-        if (flipped.length === 0) {
-          const current = await this.db
-            .select({ status: reviewQueue.status })
-            .from(reviewQueue)
-            .where(eq(reviewQueue.id, queueId));
-          const currentStatus = current[0]?.status;
-          if (currentStatus === undefined) {
-            throw new QueueItemNotFoundError(queueId);
-          }
-          if (currentStatus === ReviewQueueStatus.Decided) {
-            throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, currentStatus);
-          }
-          throw new IllegalTransitionError(currentStatus, 'decide');
-        }
-
-        // 2. Record the decision (auditable, never silent).
         const decisionId = newDecisionID();
         const changeId = brand(row.change_id, 'ChangeID');
         const assessmentId = brand(row.assessment_id, 'AssessmentID');
-        await this.db.insert(decisions).values({
-          id: decisionId,
-          correlation_id: row.task_id,
-          change_id: changeId,
-          assessment_id: assessmentId,
-          decision,
-          reviewer_id: input.reviewerId,
-          actor_id: input.actorId,
-          actor_email: input.actorEmail,
-          rationale: input.rationale,
+        await this.db.transaction(async (tx) => {
+          const flipped = await tx
+            .update(reviewQueue)
+            .set({ status: ReviewQueueStatus.Decided })
+            .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)))
+            .returning({ id: reviewQueue.id });
+          if (flipped.length === 0) {
+            const current = await tx
+              .select({ status: reviewQueue.status })
+              .from(reviewQueue)
+              .where(eq(reviewQueue.id, queueId));
+            const currentStatus = current[0]?.status;
+            if (currentStatus === undefined) {
+              throw new QueueItemNotFoundError(queueId);
+            }
+            if (currentStatus === ReviewQueueStatus.Decided) {
+              throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, currentStatus);
+            }
+            throw new IllegalTransitionError(currentStatus, 'decide');
+          }
+
+          // 2. Record the decision (auditable, never silent).
+          await tx.insert(decisions).values({
+            id: decisionId,
+            correlation_id: row.task_id,
+            change_id: changeId,
+            assessment_id: assessmentId,
+            decision,
+            reviewer_id: input.reviewerId,
+            actor_id: input.actorId,
+            actor_email: input.actorEmail,
+            rationale: input.rationale,
+          });
         });
 
         // 3. Drive the task transition (injected seam → TaskService).
@@ -355,31 +358,33 @@ export class ReviewService {
     const row = await this.mustGetRow(queueId);
     assertTransition(row.status, 'drop');
 
-    const updated = await this.db
-      .update(reviewQueue)
-      .set({ status: ReviewQueueStatus.Dropped })
-      .where(
-        and(
-          eq(reviewQueue.id, queueId),
-          inArray(reviewQueue.status, [ReviewQueueStatus.Queued, ReviewQueueStatus.Claimed]),
-        ),
-      )
-      .returning({ id: reviewQueue.id });
-    if (updated.length === 0) {
-      throw new QueueStateError(queueId, 'QUEUED | CLAIMED', row.status);
-    }
+    // Atomic: status flip + DEFERRED decision insert — publish is not needed (drop is terminal, not routed).
+    await this.db.transaction(async (tx) => {
+      const updated = await tx
+        .update(reviewQueue)
+        .set({ status: ReviewQueueStatus.Dropped })
+        .where(
+          and(
+            eq(reviewQueue.id, queueId),
+            inArray(reviewQueue.status, [ReviewQueueStatus.Queued, ReviewQueueStatus.Claimed]),
+          ),
+        )
+        .returning({ id: reviewQueue.id });
+      if (updated.length === 0) {
+        throw new QueueStateError(queueId, 'QUEUED | CLAIMED', row.status);
+      }
 
-    // Record the drop as a DEFERRED decision so the rationale is auditable.
-    await this.db.insert(decisions).values({
-      id: newDecisionID(),
-      correlation_id: row.task_id,
-      change_id: brand(row.change_id, 'ChangeID'),
-      assessment_id: brand(row.assessment_id, 'AssessmentID'),
-      decision: HumanDecisionType.Deferred,
-      reviewer_id: input.reviewerId,
-      actor_id: input.actorId,
-      actor_email: input.actorEmail,
-      rationale: input.rationale,
+      await tx.insert(decisions).values({
+        id: newDecisionID(),
+        correlation_id: row.task_id,
+        change_id: brand(row.change_id, 'ChangeID'),
+        assessment_id: brand(row.assessment_id, 'AssessmentID'),
+        decision: HumanDecisionType.Deferred,
+        reviewer_id: input.reviewerId,
+        actor_id: input.actorId,
+        actor_email: input.actorEmail,
+        rationale: input.rationale,
+      });
     });
   }
 
@@ -428,26 +433,29 @@ export class ReviewService {
     const row = await this.mustGetRow(queueId);
     assertTransition(row.status, 'escalate');
 
-    const flipped = await this.db
-      .update(reviewQueue)
-      .set({ status: ReviewQueueStatus.Escalated, claimed_by: null, claimed_at: null })
-      .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)))
-      .returning({ id: reviewQueue.id });
-    if (flipped.length === 0) {
-      throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
-    }
-
     const decisionId = newDecisionID();
-    await this.db.insert(decisions).values({
-      id: decisionId,
-      correlation_id: row.task_id,
-      change_id: brand(row.change_id, 'ChangeID'),
-      assessment_id: brand(row.assessment_id, 'AssessmentID'),
-      decision: HumanDecisionType.Escalated,
-      reviewer_id: input.reviewerId,
-      actor_id: input.actorId,
-      actor_email: input.actorEmail,
-      rationale: input.rationale,
+    // Atomic flip + decision; publish only after commit (events are best-effort).
+    await this.db.transaction(async (tx) => {
+      const flipped = await tx
+        .update(reviewQueue)
+        .set({ status: ReviewQueueStatus.Escalated, claimed_by: null, claimed_at: null })
+        .where(and(eq(reviewQueue.id, queueId), eq(reviewQueue.status, ReviewQueueStatus.Claimed)))
+        .returning({ id: reviewQueue.id });
+      if (flipped.length === 0) {
+        throw new QueueStateError(queueId, ReviewQueueStatus.Claimed, row.status);
+      }
+
+      await tx.insert(decisions).values({
+        id: decisionId,
+        correlation_id: row.task_id,
+        change_id: brand(row.change_id, 'ChangeID'),
+        assessment_id: brand(row.assessment_id, 'AssessmentID'),
+        decision: HumanDecisionType.Escalated,
+        reviewer_id: input.reviewerId,
+        actor_id: input.actorId,
+        actor_email: input.actorEmail,
+        rationale: input.rationale,
+      });
     });
 
     this.bus.publish(

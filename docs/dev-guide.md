@@ -59,12 +59,11 @@ Anthropic (`claude-sonnet-4-6` by default).
 
 ```sh
 REVIEW_MAX_BATCH_SIZE=10
-REVIEW_MAX_BATCH_TOKENS=8000
+REVIEW_MAX_BATCH_TOKENS=10000
 REVIEW_TWO_PASS=true
+# REVIEW_MAX_CONCURRENCY=4
 ```
-Defaults: 5 files / 30k tokens per batch, concurrency 4. Two-pass mode is ON by
-default — a lightweight summary pass runs first, then only high/medium risk
-files are deep-reviewed. Lower these values if the AI provider is rate-limited.
+Code defaults (when env is unset): `REVIEW_MAX_BATCH_SIZE=5`, `REVIEW_MAX_BATCH_TOKENS=30000`, `REVIEW_MAX_CONCURRENCY=4` (`apps/api/src/bootstrap.ts:654`). `.env.example` overrides to `10 / 10000` for a gentler provider default — either is valid; the code default is the source of truth. Two-pass mode is ON by default — a lightweight summary pass runs first, then only high/medium risk files are deep-reviewed. Lower these values if the AI provider is rate-limited.
 
 ### Git Providers (optional — for real PR reviews)
 
@@ -82,26 +81,26 @@ Only set the ones you need. Leave others unset — the app falls back to REST or
 
 ```sh
 OIDC_MOCK=true
-JWT_SECRET=dev-only-insecure-secret-change-me-before-deploy
-COOKIE_SECURE=true
+JWT_SECRET=dev-only-insecure-secret
+COOKIE_SECURE=false
 APP_URL=http://localhost:3000
 ```
 `OIDC_MOCK=true` is the default. For a real IdP, set `OIDC_MOCK=false` and fill
 in `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`.
 
-`JWT_SECRET` must be ≥32 bytes. The app warns at boot if the default is unchanged.
-`COOKIE_SECURE=true` enforces Secure flag on the session cookie; keep it
-`false` if testing over HTTP without TLS.
+`JWT_SECRET` must be ≥32 bytes. The app **throws** at boot when `NODE_ENV=production` and the secret is the dev default or unset (`apps/api/src/bootstrap.ts:263`); in dev it warns. Values must match `.env.example:89`.
+`COOKIE_SECURE=false` for local HTTP (`http://localhost:3000`); set `true` only behind TLS — `true` over plain HTTP prevents the `sid` cookie from being sent and causes the 401 loop in Troubleshooting below.
 
 ---
 
 ## Running
 
 ```sh
-pnpm dev          # API (:3000) + web UI (:5173) with hot reload
-pnpm test         # full test suite (~2 min)
-pnpm lint         # eslint with architecture boundary enforcement
-pnpm typecheck    # tsc --noEmit across all packages
+pnpm dev           # API (:3000) + web UI (:5173) with hot reload
+pnpm test          # full test suite (~2 min)
+pnpm lint          # eslint with architecture boundary enforcement
+pnpm typecheck     # tsc --noEmit across all packages
+pnpm test:coverage # same suite with v8 coverage + 50/45/50/50 gate (needs docker compose up -d)
 ```
 
 **Login once per session:** open http://localhost:3000/api/auth/login. After the
@@ -164,6 +163,22 @@ If you don't set `VERIFY_SANDBOX_ENABLED=1`, the app falls back to the
 in-process path (no sandbox, no Docker needed).
 
 ---
+
+### Feature gates (unset ⇒ default)
+
+| Env | Default | Effect | Docs |
+|---|---|---|---|
+| `WRITEBACK_ENABLED` | `ON` (unset ⇒ armed) | Global ceiling for write-back | `docs/runbook/operations.md` OP-2, `apps/api/src/writeback-gate.ts` |
+| `WRITEBACK_GITHUB / GITLAB / BITBUCKET / JIRA` | `ON` | Per-provider kill | `packages/writeback` |
+| `VERIFY_REVIEW_ENABLED` | `ON` | Clone → build → test verifier (wedge #1); `0`/`false` → `SKIPPED` | `apps/api/src/services/review-verification.ts` |
+| `VERIFY_SANDBOX_ENABLED` | `OFF` | `SandboxedCheck` vs in-process `CompileCheck` | `packages/sandbox/README.md` |
+| `VERIFY_SANDBOX_IMAGE` | `harness-verify:node20` | Docker image for sandbox | `docker build -t harness-verify:node20 packages/sandbox` |
+| `VERIFY_CLONE_TIMEOUT_S` | `600` | Clone+verify budget (s) | `apps/api/src/bootstrap.ts:683` |
+| `FITTED_WEIGHTS_ENABLED` | `OFF` | `DbWeightsProvider` vs `StaticWeightsAdapter` (CF-2) | `packages/attention-engine/README.md` |
+| `EMBEDDINGS_BASE_URL` | unset | `StubEmbedder` → `OpenAICompatibleEmbedder` | `packages/embeddings/README.md` |
+| `OBJECT_STORE_ENDPOINT` | unset | Inline `snapshots` → S3/MinIO offload | `packages/object-store/README.md` |
+| `EVENT_TRANSPORT` | `inproc` | `inproc` / `redis` / `sqs` | `packages/event-bus/src/transport-resolver.ts` |
+| `AI_TIMEOUT_MS` / `AI_MAX_TOKENS` | `600000` / `32000` | Review LLM budget | `apps/api/src/bootstrap.ts:198` |
 
 ## Architecture
 

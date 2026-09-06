@@ -27,6 +27,8 @@ jobs:
           - packages/artifact-tracker
           - packages/attention-engine
           - packages/auth
+          - packages/benchmark
+          - packages/code-index
           - packages/context-engine
           - packages/db
           - packages/di
@@ -34,10 +36,18 @@ jobs:
           - packages/embeddings
           - packages/evaluation
           - packages/event-bus
+          - packages/git-provider
+          - packages/judge
+          - packages/mcp
+          - packages/memory
+          - packages/object-store
           - packages/observability
           - packages/orchestrator
           - packages/review
+          - packages/sandbox
+          - packages/ticket-provider
           - packages/verification-engine
+          - packages/writeback
           - apps/api
           - apps/web
     services:
@@ -74,9 +84,9 @@ jobs:
       - name: Test ${{ matrix.path }}
         run: pnpm vitest run ${{ matrix.path }}
 
-  # Top-level gate: lint, typecheck, and the end-to-end suite (which owns its own
-  # migrate). The architecture/boundaries R4/R7/R8 rules are asserted by a test in
-  # the unit job's packages/di lane.
+  # Top-level gate: lint, typecheck, coverage, and the end-to-end suite
+  # (which owns its own migrate). The architecture/boundaries R4/R7/R8 rules
+  # are asserted by a test in the unit job's packages/di lane.
   gate:
     runs-on: ubuntu-latest
     services:
@@ -109,4 +119,5 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
+      - run: pnpm test:coverage -- --reporter=verbose
       - run: pnpm e2e

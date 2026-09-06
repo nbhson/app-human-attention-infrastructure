@@ -261,7 +261,13 @@ export function buildContainer(): Container {
 
   c.register(TOKENS.AuthService, (container) => {
     const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret || jwtSecret === 'dev-only-insecure-secret') {
+    const isInsecure = !jwtSecret || jwtSecret === 'dev-only-insecure-secret';
+    if (isInsecure) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          'JWT_SECRET is unset or the insecure dev default — set a strong (≥32 byte) secret in production',
+        );
+      }
       container
         .resolve<Logger>(TOKENS.Logger)
         .warn('JWT_SECRET is unset or the insecure dev default — do not use in production');
@@ -269,7 +275,7 @@ export function buildContainer(): Container {
     return new AuthService(
       container.resolve<DrizzleDB>(TOKENS.Db),
       container.resolve<SessionService>(TOKENS.SessionService),
-      { jwtSecret: jwtSecret ?? 'dev-only-insecure-secret-change-me' },
+      { jwtSecret: jwtSecret ?? 'dev-only-insecure-secret' },
     );
   });
 

@@ -43,7 +43,7 @@ tooling                       import no @harness package (pure seams)
 | [`domain`](domain/README.md)               | Branded IDs, aggregates, event vocabulary, `TaskStatus`, `HumanDecisionType`, `AiProviderType` |
 | [`event-bus`](event-bus/README.md)         | `IEventBus` + in-process impl (+ optional `RedisEventsBus`)                                    |
 | [`di`](di/README.md)                       | Hand-rolled `Container`, `TOKENS`, `createRootLogger` (pino)                                   |
-| [`db`](db/README.md)                       | Drizzle schema (49 tables), migrations, `createDb`, append-only `event_log`                    |
+| [`db`](db/README.md)                       | Drizzle schema (51 tables), migrations, `createDb`, append-only `event_log`                    |
 | [`observability`](observability/README.md) | OpenTelemetry tracing + Prometheus metrics (module-global singleton)                           |
 
 ## Engines

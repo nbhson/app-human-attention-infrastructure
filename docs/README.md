@@ -36,7 +36,7 @@ key invariants, and its boundary rules.
 
 ## Retrospectives (`retros/`)
 
-Honest weekly/phase post-mortems — numbers and slips, not marketing.
+Honest weekly/phase post-mortems — numbers and slips, not marketing. See [retros/README.md](retros/README.md) for the chronological vs thematic index (22 files).
 
 ## Summaries (`summary/`)
 

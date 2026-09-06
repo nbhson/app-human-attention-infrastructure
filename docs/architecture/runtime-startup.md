@@ -25,9 +25,9 @@ view). This file is about the **runtime**, not the design history.
   `@harness/benchmark` are **CLI/out-of-band only** (they run from
   `apps/api/scripts/*` and `package.json` scripts, not from `index.ts`).
 - **Loading is lazy.** Registering a package into the DI container
-  (`buildContainer`) does **not** execute it — it only stores a factory. Only 11
-  tokens are **eagerly resolved** at boot (`bootContainer`); everything else
-  materialises on first use.
+   (`buildContainer`) does **not** execute it — it only stores a factory. Only 14
+   tokens are **eagerly resolved** at boot (`bootContainer`); everything else
+   materialises on first use.
 - **The graph is a layered modular monolith.** Leaves import nothing; engines
   import only the shared foundation (`domain`/`event-bus`/`db`/`di`); only the
   `apps/*` layer may import across the board.
@@ -57,10 +57,10 @@ stages 1–4 only _prepare_ the graph.**
 ```text
 start app  (pnpm dev / node apps/api)
   └─ 1. dotenv            load .env → ../../.env          env (creds, toggles)
-  └─ 2. buildContainer()  register 50 real + 3 stub      object graph (factories only, no engine runs)
+  └─ 2. buildContainer()  register 51 real + 3 stub      object graph (factories only, no engine runs)
   └─ 3. initApiTracing()  resolve Db + Logger → initTracing   OTel provider (module global)
   └─ 4. buildApp()        Fastify: trace hook → auth hook → 10 route groups
-  └─ 5. bootContainer()   resolve the 13 eager tokens      bus subscribers bind (first engine code)
+  └─ 5. bootContainer()   resolve the 14 eager tokens      bus subscribers bind (first engine code)
   └─ 6. app.listen()      { port: 3000, host: '0.0.0.0' }  serve traffic
 ```
 
@@ -72,7 +72,7 @@ start app  (pnpm dev / node apps/api)
 | 2   | `buildContainer()` | `index.ts:28` → `bootstrap.ts:202` | Register every token as a **lazy factory** — no engine is constructed. One real side effect: `mkdirSync(SANDBOX_ROOT)`                                                                                                                                                                                              |
 | 3   | `initApiTracing()` | `index.ts:31` → `observability.ts` | The first _resolutions_: `Db` + `Logger` are constructed, then the OpenTelemetry provider is installed (module-global singleton) with `trace_correlation` write-through                                                                                                                                             |
 | 4   | `buildApp()`       | `index.ts:32` → `app.ts:29`        | Build the Fastify server: `/health`, the trace hook, the auth hook, then 10 route groups (auth · review · reviews · provenance · audit · ops · metrics · admin · settings · learning). Handlers run only on a request. (Between this and stage 5, `index.ts:33-35` logs each registered token — informational only) |
-| 5   | `bootContainer()`  | `index.ts:37` → `bootstrap.ts:777` | Resolve the **13 eager tokens** — the first engine code that runs (the list below)                                                                                                                                                                                                                                  |
+| 5   | `bootContainer()`  | `index.ts:37` → `bootstrap.ts:845` | Resolve the **14 eager tokens** — the first engine code that runs (the list below)                                                                                                                                                                                                                                  |
 | 6   | `app.listen()`     | `index.ts:41`                      | Bind `0.0.0.0:3000` and serve. The process is now idle until a request arrives                                                                                                                                                                                                                                      |
 
 Key property: **stage 2 executes no engine code.** `Container.register(token, factory)`
@@ -82,7 +82,7 @@ can boot _with most external providers unconfigured_: a `null` provider or a stu
 embedder is a perfectly valid graph node; it fails loudly only if a request
 actually tries to use it.
 
-### What `bootContainer()` starts (the 13 eager tokens)
+### What `bootContainer()` starts (the 14 eager tokens)
 
 Resolved in this order because their constructor (or `subscribe()`) must **bind to
 the event bus before the first request** — a side effect, not a value:
@@ -101,6 +101,7 @@ the event bus before the first request** — a side effect, not a value:
 11. JudgeShadow               subscribes → runs the shadow judge after review.report_created (log-only)
 12. ReviewVerificationService subscribes → review.report_created → clone → build → test → `review_verifications` (wedge #1, on by default — opt out via `VERIFY_REVIEW_ENABLED=0`)
 13. MemoryIngestor            subscribes → review.report_created / review.report_decision_submitted → distill REVIEW/FINDING/DECISION memory (wedge #2)
+14. ReviewWorkerSubscriber    subscribes → review.requested → ReviewIngestService.processReview (async pipeline, Phase 4 — POST /api/reviews returns 202)
 ```
 
 `AutoApproveGate` and `AutoApproveKillSwitch` are constructed _transitively_ here as
@@ -248,7 +249,7 @@ env. None of these prevent boot — an absent provider resolves to `null` or a s
 | `OidcProvider`              | `OpenIdClientProvider` when `OIDC_ISSUER_URL`/client/secret set                                    | `MockOidcProvider`                                                         |
 | `Sandbox` check             | `SandboxedCheck` when `VERIFY_SANDBOX_ENABLED=1`                                                   | in-process `CompileCheck` only                                             |
 | `ReviewVerificationService` | runs the review clone's `build`+`test` by default (opt out via `VERIFY_REVIEW_ENABLED=0`)          | records a `SKIPPED` `review_verifications` row (best-effort, never a gate) |
-| `EventBus`                  | `RedisEventsBus` when `EVENT_TRANSPORT=redis                                                       | sqs` (+ operator transport)                                                | `InProcessEventBus` (`inproc`, default) |
+| `EventBus`                  | `RedisEventsBus` when `EVENT_TRANSPORT=redis` / `sqs` (+ operator transport)                      | `InProcessEventBus` (`inproc`, default) |
 | `McpServerRegistry`         | parsed from `mcp.config.json` / `MCP_CONFIG_PATH`                                                  | empty registry (settings list empty)                                       |
 | `WriteBackService`          | armed by default (opt out via `WRITEBACK_ENABLED=0` / `WRITEBACK_<PROVIDER>=0`)                    | register `null`-safe, never writes externally                              |
 

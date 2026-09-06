@@ -77,14 +77,18 @@ export function registerReviewRoutes(app: FastifyInstance, container: Container)
     async (request) => reviewService.listQueue(request.query.status),
   );
 
-  app.get<{ Params: { id: string } }>('/api/review/evidence/:id', async (request, reply) => {
-    try {
-      const { id } = request.params;
-      return await reviewService.getEvidence(brand(id, 'EvidenceID'));
-    } catch (error) {
-      return toErrorReply(reply, error);
-    }
-  });
+  app.get<{ Params: { id: string } }>(
+    '/api/review/evidence/:id',
+    { preHandler: requireRole(container, Role.Reviewer, Role.Admin) },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        return await reviewService.getEvidence(brand(id, 'EvidenceID'));
+      } catch (error) {
+        return toErrorReply(reply, error);
+      }
+    },
+  );
 
   app.get<{ Params: { id: string } }>(
     '/api/review/queue/:id',

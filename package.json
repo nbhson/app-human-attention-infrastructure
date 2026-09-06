@@ -13,6 +13,8 @@
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:ci": "vitest run --coverage --reporter=verbose",
     "e2e": "vitest run --config e2e/vitest.config.ts",
     "audit:orphans": "pnpm --filter @harness/db audit:orphans",
     "seed:metrics-checkpoint": "pnpm --filter @harness/api seed:metrics-checkpoint",
@@ -37,6 +39,7 @@
   "devDependencies": {
     "@eslint/js": "^9.16.0",
     "@types/node": "^22.10.1",
+    "@vitest/coverage-v8": "^2.1.8",
     "eslint": "^9.16.0",
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-boundaries": "^5.4.0",

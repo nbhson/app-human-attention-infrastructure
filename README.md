@@ -16,14 +16,16 @@ queryable, and auditable.
 
 ![SCORE Review UI](./SCORE.png)
 
-![SCORE Review UI](./DETAILS.png)
+![DETAILS Review UI](./DETAILS.png)
 
 |                    |                                                                                            |
 | ------------------ | ------------------------------------------------------------------------------------------ |
-| **Status**         | Feature-complete · tagged `v0.4.0-harness` · review-only control plane (`review-reorient`) |
-| **Quality gates**  | build ✅ · typecheck ✅ · lint ✅ · 1090 unit tests ✅ · 25 e2e ✅                         |
+| **Status**         | Feature-complete · tagged `v0.6.0-harness` · review-only control plane (`review-reorient`) |
+| **Quality gates**  | build ✅ · typecheck ✅ · lint ✅ · 149 test files (51 tables) · 7 e2e specs ✅ · `pnpm test` green on `v0.6.0-harness` |
 | **Stack**          | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker     |
 | **Boundary model** | 25 `@harness/*` packages (see package list below); engines never import another engine     |
+
+> Root `package.json` is `0.0.0` (unpublished workspace) — the version badge tracks the git tag.
 
 > **Pivot note.** The harness no longer _authors_ code. The internal loop — an
 > AI agent writing files, committing them, and auto-merging on approval — is
@@ -61,14 +63,17 @@ The flow is a single review vertical slice:
                               WRITE-BACK (toggle-gated comment/status → PR / Jira)
 ```
 
-Two endpoints carry the slice today (`apps/api/src/routes/reviews.ts`):
+Seven endpoints carry the review slice (`apps/api/src/routes/reviews.ts`), plus the queue/decision surface (`apps/api/src/routes/review.ts`) — 10 route groups, 31 handlers total (`apps/api/src/app.ts`). The review slice:
 
-- `POST /api/reviews` — paste `{ prUrl, jiraTicket? }`; fetches the PR (GitHub,
-  GitLab, or Bitbucket via the MCP config), fetches the ticket if given (Jira via
-  MCP), asks the AI, and returns the stored report id.
-- `GET /api/reviews/:id` — the report, findings (each with a diff-anchor status),
-  fix suggestions, and the derived `stats` block (attention share + source
-  composition + excluded lines), ready for the UI.
+- `POST /api/reviews` → `202 Accepted` — paste `{ prUrl, jiraTicket? }`; fetches the PR (GitHub/GitLab/Bitbucket via MCP), fetches the ticket if given (Jira via MCP), enqueues `review.requested` for the async worker (`ReviewWorkerSubscriber`).
+- `GET /api/reviews` — list reports with triage/risk pagination.
+- `GET /api/reviews/summary` — aggregate `pending/decided/approved` counts.
+- `GET /api/reviews/:id` — report + findings + fix suggestions + `stats` + trace/judge/verification/triage.
+- `POST /api/reviews/auto` — sync `ingest` when `autoReviewEnabled`, else `400`.
+- `POST /api/reviews/:id/decision` — persist `reviewDecisions` + `ReviewDecisionSubmitted` + write-back gate (comment/status).
+- `POST /api/reviews/:id/retry` — reset `pending` + delete findings/suggestions + re-publish.
+
+Queue reads/decisions live under `/api/review/*` (`queue`, `queue/:id/claim|decide|drop|release|escalate`, `evidence/:id`). See [wiring-map](docs/architecture/wiring-map.md) + `apps/api/src/app.ts:116`.
 
 On top of that retained-but-not-yet-wired-into-this-slice machinery sits the
 wider pipeline — the canonical task state machine and attention routing.
@@ -223,10 +228,11 @@ in the [Developer Guide](docs/dev-guide.md).
 
 ## Status
 
-The harness is feature-complete through **`v0.4.0-harness`** — a review-only control
+The harness is feature-complete through **`v0.6.0-harness`** — a review-only control
 plane: MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `mcp.config.json`),
 AI review, Docker-sandbox verification, attention routing, toggle-gated write-back,
 review memory, and a closed learning loop with an LLM-as-judge quality signal.
+`v0.4.0-harness` was the Phase-3 exit (`EXIT-WITH-CARRYFORWARD`, 8/9); `v0.5.0-harness` and `v0.6.0-harness` add the async pipeline + progressive findings (`202 Accepted` + `ReviewWorkerSubscriber` + `batch_progress`, Phase 4) and small wiring/doc polish with no functional delta on the review slice.
 
 Two items are honestly **carried forward** (`EXIT-WITH-CARRYFORWARD`, 8 of 9 exit
 criteria): hybrid context ranking as the default (Day-29 A/B returned HOLD) and
@@ -251,7 +257,7 @@ is armed.
 
 Bug reports, features, and docs fixes are welcome — see
 [`CONTRIBUTING.md`](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
-The green gate is `pnpm test && pnpm lint && pnpm e2e`.
+The green gate is `pnpm test && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm e2e` (coverage requires `docker compose up -d`; thresholds 50/45/50/50 lines/branches/functions/statements in `vitest.config.ts:coverage`).
 
 ## Documentation
 

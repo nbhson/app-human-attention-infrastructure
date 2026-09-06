@@ -25,6 +25,7 @@
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "@harness/domain": "workspace:^",
     "pino": "^9.5.0"
   }
 }

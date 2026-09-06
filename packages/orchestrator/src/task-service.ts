@@ -145,35 +145,44 @@ export class TaskService {
     const nextAttempt = isRequeue ? current.attemptNumber + 1 : current.attemptNumber;
     const nextIdempotencyKey = isRequeue ? `${taskId}:${nextAttempt}` : current.idempotencyKey;
 
-    const updated = await this.db
-      .update(tasks)
-      .set({
-        state: toState,
+    // Atomic: UPDATE + history insert run in one transaction so a history/publish
+    // failure cannot leave a state bump without its audit row (runbook R6).
+    // The bus publish stays *after* commit — events are best-effort, never rolled back.
+    let row: TaskRow | undefined;
+    await this.db.transaction(async (tx) => {
+      const updated = await tx
+        .update(tasks)
+        .set({
+          state: toState,
+          attempt_number: nextAttempt,
+          idempotency_key: nextIdempotencyKey,
+          updated_at: new Date(),
+        })
+        .where(and(eq(tasks.id, taskId), eq(tasks.state, from)))
+        .returning();
+
+      const candidate = updated[0];
+      if (!candidate) {
+        // Another writer changed the state out from under us (day-06 §2.4).
+        throw new StateConflictError(taskId, from, current.state);
+      }
+      row = candidate;
+
+      await tx.insert(taskStateHistory).values({
+        id: uuidv7(),
+        task_id: taskId,
+        from_state: from,
+        to_state: toState,
+        triggered_by: triggeredBy,
+        trigger_event_id: opts?.triggerEventId ?? null,
+        rationale: opts?.rationale ?? null,
         attempt_number: nextAttempt,
-        idempotency_key: nextIdempotencyKey,
-        updated_at: new Date(),
-      })
-      .where(and(eq(tasks.id, taskId), eq(tasks.state, from)))
-      .returning();
-
-    const row = updated[0];
-    if (!row) {
-      // Another writer changed the state out from under us (day-06 §2.4).
-      throw new StateConflictError(taskId, from, current.state);
-    }
-
-    await this.db.insert(taskStateHistory).values({
-      id: uuidv7(),
-      task_id: taskId,
-      from_state: from,
-      to_state: toState,
-      triggered_by: triggeredBy,
-      trigger_event_id: opts?.triggerEventId ?? null,
-      rationale: opts?.rationale ?? null,
-      attempt_number: nextAttempt,
-      occurred_at: new Date(),
+        occurred_at: new Date(),
+      });
     });
 
+    // `row` is set iff transaction did not throw
+    const committed = row as TaskRow;
     const payload: TaskStateChangedPayload = {
       task_id: taskId,
       from_state: from,
@@ -183,7 +192,7 @@ export class TaskService {
     };
     this.bus.publish(createEvent(EventType.TaskStateChanged, brand(taskId, 'CorrelationID'), payload));
 
-    return toRecord(row);
+    return toRecord(committed);
   }
 
   /** Read the current-state projection of a task, or `null` if absent. */

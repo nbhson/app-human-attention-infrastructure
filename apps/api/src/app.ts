@@ -77,7 +77,18 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
   // cookie is sent across origins during dev. In production operators should
   // pin `APP_CORS_ORIGINS` to their deploy domain. Default to localhost only
   // (never `*`) to avoid leaking credentials to arbitrary origins.
-  const corsOrigins = (process.env.APP_CORS_ORIGINS ?? 'http://localhost:3000').split(',').map((s) => s.trim());
+  const rawCorsOrigins = process.env.APP_CORS_ORIGINS ?? 'http://localhost:3000';
+  if (
+    rawCorsOrigins
+      .split(',')
+      .map((s) => s.trim())
+      .includes('*')
+  ) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('APP_CORS_ORIGINS=* is not allowed with credentials in production — set an explicit origin');
+    }
+  }
+  const corsOrigins = rawCorsOrigins.split(',').map((s) => s.trim());
   app.addHook('onRequest', async (request, reply) => {
     const origin = request.headers.origin;
     if (origin !== undefined && (corsOrigins.includes('*') || corsOrigins.includes(origin))) {

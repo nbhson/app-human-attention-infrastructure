@@ -1,6 +1,6 @@
 # @harness/db — Database Layer
 
-PostgreSQL access for the whole system: the schema (50 tables), migrations,
+PostgreSQL access for the whole system: the schema (51 tables), migrations,
 seeding, and the data-access surface every package reads/writes through.
 
 **Status:** complete (as-built) ·
@@ -11,7 +11,7 @@ seeding, and the data-access surface every package reads/writes through.
 ## Purpose
 
 1. **Abstract PostgreSQL** behind Drizzle ORM (driver `postgres.js`).
-2. **Hold the schema** — 50 tables, each owned by exactly one package's logic.
+2. **Hold the schema** — 51 tables, each owned by exactly one package's logic.
 3. **Keep `event_log` append-only** — the source of truth for _what happened_.
 4. **Expose data access** — `createDb`, `asReadonlyDb`, `AbStore`, `EventLogWriter`,
    audit helpers, and the write-back / judge log/run stores (`WritebackLogStore`,
@@ -40,7 +40,7 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 
 ---
 
-## Schema — 50 tables, grouped by owning domain
+## Schema — 51 tables, grouped by owning domain
 
 | Domain                      | Tables                                                                                                                                                      |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -149,7 +149,7 @@ src/
 └── schema/
     ├── enums.ts        # CHECK constraints + value lists
     ├── index.ts        # relational schema registry
-    └── *.ts            # 50 table definitions across 42 files
+    └── *.ts            # 51 table definitions across 42 files
 ```
 
 ## Public API surface
@@ -157,7 +157,7 @@ src/
 ```typescript
 // createDb, DrizzleDB, asReadonlyDb / ReadonlyDb, EventLogWriter, AbStore,
 // WritebackLogStore, JudgeRunStore, JudgeAgreementStore,
-// schema tables (49), enums (CHECK constraints), migration/seed helpers
+// schema tables (51), enums (CHECK constraints), migration/seed helpers
 ```
 
 ## Dependency rule
