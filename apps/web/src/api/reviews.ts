@@ -417,7 +417,17 @@ export class ReviewsApiError extends Error {
 
 async function json<T>(res: Promise<Response>): Promise<T> {
   const response = await res;
-  const body = (await response.json()) as { error?: string };
+  // P1 fix: non-JSON bodies (gateway HTML, aborts) must not throw a raw
+  // SyntaxError — normalise to ReviewsApiError so classifyError stays useful.
+  let body: { error?: string };
+  try {
+    body = (await response.json()) as { error?: string };
+  } catch {
+    throw new ReviewsApiError(
+      response.status || 0,
+      `request failed (${response.status || 'network'}) — non-JSON response`,
+    );
+  }
   if (!response.ok) {
     throw new ReviewsApiError(response.status, body.error ?? `request failed (${response.status})`);
   }
@@ -429,6 +439,7 @@ function post<T>(path: string, body: unknown): Promise<T> {
     fetch(`${BASE}${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(body),
     }),
   );
@@ -444,15 +455,15 @@ export const reviewsApi = {
   },
   /** List reports; `pending=true` keeps only ones still awaiting a decision. */
   list(pending?: boolean): Promise<ReviewsListItem[]> {
-    return json<ReviewsListItem[]>(fetch(`${BASE}${pending ? '?pending=1' : ''}`));
+    return json<ReviewsListItem[]>(fetch(`${BASE}${pending ? '?pending=1' : ''}`, { credentials: 'include' }));
   },
   /** Lightweight pending/decided/approved counts for the sidebar + header KPIs. */
   summary(): Promise<ReviewListSummary> {
-    return json<ReviewListSummary>(fetch(`${BASE}/summary`));
+    return json<ReviewListSummary>(fetch(`${BASE}/summary`, { credentials: 'include' }));
   },
   /** Read back the stored report, findings, and fix suggestions. */
   getReport(id: string): Promise<ReviewReport> {
-    return json<ReviewReport>(fetch(`${BASE}/${id}`));
+    return json<ReviewReport>(fetch(`${BASE}/${id}`, { credentials: 'include' }));
   },
   /** Re-run a failed review: resets status to pending and re-publishes the worker event. */
   retry(id: string): Promise<{ reportId: string; status: 'pending' }> {

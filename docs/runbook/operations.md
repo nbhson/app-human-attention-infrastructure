@@ -144,6 +144,19 @@ docker compose exec -T postgres psql -U harness -d harness \
 (a gate bypass), or two `SUCCEEDED` rows share one `dedup_key` (the partial unique
 index `writeback_log_dedup_inflight_uniq` failed to catch a double-post).
 
+**Decision idempotency (post-`v0.6.0`):** `review_decisions.dedup_key` is `NOT NULL`
+unique (migration `0051`; `sha256(report|decision|rationale|comment|writeback_enabled)`).
+Same-payload double-clicks return `{deduped:true}`, never a second row:
+
+```bash
+# any NULL key would be a dedup bypass (must return 0)
+docker compose exec -T postgres psql -U harness -d harness \
+  -c "SELECT count(*) AS null_dedup_keys FROM review_decisions WHERE dedup_key IS NULL;"
+# duplicate keys must not exist (unique index is the backstop)
+docker compose exec -T postgres psql -U harness -d harness \
+  -c "SELECT dedup_key, count(*) FROM review_decisions GROUP BY 1 HAVING count(*) > 1;"
+```
+
 ---
 
 ## OP-3 — Interpret a learning-loop HOLD (`deploy = held`)

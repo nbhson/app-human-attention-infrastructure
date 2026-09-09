@@ -5,7 +5,7 @@ reviewer has a spec/requirement to weigh the MR/PR against — and, for the
 write-back path, maps comment/transition to the same system's MCP tools.
 
 **Status:** complete (as-built) ·
-**Boundary rule:** depends only on `@harness/domain`; never an engine, host SDK, or event-bus.
+**Boundary rule:** depends only on `@harness/domain` + the `@harness/mcp` protocol leaf; never an engine, db, or event-bus.
 
 ---
 
@@ -45,14 +45,14 @@ interface TicketProvider {
 
 ## Modules
 
-| Module                   | What it provides                                                                                               |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `ticket-provider.ts`     | `TicketProvider`, `FetchIssueInput`, `TicketProviderError`.                                                    |
-| `jira-provider.ts`       | `JiraProvider` — bearer-token REST against a configurable `baseUrl`.                                           |
-| `jira-mapper.ts`         | `mapJiraIssue`, `adfToPlainText`, and the raw Jira payload subset.                                             |
-| `ticket-tool-map.ts`     | `TicketToolMap` / `StaticTicketToolMap` — per-system capability→tool-name + arg-encoding table (read + write). |
-| `mcp-ticket-mapper.ts`   | `mapMcpTicketIssue` — `ToolContent[]` → `Issue`.                                                               |
-| `mcp-ticket-provider.ts` | `MCPTicketProvider` — fetch via MCP tools; `UnknownTicketSystemError`.                                         |
+| Module                   | What it provides                                                                                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ticket-provider.ts`     | `TicketProvider`, `FetchIssueInput`, `TicketProviderError`.                                                                                                                                             |
+| `jira-provider.ts`       | `JiraProvider` — bearer-token REST against a configurable `baseUrl`. 30s per-request `AbortSignal` timeout + up to 2 retries with jitter for transient faults only (`429/502/503/504`/network/timeout). |
+| `jira-mapper.ts`         | `mapJiraIssue`, `adfToPlainText`, and the raw Jira payload subset.                                                                                                                                      |
+| `ticket-tool-map.ts`     | `TicketToolMap` / `StaticTicketToolMap` — per-system capability→tool-name + arg-encoding table (read + write).                                                                                          |
+| `mcp-ticket-mapper.ts`   | `mapMcpTicketIssue` — `ToolContent[]` → `Issue`.                                                                                                                                                        |
+| `mcp-ticket-provider.ts` | `MCPTicketProvider` — fetch via MCP tools; `UnknownTicketSystemError`.                                                                                                                                  |
 
 ## Test strategy
 
@@ -84,7 +84,7 @@ src/
 ## Dependency rule
 
 ```
-packages/ticket-provider → imports only @harness/domain
+packages/ticket-provider → imports only @harness/domain + @harness/mcp
 ```
 
 Write-back (issue transition / comment) is _not_ a second adapter here — it is the

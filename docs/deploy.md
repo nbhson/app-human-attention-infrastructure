@@ -26,14 +26,14 @@ Single reference for every var: `docs/env.md`. Minimum to boot and run tests: `D
 |---|---|---|
 | `JWT_SECRET` unset or `dev-only-insecure-secret` with `NODE_ENV=production` | `bootstrap.ts:266` throws at boot | Set ≥32 random bytes (`openssl rand -base64 32`) |
 | `COOKIE_SECURE=true` on plain `http://localhost` | Browser drops `sid` → 401 loop (`routes/auth.ts:71`) | Keep `false` locally; `true` only behind TLS |
-| `APP_CORS_ORIGINS=*` with credentials in prod | `app.ts:88` throws at boot | Pin to your deploy origin (`https://app.example.com`) |
+| `APP_CORS_ORIGINS=*` with credentials in prod | `buildApp` in `app.ts` throws at boot | Pin to your deploy origin (`https://app.example.com`) |
 | `OIDC_MOCK=true` in prod | Mock login accepts anyone | Set `OIDC_MOCK=false` + `OIDC_ISSUER_URL/CLIENT_ID/CLIENT_SECRET` |
 | No `mcp.config.json` | App boots with empty `McpServerRegistry` — PR fetch 404/422, write-back no-op | Copy `mcp.config.example.json` even for placebo tokens |
 
 ## 3. Database
 
 ```sh
-pnpm --filter @harness/db migrate      # applies 51 migrations idempotently
+pnpm --filter @harness/db migrate      # applies 52 migrations idempotently (0051 adds review_decisions.dedup_key NOT NULL + unique)
 pnpm --filter @harness/db generate     # after schema edits — never edit an applied .sql
 ```
 
@@ -60,7 +60,7 @@ On boot the process publishes `system.started` (and `system.stopped` on `SIGINT/
 
 ### Single-process constraint
 
-Do **not** run more than one API replica without reading `docs/runbook/limitations.md` §1–§3. There is no leader election, no backpressure, `InProcessEventBus` default is in-memory only, and `pendingLogins` (`routes/auth.ts:37`) is an in-memory map.
+Do **not** run more than one API replica without reading `docs/runbook/limitations.md` §1–§3. There is no leader election, no backpressure, `InProcessEventBus` default is in-memory only, `pendingLogins` (`routes/auth.ts`) is an in-memory map, and both HTTP rate-limit buckets (`apps/api/src/rate-limit.ts` — ingest 10/min, sensitive 30/min) are per-process: a second replica doubles the effective quota and splits abuse accounting.
 
 ### Systemd (example)
 
@@ -121,7 +121,7 @@ Internet → TLS terminator (Caddy/Nginx) → API :3000
 - Set `APP_URL=https://your.domain` so OIDC callback URL is correct.
 - Set `COOKIE_SECURE=true` once TLS is terminating.
 - Set `APP_CORS_ORIGINS=https://your.domain` (never `*` with credentials in prod).
-- Forward `X-Forwarded-For` so `request.ip` rate-limit (`app.ts:58`) is correct.
+- Forward `X-Forwarded-For` **and** set Fastify `trustProxy: true` so `request.ip` (the rate-limit key in `rate-limit.ts`) reflects the real client instead of the proxy address — otherwise one proxy IP shares a single bucket.
 
 ## 8. Object store / embeddings / durable queue (all optional)
 

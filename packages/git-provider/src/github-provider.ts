@@ -55,6 +55,8 @@ export class GitHubProvider implements GitProvider {
   constructor(
     private readonly token: string,
     private readonly baseUrl = 'https://api.github.com',
+    private readonly timeoutMs = 30_000,
+    private readonly maxRetries = 2,
   ) {}
 
   async fetchPullRequest(input: FetchPullRequestInput): Promise<PullRequest> {
@@ -245,37 +247,68 @@ export class GitHubProvider implements GitProvider {
   }
 
   private async request(path: string, method: string, body?: unknown): Promise<unknown> {
-    const headers = this.baseHeaders();
-    if (body !== undefined) {
-      headers['Content-Type'] = 'application/json';
-    }
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers,
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    return this.withRetry(`github ${method} ${path}`, async () => {
+      const headers = this.baseHeaders();
+      if (body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+      }
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+      if (!response.ok) {
+        throw new GitProviderError(
+          `github ${method} ${path} failed: ${response.status} ${response.statusText}`,
+          response.status,
+        );
+      }
+      return response.json();
     });
-    if (!response.ok) {
-      throw new GitProviderError(
-        `github ${method} ${path} failed: ${response.status} ${response.statusText}`,
-        response.status,
-      );
-    }
-    return response.json();
   }
 
   /** GET one page, returning its parsed JSON plus the relative path of the next page. */
   private async requestPage(path: string): Promise<{ data: unknown; next: string | null }> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method: 'GET',
-      headers: this.baseHeaders(),
+    return this.withRetry(`github GET ${path}`, async () => {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: 'GET',
+        headers: this.baseHeaders(),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+      if (!response.ok) {
+        throw new GitProviderError(
+          `github GET ${path} failed: ${response.status} ${response.statusText}`,
+          response.status,
+        );
+      }
+      return { data: await response.json(), next: nextPagePath(response.headers.get('link')) };
     });
-    if (!response.ok) {
-      throw new GitProviderError(
-        `github GET ${path} failed: ${response.status} ${response.statusText}`,
-        response.status,
-      );
+  }
+
+  /** P0 fix: bounded retry with jitter for transient Git-host failures (429/5xx/network/timeout). */
+  private async withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        // Only retry real transient transport faults — never programming errors
+        // (e.g. unexpected mock URLs in tests) to avoid masking bugs with delays.
+        const transient =
+          error instanceof GitProviderError
+            ? error.status === 429 || error.status === 502 || error.status === 503 || error.status === 504
+            : error instanceof Error &&
+              (error.name === 'AbortError' ||
+                error.name === 'TimeoutError' ||
+                /fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(error.message));
+        if (!transient || attempt === this.maxRetries) throw error;
+        const backoff = Math.min(500 * 2 ** attempt, 4000) + Math.floor(Math.random() * 250);
+        await new Promise((r) => setTimeout(r, backoff));
+      }
     }
-    return { data: await response.json(), next: nextPagePath(response.headers.get('link')) };
+    throw lastError instanceof Error ? lastError : new Error(`${label} retry exhausted`);
   }
 
   /** Follow GitHub's `rel="next"` chain and flatten an array-typed endpoint's pages. */

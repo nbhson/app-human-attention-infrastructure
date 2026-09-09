@@ -51,6 +51,9 @@ for `SandboxedCheck` — never importing the concrete `DockerSandbox`.
 
 - **Isolation is the point.** A sandboxed check cannot touch the host process or
   leak secrets; it gets a clean env and a bounded workdir.
+- **Network is fail-closed.** `DockerSandbox.buildArgs` throws unless
+  `SandboxRun.network === 'none'` — even though the type already restricts it —
+  so a future caller can never silently gain egress.
 - **One shared boundary.** Verification uses the sandbox abstraction so a check is
   genuinely independent of the process that orchestrates it, not just a different
   call site.

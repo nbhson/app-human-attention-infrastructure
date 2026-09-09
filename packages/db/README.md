@@ -73,7 +73,9 @@ current-state snapshot that can be rebuilt by replaying `event_log`.
 > tiers), `judge_runs` / `judge_agreements` (rubric shadow judging), `review_examples`
 > (gold-labelled benchmark corpus), `source_usefulness` (learned-usage ranking
 > signal), and `review_decisions` (human verdict on the AI report, carrying the
-> effective `writeback_enabled` flag at decision time). `review_verifications`
+> effective `writeback_enabled` flag at decision time plus a `NOT NULL` unique
+> `dedup_key` idempotency fingerprint — migration `0051`; see
+> `docs/architecture/idempotency-audit.md`). `review_verifications`
 > (one row per report) records a best-effort machine-side verification — clone the
 > PR at its head SHA, run the clone's own `build` then `test` in the Docker
 > sandbox, and persist the aggregated flag + markdown render (wedge #1).

@@ -9,9 +9,9 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 | Var | Default | Required | Effect | Code ref |
 |---|---|---|---|---|
 | `DATABASE_URL` | — | **yes** | Postgres DSN (`postgres://harness:harness@localhost:5432/harness`) | `bootstrap.ts:229` — throws if unset |
-| `NODE_ENV` | `development` | no | `production` enforces `JWT_SECRET≥32b` + forbids `APP_CORS_ORIGINS=*` | `bootstrap.ts:263`, `app.ts:87` |
+| `NODE_ENV` | `development` | no | `production` enforces `JWT_SECRET≥32b` + forbids `APP_CORS_ORIGINS=*` | `bootstrap.ts:263`, `buildApp` in `app.ts` |
 | `APP_URL` | `http://localhost:3000` | no | Absolute URL for OIDC callback (`/api/auth/callback`) | `routes/auth.ts:65` |
-| `APP_CORS_ORIGINS` | `http://localhost:3000` | no | Comma-separated allowed origins (credentials). `*` rejected in prod | `app.ts:80` |
+| `APP_CORS_ORIGINS` | `http://localhost:3000` | no | Comma-separated allowed origins (credentials, `Vary: Origin`). `*` rejected in prod | `buildApp` in `app.ts` |
 | `SANDBOX_ROOT` | `./sandbox` | no | Filesystem root for PR clones / worktrees (`mkdirSync` at boot) | `bootstrap.ts:209` |
 
 ## 2. AI provider (review)
@@ -26,6 +26,8 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 | `AI_PROVIDER` | `custom` | Stamp on report provenance (`openai\|gemini\|opencode\|custom`) | `bootstrap.ts:172` |
 | `AI_TIMEOUT_MS` | `600000` (10 min) | LLM request timeout — sized to full 32k budget at ~65 tok/s | `bootstrap.ts:198` |
 | `AI_MAX_TOKENS` | `32000` | `maxTokens` for every `ReviewAgent` call | `bootstrap.ts:644` |
+
+> **Provider resilience (code defaults, not env):** `OpenAICompatibleProvider` retries transient faults (`timeout`/`network`/`429`/`502`/`503`/`504`) up to 2 extra attempts with capped exponential backoff + jitter (`maxRetries`, default 2). `GitHubProvider`/`JiraProvider` apply the same policy per REST call (30s `AbortSignal` timeout, 2 retries, transient-only — programming errors never retry). Tune via constructor args, not env.
 | `MOCK_LLM_SCRIPT` | unset | Path to canned `MockScript` JSON (e2e/tests) | `bootstrap.ts:149` |
 
 ## 3. Review pipeline
@@ -47,8 +49,8 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 | `GITHUB_BASE_URL` | `https://api.github.com` | Override for GHES | `bootstrap.ts:604` |
 | `JIRA_TOKEN` | unset | Jira access; both `JIRA_TOKEN` + `JIRA_BASE_URL` required ⇒ `JiraProvider` else `null` | `bootstrap.ts:608` |
 | `JIRA_BASE_URL` | unset | Jira site URL | `bootstrap.ts:608` |
-| `GITLAB_TOKEN` | unset | Referenced as `tokenEnv` in `mcp.config.json` (never stored in DB) | `mcp.config.example.json:12` |
-| `BITBUCKET_TOKEN` | unset | Same as above | `mcp.config.example.json:18` |
+| `GITLAB_TOKEN` | unset | Referenced as `tokenEnv` in `mcp.config.json` (never stored in DB) | `mcp.config.example.json` (`gitlab` server) |
+| `BITBUCKET_TOKEN` | unset | Same as above | `mcp.config.example.json` (`bitbucket` server, stdio local default) |
 | `MCP_CONFIG_PATH` | `./mcp.config.json` | Path to the one MCP config file (`loadMcpConfig`) | `bootstrap.ts:623` |
 
 ## 5. Write-back gates (fail-safe 3-layer toggle)
@@ -61,7 +63,7 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 | `WRITEBACK_BITBUCKET` | `ON` | Per-provider kill for Bitbucket | `packages/writeback` |
 | `WRITEBACK_JIRA` | `ON` | Per-provider kill for Jira | `packages/writeback` |
 
-Layer 3 is the per-decision `writeback: true` flag on `POST /api/reviews/:id/decision` (`routes/reviews.ts:628`). All three must be armed for an external `COMMENT`/`STATUS` to fire.
+Layer 3 is the per-decision `writeback: true` flag on `POST /api/reviews/:id/decision` (decision route in `routes/reviews.ts`). All three must be armed for an external `COMMENT`/`STATUS` to fire.
 
 ## 6. Verification + sandbox
 

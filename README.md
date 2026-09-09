@@ -3,7 +3,7 @@
 [![CI](https://github.com/nbhson/human-attention-infrastructure-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/actions)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A5%2020-339933.svg)](package.json)
-[![Version](https://img.shields.io/badge/version-v0.6.0--harness-7a3f3f.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/tags)
+[![Version](https://img.shields.io/badge/version-v0.6.1--harness-7a3f3f.svg)](https://github.com/nbhson/human-attention-infrastructure-harness/tags)
 
 **AI reviews external pull requests; a human decides.** Paste a PR / MR URL
 (+ an optional Jira ticket), and the harness fetches the diff + the requirement,
@@ -20,8 +20,8 @@ queryable, and auditable.
 
 |                    |                                                                                            |
 | ------------------ | ------------------------------------------------------------------------------------------ |
-| **Status**         | Feature-complete · tagged `v0.6.0-harness` · review-only control plane (`review-reorient`) |
-| **Quality gates**  | build ✅ · typecheck ✅ · lint ✅ · 149 test files (51 tables) · 7 e2e specs ✅ · `pnpm test` green on `v0.6.0-harness` |
+| **Status**         | Feature-complete · tagged `v0.6.1-harness` · review-only control plane (`review-reorient`) |
+| **Quality gates**  | build ✅ · typecheck ✅ · lint ✅ · 189 test files (51 tables) · 7 e2e specs ✅ · `pnpm test` green on `v0.6.1-harness` |
 | **Stack**          | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker     |
 | **Boundary model** | 25 `@harness/*` packages (see package list below); engines never import another engine     |
 
@@ -70,10 +70,10 @@ Seven endpoints carry the review slice (`apps/api/src/routes/reviews.ts`), plus 
 - `GET /api/reviews/summary` — aggregate `pending/decided/approved` counts.
 - `GET /api/reviews/:id` — report + findings + fix suggestions + `stats` + trace/judge/verification/triage.
 - `POST /api/reviews/auto` — sync `ingest` when `autoReviewEnabled`, else `400`.
-- `POST /api/reviews/:id/decision` — persist `reviewDecisions` + `ReviewDecisionSubmitted` + write-back gate (comment/status).
-- `POST /api/reviews/:id/retry` — reset `pending` + delete findings/suggestions + re-publish.
+- `POST /api/reviews/:id/decision` — idempotent persist `reviewDecisions` (`NOT NULL` unique `dedup_key`, `{deduped:true}` on replay) + `ReviewDecisionSubmitted` + write-back gate (comment/status saga, `207` on half-failure).
+- `POST /api/reviews/:id/retry` — reset `pending` + delete findings/suggestions/judge/verification/LLM rows (retry re-verifies) + re-publish.
 
-Queue reads/decisions live under `/api/review/*` (`queue`, `queue/:id/claim|decide|drop|release|escalate`, `evidence/:id`). See [wiring-map](docs/architecture/wiring-map.md) + `apps/api/src/app.ts:116`.
+Queue reads/decisions live under `/api/review/*` (`queue`, `queue/:id/claim|decide|drop|release|escalate`, `evidence/:id`). See [wiring-map](docs/architecture/wiring-map.md) + `buildApp` in `apps/api/src/app.ts` (route registration block).
 
 On top of that retained-but-not-yet-wired-into-this-slice machinery sits the
 wider pipeline — the canonical task state machine and attention routing.
@@ -228,11 +228,11 @@ in the [Developer Guide](docs/dev-guide.md).
 
 ## Status
 
-The harness is feature-complete through **`v0.6.0-harness`** — a review-only control
+The harness is feature-complete through **`v0.6.1-harness`** — a review-only control
 plane: MCP connectivity (GitHub/GitLab/Bitbucket/Jira via one `mcp.config.json`),
 AI review, Docker-sandbox verification, attention routing, toggle-gated write-back,
 review memory, and a closed learning loop with an LLM-as-judge quality signal.
-`v0.4.0-harness` was the Phase-3 exit (`EXIT-WITH-CARRYFORWARD`, 8/9); `v0.5.0-harness` and `v0.6.0-harness` add the async pipeline + progressive findings (`202 Accepted` + `ReviewWorkerSubscriber` + `batch_progress`, Phase 4) and small wiring/doc polish with no functional delta on the review slice.
+`v0.4.0-harness` was the Phase-3 exit (`EXIT-WITH-CARRYFORWARD`, 8/9); `v0.5.0-harness` and `v0.6.0-harness` add the async pipeline + progressive findings (`202 Accepted` + `ReviewWorkerSubscriber` + `batch_progress`, Phase 4) and small wiring/doc polish with no functional delta on the review slice. `v0.6.1-harness` hardens the slice: idempotent decisions (`dedup_key NOT NULL`, migration `0051`), SQL `NOT EXISTS` pending filter, transient-only retries with timeouts, consolidated rate limits, and docs synced to the code.
 
 Two items are honestly **carried forward** (`EXIT-WITH-CARRYFORWARD`, 8 of 9 exit
 criteria): hybrid context ranking as the default (Day-29 A/B returned HOLD) and

@@ -5,7 +5,7 @@ host, so the AI reviewer has a diff to review — and, for the write-back path,
 maps write capabilities to the same host's MCP tools.
 
 **Status:** complete (as-built) ·
-**Boundary rule:** depends only on `@harness/domain`; never an engine, host SDK, or event-bus.
+**Boundary rule:** depends only on `@harness/domain` + the `@harness/mcp` protocol leaf; never an engine, db, or event-bus.
 
 ---
 
@@ -60,16 +60,16 @@ argument keys like `pull_number` vs `merge_request_iid`) lives entirely in
 
 ## Modules
 
-| Module                | What it provides                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `git-provider.ts`     | `GitProvider`, `FetchPullRequestInput`, `GitProviderError`, `parseRepoPath`.                           |
-| `github-provider.ts`  | `GitHubProvider` — bearer-token REST; `baseUrl` defaults to `https://api.github.com`.                  |
-| `github-mapper.ts`    | `mapGithubPullRequest` + the raw GitHub payload subsets, pure and fixtures-testable.                   |
-| `git-tool-map.ts`     | `GitToolMap` / `StaticGitToolMap` — per-host capability→tool-name + arg-encoding table (read + write). |
-| `mcp-git-mapper.ts`   | `mapMcpGitPullRequest` — `ToolContent[]` → `PullRequest`.                                              |
-| `mcp-git-provider.ts` | `MCPGitProvider` — fetch via MCP tools; `UnknownProviderHostError`.                                    |
-| `head-sha.ts`         | `resolveHeadSha` + `cloneInputFromPullRequest` — validated head-SHA extraction.                        |
-| `clone.ts`            | `cloneAndCheckout` (shallow clone + detach-checkout-at-SHA), `CloneError`, injectable `RunGit`.        |
+| Module                | What it provides                                                                                                                                                                                                                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git-provider.ts`     | `GitProvider`, `FetchPullRequestInput`, `GitProviderError`, `parseRepoPath`.                                                                                                                                                                              |
+| `github-provider.ts`  | `GitHubProvider` — bearer-token REST; `baseUrl` defaults to `https://api.github.com`. 30s per-request `AbortSignal` timeout + up to 2 retries with jitter for transient faults only (`429/502/503/504`/network/timeout — programming errors never retry). |
+| `github-mapper.ts`    | `mapGithubPullRequest` + the raw GitHub payload subsets, pure and fixtures-testable.                                                                                                                                                                      |
+| `git-tool-map.ts`     | `GitToolMap` / `StaticGitToolMap` — per-host capability→tool-name + arg-encoding table (read + write).                                                                                                                                                    |
+| `mcp-git-mapper.ts`   | `mapMcpGitPullRequest` — `ToolContent[]` → `PullRequest`.                                                                                                                                                                                                 |
+| `mcp-git-provider.ts` | `MCPGitProvider` — fetch via MCP tools; `UnknownProviderHostError`.                                                                                                                                                                                       |
+| `head-sha.ts`         | `resolveHeadSha` + `cloneInputFromPullRequest` — validated head-SHA extraction.                                                                                                                                                                           |
+| `clone.ts`            | `cloneAndCheckout` (shallow clone + detach-checkout-at-SHA), `CloneError`, injectable `RunGit`.                                                                                                                                                           |
 
 ## Test strategy
 
@@ -105,7 +105,7 @@ src/
 ## Dependency rule
 
 ```
-packages/git-provider → imports only @harness/domain
+packages/git-provider → imports only @harness/domain + @harness/mcp
 ```
 
 The REST `GitHubProvider` remains only as the direct read path; GitLab/Bitbucket

@@ -94,20 +94,20 @@ interface FileSummary {
 
 ## Modules
 
-| Module                              | What it provides                                                                        |
-| ----------------------------------- | --------------------------------------------------------------------------------------- |
-| `llm/llm-provider.ts`               | The provider seam (`LLMProvider`).                                                      |
-| `llm/anthropic-provider.ts`         | Real Anthropic provider (compile-tested; no live keys in-repo).                         |
-| `llm/openai-compatible-provider.ts` | Generic `key`+`baseUrl`+`model` provider via `/chat/completions`.                       |
-| `llm/mock-llm.ts`                   | Deterministic scripted mock — the DI default.                                           |
-| `llm/logging-provider.ts`           | Wraps a provider to log calls to evidence.                                              |
-| `llm/map-anthropic-response.ts`     | Anthropic response → normalized shape.                                                  |
-| `llm/map-openai-response.ts`        | OpenAI-compatible response → normalized shape.                                          |
-| `review/review-agent.ts`            | `ReviewAgent` — read-only reviewer.                                                     |
-| `review/review-output.ts`           | `ReviewAgentOutput` / `ReviewFindingOutput` / `FixSuggestionOutput` value objects.      |
-| `review/review-batch.ts`            | `batchReview()` — split files into parallel batches, merge results, per-batch callback. |
-| `review/review-prompt.ts`           | `buildReviewPrompt()` — system + user prompt with instructions, memories, mode support. |
-| `review/review-budget.ts`           | `budgetFiles()` — context-aware file prioritisation by keyword overlap.                 |
+| Module                              | What it provides                                                                                                                                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm/llm-provider.ts`               | The provider seam (`LLMProvider`).                                                                                                                                                                                        |
+| `llm/anthropic-provider.ts`         | Real Anthropic provider (compile-tested; no live keys in-repo).                                                                                                                                                           |
+| `llm/openai-compatible-provider.ts` | Generic `key`+`baseUrl`+`model` provider via `/chat/completions`. Retries transient `timeout`/`network`/`429`/`502`/`503`/`504` (default `maxRetries: 2`, capped exponential backoff + jitter); `timeoutMs` default 120s. |
+| `llm/mock-llm.ts`                   | Deterministic scripted mock — the DI default.                                                                                                                                                                             |
+| `llm/logging-provider.ts`           | Wraps a provider to log calls to evidence.                                                                                                                                                                                |
+| `llm/map-anthropic-response.ts`     | Anthropic response → normalized shape.                                                                                                                                                                                    |
+| `llm/map-openai-response.ts`        | OpenAI-compatible response → normalized shape.                                                                                                                                                                            |
+| `review/review-agent.ts`            | `ReviewAgent` — read-only reviewer.                                                                                                                                                                                       |
+| `review/review-output.ts`           | `ReviewAgentOutput` / `ReviewFindingOutput` / `FixSuggestionOutput` value objects.                                                                                                                                        |
+| `review/review-batch.ts`            | `batchReview()` — split files into parallel batches, merge results, per-batch callback.                                                                                                                                   |
+| `review/review-prompt.ts`           | `buildReviewPrompt()` — system + user prompt with instructions, memories, mode support.                                                                                                                                   |
+| `review/review-budget.ts`           | `budgetFiles()` — context-aware file prioritisation by keyword overlap.                                                                                                                                                   |
 
 ---
 

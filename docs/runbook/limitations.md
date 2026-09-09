@@ -33,9 +33,12 @@ no leader election, no replica failover, no connection to a message broker.
 run synchronously off the publishing call. The load smoke test (§2.3) pushes 50
 tasks as the ceiling — that is the _tested_ envelope, not a benchmark or an SLA.
 
-- There is no rate limiting, no dead-letter queue, and no durable buffer. If the
+- There is no queue backpressure, no dead-letter queue, and no durable buffer. If the
   process dies mid-publish, the event is gone (its side-effect may or may not have
-  committed).
+  committed). (HTTP rate limiting **does** exist — ingest 10/min + sensitive
+  login/decide/retry 30/min in `apps/api/src/rate-limit.ts` — but it is per-process
+  in-memory, not queue shedding: it protects provider quota and abuse-sensitive
+  writes, it does not bound the event bus.)
 - A durable queue behind the same `IEventBus` contract (no subscriber changes) is
   available as `RedisEventsBus`, selected by `EVENT_TRANSPORT` (Day 34,
   **opt-in**; the in-process bus remains the default).

@@ -355,3 +355,34 @@ leakage is unacceptable. Tripping it does **not** destroy the gate's state — a
 future `enabled: true` re-arms the flag, but the executor still refuses while
 calibration is red (day-14 §6). Re-arm only after the cause is fixed and
 re-verified against `auto_approve_kill_switch` + `assessments`.
+
+---
+
+## R11 — FK GC & orphan tables (P2)
+
+**Symptom:** `DELETE FROM tasks/projects/review_reports` fails with FK violation, or disk grows on `agent_runs/trajectory_steps/llm_call_log`.
+
+**Fact:** schema uses `NO ACTION` everywhere (no `ON DELETE CASCADE`) by design — deletes must be explicit. `agent_runs/trajectory_steps` are orphans since `review-reorient` (no live writer); `llm_call_log` is keyed by `correlation_id`, not `report_id`.
+
+**Diagnose:**
+
+```bash
+docker compose exec -T postgres psql -U harness -d harness \
+  -c "SELECT 'agent_runs', count(*) FROM agent_runs UNION ALL SELECT 'trajectory_steps', count(*) FROM trajectory_steps;"
+```
+
+**Resolve (manual, audited):**
+
+```sql
+-- 1. Delete leaf rows first, parents last:
+DELETE FROM writeback_log WHERE decision_id IN (SELECT id FROM review_decisions WHERE report_id = '<report>');
+DELETE FROM review_decisions WHERE report_id = '<report>';
+DELETE FROM review_findings WHERE report_id = '<report>';
+DELETE FROM fix_suggestions WHERE report_id = '<report>';
+DELETE FROM judge_runs WHERE report_id = '<report>';
+DELETE FROM review_verifications WHERE report_id = '<report>';
+DELETE FROM review_reports WHERE id = '<report>';
+-- tasks/projects only after no report references them.
+```
+
+**Escalate when:** any count keeps growing after the retry path deletes them — that indicates the retry cleanup regressed.

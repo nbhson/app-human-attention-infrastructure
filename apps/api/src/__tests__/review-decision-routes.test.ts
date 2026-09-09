@@ -356,6 +356,7 @@ describe('GET /api/reviews (list with pending filter)', () => {
       report_id: reportId,
       decision: 'APPROVE',
       writeback_enabled: false,
+      dedup_key: `test-dedup-${reportId}-APPROVE`,
     });
 
     res = await app.inject({ method: 'GET', url: '/api/reviews', headers: { cookie } });

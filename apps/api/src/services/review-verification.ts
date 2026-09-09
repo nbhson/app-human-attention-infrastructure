@@ -76,29 +76,47 @@ export class ReviewVerificationService {
   async verify(reportId: ReviewReportID): Promise<void> {
     const { db, gitProvider, verifier, enabled, logger } = this.deps;
 
-    const existing = await db
-      .select({ id: reviewVerifications.id })
-      .from(reviewVerifications)
-      .where(eq(reviewVerifications.report_id, reportId))
-      .limit(1);
-    if (existing[0]) {
-      return; // one verification per report
-    }
-
-    const rowId = uuidv7();
-    await db.insert(reviewVerifications).values({
-      id: rowId,
-      report_id: reportId,
-      status: 'RUNNING',
-    });
-
+    // P1 fix: check cheap gates BEFORE inserting RUNNING — avoids junk rows when
+    // disabled / unconfigured, and keeps the table honest (no RUNNING→SKIPPED churn).
     if (!enabled) {
-      await this.markSkipped(rowId, 'verification disabled (VERIFY_REVIEW_ENABLED=0 is set)');
+      await this.upsertSkipped(reportId, 'verification disabled (VERIFY_REVIEW_ENABLED=0 is set)');
       return;
     }
     if (!gitProvider) {
-      await this.markSkipped(rowId, 'no Git provider configured (set GITHUB_TOKEN)');
+      await this.upsertSkipped(reportId, 'no Git provider configured (set GITHUB_TOKEN)');
       return;
+    }
+
+    const existing = await db
+      .select({ id: reviewVerifications.id, status: reviewVerifications.status })
+      .from(reviewVerifications)
+      .where(eq(reviewVerifications.report_id, reportId))
+      .limit(1);
+    // Allow re-run from terminal ERROR/SKIPPED (retry path deletes rows anyway);
+    // only skip when a run already succeeded/failed or is in flight.
+    if (
+      existing[0] &&
+      (existing[0].status === 'RUNNING' || existing[0].status === 'PASSED' || existing[0].status === 'FAILED')
+    ) {
+      return; // one verification per report
+    }
+
+    const rowId = existing[0]?.id ?? uuidv7();
+    if (!existing[0]) {
+      try {
+        await db.insert(reviewVerifications).values({
+          id: rowId,
+          report_id: reportId,
+          status: 'RUNNING',
+        });
+      } catch {
+        return; // concurrent verify won the race (unique report_id)
+      }
+    } else {
+      await db
+        .update(reviewVerifications)
+        .set({ status: 'RUNNING', error: null, updated_at: new Date() })
+        .where(eq(reviewVerifications.id, rowId));
     }
 
     const report = await db
@@ -188,6 +206,29 @@ export class ReviewVerificationService {
       .update(reviewVerifications)
       .set({ status: 'SKIPPED', error: reason, updated_at: new Date() })
       .where(eq(reviewVerifications.id, id));
+  }
+
+  /** P1 fix: insert-or-update a SKIPPED row without a prior RUNNING row. */
+  private async upsertSkipped(reportId: ReviewReportID, reason: string): Promise<void> {
+    const existing = await this.deps.db
+      .select({ id: reviewVerifications.id })
+      .from(reviewVerifications)
+      .where(eq(reviewVerifications.report_id, reportId))
+      .limit(1);
+    if (existing[0]) {
+      await this.markSkipped(existing[0].id, reason);
+      return;
+    }
+    try {
+      await this.deps.db.insert(reviewVerifications).values({
+        id: uuidv7(),
+        report_id: reportId,
+        status: 'SKIPPED',
+        error: reason,
+      });
+    } catch {
+      // Lost the race — the winner already records the outcome.
+    }
   }
 
   private async markError(id: string, reason: string): Promise<void> {

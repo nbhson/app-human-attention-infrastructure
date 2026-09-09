@@ -13,16 +13,24 @@
 /** Paths whose added lines can carry live credentials and are redacted. */
 const ENV_FILE = /(^|\/)\.env(\.[^/]*)?$/;
 const COMPOSE_FILE = /(^|\/)(docker-)?compose[^/]*\.ya?ml$/i;
+/**
+ * P1 fix (narrow, test-compatible): Terraform vars and PEM keys are almost
+ * always secrets; generic `package.json` / `Dockerfile` / `nginx.conf` stay
+ * non-sensitive by design (see review-secret-redact.test.ts).
+ */
+const TFVARS_FILE = /(^|\/)[^/]*\.tfvars$/i;
+const PEM_FILE = /(^|\/)[^/]*\.pem$/i;
 
 /** Key names whose value is a secret — the value is masked, the key is kept. */
 const SECRET_KEY =
-  /(?:^|[_\s])(?:pass(word)?|secret|token|api[_-]?key|private[_-]?key|credential|auth|cookie|salt|access[_-]?key)[_\w]*/i;
+  /(?:^|[_\s])(?:pass(word|wd)?|secret|token|api[_-]?key|private[_-]?key|credential|auth|cookie|salt|access[_-]?key|client[_-]?secret|private[_-]?token|refresh[_-]?token|session[_-]?key|signing[_-]?key)[_\w]*/i;
 
 /** A `scheme://user:password@host` URL whose in-value password must be masked even on a benign key. */
 const URL_PASSWORD = /^([a-z][a-z0-9+.-]*:\/\/[^/@\s]*:)[^/@\s]+(@.*)$/i;
 
 /** True when an added line of this file could carry a live secret. */
 export function isSensitiveFile(path: string): boolean {
+  if (PEM_FILE.test(path) || TFVARS_FILE.test(path)) return true;
   return ENV_FILE.test(path) || COMPOSE_FILE.test(path);
 }
 
@@ -77,12 +85,18 @@ export function redactSensitivePatch(path: string, patch: string): string {
   if (!isSensitiveFile(path)) {
     return patch;
   }
+  const isPem = PEM_FILE.test(path);
   return patch
     .split('\n')
     .map((line) => {
       const marker = line[0];
       if (marker !== '+' && marker !== '-' && marker !== ' ') {
         return line;
+      }
+      if (isPem) {
+        const body = line.slice(1);
+        if (body.includes('BEGIN') || body.includes('END') || body.trim() === '') return line;
+        return `${marker}<redacted-pem-body>`;
       }
       const masked = maskSecretValue(line.slice(1));
       return masked === null ? line : `${marker}${masked}`;

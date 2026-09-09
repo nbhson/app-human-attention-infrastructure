@@ -17,6 +17,8 @@ export class JiraProvider implements TicketProvider {
   constructor(
     private readonly token: string,
     private readonly baseUrl: string,
+    private readonly timeoutMs = 30_000,
+    private readonly maxRetries = 2,
   ) {}
 
   async fetchIssue(input: FetchIssueInput): Promise<Issue> {
@@ -38,17 +40,38 @@ export class JiraProvider implements TicketProvider {
   }
 
   private async request(path: string): Promise<unknown> {
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (this.token.length > 0) {
-      headers.Authorization = `Bearer ${this.token}`;
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        const headers: Record<string, string> = { Accept: 'application/json' };
+        if (this.token.length > 0) {
+          headers.Authorization = `Bearer ${this.token}`;
+        }
+        const response = await fetch(`${this.baseUrl}${path}`, {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(this.timeoutMs),
+        });
+        if (!response.ok) {
+          throw new TicketProviderError(
+            `jira GET ${path} failed: ${response.status} ${response.statusText}`,
+            response.status,
+          );
+        }
+        return response.json();
+      } catch (error) {
+        lastError = error;
+        const transient =
+          error instanceof TicketProviderError
+            ? error.status === 429 || error.status === 502 || error.status === 503 || error.status === 504
+            : error instanceof Error &&
+              (error.name === 'AbortError' ||
+                error.name === 'TimeoutError' ||
+                /fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(error.message));
+        if (!transient || attempt === this.maxRetries) throw error;
+        await new Promise((r) => setTimeout(r, Math.min(500 * 2 ** attempt, 4000) + Math.floor(Math.random() * 250)));
+      }
     }
-    const response = await fetch(`${this.baseUrl}${path}`, { method: 'GET', headers });
-    if (!response.ok) {
-      throw new TicketProviderError(
-        `jira GET ${path} failed: ${response.status} ${response.statusText}`,
-        response.status,
-      );
-    }
-    return response.json();
+    throw lastError instanceof Error ? lastError : new Error('jira request retry exhausted');
   }
 }

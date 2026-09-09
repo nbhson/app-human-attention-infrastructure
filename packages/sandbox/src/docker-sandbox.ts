@@ -54,6 +54,11 @@ export class DockerSandbox implements Sandbox {
    * flags without a daemon (§6: test each flag, not just its presence).
    */
   buildArgs(run: SandboxRun, containerName: string): string[] {
+    // P1 fix: defense-in-depth — even though `SandboxRun.network` is typed as
+    // `'none'`, fail closed if a future caller ever passes anything else.
+    if (run.network !== 'none') {
+      throw new SandboxInfraError(`refusing to run sandbox with network "${run.network}" (must be "none")`);
+    }
     return [
       'run',
       '--rm',

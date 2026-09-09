@@ -33,6 +33,8 @@ export interface OpenAICompatibleConfig {
   readonly temperature?: number;
   /** Per-request timeout in ms. Default 120_000 — a full review is long-form. */
   readonly timeoutMs?: number;
+  /** Max retries for transient 429/5xx/network (default 2). P0 fix. */
+  readonly maxRetries?: number;
   /** Injected transport — tests substitute a mock without stubbing globals. */
   readonly fetchImpl?: typeof fetch;
 }
@@ -60,13 +62,35 @@ function toOpenAITool(tool: LLMToolDefinition): OpenAITool {
 export class OpenAICompatibleProvider implements LLMProvider {
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  private readonly maxRetries: number;
 
   constructor(private readonly config: OpenAICompatibleConfig) {
     this.timeoutMs = config.timeoutMs ?? 120_000;
     this.fetchImpl = config.fetchImpl ?? fetch;
+    this.maxRetries = Math.max(0, config.maxRetries ?? 2);
   }
 
   async complete(req: LLMRequest): Promise<LLMResponse> {
+    let lastError: OpenAICompatibleError | undefined;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        return await this.once(req);
+      } catch (error) {
+        lastError =
+          error instanceof OpenAICompatibleError ? error : new OpenAICompatibleError(String(error), 'network');
+        if (!this.isTransient(lastError) || attempt === this.maxRetries) throw lastError;
+        await new Promise((r) => setTimeout(r, Math.min(500 * 2 ** attempt, 4000) + Math.floor(Math.random() * 250)));
+      }
+    }
+    throw lastError ?? new OpenAICompatibleError('openai-compatible retry exhausted', 'network');
+  }
+
+  private isTransient(error: OpenAICompatibleError): boolean {
+    if (error.kind === 'timeout' || error.kind === 'network') return true;
+    return /\b(429|502|503|504)\b|rate limit/i.test(error.message);
+  }
+
+  private async once(req: LLMRequest): Promise<LLMResponse> {
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
     if (req.systemPrompt !== undefined) {
       messages.push({ role: 'system', content: req.systemPrompt });

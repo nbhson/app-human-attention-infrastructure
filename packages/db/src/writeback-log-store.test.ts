@@ -142,6 +142,7 @@ describe('DrizzleWritebackLogStore', () => {
       report_id: 'rep-1',
       decision: 'APPROVE',
       writeback_enabled: false,
+      dedup_key: 'test-dedup-dec-9',
     });
 
     const store = new DrizzleWritebackLogStore(testDb.db);

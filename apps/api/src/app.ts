@@ -25,27 +25,19 @@ import { registerSettingsRoutes } from './routes/settings.js';
 import { registerTriageRulesRoutes } from './routes/triage-rules.js';
 import { registerLearningRoutes } from './routes/learning.js';
 import { registerAuthHook } from './auth.js';
+import { checkReviewRateLimit, pruneRateLimits } from './rate-limit.js';
 import { registerTraceHook } from './trace.js';
 
-/** Per-IP rate limit for the AI-backed review ingest endpoint (10 requests/min). */
-const REVIEW_RATE_LIMIT_PER_MIN = 10;
 /** TTL for a single rate-limit bucket before it resets. */
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
-/** Track per-IP request counts for review ingestion. */
-const reviewRateWindow = new Map<string, { count: number; resetAt: number }>();
 /** Periodic sweep to evict expired buckets and prevent unbounded memory growth. */
 let rateLimitPruneTimer: ReturnType<typeof setInterval> | null = null;
 function startRateLimitPruner(): void {
   if (rateLimitPruneTimer !== null) return;
-  rateLimitPruneTimer = setInterval(() => {
-    const now = Date.now();
-    for (const [ip, entry] of reviewRateWindow) {
-      if (now > entry.resetAt) {
-        reviewRateWindow.delete(ip);
-      }
-    }
-  }, RATE_LIMIT_WINDOW_MS);
+  rateLimitPruneTimer = setInterval(pruneRateLimits, RATE_LIMIT_WINDOW_MS);
+  // Don't hold the process open in tests / CLI drivers.
+  rateLimitPruneTimer.unref?.();
 }
 export function stopRateLimitPruner(): void {
   if (rateLimitPruneTimer !== null) {
@@ -53,21 +45,8 @@ export function stopRateLimitPruner(): void {
     rateLimitPruneTimer = null;
   }
 }
-
-/** Simple in-process rate limiter — sufficient for single-process deployments. */
-function checkReviewRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = reviewRateWindow.get(ip);
-  if (entry === undefined || now > entry.resetAt) {
-    reviewRateWindow.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-  entry.count += 1;
-  if (entry.count > REVIEW_RATE_LIMIT_PER_MIN) {
-    return false;
-  }
-  return true;
-}
+// Re-exported so tests and route modules share the single bucket source.
+export { checkSensitiveRateLimit } from './rate-limit.js';
 
 /** Build the Fastify app over an already-wired container. */
 export function buildApp(container: Container, opts?: { readonly logger?: boolean }): FastifyInstance {
@@ -93,8 +72,10 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
     const origin = request.headers.origin;
     if (origin !== undefined && (corsOrigins.includes('*') || corsOrigins.includes(origin))) {
       reply.header('access-control-allow-origin', origin);
+      reply.header('vary', 'Origin');
       reply.header('access-control-allow-credentials', 'true');
       reply.header('access-control-allow-headers', 'content-type, authorization, x-requested-with');
+      reply.header('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     }
     if (request.method === 'OPTIONS') {
       reply.header('access-control-max-age', '86400');

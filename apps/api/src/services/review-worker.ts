@@ -59,24 +59,41 @@ export class ReviewWorkerSubscriber {
           attempt,
         });
         await this.ingest.processReview(payload.review_report_id, args);
-        return; // success — stop retrying
+        return; // success — stop retrying (processReview persists error status itself)
       } catch (error) {
-        if (attempt === MAX_RETRIES) {
-          this.logger.error('review worker exhausted retries', {
-            report_id: payload.review_report_id,
-            pr_url: payload.pr_url,
-            attempt,
-            error: String(error),
-          });
+        // P0 fix: only retry transient faults (429/5xx/timeout/network). Permanent
+        // ReviewIngestError 4xx (bad URL, validation) must not burn LLM quota.
+        // processReview already persists `review_status=error`, so a permanent
+        // failure returns here without further retries.
+        const msg = error instanceof Error ? error.message : String(error);
+        const status = (error as { status?: number }).status;
+        const transient =
+          status === 429 || status === 502 || status === 503 || status === 504 || status === undefined
+            ? /429|502|503|504|rate.?limit|timeout|ECONNRESET|ETIMEDOUT|fetch failed/i.test(msg) || status !== undefined
+            : false;
+        if (!transient || attempt === MAX_RETRIES) {
+          if (!transient) {
+            this.logger.warn('review worker permanent failure — not retrying', {
+              report_id: payload.review_report_id,
+              error: msg,
+            });
+          } else {
+            this.logger.error('review worker exhausted retries', {
+              report_id: payload.review_report_id,
+              pr_url: payload.pr_url,
+              attempt,
+              error: msg,
+            });
+          }
           throw error;
         }
-        const delayMs = RETRY_BASE_MS * 2 ** (attempt - 1);
+        const delayMs = RETRY_BASE_MS * 2 ** (attempt - 1) + Math.floor(Math.random() * 500);
         this.logger.warn('review worker retrying', {
           report_id: payload.review_report_id,
           attempt,
           nextAttempt: attempt + 1,
           delayMs,
-          error: String(error),
+          error: msg,
         });
         await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
       }

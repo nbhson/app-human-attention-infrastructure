@@ -20,21 +20,14 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { createHash } from 'node:crypto';
 
-import { asc, count, desc, eq, inArray } from 'drizzle-orm';
+import { asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { requireRole } from '@harness/auth';
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
-import {
-  brand,
-  EventType,
-  newDecisionID,
-  newWritebackID,
-  ReviewDecisionType,
-  Role,
-  WritebackAction,
-} from '@harness/domain';
+import { brand, EventType, newDecisionID, ReviewDecisionType, Role, WritebackAction } from '@harness/domain';
 import type { ReviewReportID, WriteBackIntent } from '@harness/domain';
 import type { ReviewRequestedPayload } from '@harness/domain';
 import {
@@ -63,6 +56,7 @@ import { WriteBackError } from '@harness/writeback';
 import type { WriteBackService } from '@harness/writeback';
 
 import { formatRejectWritebackBody } from '../format-review-writeback.js';
+import { checkSensitiveRateLimit } from '../rate-limit.js';
 import { ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
 import { computeFindingAnchor } from '../finding-anchor.js';
 import { computeReviewStats } from '../review-stats.js';
@@ -87,6 +81,32 @@ interface CreateReviewBody {
 }
 
 const DECISIONS = new Set<string>(Object.values(ReviewDecisionType));
+
+/** Deterministic idempotency fingerprint for a human decision (P0 fix). */
+export function decisionDedupKey(input: {
+  readonly reportId: string;
+  readonly decision: string;
+  readonly rationale?: string;
+  readonly comment?: string;
+  readonly writebackEnabled: boolean;
+}): string {
+  const h = createHash('sha256');
+  h.update(
+    [input.reportId, input.decision, input.rationale ?? '', input.comment ?? '', String(input.writebackEnabled)].join(
+      '|',
+    ),
+  );
+  return h.digest('hex');
+}
+
+/**
+ * Deterministic write-back intent id so retries reuse the same dedup_key.
+ * Full sha256 hex (64 chars) — no truncation, so no birthday-shortening of
+ * the collision space; `WriteBackIntent.id` is an unbounded string.
+ */
+function deterministicWritebackId(decisionId: string, action: string): string {
+  return createHash('sha256').update(`${decisionId}|${action}`).digest('hex');
+}
 
 /** The `review_verifications.flag` JSON shape (a persisted {@link VerificationFlag}). */
 interface StoredVerificationFlag {
@@ -196,11 +216,23 @@ export function registerReviewIngestRoutes(
         return Number.isFinite(n) && n >= 0 ? n : 0;
       })();
 
-      // Fetch reports + rule state in parallel — rule state is independent of pagination.
-      const [rows, ruleState] = await Promise.all([
-        db.select().from(reviewReports).orderBy(desc(reviewReports.created_at)).limit(limit).offset(offset),
-        loadTriageRuleState(db),
-      ]);
+      const pendingOnly = request.query.pending === '1' || request.query.pending === 'true';
+
+      // `pending=1` filters in SQL (NOT EXISTS) before pagination — stable
+      // pages with a single query, no in-memory scan, no duplicates even when
+      // a report carries several decision rows.
+      const ruleState = await loadTriageRuleState(db);
+      const rows = pendingOnly
+        ? await db
+            .select()
+            .from(reviewReports)
+            .where(
+              sql`not exists (select 1 from ${reviewDecisions} where ${reviewDecisions.report_id} = ${reviewReports.id})`,
+            )
+            .orderBy(desc(reviewReports.created_at))
+            .limit(limit)
+            .offset(offset)
+        : await db.select().from(reviewReports).orderBy(desc(reviewReports.created_at)).limit(limit).offset(offset);
 
       const ids = rows.map((row) => row.id);
       // Fetch decisions and findings in parallel — both depend only on `ids`.
@@ -248,46 +280,43 @@ export function registerReviewIngestRoutes(
         });
         findingsByReport.set(row.reportId, list);
       }
-      const pendingOnly = request.query.pending === '1' || request.query.pending === 'true';
-      return rows
-        .filter((row) => (pendingOnly ? !decidedIds.has(row.id) : true))
-        .map((row) => {
-          const payload = summaryFromPayload(row.pr_payload);
-          const findings = findingsByReport.get(row.id) ?? [];
-          const riskScore = riskScoreFromSeverities(findings.map((finding) => finding.severity));
-          const triage = computeTriage({
-            rules: ruleState,
-            findings,
-            prFilePaths: prFilePathsFromPayload(row.pr_payload),
-          });
-          return {
-            id: row.id,
-            prUrl: row.pr_url,
-            prNumber: row.pr_number,
-            repo: row.repo,
-            prTitle: row.pr_title,
-            overallVerdict: row.overall_verdict,
-            createdAt: row.created_at,
-            decided: decidedIds.has(row.id),
-            decision: decisionByReport.get(row.id) ?? null,
-            findingCount: findings.length,
-            author: payload.author,
-            branch: { source: payload.sourceBranch, target: payload.targetBranch },
-            additions: payload.additions,
-            deletions: payload.deletions,
-            filesChanged: payload.filesChanged,
-            riskScore,
-            priority: priorityFromRiskScore(riskScore),
-            criticalFindings: findings.filter((finding) => finding.severity === 'CRITICAL').length,
-            findings,
-            triage: {
-              securityBlocked: triage.securityBlocked,
-              schemaGate: triage.schemaGate,
-              matchedRules: triage.matchedRules,
-            },
-            effectiveVerdict: triage.effectiveVerdict ?? row.overall_verdict,
-          };
+      return rows.map((row) => {
+        const payload = summaryFromPayload(row.pr_payload);
+        const findings = findingsByReport.get(row.id) ?? [];
+        const riskScore = riskScoreFromSeverities(findings.map((finding) => finding.severity));
+        const triage = computeTriage({
+          rules: ruleState,
+          findings,
+          prFilePaths: prFilePathsFromPayload(row.pr_payload),
         });
+        return {
+          id: row.id,
+          prUrl: row.pr_url,
+          prNumber: row.pr_number,
+          repo: row.repo,
+          prTitle: row.pr_title,
+          overallVerdict: row.overall_verdict,
+          createdAt: row.created_at,
+          decided: decidedIds.has(row.id),
+          decision: decisionByReport.get(row.id) ?? null,
+          findingCount: findings.length,
+          author: payload.author,
+          branch: { source: payload.sourceBranch, target: payload.targetBranch },
+          additions: payload.additions,
+          deletions: payload.deletions,
+          filesChanged: payload.filesChanged,
+          riskScore,
+          priority: priorityFromRiskScore(riskScore),
+          criticalFindings: findings.filter((finding) => finding.severity === 'CRITICAL').length,
+          findings,
+          triage: {
+            securityBlocked: triage.securityBlocked,
+            schemaGate: triage.schemaGate,
+            matchedRules: triage.matchedRules,
+          },
+          effectiveVerdict: triage.effectiveVerdict ?? row.overall_verdict,
+        };
+      });
     },
   );
 
@@ -306,10 +335,7 @@ export function registerReviewIngestRoutes(
         decisionByReport.set(row.reportId, row.decision);
       }
       const decidedCount = decisionByReport.size;
-      const approvedCount = [...decisionByReport.entries()]
-        .filter(([, d]) => d === 'APPROVE')
-        .map(([id]) => id)
-        .filter((id, idx, arr) => arr.indexOf(id) === idx).length;
+      const approvedCount = [...decisionByReport.values()].filter((d) => d === 'APPROVE').length;
       return {
         pendingCount: total - decidedCount,
         decidedCount,
@@ -604,6 +630,9 @@ export function registerReviewIngestRoutes(
     '/api/reviews/:id/decision',
     { preHandler: requireRole(container, Role.Reviewer, Role.Admin) },
     async (request, reply) => {
+      if (!checkSensitiveRateLimit(request.ip)) {
+        return reply.code(429).send({ error: 'rate limit exceeded — slow down and try again' });
+      }
       const id = request.params.id as ReviewReportID;
       const { decision } = request.body ?? {};
       if (typeof decision !== 'string' || !DECISIONS.has(decision)) {
@@ -626,17 +655,48 @@ export function registerReviewIngestRoutes(
       // The effective write-back gate: request-level flag AND env ceiling. An
       // unset env, a missing flag, or either steam OFF all fail safe (day-09 §2.1).
       const effective = writebackEnabled(request.body?.writeback);
+      const userCommentRaw = typeof request.body?.comment === 'string' ? request.body.comment.trim() : undefined;
+      const userCommentForKey = userCommentRaw && userCommentRaw.length > 0 ? userCommentRaw : undefined;
+
+      // P0 fix: idempotency fingerprint — double-clicks / retries with the same
+      // payload return the existing decision instead of inserting a duplicate.
+      const dedupKey = decisionDedupKey({
+        reportId: id,
+        decision,
+        ...(rationale === undefined ? {} : { rationale }),
+        ...(userCommentForKey === undefined ? {} : { comment: userCommentForKey }),
+        writebackEnabled: effective,
+      });
+      const existing = await db.select().from(reviewDecisions).where(eq(reviewDecisions.dedup_key, dedupKey)).limit(1);
+      if (existing[0]) {
+        const priorWrites = await db
+          .select()
+          .from(writebackLog)
+          .where(eq(writebackLog.decision_id, existing[0].id))
+          .limit(2);
+        return { reportId: id, decision, decisionId: existing[0].id, deduped: true, writebacks: priorWrites.length };
+      }
 
       // Persist the decision with its toggle state so "nothing was written" is an
       // auditable fact, not an absence (day-09 §1 goal 3).
       const decisionId = newDecisionID();
-      await db.insert(reviewDecisions).values({
-        id: decisionId,
-        report_id: id,
-        decision,
-        ...(rationale === undefined ? {} : { rationale }),
-        writeback_enabled: effective,
-      });
+      try {
+        await db.insert(reviewDecisions).values({
+          id: decisionId,
+          report_id: id,
+          decision,
+          ...(rationale === undefined ? {} : { rationale }),
+          writeback_enabled: effective,
+          dedup_key: dedupKey,
+        });
+      } catch {
+        // Unique race: another request won — return the winner (idempotent).
+        const winner = await db.select().from(reviewDecisions).where(eq(reviewDecisions.dedup_key, dedupKey)).limit(1);
+        if (winner[0]) {
+          return { reportId: id, decision, decisionId: winner[0].id, deduped: true };
+        }
+        throw new Error('decision insert failed');
+      }
 
       // The memory write-half (wedge #2) is event-driven: publish the review-slice
       // decision so `MemoryIngestor` can distill a grounded DECISION entry. Published
@@ -706,7 +766,7 @@ export function registerReviewIngestRoutes(
       }
 
       const commentIntent: WriteBackIntent = {
-        id: newWritebackID(),
+        id: deterministicWritebackId(decisionId, 'comment'),
         provider,
         externalId: String(report.pr_number),
         action: WritebackAction.Comment,
@@ -715,7 +775,7 @@ export function registerReviewIngestRoutes(
         decisionId,
       };
       const statusIntent: WriteBackIntent = {
-        id: newWritebackID(),
+        id: deterministicWritebackId(decisionId, 'status'),
         provider,
         externalId: String(report.pr_number),
         action: WritebackAction.Status,
@@ -725,10 +785,23 @@ export function registerReviewIngestRoutes(
         decisionId,
       };
 
+      // P0 fix: saga-style — comment then status. If status fails after a
+      // successful comment, return 207 (partial) with the comment result so a
+      // retry with the same payload hits the idempotency path above and resumes
+      // only the missing status (writeback_log dedup catches the comment).
       try {
         const comment = await writeback.write(commentIntent);
-        const status = await writeback.write(statusIntent);
-        return { reportId: id, decision, decisionId, writeback: { comment, status } };
+        try {
+          const status = await writeback.write(statusIntent);
+          return { reportId: id, decision, decisionId, writeback: { comment, status } };
+        } catch (statusError) {
+          if (statusError instanceof WriteBackError) {
+            return reply
+              .code(207)
+              .send({ reportId: id, decision, decisionId, writeback: { comment, statusError: statusError.message } });
+          }
+          throw statusError;
+        }
       } catch (error) {
         if (error instanceof WriteBackError) {
           return reply.code(422).send({ error: error.message });
@@ -745,6 +818,9 @@ export function registerReviewIngestRoutes(
     '/api/reviews/:id/retry',
     { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
     async (request, reply) => {
+      if (!checkSensitiveRateLimit(request.ip)) {
+        return reply.code(429).send({ error: 'rate limit exceeded — slow down and try again' });
+      }
       const id = request.params.id as ReviewReportID;
       const reportRows = await db.select().from(reviewReports).where(eq(reviewReports.id, id)).limit(1);
       const report = reportRows[0];
@@ -755,9 +831,16 @@ export function registerReviewIngestRoutes(
         return reply.code(400).send({ error: 'only failed reports can be retried' });
       }
 
-      // 1. Clear stale findings + suggestions.
+      // 1. Clear stale findings + suggestions + judge/verification artefacts (P0 fix:
+      // retry must re-verify — ReviewVerificationService early-returns when a row
+      // exists, so a stale RUNNING/ERROR row would block re-verification forever).
       await db.delete(reviewFindings).where(eq(reviewFindings.report_id, id));
       await db.delete(fixSuggestions).where(eq(fixSuggestions.report_id, id));
+      await db.delete(judgeRuns).where(eq(judgeRuns.report_id, id));
+      await db.delete(reviewVerifications).where(eq(reviewVerifications.report_id, id));
+      if (report.correlation_id !== null && report.correlation_id !== undefined) {
+        await db.delete(llmCallLog).where(eq(llmCallLog.correlation_id, report.correlation_id));
+      }
 
       // 2. Reset report status to pending.
       await db

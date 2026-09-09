@@ -358,6 +358,13 @@
       "when": 1788463766701,
       "tag": "0050_breezy_northstar",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1788465000000,
+      "tag": "0051_stale_lightspeed",
+      "breakpoints": true
     }
   ]
 }

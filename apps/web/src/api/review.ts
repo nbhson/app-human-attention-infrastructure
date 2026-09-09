@@ -114,7 +114,15 @@ export class ReviewApiError extends Error {
 
 async function json<T>(res: Promise<Response>): Promise<T> {
   const response = await res;
-  const body = (await response.json()) as { error?: string };
+  let body: { error?: string };
+  try {
+    body = (await response.json()) as { error?: string };
+  } catch {
+    throw new ReviewApiError(
+      response.status || 0,
+      `request failed (${response.status || 'network'}) — non-JSON response`,
+    );
+  }
   if (!response.ok) {
     throw new ReviewApiError(response.status, body.error ?? `request failed (${response.status})`);
   }
@@ -126,20 +134,25 @@ function post<T>(path: string, body: unknown): Promise<T> {
     fetch(`${BASE}${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(body),
     }),
   );
 }
 
+function get<T>(path: string): Promise<T> {
+  return json<T>(fetch(`${BASE}${path}`, { credentials: 'include' }));
+}
+
 export const reviewApi = {
   listQueue(): Promise<QueueListItem[]> {
-    return json<QueueListItem[]>(fetch(`${BASE}/queue`));
+    return get<QueueListItem[]>(`/queue`);
   },
   getDetail(id: string): Promise<QueueItemDetail> {
-    return json<QueueItemDetail>(fetch(`${BASE}/queue/${id}`));
+    return get<QueueItemDetail>(`/queue/${id}`);
   },
   getEvidence(id: string): Promise<EvidenceRecord> {
-    return json<EvidenceRecord>(fetch(`${BASE}/evidence/${id}`));
+    return get<EvidenceRecord>(`/evidence/${id}`);
   },
   claim(id: string): Promise<QueueItemDetail> {
     return post<QueueItemDetail>(`/queue/${id}/claim`, {});

@@ -1,6 +1,6 @@
 # API Reference
 
-> **Source of truth:** `apps/api/src/app.ts:127` (10 route groups) + `apps/api/src/routes/*.ts`. This doc mirrors the code; if they diverge, the code wins.
+> **Source of truth:** `buildApp` in `apps/api/src/app.ts` (10 route groups) + `apps/api/src/routes/*.ts`. This doc mirrors the code; if they diverge, the code wins.
 >
 > **Auth:** every route under `/api/*` is behind `requireRole` (`packages/auth/src/require-role.ts`). Unauthenticated → `401`, wrong role → `403` (`authz.decision_denied` in `event_log`). See `docs/runbook/users-permissions.md` for the role hierarchy.
 
@@ -44,7 +44,7 @@ With `OIDC_MOCK=true` (dev default): `GET /api/auth/login` redirects to self-cal
 ### `POST /api/reviews` — ingest a PR for AI review
 
 - **Auth:** `Operate | Reviewer | Admin`
-- **Rate limit:** 10 req/min per IP (`app.ts:31`, in-process; 429 when exceeded)
+- **Rate limit:** 10 req/min per IP (`apps/api/src/rate-limit.ts` `checkReviewRateLimit`, in-process single-process only; 429 when exceeded — front with Redis/nginx for multi-replica)
 - **Request:**
   ```json
   { "prUrl": "https://github.com/org/repo/pull/123", "jiraTicket": "ACME-42" }
@@ -55,12 +55,14 @@ With `OIDC_MOCK=true` (dev default): `GET /api/auth/login` redirects to self-cal
   { "reportId": "rpt_...", "taskId": "tsk_...", "prUrl": "...", "status": "pending" }
   ```
   A `review.requested` event is published; `ReviewWorkerSubscriber` processes it asynchronously. Poll `GET /api/reviews/:id` for `review_status` + `batch_progress`.
-- **Errors:** `400` missing/invalid URL, `404` PR not found, `422` repo not accessible (bad `GITHUB_TOKEN`), `502` Git host unreachable.
+- **Errors:** `400` missing/invalid URL, `404` PR not found, `422` repo not accessible (bad `GITHUB_TOKEN`), `429` AI provider rate-limited (transient — wait and retry, or lower `REVIEW_MAX_CONCURRENCY`), `502` Git host unreachable, `504` AI provider timeout. The ingest maps `AnthropicError`/`OpenAICompatibleError` to `429/502/504` so the UI can tell "rate-limited" from "broken".
+- **Provider resilience:** Git/Jira reads use a 30s per-request timeout + up to 2 retries with jitter for transient faults only (`429/502/503/504`/network/timeout — never programming errors). The LLM provider retries transient `timeout/network/429/5xx` the same way (default 2 retries, capped backoff + jitter).
+- **Secret redaction:** added lines in sensitive files are redacted before reaching the AI (`review-secret-redact.ts`). Sensitive = `.env*` / compose YAML / `*.tfvars` / `*.pem` by path, plus `password|passwd|secret|token|api-key|private-key|credential|auth|cookie|salt|access-key|client-secret|refresh-token|session-key|signing-key` values and `scheme://user:password@host` URLs (PEM bodies collapse to `<redacted-pem-body>`). Non-sensitive files (`package.json`, `Dockerfile`, `nginx.conf`, …) pass through untouched.
 
 ### `GET /api/reviews?pending=&limit=&offset=`
 
 - **Auth:** `Operate | Reviewer | Admin`
-- **Query:** `pending=1` keeps only not-yet-decided; `limit` (default 20, max 100), `offset` (default 0)
+- **Query:** `pending=1` keeps only not-yet-decided — filtered in SQL (`NOT EXISTS` on `review_decisions`) *before* pagination, so pages are stable even with many decided rows; `limit` (default 20, max 100), `offset` (default 0)
 - **Response:** `Array<{ id, prUrl, prNumber, repo, prTitle, overallVerdict, effectiveVerdict, createdAt, decided, decision, findingCount, author, branch, additions, deletions, filesChanged, riskScore, priority, criticalFindings, findings: [{severity,kind,file,line,message}], triage }>` ordered `created_at DESC`.
 
 ### `GET /api/reviews/summary`
@@ -104,24 +106,28 @@ With `OIDC_MOCK=true` (dev default): `GET /api/auth/login` redirects to self-cal
 ### `POST /api/reviews/:id/decision`
 
 - **Auth:** `Reviewer | Admin` only
+- **Rate limit:** 30 req/min per IP on the sensitive bucket (`rate-limit.ts` `checkSensitiveRateLimit`, shared with login/retry); 429 when exceeded.
 - **Request:**
   ```json
   { "decision": "APPROVE | REQUEST_CHANGES | REJECT", "rationale": "optional but audited", "writeback": true, "comment": "optional PR comment override" }
   ```
   `decision` required; `writeback` defaults via `writebackEnabled()` (OFF if `WRITEBACK_ENABLED=0` or per-provider flag OFF).
+- **Idempotency:** the payload folds into `dedup_key = sha256(report|decision|rationale|comment|writeback_enabled)` (`decisionDedupKey`, `routes/reviews.ts`). The column is `NOT NULL` with a unique index (migration `0051`; legacy rows backfilled as `legacy:<id>`) — double-clicks/retries with the same payload return the existing row as `{ ..., deduped: true }` instead of a duplicate, including a catch-unique-race path for concurrent winners.
 - **Effect:**
-  1. Inserts `review_decisions` row (`writeback_enabled` = effective gate).
+  1. Inserts `review_decisions` row (`writeback_enabled` = effective gate, `dedup_key` always set).
   2. Publishes `ReviewDecisionSubmitted` (so `MemoryIngestor` distills a DECISION entry regardless of write-back).
   3. If `effective && decision ∈ {APPROVE, REJECT}` → `WriteBackService.write` COMMENT + STATUS via MCP; `REQUEST_CHANGES` never writes (even with toggle ON).
   4. `REJECT` write-back comment includes full findings + suggestions via `formatRejectWritebackBody`.
-- **Response:** `{ reportId, decision, decisionId, writeback: { comment, status } | false | { emitted: 0, reason } }`. Write-back failure → `422` with `WriteBackError` message.
+  5. COMMENT→STATUS runs saga-style: if STATUS fails after COMMENT succeeded → `207` partial (`{ comment, statusError }`), so a retry hits the idempotency path and resumes only the missing STATUS leg. Write-back intent ids are deterministic full sha256 hex (`sha256(decisionId|action)`) so retries reuse the same `writeback_log.dedup_key`.
+- **Response:** `{ reportId, decision, decisionId, writeback: { comment, status } | false | { emitted: 0, reason } }` (+ `deduped: true` on idempotent replay; `207` on partial). Write-back failure → `422` with `WriteBackError` message.
 - **Audit:** every write lands in `writeback_log` (`dedup_key` partial index enforces one external write per decision). OFF is an auditable `writeback_enabled=false` row, not an absence.
 
 ### `POST /api/reviews/:id/retry`
 
 - **Auth:** `Operate | Reviewer | Admin`
+- **Rate limit:** same 30 req/min sensitive bucket as decision; 429 when exceeded.
 - **Guard:** only when `review_status === 'error'` — else `400`.
-- **Effect:** deletes stale `review_findings`/`fix_suggestions`, resets `review_status='pending'` + `summary=''`, re-publishes `review.requested`.
+- **Effect:** deletes stale `review_findings`/`fix_suggestions` **plus** `judge_runs`/`review_verifications`/`llm_call_log` (retry must re-verify — a stale `RUNNING`/`ERROR` verification row would otherwise block `ReviewVerificationService` forever), resets `review_status='pending'` + `summary=''` + `overall_verdict='COMMENT'`, re-publishes `review.requested`. The worker only retries transient faults (`429/5xx`/timeout/network); permanent 4xx ingest errors persist `review_status=error` without burning LLM quota.
 - **Response:** `202 { reportId, status: "pending" }`
 
 ---
@@ -176,7 +182,7 @@ Triage rules live in `triage-rules` table; `ReviewIngestService` reads `loadTria
 
 ## 6. Error contract
 
-All routes use a global handler (`app.ts:107`): `{ error: string, stack?: string }` (stack only when `NODE_ENV !== production`). Domain errors are mapped to `400/404/409/422` per route; unhandled → `500 internal_server_error`. Rate-limit exceeded → `429`.
+All routes use a global handler (`app.ts` `setErrorHandler`): `{ error: string, stack?: string }` (stack only when `NODE_ENV !== production`). Domain errors are mapped to `400/404/409/422` per route; unhandled → `500 internal_server_error`. Rate-limit exceeded → `429` (ingest bucket 10/min, sensitive bucket 30/min — see decision/retry sections). The web clients (`apps/web/src/api/review.ts`, `reviews.ts`) send `credentials: 'include'` on every call and normalise non-JSON bodies (gateway HTML, aborts) into typed `ApiError`s so error classification never throws a raw `SyntaxError`. Bulk queue decisions use `Promise.allSettled` — partial success reports `{ okCount, failedCount }` instead of failing the whole batch.
 
 ## Related docs
 

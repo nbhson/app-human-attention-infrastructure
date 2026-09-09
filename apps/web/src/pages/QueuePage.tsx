@@ -144,18 +144,25 @@ export default function QueuePage(): JSX.Element {
     async (decision: Extract<ReviewDecision, 'APPROVE' | 'REQUEST_CHANGES'>) => {
       const ids = [...selectedIds];
       if (ids.length === 0) return;
-      try {
-        await Promise.all(ids.map((id) => reviewsApi.decide(id, { decision })));
-        setSelectedIds(new Set());
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['pendingReviews'] }),
-          queryClient.invalidateQueries({ queryKey: ['reviewsSummary'] }),
-        ]);
+      // P1 fix: partial success — one failure must not fail the whole batch.
+      const settled = await Promise.allSettled(ids.map((id) => reviewsApi.decide(id, { decision })));
+      const okIds = ids.filter((_, i) => settled[i]?.status === 'fulfilled');
+      const failed = settled.length - okIds.length;
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of okIds) next.delete(id);
+        return next;
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['pendingReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['reviewsSummary'] }),
+      ]);
+      if (failed === 0) {
         showToast(
-          `${ids.length} ${ids.length === 1 ? 'review' : 'reviews'} ${decision === 'APPROVE' ? 'approved' : 'updated'}`,
+          `${okIds.length} ${okIds.length === 1 ? 'review' : 'reviews'} ${decision === 'APPROVE' ? 'approved' : 'updated'}`,
         );
-      } catch {
-        showToast('Bulk decision failed — try again', 'warning');
+      } else {
+        showToast(`${okIds.length} succeeded, ${failed} failed — retry the failed ones`, 'warning');
       }
     },
     [selectedIds, queryClient, showToast],

@@ -20,7 +20,7 @@ import { isReviewableFile } from '../review-file-classify.js';
 import { redactSensitivePatch } from '../review-secret-redact.js';
 import { envInt } from '../env-utils.js';
 
-import { OpenAICompatibleError, ReviewParseError } from '@harness/agent-runtime';
+import { AnthropicError, OpenAICompatibleError, ReviewParseError } from '@harness/agent-runtime';
 import { batchReview, budgetFiles } from '@harness/agent-runtime';
 import type { BatchReviewOptions, ReviewAgent, ReviewAgentOutput } from '@harness/agent-runtime';
 import {
@@ -103,6 +103,22 @@ export class ReviewIngestError extends Error {
     super(message);
     this.name = 'ReviewIngestError';
   }
+}
+
+/** P1 fix: resolve the real anchor task id so async + sync paths share one trail. */
+async function resolveReportTaskId(db: DrizzleDB, reportId: ReviewReportID): Promise<TaskID> {
+  try {
+    const rows = await db
+      .select({ taskId: reviewReports.task_id })
+      .from(reviewReports)
+      .where(eq(reviewReports.id, reportId))
+      .limit(1);
+    const taskId = rows[0]?.taskId;
+    if (typeof taskId === 'string' && taskId.length > 0) return brand(taskId, 'TaskID');
+  } catch {
+    // Fall through to the report-keyed fallback — provenance must never block.
+  }
+  return brand(reportId, 'TaskID');
 }
 
 /** The raw request body the route hands to the service. */
@@ -288,16 +304,18 @@ export class ReviewIngestService {
       // it as a review-ingest error with a status the create screen can map —
       // so a hung "deepseek" model reads "timed out", never a bare Internal
       // Server Error.
-      if (error instanceof OpenAICompatibleError) {
-        const isTimeout = error.kind === 'timeout';
-        const isRateLimited = error.kind === 'http' && /\b429\b|rate limit/i.test(error.message);
+      if (error instanceof OpenAICompatibleError || error instanceof AnthropicError) {
+        const kind = (error as { kind?: string }).kind;
+        const status = (error as { status?: number }).status;
+        const isTimeout = kind === 'timeout';
+        const isRateLimited = kind === 'rate_limit' || status === 429 || /\b429\b|rate limit/i.test(error.message);
         throw new ReviewIngestError(
           isTimeout
             ? `the AI provider did not respond in time — ${error.message}`
             : isRateLimited
               ? 'the AI provider is rate-limited (HTTP 429) — wait a moment and try again, or raise /REVIEW_MAX_CONCURRENCY, or upgrade the provider plan'
               : `the AI provider failed — ${error.message}`,
-          isTimeout ? 504 : 502,
+          isTimeout ? 504 : isRateLimited ? 429 : 502,
         );
       }
       // A reasoning model whose output budget was exhausted returns truncated
@@ -637,7 +655,7 @@ export class ReviewIngestService {
       );
 
       const reportCreated: ReviewReportCreatedPayload = {
-        task_id: brand(reportId, 'TaskID'),
+        task_id: await resolveReportTaskId(db, reportId),
         review_report_id: reportId,
         pr_url: pr.url,
         finding_count: findingOffset,

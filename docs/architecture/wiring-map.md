@@ -80,11 +80,22 @@ Ordered as `buildContainer()` registers them, i.e. topologically.
 
 The write-back subsystem persists to two tables: `writeback_log` (the append-only
 audit of every external write attempt — `PENDING`→`SUCCEEDED`/`FAILED`/`DUPLICATE`,
-with a unique partial index on `dedup_key WHERE status='SUCCEEDED'` enforcing one
-external write per decision, day-08) and `review_decisions` (the human verdict,
-linked back from `writeback_log.decision_id`, day-09). `WriteBackService` is
-resolved lazily by the decision route — it is **not** in `bootContainer()`'s eager
+with unique partial index `writeback_log_dedup_inflight_uniq` on `dedup_key WHERE
+status IN ('PENDING','SUCCEEDED')` enforcing one external write per key, day-08
+hardened day-36) and `review_decisions` (the human verdict, linked back from
+`writeback_log.decision_id`, day-09; guarded by `NOT NULL` unique `dedup_key =
+sha256(report|decision|rationale|comment|writeback_enabled)` since migration
+`0051`, so identical payloads replay `{deduped:true}` instead of duplicating).
+Write-back intent ids are deterministic full sha256 hex (`sha256(decisionId|action)`),
+and COMMENT→STATUS runs saga-style (`207` partial on half-failure). `WriteBackService`
+is resolved lazily by the decision route — it is **not** in `bootContainer()`'s eager
 list, so a review decision is the only thing that ever reaches an external MCP tool.
+
+HTTP rate limiting lives outside DI in `apps/api/src/rate-limit.ts` (single source:
+ingest bucket 10/min via `checkReviewRateLimit`, sensitive bucket 30/min via
+`checkSensitiveRateLimit` for login/decide/retry; `pruneRateLimits` on a 60s timer
+from `app.ts`). The `GET /api/reviews?pending=1` filter is a SQL `NOT EXISTS` on
+`review_decisions` before pagination — stable pages, one query, no in-memory scan.
 
 The review-memory subsystem (day-16/17/18/19) is registered lazily — but its
 **write** half (`MemoryIngestor`) is now in `bootContainer()`'s eager list (wedge
