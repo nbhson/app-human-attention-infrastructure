@@ -20,7 +20,7 @@
     "test": "vitest run --root ../.. packages/object-store"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.600.0"
+    "@aws-sdk/client-s3": "^3.1128.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
