@@ -29,6 +29,7 @@ const report: ReviewReport = {
   summary: 'Solid change, one correctness concern.',
   overallVerdict: 'REQUEST_CHANGES',
   reviewStatus: 'complete',
+  wasRepaired: false,
   batchProgress: null,
   effectiveVerdict: 'REQUEST_CHANGES',
   triage: { securityBlocked: false, regressionRisk: false, schemaGate: false, matchedRules: [] },
@@ -133,6 +134,14 @@ describe('ReviewReportPage', () => {
     expect(screen.getByRole('heading', { name: 'Major (1)' })).toBeInTheDocument();
     expect(screen.getAllByText('Off-by-one in the window check.').length).toBeGreaterThan(0);
     expect(screen.getByText('if (count > limit) reject();')).toBeInTheDocument();
+  });
+
+  it('warns when the report was truncated and auto-repaired by the parser', async () => {
+    mocked.getReport.mockResolvedValue({ ...report, wasRepaired: true });
+
+    renderReport();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/truncated and auto-repaired/i);
   });
 
   it('submits a human decision to the decide endpoint', async () => {

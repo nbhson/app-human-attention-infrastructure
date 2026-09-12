@@ -34,6 +34,13 @@ export interface ReviewAgentOutput {
   readonly overallVerdict: ReviewVerdict;
   readonly findings: ReviewFindingOutput[];
   readonly suggestions: FixSuggestionOutput[];
+  /**
+   * True when the raw model text was truncated and the parser had to repair it
+   * (`tryRepairTruncatedJson`) to recover a parseable document. The persisted
+   * report surfaces this so the UI can warn "truncated & repaired — verify
+   * before merge" instead of presenting the findings as ground truth.
+   */
+  readonly wasRepaired?: boolean;
 }
 
 /**

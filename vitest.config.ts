@@ -26,13 +26,10 @@ export default defineConfig({
         '**/fixtures/**',
         '**/*.config.*',
       ],
-      // Global gate — requires Postgres (CI `unit`/`gate` provide it).
-      // Local `pnpm test` without DB will show lower coverage; use
-      // `pnpm test:coverage` with `docker compose up -d` for the real number.
-      // Kept at 50/45/50/50 deliberately: the DB-less local run must still
-      // pass. The review slice (routes/reviews, review-ingest/worker,
-      // writeback, db/schema) is held to a higher bar by review policy, not
-      // by this global floor — see docs/runbook README R11 + idempotency-audit.
+      // Global floor — deliberate 50/45/50/50 so local `pnpm test` without
+      // DB still passes. The *real* bar lives in CI `gate` (Postgres-backed)
+      // and as a review-policy ratchet (docs/runbook R11). Use
+      // `pnpm test:coverage:review` for the enforced 80/70 slice gate.
       thresholds: {
         lines: 50,
         branches: 45,

@@ -448,6 +448,9 @@ export function mergeOutputs(outputs: readonly ReviewAgentOutput[]): ReviewAgent
     overallVerdict: worstVerdict as ReviewAgentOutput['overallVerdict'],
     findings: allFindings,
     suggestions: allSuggestions,
+    // If any batch's JSON was truncated and repaired, the merged report is
+    // also suspect — propagate the flag so the UI can warn.
+    ...(outputs.some((o) => o.wasRepaired === true) ? { wasRepaired: true } : {}),
   };
 }
 

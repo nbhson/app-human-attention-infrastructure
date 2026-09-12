@@ -21,6 +21,7 @@ import {
   IllegalTransitionError,
   MissingRationaleError,
   StateConflictError,
+  TaskNotFoundError,
   TerminalStateError,
 } from './state-machine/errors.js';
 import { TaskStateMachine } from './state-machine/task-state-machine.js';
@@ -104,7 +105,7 @@ export class TaskService {
 
     const row = rows[0];
     if (!row) {
-      throw new Error(`createTask: no row returned for task ${id}`);
+      throw new TaskNotFoundError(id);
     }
     return toRecord(row);
   }
@@ -123,7 +124,7 @@ export class TaskService {
   ): Promise<TaskRecord> {
     const current = await this.getTask(taskId);
     if (!current) {
-      throw new Error(`task not found: ${taskId}`);
+      throw new TaskNotFoundError(taskId);
     }
 
     const from = opts?.expectedFrom ?? current.state;

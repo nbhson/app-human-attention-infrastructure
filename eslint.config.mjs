@@ -211,7 +211,7 @@ export default tseslint.config(
         // (and outside the api tsconfig); lint them under a default project so
         // type-aware rules still apply.
         projectService: {
-          allowDefaultProject: ['apps/api/scripts/*.ts', 'e2e/*.ts', 'e2e/utils/*.ts'],
+          allowDefaultProject: ['apps/api/scripts/*.ts', 'e2e/*.ts', 'e2e/utils/*.ts', 'vitest.config.review.ts'],
           // The api scripts + e2e specs live outside `src/` and outside the api
           // tsconfig, so tseslint lints them under the default project. That path
           // caps its file count at 8 to avoid a slow fallback project; we have 9

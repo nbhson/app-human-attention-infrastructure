@@ -57,7 +57,7 @@ import type { WriteBackService } from '@harness/writeback';
 
 import { formatRejectWritebackBody } from '../format-review-writeback.js';
 import { checkSensitiveRateLimit } from '../rate-limit.js';
-import { ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
+import { DecisionInsertError, ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
 import { computeFindingAnchor } from '../finding-anchor.js';
 import { computeReviewStats } from '../review-stats.js';
 import { writebackEnabled } from '../writeback-gate.js';
@@ -70,17 +70,10 @@ import {
 } from '../list-summary.js';
 import { computeTriage } from '../triage-rules.js';
 import { loadTriageRuleState } from '../triage-rules-store.js';
-import type { ReviewDecideBody } from './shared-types.js';
+import { CreateReviewBodySchema, formatZodError, ReviewDecideBodySchema } from '../validation.js';
 
 /** The per-host tool map, reused to resolve a report's repo slug to a write-back host. */
 const GIT_TOOL_MAP = new StaticGitToolMap();
-
-interface CreateReviewBody {
-  readonly prUrl?: string;
-  readonly jiraTicket?: string;
-}
-
-const DECISIONS = new Set<string>(Object.values(ReviewDecisionType));
 
 /** Deterministic idempotency fingerprint for a human decision (P0 fix). */
 export function decisionDedupKey(input: {
@@ -140,7 +133,7 @@ export function registerReviewIngestRoutes(
   const db = container.resolve<DrizzleDB>(TOKENS.Db);
   const bus = container.resolve<IEventBus>(TOKENS.EventBus);
 
-  app.post<{ Body: CreateReviewBody }>(
+  app.post<{ Body: unknown }>(
     '/api/reviews',
     { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
     async (request, reply) => {
@@ -152,11 +145,12 @@ export function registerReviewIngestRoutes(
           return reply.code(429).send({ error: 'rate limit exceeded — slow down and try again' });
         }
       }
+      const parsed = CreateReviewBodySchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: formatZodError(parsed.error) });
+      }
+      const { prUrl, jiraTicket } = parsed.data;
       try {
-        const { prUrl, jiraTicket } = request.body ?? {};
-        if (typeof prUrl !== 'string' || prUrl.trim().length === 0) {
-          return reply.code(400).send({ error: 'prUrl is required' });
-        }
         // Fast path: create report with placeholder, publish event, return 202.
         // The actual AI review runs asynchronously via the `review.requested` subscriber.
         const ruleState = await loadTriageRuleState(db);
@@ -416,6 +410,7 @@ export function registerReviewIngestRoutes(
         summary: report.summary,
         overallVerdict: report.overall_verdict,
         reviewStatus: report.review_status ?? 'pending',
+        wasRepaired: report.was_repaired === true,
         batchProgress: (report.batch_progress as { current: number; total: number } | null) ?? null,
         effectiveVerdict: triage.effectiveVerdict ?? report.overall_verdict,
         triage: {
@@ -530,7 +525,7 @@ export function registerReviewIngestRoutes(
   // auto_review_enabled is ON in the triage rules. This is a separate endpoint
   // from POST /api/reviews because it bypasses the async event-driven flow and
   // returns results synchronously for use by the UI's auto-review mode.
-  app.post<{ Body: CreateReviewBody }>(
+  app.post<{ Body: unknown }>(
     '/api/reviews/auto',
     { preHandler: requireRole(container, Role.Operate, Role.Reviewer, Role.Admin) },
     async (request, reply) => {
@@ -542,12 +537,12 @@ export function registerReviewIngestRoutes(
           return reply.code(429).send({ error: 'rate limit exceeded — slow down and try again' });
         }
       }
+      const parsed = CreateReviewBodySchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: formatZodError(parsed.error) });
+      }
+      const { prUrl, jiraTicket } = parsed.data;
       try {
-        const { prUrl, jiraTicket } = request.body ?? {};
-        if (typeof prUrl !== 'string' || prUrl.trim().length === 0) {
-          return reply.code(400).send({ error: 'prUrl is required' });
-        }
-
         // Check if auto-review mode is enabled in triage rules.
         const ruleState = await loadTriageRuleState(db);
         if (!ruleState.autoReviewEnabled) {
@@ -626,7 +621,7 @@ export function registerReviewIngestRoutes(
     },
   );
 
-  app.post<{ Params: { id: string }; Body: ReviewDecideBody }>(
+  app.post<{ Params: { id: string }; Body: unknown }>(
     '/api/reviews/:id/decision',
     { preHandler: requireRole(container, Role.Reviewer, Role.Admin) },
     async (request, reply) => {
@@ -634,12 +629,11 @@ export function registerReviewIngestRoutes(
         return reply.code(429).send({ error: 'rate limit exceeded — slow down and try again' });
       }
       const id = request.params.id as ReviewReportID;
-      const { decision } = request.body ?? {};
-      if (typeof decision !== 'string' || !DECISIONS.has(decision)) {
-        return reply.code(400).send({
-          error: 'decision must be one of APPROVE, REQUEST_CHANGES, REJECT',
-        });
+      const parsed = ReviewDecideBodySchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: formatZodError(parsed.error) });
       }
+      const { decision, rationale, writeback: requestWriteback, comment } = parsed.data;
 
       const reportRows = await db.select().from(reviewReports).where(eq(reviewReports.id, id)).limit(1);
       const report = reportRows[0];
@@ -647,15 +641,10 @@ export function registerReviewIngestRoutes(
         return reply.code(404).send({ error: 'review report not found' });
       }
 
-      const rationale =
-        typeof request.body?.rationale === 'string' && request.body.rationale.trim().length > 0
-          ? request.body.rationale.trim()
-          : undefined;
-
       // The effective write-back gate: request-level flag AND env ceiling. An
       // unset env, a missing flag, or either steam OFF all fail safe (day-09 §2.1).
-      const effective = writebackEnabled(request.body?.writeback);
-      const userCommentRaw = typeof request.body?.comment === 'string' ? request.body.comment.trim() : undefined;
+      const effective = writebackEnabled(requestWriteback);
+      const userCommentRaw = comment;
       const userCommentForKey = userCommentRaw && userCommentRaw.length > 0 ? userCommentRaw : undefined;
 
       // P0 fix: idempotency fingerprint — double-clicks / retries with the same
@@ -695,7 +684,7 @@ export function registerReviewIngestRoutes(
         if (winner[0]) {
           return { reportId: id, decision, decisionId: winner[0].id, deduped: true };
         }
-        throw new Error('decision insert failed');
+        throw new DecisionInsertError();
       }
 
       // The memory write-half (wedge #2) is event-driven: publish the review-slice
@@ -735,7 +724,7 @@ export function registerReviewIngestRoutes(
       const approved = decision === ReviewDecisionType.Approve;
       const isReject = decision === ReviewDecisionType.Reject;
       const decisionSummary = `Review decision: ${decision}${rationale === undefined ? '' : ` — ${rationale}`}`;
-      const userComment = request.body?.comment?.trim();
+      const userComment = comment;
 
       let commentBody: string;
       if (isReject) {

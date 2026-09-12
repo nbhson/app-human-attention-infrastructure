@@ -105,6 +105,17 @@ export class ReviewIngestError extends Error {
   }
 }
 
+/** A decision row insert failed for a non-race reason (races are handled as dedup wins). */
+export class DecisionInsertError extends Error {
+  constructor(cause?: unknown) {
+    super('decision insert failed');
+    this.name = 'DecisionInsertError';
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
+  }
+}
+
 /** P1 fix: resolve the real anchor task id so async + sync paths share one trail. */
 async function resolveReportTaskId(db: DrizzleDB, reportId: ReviewReportID): Promise<TaskID> {
   try {
@@ -348,6 +359,7 @@ export class ReviewIngestService {
       summary: agentOutput.summary,
       overall_verdict: agentOutput.overallVerdict,
       pr_payload: pr,
+      was_repaired: agentOutput.wasRepaired === true,
     });
 
     // Batch insert findings + suggestions in two queries instead of N+1 round-trips.
@@ -648,6 +660,7 @@ export class ReviewIngestService {
               overall_verdict: agentOutput.overallVerdict,
               review_status: 'complete',
               batch_progress: null,
+              was_repaired: agentOutput.wasRepaired === true,
             })
             .where(eq(reviewReports.id, reportId)),
         logger,

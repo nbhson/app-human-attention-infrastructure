@@ -962,6 +962,28 @@ export default function ReviewReportPage(): JSX.Element {
         </section>
       )}
 
+      {/* Transparency flag: the model output was truncated and repaired. */}
+      {data.wasRepaired === true && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 14px',
+            borderRadius: 8,
+            border: '1px solid var(--color-warning, #f0ad4e)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-warning, #b45309)',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+          }}
+        >
+          ⚠️ This review was truncated and auto-repaired by the parser — some findings may be incomplete or spurious.
+          Verify before merging.
+        </div>
+      )}
+
       {/* 2 — AI review overview */}
       <ReportStats stats={data.stats} overallVerdict={data.overallVerdict} />
 

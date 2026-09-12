@@ -279,6 +279,12 @@ export interface ReviewReport {
    */
   readonly reviewStatus: 'pending' | 'fetching' | 'recalling' | 'reviewing' | 'storing' | 'complete' | 'error';
   /**
+   * True when the model's raw JSON was truncated and the parser auto-repaired
+   * it. The UI must warn: findings may be incomplete or spurious — verify
+   * before merging.
+   */
+  readonly wasRepaired: boolean;
+  /**
    * Batch progress within the `reviewing` stage. `current` is the number of
    * batches completed, `total` is the total number of batches. Only present
    * when `reviewStatus` is `'reviewing'`.

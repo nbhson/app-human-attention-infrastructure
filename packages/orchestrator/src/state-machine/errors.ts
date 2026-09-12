@@ -62,3 +62,14 @@ export class MissingRationaleError extends Error {
     this.toState = toState;
   }
 }
+
+/** The task id does not exist (or the insert returned no row). */
+export class TaskNotFoundError extends Error {
+  readonly taskId: TaskID;
+
+  constructor(taskId: TaskID) {
+    super(`task not found: ${taskId}`);
+    this.name = 'TaskNotFoundError';
+    this.taskId = taskId;
+  }
+}

@@ -120,4 +120,29 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test:coverage -- --reporter=verbose
+      - run: pnpm test:coverage:review -- --reporter=verbose
       - run: pnpm e2e
+
+  # Supply-chain hygiene: npm audit + osv-scanner on the lockfile.
+  # NIST SSDF PW.4.2 — audit must be visible but not block `gate`.
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: pnpm audit (high+)
+        continue-on-error: true
+        run: pnpm audit --audit-level=high
+      - name: OSV scanner
+        uses: google/osv-scanner-action@v1
+        with:
+          lockfile: ./pnpm-lock.yaml
+          verbosity: info

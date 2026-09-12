@@ -12,6 +12,7 @@ export {
   IllegalTransitionError,
   MissingRationaleError,
   StateConflictError,
+  TaskNotFoundError,
   TerminalStateError,
 } from './state-machine/errors.js';
 

@@ -225,6 +225,21 @@ export const reviewDecisionTypes = ['APPROVE', 'REQUEST_CHANGES', 'REJECT'] as c
 /** `review_verifications.status` — the review-slice verification lifecycle. */
 export const reviewVerificationStatuses = ['PENDING', 'RUNNING', 'PASSED', 'FAILED', 'SKIPPED', 'ERROR'] as const;
 
+/**
+ * `review_reports.review_status` — the async review pipeline stage. Lowercase
+ * (matches the worker's writes verbatim), enforced at the DB so a typo'd status
+ * fails the INSERT instead of silently branching the UI.
+ */
+export const reviewPipelineStatuses = [
+  'pending',
+  'fetching',
+  'recalling',
+  'reviewing',
+  'storing',
+  'complete',
+  'error',
+] as const;
+
 /** `review_reports.ai_provider`. */
 export const aiProviderCheck = inList('review_reports_ai_provider_check', 'ai_provider', aiProviderTypes);
 
@@ -254,6 +269,13 @@ export const reviewVerificationStatusCheck = inList(
   'review_verifications_status_check',
   'status',
   reviewVerificationStatuses,
+);
+
+/** `review_reports.review_status`. */
+export const reviewPipelineStatusCheck = inList(
+  'review_reports_review_status_check',
+  'review_status',
+  reviewPipelineStatuses,
 );
 
 // --- Day-16 (Phase 3) review memory ------------------------------------------

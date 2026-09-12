@@ -365,6 +365,20 @@
       "when": 1788465000000,
       "tag": "0051_stale_lightspeed",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1788465100000,
+      "tag": "0052_review_status_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788465200000,
+      "tag": "0053_was_repaired_flag",
+      "breakpoints": true
     }
   ]
 }

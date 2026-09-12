@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:coverage:ci": "vitest run --coverage --reporter=verbose",
+    "test:coverage:review": "vitest run --config vitest.config.review.ts --coverage",
     "e2e": "vitest run --config e2e/vitest.config.ts",
     "audit:orphans": "pnpm --filter @harness/db audit:orphans",
     "seed:metrics-checkpoint": "pnpm --filter @harness/api seed:metrics-checkpoint",
@@ -60,5 +61,8 @@
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm lint-staged"
+  },
+  "dependencies": {
+    "zod": "^4.6.2"
   }
 }

@@ -1,6 +1,12 @@
-import { index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
-import { aiProviderCheck, findingKindCheck, reviewSeverityCheck, reviewVerdictCheck } from './enums.js';
+import {
+  aiProviderCheck,
+  findingKindCheck,
+  reviewPipelineStatusCheck,
+  reviewSeverityCheck,
+  reviewVerdictCheck,
+} from './enums.js';
 import { tasks } from './tasks.js';
 
 /**
@@ -30,6 +36,13 @@ export const reviewReports = pgTable(
     pr_payload: jsonb('pr_payload').notNull(),
     /** Current stage of the async review pipeline. */
     review_status: text('review_status').notNull().default('pending'),
+    /**
+     * True when the model's raw JSON was truncated and the parser had to repair
+     * it (`tryRepairTruncatedJson`) — the report is *suspect*, and the UI must
+     * warn "truncated & repaired — verify before merge" instead of presenting
+     * the findings as ground truth. Null on legacy rows / non-repaired parses.
+     */
+    was_repaired: boolean('was_repaired'),
     /** Batch progress within the `reviewing` stage: `{ current, total }` or null. */
     batch_progress: jsonb('batch_progress'),
     /** Recalled memory entries during the "recalling" stage (JSON array of MemoryRetrievalResult). */
@@ -39,6 +52,7 @@ export const reviewReports = pgTable(
   (table) => [
     aiProviderCheck,
     reviewVerdictCheck,
+    reviewPipelineStatusCheck,
     index('review_reports_pr_url_idx').on(table.pr_url),
     index('review_reports_task_id_idx').on(table.task_id),
   ],

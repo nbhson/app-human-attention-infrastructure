@@ -28,10 +28,10 @@
   "dependencies": {
     "@harness/agent-runtime": "workspace:*",
     "@harness/artifact-tracker": "workspace:*",
-    "@harness/benchmark": "workspace:*",
     "@harness/attention-engine": "workspace:*",
-    "@harness/code-index": "workspace:*",
     "@harness/auth": "workspace:*",
+    "@harness/benchmark": "workspace:*",
+    "@harness/code-index": "workspace:*",
     "@harness/context-engine": "workspace:*",
     "@harness/db": "workspace:*",
     "@harness/di": "workspace:*",
@@ -43,16 +43,17 @@
     "@harness/judge": "workspace:*",
     "@harness/mcp": "workspace:*",
     "@harness/memory": "workspace:*",
-    "@harness/orchestrator": "workspace:*",
-    "@harness/observability": "workspace:*",
     "@harness/object-store": "workspace:*",
+    "@harness/observability": "workspace:*",
+    "@harness/orchestrator": "workspace:*",
     "@harness/review": "workspace:*",
     "@harness/sandbox": "workspace:*",
     "@harness/ticket-provider": "workspace:*",
     "@harness/verification-engine": "workspace:*",
     "@harness/writeback": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "fastify": "^5.1.0"
+    "fastify": "^5.1.0",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

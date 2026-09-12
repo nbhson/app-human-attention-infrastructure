@@ -287,17 +287,20 @@ function tryRepairTruncatedJson(s: string): string | undefined {
   }
 }
 
-/** Parse the first candidate that yields valid JSON, repairing each on failure. */
-function parseJson(raw: string): unknown {
+/** Parse the first candidate that yields valid JSON, repairing each on failure.
+ * Returns the parsed value plus `wasRepaired: true` when a candidate only
+ * parsed after `tryRepairTruncatedJson` — the caller flags the report so the
+ * UI can warn instead of presenting repaired findings as ground truth. */
+function parseJson(raw: string): { parsed: unknown; wasRepaired: boolean } {
   const candidates = extractCandidates(raw);
   for (const candidate of candidates) {
     try {
-      return JSON.parse(candidate);
+      return { parsed: JSON.parse(candidate), wasRepaired: false };
     } catch {
       const repaired = tryRepairTruncatedJson(candidate);
       if (repaired !== undefined) {
         try {
-          return JSON.parse(repaired);
+          return { parsed: JSON.parse(repaired), wasRepaired: true };
         } catch {
           // fall through to the next candidate.
         }
@@ -356,6 +359,7 @@ function toReviewOutput(parsed: unknown): ReviewAgentOutput {
 }
 
 export function parseReviewOutput(raw: string): ReviewAgentOutput {
-  const parsed = parseJson(raw);
-  return toReviewOutput(parsed);
+  const { parsed, wasRepaired } = parseJson(raw);
+  const output = toReviewOutput(parsed);
+  return wasRepaired ? { ...output, wasRepaired: true } : output;
 }
