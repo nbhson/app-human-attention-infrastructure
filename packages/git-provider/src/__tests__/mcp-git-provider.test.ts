@@ -120,7 +120,7 @@ describe('MCPGitProvider', () => {
     expect(pr.provider).toBe('gitlab');
     expect(client.calls[0]).toEqual({
       tool: 'get_merge_request',
-      args: { project: 'group/sub/api', merge_request_iid: 7 },
+      args: { project_id: 'group/sub/api', merge_request_iid: 7 },
     });
   });
 

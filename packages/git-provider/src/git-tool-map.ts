@@ -149,22 +149,22 @@ export const DEFAULT_GIT_TOOL_MAP: readonly GitToolMapEntry[] = [
     statusTool: 'set_mr_status',
     labelTool: 'add_mr_labels',
     buildArgs: ({ owner, name, number }) => ({
-      project: `${owner}/${name}`,
+      project_id: `${owner}/${name}`,
       merge_request_iid: number,
     }),
     buildCommentArgs: ({ owner, name, number, body }) => ({
-      project: `${owner}/${name}`,
+      project_id: `${owner}/${name}`,
       merge_request_iid: number,
       body,
     }),
     buildStatusArgs: ({ owner, name, number, state, description }) => ({
-      project: `${owner}/${name}`,
+      project_id: `${owner}/${name}`,
       merge_request_iid: number,
       state,
       description,
     }),
     buildLabelArgs: ({ owner, name, number, label }) => ({
-      project: `${owner}/${name}`,
+      project_id: `${owner}/${name}`,
       merge_request_iid: number,
       label,
     }),
@@ -219,7 +219,15 @@ export class StaticGitToolMap implements GitToolMap {
   }
 
   resolveHost(domain: string): GitHost | undefined {
-    return this.byDomain.get(domain);
+    const direct = this.byDomain.get(domain);
+    if (direct !== undefined) return direct;
+    // Self-hosted GitLab fallback: any domain containing "gitlab" (e.g.
+    // gitlab.kidsplaza.org, gitlab.example.com) routes to the GitLab tool map
+    // so a self-hosted MR URL like
+    // https://gitlab.kidsplaza.org/dwh/web-ui/-/merge_requests/387 can be
+    // fetched through the same `gitlab` MCP server.
+    if (domain.includes('gitlab')) return GitProviderType.GitLab;
+    return undefined;
   }
 
   resolve(host: GitHost): ResolvedGitTools {

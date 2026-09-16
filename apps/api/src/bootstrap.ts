@@ -92,7 +92,7 @@ import {
   VerificationEngine,
 } from '@harness/verification-engine';
 
-import { GitHubProvider, StaticGitToolMap } from '@harness/git-provider';
+import { GitHubProvider, MCPGitProvider, StaticGitToolMap } from '@harness/git-provider';
 import type { GitProvider } from '@harness/git-provider';
 import { loadMcpConfig, McpServerRegistryImpl } from '@harness/mcp';
 import type { McpServerRegistry } from '@harness/mcp';
@@ -596,7 +596,20 @@ export function buildContainer(): Container {
   // Review-reorient: the external-PR review slice. Providers resolve
   // to `null` (and `ingest` fails with a clear status) when their env creds are
   // absent, so the app still boots when review providers are not configured.
-  c.register(TOKENS.GitProvider, () => {
+  // Prefer MCP when a mcp.config.json is present (GitHub/GitLab/Bitbucket via one
+  // client), fallback to the legacy GitHub REST provider for backwards compat.
+  c.register(TOKENS.GitProvider, (container) => {
+    try {
+      const registry = container.resolve<McpServerRegistry>(TOKENS.McpServerRegistry);
+      // If MCP has at least one server configured, use the unified MCP provider
+      // (it routes github.com/gitlab.* /bitbucket.org via StaticGitToolMap).
+      const servers = (registry as unknown as { config: { servers: unknown[] } })?.config?.servers;
+      if (servers?.length) {
+        return new MCPGitProvider(registry, new StaticGitToolMap());
+      }
+    } catch {
+      // McpServerRegistry not yet available — fall through to legacy
+    }
     const token = process.env.GITHUB_TOKEN;
     if (!token) {
       return null;

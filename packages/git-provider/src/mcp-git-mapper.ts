@@ -66,13 +66,53 @@ function parsePr(result: ToolResult): McpPrPayload {
   if (!isRecord(raw)) {
     throw new GitProviderError('get-pr tool: payload is not an object');
   }
-  const number = raw['number'];
-  const title = raw['title'];
-  const author = raw['author'];
-  const url = raw['url'];
-  const head = raw['head'];
-  const base = raw['base'];
-  if (typeof number !== 'number') {
+  // Canonical stub shape (forge-server.mjs) vs raw GitLab API shape
+  // (@zereight/mcp-gitlab returns iid/web_url/source_branch/etc).
+  let number: unknown = raw['number'];
+  const title: unknown = raw['title'];
+  let author: unknown = raw['author'];
+  let url: unknown = raw['url'];
+  let head: unknown = raw['head'];
+  let base: unknown = raw['base'];
+  let description: unknown = raw['description'];
+
+  // Fallback to GitLab raw shape if canonical fields are missing
+  if (typeof number !== 'number' && (typeof raw['iid'] === 'string' || typeof raw['iid'] === 'number')) {
+    number = Number(raw['iid']);
+  }
+  if (typeof number !== 'number' && typeof raw['id'] === 'number') {
+    // last resort: use id if iid missing (should not happen for MR)
+    number = raw['id'];
+  }
+  if (typeof author === 'object' && author !== null) {
+    // GitLab author is { username, name }
+    const a = author as Record<string, unknown>;
+    author = typeof a['username'] === 'string' ? a['username'] : typeof a['name'] === 'string' ? a['name'] : author;
+  }
+  if (typeof url !== 'string' && typeof raw['web_url'] === 'string') {
+    url = raw['web_url'];
+  }
+  if (!isRecord(head) && typeof raw['source_branch'] === 'string') {
+    const sha =
+      typeof raw['sha'] === 'string'
+        ? raw['sha']
+        : isRecord(raw['diff_refs']) && typeof raw['diff_refs']['head_sha'] === 'string'
+          ? (raw['diff_refs']['head_sha'] as string)
+          : '';
+    head = { ref: raw['source_branch'] as string, sha };
+  }
+  if (!isRecord(base) && typeof raw['target_branch'] === 'string') {
+    const sha =
+      isRecord(raw['diff_refs']) && typeof raw['diff_refs']['base_sha'] === 'string'
+        ? (raw['diff_refs']['base_sha'] as string)
+        : '';
+    base = { ref: raw['target_branch'] as string, sha };
+  }
+  if (typeof description !== 'string' && typeof raw['description'] === 'string') {
+    description = raw['description'];
+  }
+
+  if (typeof number !== 'number' || Number.isNaN(number)) {
     throw new GitProviderError('get-pr tool: missing "number"');
   }
   if (typeof title !== 'string') {
@@ -90,7 +130,7 @@ function parsePr(result: ToolResult): McpPrPayload {
   if (!isRecord(base) || typeof base['ref'] !== 'string' || typeof base['sha'] !== 'string') {
     throw new GitProviderError('get-pr tool: missing "base.ref"/"base.sha"');
   }
-  const description = typeof raw['description'] === 'string' ? raw['description'] : undefined;
+  const desc = typeof description === 'string' ? description : undefined;
   return {
     number,
     title,
@@ -98,7 +138,7 @@ function parsePr(result: ToolResult): McpPrPayload {
     url,
     head: { ref: head['ref'], sha: head['sha'] },
     base: { ref: base['ref'], sha: base['sha'] },
-    ...(description === undefined ? {} : { description }),
+    ...(desc === undefined ? {} : { description: desc }),
   };
 }
 
@@ -131,17 +171,34 @@ function mapFile(v: unknown): PullRequestFile {
   if (!isRecord(v)) {
     throw new GitProviderError('get-files tool: file entry is not an object');
   }
-  const path = typeof v['path'] === 'string' ? v['path'] : v['filename'];
+  // Canonical shape (stub) uses `path`/`filename`, GitLab raw uses new_path/old_path + diff
+  const path =
+    typeof v['path'] === 'string'
+      ? v['path']
+      : typeof v['filename'] === 'string'
+        ? v['filename']
+        : typeof v['new_path'] === 'string'
+          ? v['new_path']
+          : typeof v['old_path'] === 'string'
+            ? v['old_path']
+            : undefined;
   if (typeof path !== 'string') {
     throw new GitProviderError('get-files tool: file entry missing "path"');
   }
-  const status = v['status'];
+  // GitLab raw diff has booleans new_file/renamed_file/deleted_file, stub has status string
+  let status: unknown = v['status'];
+  if (typeof status !== 'string') {
+    if (v['new_file'] === true) status = 'added';
+    else if (v['renamed_file'] === true) status = 'renamed';
+    else if (v['deleted_file'] === true) status = 'deleted';
+    else status = 'modified';
+  }
   if (typeof status !== 'string') {
     throw new GitProviderError('get-files tool: file entry missing "status"');
   }
   const additions = typeof v['additions'] === 'number' ? v['additions'] : 0;
   const deletions = typeof v['deletions'] === 'number' ? v['deletions'] : 0;
-  const patch = typeof v['patch'] === 'string' ? v['patch'] : '';
+  const patch = typeof v['patch'] === 'string' ? v['patch'] : typeof v['diff'] === 'string' ? v['diff'] : '';
   return { path, status: mapFileStatus(status), additions, deletions, patch };
 }
 

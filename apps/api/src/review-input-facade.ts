@@ -103,6 +103,15 @@ export function parsePrUrl(prUrl: string): ParsedPrUrl {
     return { repo: `bitbucket.org/${m[1]}/${m[2]}`, number: Number(m[3]) };
   }
 
+  // Self-hosted GitLab (e.g. gitlab.kidsplaza.org, gitlab.example.com): any host
+  // whose path matches the GitLab MR shape `/-/merge_requests/<iid>` is routed
+  // as GitLab. This keeps `gitlab.com` fast-pathed above but unblocks enterprise
+  // instances without a per-domain allowlist.
+  const gitlabM = /^\/(.+)\/-\/merge_requests\/(\d+)\/?$/.exec(path);
+  if (gitlabM) {
+    return { repo: `${host}/${gitlabM[1]}`, number: Number(gitlabM[2]) };
+  }
+
   throw new ReviewInputError(`unsupported Git host "${host}" (expected github.com, gitlab.com, or bitbucket.org)`, 400);
 }
 

@@ -147,7 +147,7 @@ describe('multi-provider concurrency (day-36)', () => {
     // And the argument shapes stayed host-local (pull_number vs merge_request_iid).
     expect(github.calls[0]?.args).toEqual({ owner: 'acme', repo: 'api', pull_number: 42 });
     expect(gitlab.calls[0]?.args).toEqual({
-      project: 'acme/api',
+      project_id: 'acme/api',
       merge_request_iid: 7,
     });
   });

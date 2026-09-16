@@ -50,6 +50,8 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 | `JIRA_TOKEN` | unset | Jira access; both `JIRA_TOKEN` + `JIRA_BASE_URL` required ⇒ `JiraProvider` else `null` | `bootstrap.ts:608` |
 | `JIRA_BASE_URL` | unset | Jira site URL | `bootstrap.ts:608` |
 | `GITLAB_TOKEN` | unset | Referenced as `tokenEnv` in `mcp.config.json` (never stored in DB) | `mcp.config.example.json` (`gitlab` server) |
+| `GITLAB_PERSONAL_ACCESS_TOKEN` | unset | Same PAT value as `GITLAB_TOKEN` — the name `@zereight/mcp-gitlab` reads via `StdioTransport` env | `mcp-git-mapper.ts`, `transport.ts:70` |
+| `GITLAB_API_URL` | `https://gitlab.com/api/v4` | Required for self-hosted GitLab (e.g. `https://gitlab.xxx.org/api/v4`) | `@zereight/mcp-gitlab` docs |
 | `BITBUCKET_TOKEN` | unset | Same as above | `mcp.config.example.json` (`bitbucket` server, stdio local default) |
 | `MCP_CONFIG_PATH` | `./mcp.config.json` | Path to the one MCP config file (`loadMcpConfig`) | `bootstrap.ts:623` |
 

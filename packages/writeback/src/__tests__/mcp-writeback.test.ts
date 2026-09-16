@@ -284,18 +284,18 @@ describe('MCPWriteBack', () => {
     expect(registry.gets).toEqual(['gitlab', 'gitlab', 'gitlab']);
     expect(client.calls.map((c) => c.name)).toEqual(['create_mr_note', 'set_mr_status', 'add_mr_labels']);
     expect(client.calls[0]?.args).toEqual({
-      project: 'acme/api',
+      project_id: 'acme/api',
       merge_request_iid: 7,
       body: 'needs work',
     });
     expect(client.calls[1]?.args).toEqual({
-      project: 'acme/api',
+      project_id: 'acme/api',
       merge_request_iid: 7,
       state: 'failure',
       description: 'tests fail',
     });
     expect(client.calls[2]?.args).toEqual({
-      project: 'acme/api',
+      project_id: 'acme/api',
       merge_request_iid: 7,
       label: 'needs-changes',
     });

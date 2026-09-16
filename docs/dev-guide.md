@@ -78,8 +78,12 @@ JIRA_TOKEN=your-jira-token-here
 JIRA_BASE_URL=https://your-site.atlassian.net
 GITLAB_TOKEN=your-gitlab-token-here
 BITBUCKET_TOKEN=your-bitbucket-token-here
+# Self-hosted GitLab (e.g. gitlab.xxx.org) - same PAT twice + API URL:
+# GITLAB_PERSONAL_ACCESS_TOKEN=glpat-...
+# GITLAB_API_URL=https://gitlab.xxx.org/api/v4
 ```
 Only set the ones you need. Leave others unset — the app falls back to REST or null providers gracefully.
+For self-hosted GitLab, create the PAT on **that instance** (`https://<host>/-/user_settings/personal_access_tokens`, scopes `read_api, api, read_repository`), set both `GITLAB_TOKEN` and `GITLAB_PERSONAL_ACCESS_TOKEN` to the same value, and `GITLAB_API_URL` to `https://<host>/api/v4`. The user must be a member of the target project (private projects return `404 Project Not Found` for unauthorized tokens). Do not add trailing comments after `GITLAB_TOKEN=...`.
 
 ### Identity (local dev)
 

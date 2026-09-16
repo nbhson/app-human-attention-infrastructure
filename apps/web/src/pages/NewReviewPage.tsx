@@ -76,8 +76,7 @@ function isVerificationTerminal(status: ReviewVerificationStatus): boolean {
   return status === 'PASSED' || status === 'FAILED' || status === 'SKIPPED' || status === 'ERROR';
 }
 
-/** Later steps could ask the server to co-validate; today GitHub PRs are the only
- *  supported target, so the client mirrors `parseGithubPrUrl`'s shape check. */
+/** Client-side shape check mirroring `parsePrUrl` (GitHub / GitLab / Bitbucket). */
 function validatePrUrl(value: string): string | null {
   if (value.trim().length === 0) {
     return null; // empty is its own state (button disabled + touched hint)
@@ -91,13 +90,22 @@ function validatePrUrl(value: string): string | null {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return 'The URL must use http(s).';
   }
-  const parts = url.pathname.split('/').filter(Boolean);
+  const path = url.pathname;
+  // GitLab MR shape: /group/.../project/-/merge_requests/<iid> (cloud + self-hosted)
+  if (/\/-\/merge_requests\/\d+\/?$/.test(path)) {
+    return null;
+  }
+  // Bitbucket: /workspace/repo/pull-requests/<id>
+  if (/\/pull-requests\/\d+\/?$/.test(path)) {
+    return null;
+  }
+  const parts = path.split('/').filter(Boolean);
   const pullIndex = parts.indexOf('pull');
   const number = pullIndex === -1 ? Number.NaN : Number(parts[pullIndex + 1]);
-  if (pullIndex === -1 || !Number.isInteger(number) || number <= 0) {
-    return 'Paste the full pull request URL — it should end in /pull/123.';
+  if (pullIndex !== -1 && Number.isInteger(number) && number > 0) {
+    return null;
   }
-  return null;
+  return 'Paste the full pull request URL — e.g. .../pull/123 or .../-/merge_requests/123.';
 }
 
 /** Turn a thrown create error into a headline + detail the user can act on. */
@@ -266,7 +274,7 @@ export default function NewReviewPage(): JSX.Element {
               value={prUrl}
               onChange={(event) => setPrUrl(event.target.value)}
               onBlur={() => setTouched(true)}
-              placeholder="https://github.com/acme/app/pull/123"
+              placeholder="https://github.com/acme/app/pull/123 or https://gitlab.xxx.org/group/project/-/merge_requests/123"
               inputMode="url"
               spellCheck={false}
               aria-invalid={showEmptyError || prUrlError !== null}
@@ -281,7 +289,9 @@ export default function NewReviewPage(): JSX.Element {
                 {prUrlError}
               </p>
             ) : (
-              <p className="field-hint">Paste a GitHub pull request URL.</p>
+              <p className="field-hint">
+                Paste a GitHub, GitLab (including self-hosted) or Bitbucket pull/merge request URL.
+              </p>
             )}
           </div>
 

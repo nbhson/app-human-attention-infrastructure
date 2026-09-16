@@ -1,5 +1,5 @@
 {
-  "//": "Example of the ONE file that connects Git/ticket tools. Copy to mcp.config.json (git-ignored) and set each *_TOKEN in .env. `tokenEnv` is a reference, never a secret. Pinned commands below match package.json + verified local runs; Bitbucket stdio is the local default, SSE URL is the hosted alternative.",
+  "//": "Example of the ONE file that connects Git/ticket tools. Copy to mcp.config.json (git-ignored) and set each *_TOKEN in .env. `tokenEnv` is a reference, never a secret. Pinned commands below match package.json + verified local runs; Bitbucket stdio is the local default, SSE URL is the hosted alternative. For self-hosted GitLab (e.g. gitlab.kidsplaza.org), keep tokenEnv as GITLAB_TOKEN but also set GITLAB_PERSONAL_ACCESS_TOKEN (same value) + GITLAB_API_URL in .env — @zereight/mcp-gitlab reads those env vars via StdioTransport.",
   "servers": {
     "github": {
       "transport": "stdio",

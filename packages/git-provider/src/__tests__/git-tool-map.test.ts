@@ -49,7 +49,7 @@ describe('StaticGitToolMap', () => {
       pull_number: 1,
     });
     expect(map.buildArgs(GitProviderType.GitLab, { owner: 'acme/sub', name: 'api', number: 7 })).toEqual({
-      project: 'acme/sub/api',
+      project_id: 'acme/sub/api',
       merge_request_iid: 7,
     });
     expect(map.buildArgs(GitProviderType.Bitbucket, { owner: 'acme', name: 'api', number: 3 })).toEqual({
@@ -75,7 +75,7 @@ describe('StaticGitToolMap', () => {
         number: 7,
         body: 'needs work',
       }),
-    ).toEqual({ project: 'acme/sub/api', merge_request_iid: 7, body: 'needs work' });
+    ).toEqual({ project_id: 'acme/sub/api', merge_request_iid: 7, body: 'needs work' });
     expect(
       map.buildCommentArgs(GitProviderType.Bitbucket, {
         owner: 'acme',
@@ -111,7 +111,7 @@ describe('StaticGitToolMap', () => {
         description: 'tests fail',
       }),
     ).toEqual({
-      project: 'acme/api',
+      project_id: 'acme/api',
       merge_request_iid: 7,
       state: 'failure',
       description: 'tests fail',
@@ -149,7 +149,7 @@ describe('StaticGitToolMap', () => {
         number: 7,
         label: 'needs-changes',
       }),
-    ).toEqual({ project: 'acme/api', merge_request_iid: 7, label: 'needs-changes' });
+    ).toEqual({ project_id: 'acme/api', merge_request_iid: 7, label: 'needs-changes' });
     expect(
       map.buildLabelArgs(GitProviderType.Bitbucket, {
         owner: 'acme',
