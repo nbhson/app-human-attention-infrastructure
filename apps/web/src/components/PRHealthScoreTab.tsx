@@ -48,24 +48,56 @@ const CATEGORY_CONFIG = [
   { key: 'testing', label: 'Testing', icon: Activity, desc: 'Test coverage, test-to-source ratio' },
 ] as const;
 
-const RATING_SCORE: Record<HealthRating, number> = {
-  excellent: 95,
-  good: 75,
-  fair: 50,
-  poor: 25,
+/**
+ * Legacy fallback when a report predates v5 numeric scores. New reports always
+ * carry the AI-assessed 1–100 score and never hit this map.
+ */
+const LEGACY_RATING_SCORE: Record<HealthRating, number> = {
+  excellent: 92,
+  good: 77,
+  fair: 60,
+  poor: 35,
 };
 
-const RISK_SCORE: Record<OverallRiskLevel, number> = {
+const LEGACY_RISK_SCORE: Record<OverallRiskLevel, number> = {
   LOW: 15,
   MEDIUM: 45,
   HIGH: 75,
-  CRITICAL: 95,
+  CRITICAL: 92,
 };
 
-function RatingBadge({ rating }: { readonly rating: HealthRating }): JSX.Element {
+function scoreFor(rating: HealthRating, score: number | undefined): { score: number; estimated: boolean } {
+  if (typeof score === 'number' && Number.isFinite(score)) {
+    return { score: Math.min(100, Math.max(1, Math.round(score))), estimated: false };
+  }
+  return { score: LEGACY_RATING_SCORE[rating], estimated: true };
+}
+
+function riskScoreFor(risk: OverallRiskLevel, score: number | undefined): { score: number; estimated: boolean } {
+  if (typeof score === 'number' && Number.isFinite(score)) {
+    return { score: Math.min(100, Math.max(1, Math.round(score))), estimated: false };
+  }
+  return { score: LEGACY_RISK_SCORE[risk], estimated: true };
+}
+
+/** Score key sibling for each categorical dimension key. */
+const SCORE_KEY: Record<(typeof CATEGORY_CONFIG)[number]['key'], keyof PRHealthScore> = {
+  architecture: 'architectureScore',
+  codeQuality: 'codeQualityScore',
+  security: 'securityScore',
+  performance: 'performanceScore',
+  testing: 'testingScore',
+};
+
+function RatingBadge({
+  rating,
+  score,
+}: {
+  readonly rating: HealthRating;
+  readonly score: number;
+}): JSX.Element {
   const color = HEALTH_COLORS[rating];
   const gradient = HEALTH_GRADIENTS[rating];
-  const score = RATING_SCORE[rating];
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div
@@ -211,15 +243,18 @@ function CategoryCard({
   icon: Icon,
   desc,
   rating,
+  score,
+  estimated,
 }: {
   readonly label: string;
   readonly icon: React.ComponentType<{ readonly size?: number; readonly className?: string }>;
   readonly desc: string;
   readonly rating: HealthRating;
+  readonly score: number;
+  readonly estimated: boolean;
 }): JSX.Element {
   const color = HEALTH_COLORS[rating];
   const gradient = HEALTH_GRADIENTS[rating];
-  const score = RATING_SCORE[rating];
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -262,20 +297,32 @@ function CategoryCard({
                 {desc}
               </div>
             </div>
-            <RatingBadge rating={rating} />
+            <RatingBadge rating={rating} score={score} />
           </div>
           <div style={{ marginTop: 14 }}>
             <GradientBar value={score} color={color} gradient={gradient} />
           </div>
+          {estimated && (
+            <div style={{ marginTop: 6, fontSize: '0.68rem', color: 'var(--color-text-faint)' }}>
+              Estimated from legacy rating — re-run review for an AI-assessed 1–100 score.
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function RiskGauge({ risk }: { readonly risk: OverallRiskLevel }): JSX.Element {
+function RiskGauge({
+  risk,
+  score,
+  estimated,
+}: {
+  readonly risk: OverallRiskLevel;
+  readonly score: number;
+  readonly estimated: boolean;
+}): JSX.Element {
   const color = RISK_COLORS[risk];
-  const score = RISK_SCORE[risk];
   const radius = 60;
   const strokeWidth = 8;
   const circumference = 2 * Math.PI * (radius - strokeWidth / 2);
@@ -382,6 +429,11 @@ function RiskGauge({ risk }: { readonly risk: OverallRiskLevel }): JSX.Element {
       >
         {getRiskDescription(risk)}
       </p>
+      {estimated && (
+        <div style={{ fontSize: '0.68rem', color: 'var(--color-text-faint)' }}>
+          Estimated from legacy rating — re-run review for an AI-assessed 1–100 score.
+        </div>
+      )}
     </div>
   );
 }
@@ -399,12 +451,15 @@ export function PRHealthScoreTab({ healthScore }: { readonly healthScore: PRHeal
     );
   }
 
-  const categories = CATEGORY_CONFIG.map((c) => ({
-    ...c,
-    rating: healthScore[c.key as keyof Omit<PRHealthScore, 'overallRisk'>] as HealthRating,
-  }));
+  const categories = CATEGORY_CONFIG.map((c) => {
+    const rating = healthScore[c.key as keyof Omit<PRHealthScore, 'overallRisk'>] as HealthRating;
+    const raw = healthScore[SCORE_KEY[c.key]] as number | undefined;
+    const { score, estimated } = scoreFor(rating, raw);
+    return { ...c, rating, score, estimated };
+  });
 
-  const radarScores = categories.map((c) => RATING_SCORE[c.rating]);
+  const radarScores = categories.map((c) => c.score);
+  const risk = riskScoreFor(healthScore.overallRisk, healthScore.overallRiskScore);
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
@@ -521,7 +576,7 @@ export function PRHealthScoreTab({ healthScore }: { readonly healthScore: PRHeal
               Composite Assessment
             </div>
           </div>
-          <RiskGauge risk={healthScore.overallRisk} />
+          <RiskGauge risk={healthScore.overallRisk} score={risk.score} estimated={risk.estimated} />
         </section>
       </div>
 
@@ -554,7 +609,15 @@ export function PRHealthScoreTab({ healthScore }: { readonly healthScore: PRHeal
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
           {categories.map((cat) => (
-            <CategoryCard key={cat.key} label={cat.label} icon={cat.icon} desc={cat.desc} rating={cat.rating} />
+            <CategoryCard
+              key={cat.key}
+              label={cat.label}
+              icon={cat.icon}
+              desc={cat.desc}
+              rating={cat.rating}
+              score={cat.score}
+              estimated={cat.estimated}
+            />
           ))}
         </div>
       </section>

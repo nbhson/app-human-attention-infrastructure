@@ -15,7 +15,14 @@
 
 import type { Issue, PullRequest } from '@harness/domain';
 import type { McpServerRegistry } from '@harness/mcp';
-import { MCPGitProvider, StaticGitToolMap, GitToolMap } from '@harness/git-provider';
+import {
+  BitbucketDirectProvider,
+  HybridGitProvider,
+  MCPGitProvider,
+  StaticGitToolMap,
+  bitbucketDirectFromEnv,
+  type GitToolMap,
+} from '@harness/git-provider';
 import { MCPTicketProvider, StaticTicketToolMap } from '@harness/ticket-provider';
 
 /** A review-input request failed for a user-correctable reason (bad URL, unknown host). */
@@ -140,7 +147,13 @@ export async function resolveReviewInput(
   const { repo, number } = parsePrUrl(request.prUrl);
 
   const gitToolMap = options.gitToolMap ?? StaticGitToolMap.fromEnv();
-  const gitProvider = new MCPGitProvider(options.registry, gitToolMap);
+  // MCP-first with direct Bitbucket REST fallback (hybrid fix for empty file
+  // content from the Bitbucket MCP server).
+  const directOpts = bitbucketDirectFromEnv(process.env);
+  const mcp = new MCPGitProvider(options.registry, gitToolMap);
+  const gitProvider = directOpts
+    ? new HybridGitProvider(mcp, new BitbucketDirectProvider(directOpts), gitToolMap)
+    : mcp;
   const pullRequest = await gitProvider.fetchPullRequest({ repo, number });
 
   let issue: Issue | undefined;

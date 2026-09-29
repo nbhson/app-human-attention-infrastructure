@@ -152,6 +152,41 @@ describe('ReviewReportPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/truncated and auto-repaired/i);
   });
 
+  it('shows an action banner on each of the Verification / Breakdown / AI-trace tabs', async () => {
+    mocked.getReport.mockResolvedValue({
+      ...report,
+      verification: {
+        status: 'FAILED',
+        overall: 'FAILED',
+        headSha: 'abc123def456',
+        contentHash: null,
+        durationMs: 1200,
+        failedKinds: ['TEST'],
+        timedOutKinds: [],
+        failedChecks: [],
+        rendered: null,
+        error: null,
+      },
+    });
+    renderReport();
+    await screen.findByText('Add rate limiting');
+    const tabs = screen.getAllByRole('tab');
+    const byPrefix = (prefix: string): HTMLElement => {
+      const el = tabs.find((el) => (el.textContent ?? '').startsWith(prefix));
+      if (!el) throw new Error(`tab not found: ${prefix}`);
+      return el as HTMLElement;
+    };
+    // Verification tab (FAILED row -> action banner tells the reviewer what to do)
+    fireEvent.click(byPrefix('Verification'));
+    expect(await screen.findByTestId('verification-action')).toHaveTextContent(/Action needed/);
+    // Breakdown tab
+    fireEvent.click(byPrefix('Breakdown'));
+    expect(await screen.findByTestId('breakdown-action')).toHaveTextContent(/Next:/);
+    // AI-trace tab
+    fireEvent.click(byPrefix('AI trace'));
+    expect(await screen.findByTestId('trace-action')).toBeInTheDocument();
+  });
+
   it('submits a human decision to the decide endpoint', async () => {
     mocked.getReport.mockResolvedValue(report);
     mocked.decide.mockResolvedValue({ reportId: 'report-abc', decision: 'APPROVE' });

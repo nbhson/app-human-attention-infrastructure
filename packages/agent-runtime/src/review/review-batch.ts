@@ -443,14 +443,73 @@ export function mergeOutputs(outputs: readonly ReviewAgentOutput[]): ReviewAgent
     }
   }
 
+  const healthScore = mergeHealthScores(outputs);
+
   return {
     summary,
     overallVerdict: worstVerdict as ReviewAgentOutput['overallVerdict'],
     findings: allFindings,
     suggestions: allSuggestions,
+    ...(healthScore !== undefined ? { healthScore } : {}),
     // If any batch's JSON was truncated and repaired, the merged report is
     // also suspect — propagate the flag so the UI can warn.
     ...(outputs.some((o) => o.wasRepaired === true) ? { wasRepaired: true } : {}),
+  };
+}
+
+/**
+ * Merge per-batch health scores: average each 1–100 dimension (rounded),
+ * worst overallRisk wins (highest risk score). Rating fields are re-derived
+ * from the averaged scores so Detail never shows a hard-coded 25/50/75/100.
+ * Batches without numeric scores fall back to rating→midpoint mapping.
+ */
+function mergeHealthScores(outputs: readonly ReviewAgentOutput[]): ReviewAgentOutput['healthScore'] {
+  const scored = outputs.filter((o) => o.healthScore !== undefined);
+  if (scored.length === 0) return undefined;
+  const ratingMid: Record<string, number> = { excellent: 92, good: 77, fair: 60, poor: 35 };
+  const riskMid: Record<string, number> = { LOW: 15, MEDIUM: 45, HIGH: 75, CRITICAL: 92 };
+  const avgRating = (
+    ratingPick: (h: NonNullable<ReviewAgentOutput['healthScore']>) => string,
+    scorePick: (h: NonNullable<ReviewAgentOutput['healthScore']>) => number | undefined,
+  ): number => {
+    const vals: number[] = [];
+    for (const o of scored) {
+      const h = o.healthScore!;
+      const s = scorePick(h);
+      if (typeof s === 'number') vals.push(s);
+      else vals.push(ratingMid[ratingPick(h)] ?? 60);
+    }
+    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  };
+  const arch = avgRating((h) => h.architecture, (h) => h.architectureScore);
+  const qual = avgRating((h) => h.codeQuality, (h) => h.codeQualityScore);
+  const sec = avgRating((h) => h.security, (h) => h.securityScore);
+  const perf = avgRating((h) => h.performance, (h) => h.performanceScore);
+  const test = avgRating((h) => h.testing, (h) => h.testingScore);
+  // overallRisk: worst (max risk score) wins — a single critical batch must not
+  // be averaged away.
+  const riskScores = scored.map((o) => {
+    const h = o.healthScore!;
+    return h.overallRiskScore ?? riskMid[h.overallRisk] ?? 45;
+  });
+  const riskScore = Math.max(...riskScores);
+  const ratingFor = (s: number): 'excellent' | 'good' | 'fair' | 'poor' =>
+    s >= 85 ? 'excellent' : s >= 70 ? 'good' : s >= 50 ? 'fair' : 'poor';
+  const riskFor = (s: number): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' =>
+    s >= 85 ? 'CRITICAL' : s >= 65 ? 'HIGH' : s >= 35 ? 'MEDIUM' : 'LOW';
+  return {
+    architecture: ratingFor(arch),
+    codeQuality: ratingFor(qual),
+    security: ratingFor(sec),
+    performance: ratingFor(perf),
+    testing: ratingFor(test),
+    overallRisk: riskFor(riskScore),
+    architectureScore: arch,
+    codeQualityScore: qual,
+    securityScore: sec,
+    performanceScore: perf,
+    testingScore: test,
+    overallRiskScore: riskScore,
   };
 }
 

@@ -85,12 +85,12 @@ With `OIDC_MOCK=true` (dev default): `GET /api/auth/login` redirects to self-cal
     "writeback": { "enabled": true },
     "stats": { "flaggedFiles": 2, "totalFiles": 12, "...": "..." },
     "healthScore": {
-      "architecture": "excellent",
-      "codeQuality": "good",
-      "security": "fair",
-      "performance": "excellent",
-      "testing": "good",
-      "overallRisk": "MEDIUM"
+      "architecture": "excellent", "architectureScore": 91,
+      "codeQuality": "good", "codeQualityScore": 78,
+      "security": "fair", "securityScore": 62,
+      "performance": "excellent", "performanceScore": 88,
+      "testing": "good", "testingScore": 74,
+      "overallRisk": "MEDIUM", "overallRiskScore": 45
     },
     "findings": [{ "id": "...", "severity": "CRITICAL", "kind": "correctness", "file": "...", "line": 42, "anchor": "...", "message": "...", "orderIndex": 0 }],
     "suggestions": [{ "id": "...", "file": "...", "hunk": "...", "proposed": "..." }],
@@ -102,7 +102,7 @@ With `OIDC_MOCK=true` (dev default): `GET /api/auth/login` redirects to self-cal
     "recalledMemories": null
   }
   ```
-  `verification` is `null` when no `review_verifications` row exists (pre-wedge reports or `VERIFY_REVIEW_ENABLED=0`). `writeback.enabled` reflects the server's current `WRITEBACK_ENABLED` ceiling. `healthScore` is computed by the AI reviewer and stored in `review_reports.health_score` — may be `undefined` for legacy reports.
+  `verification` is `null` when no `review_verifications` row exists (pre-wedge reports or `VERIFY_REVIEW_ENABLED=0`). `writeback.enabled` reflects the server's current `WRITEBACK_ENABLED` ceiling. `healthScore` (reviewer-v6) carries BOTH categorical ratings AND AI-assessed 1–100 `*Score` numbers per dimension (`overallRiskScore` higher = riskier); Detail tab shows the assessed score, or an honestly-labelled legacy estimate when `*Score` is absent (pre-v6 reports) — may be `undefined` for legacy reports without any score.
 
 ### `POST /api/reviews/auto`
 

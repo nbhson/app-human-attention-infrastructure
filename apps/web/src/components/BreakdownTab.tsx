@@ -57,8 +57,40 @@ export function BreakdownTab({ stats }: { readonly stats: ReviewStats | undefine
   const signalCount = ACTIONABLE.reduce((sum, band) => sum + (stats.severity[band] ?? 0), 0);
   const noiseCount = NOISE.reduce((sum, band) => sum + (stats.severity[band] ?? 0), 0);
 
+  const topSeverity: ReviewSeverity | null =
+    (stats.severity.CRITICAL ?? 0) > 0
+      ? 'CRITICAL'
+      : (stats.severity.MAJOR ?? 0) > 0
+        ? 'MAJOR'
+        : (stats.severity.MINOR ?? 0) > 0
+          ? 'MINOR'
+          : null;
+  const nextStep =
+    topSeverity === 'CRITICAL'
+      ? 'Start with the CRITICAL files below, then open each finding in the Review tab.'
+      : topSeverity === 'MAJOR'
+        ? 'Work through the flagged files below, heaviest severity first.'
+        : noiseCount > signalCount
+          ? 'Mostly NIT/INFO noise — skim, then decide; deep review is optional.'
+          : 'No signal findings — this breakdown is informational; move to Diff or decide.';
+
   return (
     <div data-testid="breakdown-tab" style={{ display: 'grid', gap: 'var(--space-4)', marginTop: 16 }}>
+      <div
+        data-testid="breakdown-action"
+        role="alert"
+        style={{
+          border: '1px solid var(--color-border)',
+          borderRadius: 10,
+          padding: '12px 14px',
+          background: 'var(--color-surface)',
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>
+          {topSeverity !== null ? `Next: review ${severityLabel(topSeverity)} findings first` : 'Next: no blocking findings'}
+        </div>
+        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>{nextStep}</div>
+      </div>
       {/* 1 — the share, explained and proved */}
       <section>
         <h3 style={{ marginTop: 0 }}>Why {attentionPct}%?</h3>

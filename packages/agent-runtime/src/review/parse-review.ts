@@ -142,16 +142,98 @@ function normalizeRiskLevel(raw: unknown): OverallRiskLevel {
   return 'MEDIUM';
 }
 
+function clampScore(raw: unknown): number | undefined {
+  const n = typeof raw === 'string' && raw.trim().length > 0 ? Number(raw) : raw;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return undefined;
+  return Math.min(100, Math.max(1, Math.round(n)));
+}
+
+function ratingFromScore(score: number | undefined, fallback: HealthRating): HealthRating {
+  if (score === undefined) return fallback;
+  if (score >= 85) return 'excellent';
+  if (score >= 70) return 'good';
+  if (score >= 50) return 'fair';
+  return 'poor';
+}
+
+function riskFromScore(score: number | undefined, fallback: OverallRiskLevel): OverallRiskLevel {
+  if (score === undefined) return fallback;
+  if (score >= 85) return 'CRITICAL';
+  if (score >= 65) return 'HIGH';
+  if (score >= 35) return 'MEDIUM';
+  return 'LOW';
+}
+
+/**
+ * Accept three shapes per dimension so old + new prompts both parse:
+ * - legacy string: `"security": "good"`
+ * - object: `"security": { "rating": "good", "score": 78 }`
+ * - flat score sibling: `"securityScore": 78` alongside the rating.
+ */
+function normalizeDimension(
+  obj: Record<string, unknown>,
+  key: string,
+): { rating: HealthRating; score: number | undefined } {
+  const raw = obj[key];
+  const flatScore = clampScore(obj[`${key}Score`]);
+  if (typeof raw === 'object' && raw !== null) {
+    const rec = raw as Record<string, unknown>;
+    const score = clampScore(rec['score']) ?? flatScore;
+    const rating = typeof rec['rating'] === 'string' ? normalizeHealthRating(rec['rating']) : undefined;
+    if (rating !== undefined) {
+      return { rating: score !== undefined ? ratingFromScore(score, rating) : rating, score };
+    }
+    if (score !== undefined) {
+      return { rating: ratingFromScore(score, 'fair'), score };
+    }
+  }
+  if (typeof raw === 'string') {
+    const rating = normalizeHealthRating(raw);
+    return { rating: flatScore !== undefined ? ratingFromScore(flatScore, rating) : rating, score: flatScore };
+  }
+  if (typeof raw === 'number') {
+    const score = clampScore(raw);
+    if (score !== undefined) return { rating: ratingFromScore(score, 'fair'), score };
+  }
+  if (flatScore !== undefined) {
+    return { rating: ratingFromScore(flatScore, 'fair'), score: flatScore };
+  }
+  return { rating: 'fair', score: undefined };
+}
+
 function normalizeHealthScore(raw: unknown): PRHealthScore | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const obj = raw as Record<string, unknown>;
+  const arch = normalizeDimension(obj, 'architecture');
+  const qual = normalizeDimension(obj, 'codeQuality');
+  const sec = normalizeDimension(obj, 'security');
+  const perf = normalizeDimension(obj, 'performance');
+  const test = normalizeDimension(obj, 'testing');
+  const riskRaw = obj['overallRisk'];
+  const riskScore = clampScore(obj['overallRiskScore']);
+  let risk: OverallRiskLevel;
+  if (typeof riskRaw === 'object' && riskRaw !== null) {
+    const rec = riskRaw as Record<string, unknown>;
+    const s = clampScore(rec['score']) ?? riskScore;
+    const r = typeof rec['level'] === 'string' ? normalizeRiskLevel(rec['level']) : normalizeRiskLevel(rec['rating']);
+    risk = s !== undefined ? riskFromScore(s, r) : r;
+  } else {
+    const r = normalizeRiskLevel(riskRaw);
+    risk = riskScore !== undefined ? riskFromScore(riskScore, r) : r;
+  }
   return {
-    architecture: normalizeHealthRating(obj.architecture),
-    codeQuality: normalizeHealthRating(obj.codeQuality),
-    security: normalizeHealthRating(obj.security),
-    performance: normalizeHealthRating(obj.performance),
-    testing: normalizeHealthRating(obj.testing),
-    overallRisk: normalizeRiskLevel(obj.overallRisk),
+    architecture: arch.rating,
+    codeQuality: qual.rating,
+    security: sec.rating,
+    performance: perf.rating,
+    testing: test.rating,
+    overallRisk: risk,
+    ...(arch.score !== undefined ? { architectureScore: arch.score } : {}),
+    ...(qual.score !== undefined ? { codeQualityScore: qual.score } : {}),
+    ...(sec.score !== undefined ? { securityScore: sec.score } : {}),
+    ...(perf.score !== undefined ? { performanceScore: perf.score } : {}),
+    ...(test.score !== undefined ? { testingScore: test.score } : {}),
+    ...(riskScore !== undefined ? { overallRiskScore: riskScore } : {}),
   };
 }
 

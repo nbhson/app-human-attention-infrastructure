@@ -244,7 +244,11 @@ export interface ReviewStats {
   readonly severity: Record<ReviewSeverity, number>;
 }
 
-/** PR Health Score categories for the Detail tab. */
+/**
+ * PR Health Score for the Detail tab (v5).
+ * `*Score` are AI-assessed 1–100 (higher = healthier, except overallRiskScore
+ * where higher = riskier). Legacy reports carry only the categorical ratings.
+ */
 export interface PRHealthScore {
   readonly architecture: HealthRating;
   readonly codeQuality: HealthRating;
@@ -252,6 +256,12 @@ export interface PRHealthScore {
   readonly performance: HealthRating;
   readonly testing: HealthRating;
   readonly overallRisk: OverallRiskLevel;
+  readonly architectureScore?: number;
+  readonly codeQualityScore?: number;
+  readonly securityScore?: number;
+  readonly performanceScore?: number;
+  readonly testingScore?: number;
+  readonly overallRiskScore?: number;
 }
 
 /** Health rating with color indicator. */

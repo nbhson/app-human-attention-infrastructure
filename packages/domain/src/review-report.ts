@@ -176,7 +176,16 @@ export const OverallRiskLevel = {
 /** An overall risk level value. */
 export type OverallRiskLevel = (typeof OverallRiskLevel)[keyof typeof OverallRiskLevel];
 
-/** Multi-dimensional health score for a PR. */
+/**
+ * Multi-dimensional health score for a PR.
+ *
+ * v5: each dimension carries a fine-grained `*Score` in [1, 100] assessed by
+ * the AI from evidence (not a hard-coded rating→number map). The categorical
+ * `rating` fields remain for backward compat (legacy reports, tab badge) and
+ * MUST stay consistent with their score:
+ * excellent 85–100, good 70–84, fair 50–69, poor 1–49.
+ * `overallRiskScore` is 1–100 where higher = riskier (inverse of health).
+ */
 export interface PRHealthScore {
   readonly architecture: HealthRating;
   readonly codeQuality: HealthRating;
@@ -184,4 +193,26 @@ export interface PRHealthScore {
   readonly performance: HealthRating;
   readonly testing: HealthRating;
   readonly overallRisk: OverallRiskLevel;
+  readonly architectureScore?: number;
+  readonly codeQualityScore?: number;
+  readonly securityScore?: number;
+  readonly performanceScore?: number;
+  readonly testingScore?: number;
+  readonly overallRiskScore?: number;
+}
+
+/** Rating thresholds for a 1–100 health score (higher = healthier). */
+export function ratingForScore(score: number): HealthRating {
+  if (score >= 85) return 'excellent';
+  if (score >= 70) return 'good';
+  if (score >= 50) return 'fair';
+  return 'poor';
+}
+
+/** Risk level thresholds for a 1–100 risk score (higher = riskier). */
+export function riskForScore(score: number): OverallRiskLevel {
+  if (score >= 85) return 'CRITICAL';
+  if (score >= 65) return 'HIGH';
+  if (score >= 35) return 'MEDIUM';
+  return 'LOW';
 }

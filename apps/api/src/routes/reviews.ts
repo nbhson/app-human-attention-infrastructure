@@ -498,6 +498,10 @@ export function registerReviewIngestRoutes(
           decisionId: row.decision_id,
           createdAt: row.created_at,
         })),
+        // v5 health score: AI-assessed 1–100 per dimension, stored in
+        // `review_reports.health_score`. Legacy reports have NULL → undefined so
+        // the Detail tab renders its honest empty state.
+        healthScore: (report.health_score as unknown as Record<string, unknown> | null) ?? undefined,
         // The machine-side verification (wedge #1): null when no run has been
         // recorded yet (e.g. the report predates this field, or verification is
         // disabled and no row was written). The UI renders the honest status —

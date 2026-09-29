@@ -60,6 +60,8 @@ describe('DockerSandbox.buildArgs (day-22 §2.2)', () => {
 
     expect(args).toEqual(expect.arrayContaining(['--network', 'none', '--read-only', '--user', '1000:1000']));
     expect(args).toEqual(expect.arrayContaining(['--cap-drop', 'ALL', '--cpus', '1.0', '--memory', '512m']));
+    expect(args).toEqual(expect.arrayContaining(['--security-opt', 'no-new-privileges', '--pids-limit', '256']));
+    expect(args).toEqual(expect.arrayContaining(['--tmpfs', '/tmp:rw,noexec,nosuid,size=64m']));
     expect(args).toEqual(expect.arrayContaining(['--rm']));
     // The workdir is mounted read-only at the expected path.
     expect(args).toContain('type=bind,src=/tmp/worktree,dst=/workdir,readonly');

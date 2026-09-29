@@ -62,8 +62,44 @@ export function TraceTab({
   const anchored = findings.filter((finding) => finding.anchor.status === 'verified').length;
   const findingCount = findings.length;
 
+  const repaired = (trace as unknown as { wasRepaired?: boolean }).wasRepaired === true;
+  const traceAction: { title: string; body: string } =
+    repaired
+      ? {
+          title: 'Action needed: AI output was truncated and auto-repaired',
+          body: 'Treat findings below as suspect — cross-check each against the Diff tab before deciding.',
+        }
+      : findingCount === 0
+        ? {
+            title: 'No findings — nothing to trace further',
+            body: 'The AI surfaced nothing actionable. Skim the Diff tab or move straight to the decision bar.',
+          }
+        : anchored < findingCount
+          ? {
+              title: `Action needed: ${findingCount - anchored} of ${findingCount} findings are unanchored`,
+              body: 'Open them in the Review tab and confirm each cited file:line exists in the diff.',
+            }
+          : {
+              title: 'Trace is clean — evidence lines up',
+              body: 'Every finding anchors in the diff. Use the timeline below for provenance, then decide.',
+            };
+
   return (
     <div data-testid="trace-tab" style={{ marginTop: 16 }}>
+      <div
+        data-testid="trace-action"
+        role="alert"
+        style={{
+          border: '1px solid var(--color-border)',
+          borderRadius: 10,
+          padding: '12px 14px',
+          marginBottom: 16,
+          background: 'var(--color-surface)',
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>{traceAction.title}</div>
+        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>{traceAction.body}</div>
+      </div>
       <ol className="trace-timeline">
         <Step
           title="Review started"

@@ -41,10 +41,19 @@ function countDiffLines(patch: string): { additions: number; deletions: number }
 /**
  * A host can return a *summarised* per-file patch: only the `@@ … @@` hunk
  * headers, no code lines (e.g. a GitLab `diff` string that dropped its body, or
- * a host that reports hunk geometry without content). Detect that shape and
- * synthesise a full unified-diff block — file headers plus one context-free hunk
- * per header — so the review UI renders the file's changed region instead of an
- * empty box. Line counts come from the hunk spans, never invented.
+ * a Bitbucket `get_diff` response whose segments arrived without `lines`).
+ * Detect that shape and synthesise a full unified-diff block — file headers
+ * plus one context-free hunk per header — so the review UI renders the
+ * file's changed region instead of an empty box. Line counts come from the
+ * hunk spans, never invented.
+ *
+ * NOTE (hybrid fix): this synthesis recovers *geometry* (file names + hunk
+ * positions) but NOT file *content*. `HybridGitProvider.hasUsableFileContent`
+ * treats a headers-only patch as unusable on purpose, so Bitbucket reads still
+ * fail over to the direct REST channel (`BitbucketDirectProvider`) which
+ * returns real `+`/`-` lines. Never weaken that check because the synthesised
+ * block "looks non-empty" — the review would otherwise see file names
+ * with zero reviewable lines.
  */
 function synthesiseFromHunkHeaders(path: string, patch: string): string {
   const lines = patch.split('\n');

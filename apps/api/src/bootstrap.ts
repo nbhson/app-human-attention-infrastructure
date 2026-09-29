@@ -92,7 +92,14 @@ import {
   VerificationEngine,
 } from '@harness/verification-engine';
 
-import { GitHubProvider, MCPGitProvider, StaticGitToolMap } from '@harness/git-provider';
+import {
+  BitbucketDirectProvider,
+  GitHubProvider,
+  HybridGitProvider,
+  MCPGitProvider,
+  StaticGitToolMap,
+  bitbucketDirectFromEnv,
+} from '@harness/git-provider';
 import type { GitProvider } from '@harness/git-provider';
 import { loadMcpConfig, McpServerRegistryImpl } from '@harness/mcp';
 import type { McpServerRegistry } from '@harness/mcp';
@@ -599,17 +606,30 @@ export function buildContainer(): Container {
   // Prefer MCP when a mcp.config.json is present (GitHub/GitLab/Bitbucket via one
   // client), fallback to the legacy GitHub REST provider for backwards compat.
   c.register(TOKENS.GitProvider, (container) => {
+    const toolMap = StaticGitToolMap.fromEnv();
+    const directOpts = bitbucketDirectFromEnv(process.env);
+    const direct = directOpts ? new BitbucketDirectProvider(directOpts) : null;
     try {
       const registry = container.resolve<McpServerRegistry>(TOKENS.McpServerRegistry);
       // If MCP has at least one server configured, use the unified MCP provider
       // (it routes github.com/gitlab.* /bitbucket.org (+ self-hosted GitLab /
       // Bitbucket Server via StaticGitToolMap.fromEnv) to the MCP servers).
+      // Bitbucket reads go through HybridGitProvider: MCP-first, direct
+      // Bitbucket REST fallback when MCP returns no usable file content.
       const servers = (registry as unknown as { config: { servers: unknown[] } })?.config?.servers;
       if (servers?.length) {
-        return new MCPGitProvider(registry, StaticGitToolMap.fromEnv());
+        if (direct) {
+          return new HybridGitProvider(new MCPGitProvider(registry, toolMap), direct, toolMap);
+        }
+        return new MCPGitProvider(registry, toolMap);
       }
     } catch {
       // McpServerRegistry not yet available — fall through to legacy
+    }
+    // No MCP: prefer direct Bitbucket REST when its creds are present (hybrid
+    // issue fix), else legacy GitHub REST for backwards compat.
+    if (direct) {
+      return direct;
     }
     const token = process.env.GITHUB_TOKEN;
     if (!token) {

@@ -50,6 +50,7 @@ describe('BreakdownTab', () => {
     expect(screen.getByTestId('breakdown-tab')).toBeInTheDocument();
     expect(screen.getByText('Why 50%?')).toBeInTheDocument();
     expect(screen.getByTestId('attention-files')).toHaveTextContent('2 of 4 files');
+    expect(screen.getByTestId('breakdown-action')).toHaveTextContent('Next: review');
     expect(screen.getByTestId('flagged-files')).toHaveTextContent('src/toeic.service.ts');
   });
 

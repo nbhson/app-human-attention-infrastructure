@@ -3,7 +3,10 @@
  *
  * The security property lives *entirely* in the `docker run` flags: `--network
  * none` (no egress), `--read-only` (rootfs immutable), `--cap-drop ALL` +
- * `--user 1000:1000` (non-root, no capabilities), plus `--cpus`/`--memory`
+ * `--user 1000:1000` (non-root, no capabilities), `--security-opt
+ * no-new-privileges` (no setuid escalation), `--pids-limit 256` (fork-bomb
+ * cap), `--tmpfs /tmp` (writable scratch without touching the read-only
+ * rootfs), plus `--cpus`/`--memory`
  * (resource caps). One missing flag and it's a VM, not a sandbox (§6), so
  * `buildArgs` is pure and public — tests assert every flag's presence without
  * needing a daemon.
@@ -71,6 +74,12 @@ export class DockerSandbox implements Sandbox {
       '1000:1000',
       '--cap-drop',
       'ALL',
+      '--security-opt',
+      'no-new-privileges',
+      '--pids-limit',
+      '256',
+      '--tmpfs',
+      '/tmp:rw,noexec,nosuid,size=64m',
       '--cpus',
       run.limits.cpu,
       '--memory',

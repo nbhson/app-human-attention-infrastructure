@@ -74,10 +74,43 @@ export function VerificationTab({
   readonly onOpenReview: (id: string) => void;
 }): JSX.Element {
   const anchored = findings.filter((finding) => finding.anchor.status === 'verified').length;
+  const unanchored = findings.filter((finding) => finding.anchor.status !== 'verified');
   const skipped = verification !== null && verification !== undefined && verification.status === 'SKIPPED';
+  const vFailed = verification != null && verification.status === 'FAILED';
+  const vPassed = verification != null && verification.status === 'PASSED';
+  const action: { tone: string; title: string; body: string } | null =
+    unanchored.length > 0
+      ? {
+          tone: 'var(--color-danger)',
+          title: `Action needed: validate ${unanchored.length} unanchored ${unanchored.length === 1 ? 'finding' : 'findings'}`,
+          body: 'Their cited file:line is not in the diff — they may be hallucinated. Open each below, confirm it against the Diff tab, then decide.',
+        }
+      : vFailed
+        ? {
+            tone: 'var(--color-warning)',
+            title: 'Action needed: build/test failed in sandbox',
+            body: 'Treat the failed checks below as evidence next to the findings (never a blocker). Fix or request changes when the failure matches a finding; otherwise weigh and decide.',
+          }
+        : vPassed && anchored === findings.length && findings.length > 0
+          ? {
+              tone: 'var(--color-success)',
+              title: 'Clear to decide: everything is anchored and sandbox passed',
+              body: 'No validation debt left. Move to the decision bar when ready.',
+            }
+          : null;
 
   return (
     <div data-testid="verification-tab" style={{ marginTop: 16 }}>
+      {action !== null && (
+        <div
+          data-testid="verification-action"
+          role="alert"
+          style={{ border: `1px solid ${action.tone}`, borderRadius: 10, padding: '12px 14px', marginBottom: 16, background: 'var(--color-surface)' }}
+        >
+          <div style={{ fontWeight: 700, color: action.tone, marginBottom: 4 }}>{action.title}</div>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>{action.body}</div>
+        </div>
+      )}
       {/* Layer 1 — per-finding trust */}
       {findings.length > 0 && (
         <section style={{ marginBottom: 20 }}>
