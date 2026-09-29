@@ -64,6 +64,8 @@ export function TraceTab({
 }): JSX.Element {
   const anchored = findings.filter((finding) => finding.anchor.status === 'verified').length;
   const findingCount = findings.length;
+  const totalIn = trace.calls.reduce((sum, call) => sum + call.inputTokens, 0);
+  const totalOut = trace.calls.reduce((sum, call) => sum + call.outputTokens, 0);
 
   const repaired = (trace as unknown as { wasRepaired?: boolean }).wasRepaired === true;
   const traceAction: { title: string; body: string } = repaired
@@ -157,7 +159,15 @@ export function TraceTab({
 
       {trace.calls.length > 0 && (
         <section style={{ marginTop: 20 }}>
-          <h3 style={{ margin: '0 0 8px' }}>Model calls</h3>
+          <h3 style={{ margin: '0 0 4px' }}>Model calls</h3>
+          <p
+            data-testid="trace-tokens"
+            style={{ margin: '0 0 8px', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}
+          >
+            {trace.calls.length} {trace.calls.length === 1 ? 'call' : 'calls'} · {totalIn.toLocaleString()} tokens in
+            {' → '}
+            {totalOut.toLocaleString()} out
+          </p>
           {trace.calls.map((call, index) => (
             <div
               key={index}

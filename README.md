@@ -102,7 +102,7 @@ tasks into the code-gen workflow, and a cancelled task is never consumed.
 | **Context Engine**      | Gathers, ranks, and budgets the context a reviewer sees (exact `tiktoken` tokens)                                        |
 | **Verification Engine** | Independent compile + test + sandboxed checks (real tooling)                                                             |
 | **Attention Engine**    | Scores each change and budgets human attention (+ gated auto-approve)                                                    |
-| **Review**              | A human APPROVES / REJECTS every change, with rationale                                                                  |
+| **Review**               | A human APPROVES / REJECTS every change, with rationale; the Review tab filters findings by text and copies suggested fixes, the Diff tab can hide files without findings, and queue cards show the triage-effective verdict |
 | **Artifact Tracker**    | Snapshots, diffs, and provenance for every change                                                                        |
 
 See [the wiring map](docs/architecture/wiring-map.md) for the full object graph.
@@ -138,7 +138,7 @@ nitpicks like a missing trailing newline.
 | **Write-back**           | On by default (opt-out), fail-safe 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; `WRITEBACK_ENABLED=0` = nothing external           |
 | **Memory**               | Review / finding / decision memory tiers, distilled + relevance-scored, with consolidation / decay / archive; recalled memories are visible in the report's **AI trace** tab (timeline step + panel) |
 | **Quality & learning**   | LLM-as-judge (rubric-scored) + inter-judge agreement, a versioned gold corpus, and a closed learning loop feeding decisions + judge signals back into calibration/routing                            |
-| **Observability**        | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id`; sidebar nav exposes the **Audit Log** page (`/audit`, the `/api/audit` timeline) and the **Ops & Learning** page (`/ops`: DB health, queue depth, orphan alarm, recent learning cycles) |
+| **Observability**        | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id`; sidebar nav exposes the **Audit Log** page (`/audit`, the `/api/audit` timeline) and the **Ops & Learning** page (`/ops`: DB health, queue depth, orphan alarm, recent learning cycles); the AI trace tab totals model-call tokens and the Verification tab keeps the raw flag output one click away |
 
 ## What changed
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { FixSuggestion, ReviewFinding } from '../api/reviews';
 import { AnchorBadge } from './AnchorBadge';
 import { SEVERITIES, severityColor, severityLabel } from './severity';
@@ -25,15 +26,25 @@ export function ReviewTab({
   readonly onOpenInDiff: (finding: ReviewFinding) => void;
   readonly onOpenVerification: (finding: ReviewFinding) => void;
 }): JSX.Element {
+  const [filter, setFilter] = useState('');
+
   if (findings.length === 0) {
     return <p style={{ color: 'var(--color-text-muted)' }}>No findings.</p>;
   }
 
-  const byId = new Map(findings.map((finding) => [finding.id, finding]));
+  const query = filter.trim().toLowerCase();
+  const visibleFindings =
+    query === ''
+      ? findings
+      : findings.filter((finding) =>
+          `${finding.message} ${finding.file} ${finding.severity}`.toLowerCase().includes(query),
+        );
+
+  const byId = new Map(visibleFindings.map((finding) => [finding.id, finding]));
   const selected = (selectedFindingId !== null ? byId.get(selectedFindingId) : undefined) ?? null;
   const groups = SEVERITIES.map((band) => ({
     band,
-    findings: findings.filter((finding) => finding.severity === band),
+    findings: visibleFindings.filter((finding) => finding.severity === band),
   })).filter((group) => group.findings.length > 0);
 
   return (
@@ -47,6 +58,30 @@ export function ReviewTab({
       }}
     >
       <div className="finding-groups">
+        {findings.length > 7 && (
+          <input
+            type="search"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder={`Filter ${findings.length} findings…`}
+            aria-label="Filter findings"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '6px 10px',
+              marginBottom: 8,
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              font: 'inherit',
+              fontSize: '0.82rem',
+            }}
+          />
+        )}
+        {visibleFindings.length === 0 && (
+          <p style={{ color: 'var(--color-text-muted)' }}>No findings match “{filter.trim()}”.</p>
+        )}
         {groups.map((group) => (
           <section key={group.band}>
             <h3 className="finding-group-label" style={{ color: severityColor(group.band) }}>
@@ -93,6 +128,40 @@ export function ReviewTab({
 
 function suggestionsInFile(suggestions: readonly FixSuggestion[], file: string): boolean {
   return suggestions.some((suggestion) => suggestion.file === file);
+}
+
+function CopyButton({ text }: { readonly text: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost btn-sm"
+      disabled={copied}
+      onClick={() => {
+        const done = (): void => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1500);
+        };
+        if (typeof navigator !== 'undefined' && navigator.clipboard !== undefined) {
+          void navigator.clipboard.writeText(text).then(done, () => setCopied(false));
+        } else {
+          const area = document.createElement('textarea');
+          area.value = text;
+          document.body.appendChild(area);
+          area.select();
+          try {
+            document.execCommand('copy');
+            done();
+          } catch {
+            setCopied(false);
+          }
+          document.body.removeChild(area);
+        }
+      }}
+    >
+      {copied ? 'Copied ✓' : 'Copy fix'}
+    </button>
+  );
 }
 
 function FindingCard({
@@ -203,6 +272,9 @@ function FindingDetail({
                 )}
                 <pre className="detail-code">{suggestion.proposed}</pre>
                 <p style={{ margin: '8px 0 0', color: 'var(--color-text-muted)' }}>{suggestion.rationale}</p>
+                <div style={{ marginTop: 8 }}>
+                  <CopyButton text={suggestion.proposed} />
+                </div>
               </div>
             </details>
           ))}

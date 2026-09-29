@@ -77,7 +77,7 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
               <span className="sidebar-brand-name">
                 <span className="sidebar-brand-name-row">
                   <span className="name">Harness</span>
-                  <span className="sidebar-brand-badge">v2.5</span>
+                  <span className="sidebar-brand-badge">v1.0</span>
                 </span>
                 <span className="sidebar-brand-sub">AI Review Agent</span>
               </span>

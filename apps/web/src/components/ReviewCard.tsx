@@ -96,7 +96,11 @@ export function ReviewCard({
   onQuickDecision,
 }: ReviewCardProps): JSX.Element {
   const [expanded, setExpanded] = useState(false);
-  const verdict = VERDICT[review.overallVerdict];
+  // The badge/strip must reflect what the reviewer must act on: the triage
+  // override wins over the raw AI verdict (same rule as the report overview).
+  const shownVerdict = review.effectiveVerdict ?? review.overallVerdict;
+  const verdict = VERDICT[shownVerdict] ?? VERDICT[review.overallVerdict];
+  const overridden = shownVerdict !== review.overallVerdict;
   const priority = PRIORITY[review.priority];
   const reviewPath = `/reviews/${review.id}`;
 
@@ -106,13 +110,31 @@ export function ReviewCard({
     return (
       <li className="rq-compact" data-tone={verdict.tone}>
         <div className="rq-compact-main">
-          <span className="rq-compact-status" style={{ color: verdict.color }} aria-hidden="true">
+          <span
+            className="rq-compact-status"
+            style={{ color: verdict.color }}
+            aria-hidden="true"
+            title={
+              overridden
+                ? `AI said ${VERDICT[review.overallVerdict].label}, triage overrode to ${verdict.label}`
+                : undefined
+            }
+          >
             <StatusIcon />
           </span>
           <Link to={reviewPath} className="rq-compact-title">
             {review.prTitle}
           </Link>
           <span className="rq-compact-prnum">#{review.prNumber}</span>
+          {overridden && (
+            <span
+              className="rq-priority rq-priority--high"
+              title={`AI verdict was ${VERDICT[review.overallVerdict].label}`}
+            >
+              <span className="rq-priority-dot" aria-hidden="true" />
+              Triage: {verdict.label}
+            </span>
+          )}
           <span className={`rq-priority ${priority.cls}`}>
             <span className="rq-priority-dot" aria-hidden="true" />
             {priority.label}
@@ -201,9 +223,14 @@ export function ReviewCard({
 
         <div className="rq-card-badges">
           <div className="rq-card-badges-left">
-            <span className={`rq-status-badge rq-status-badge--${verdict.tone}`}>
+            <span
+              className={`rq-status-badge rq-status-badge--${verdict.tone}`}
+              title={
+                overridden ? `AI said ${VERDICT[review.overallVerdict].label} — triage rule overrode it` : undefined
+              }
+            >
               <span className="dot" style={{ background: verdict.color }} aria-hidden="true" />
-              {verdict.label}
+              {overridden ? `Triage: ${verdict.label}` : verdict.label}
             </span>
             {review.triage.securityBlocked && (
               <span className="rq-triage-badge rq-triage-badge--security" title="Security triage rule fired">

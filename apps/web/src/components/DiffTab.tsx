@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PrFile, ReviewFinding } from '../api/reviews';
 import type { ReviewFileDiff } from '../api/review';
 import { severityColor, severityLabel } from './severity';
@@ -34,6 +34,10 @@ export function DiffTab({
 }): JSX.Element {
   const sectionRefs = useRef(new Map<string, HTMLElement>());
   const selected = findings.find((finding) => finding.id === selectedFindingId) ?? null;
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const flaggedPaths = new Set(findings.map((finding) => finding.file));
+  const flaggedFileCount = diff.filter((file) => flaggedPaths.has(file.path)).length;
+  const visibleDiff = flaggedOnly ? diff.filter((file) => flaggedPaths.has(file.path)) : diff;
 
   // When the selected finding changes (e.g. "Open in Diff" from the Review tab),
   // bring its file into view.
@@ -54,6 +58,25 @@ export function DiffTab({
 
   return (
     <div data-testid="diff-tab" style={{ marginTop: 16 }}>
+      {findings.length > 0 && flaggedFileCount > 0 && flaggedFileCount < diff.length && (
+        <label
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: '0.82rem',
+            color: 'var(--color-text-muted)',
+            cursor: 'pointer',
+            marginBottom: 12,
+          }}
+        >
+          <input type="checkbox" checked={flaggedOnly} onChange={(event) => setFlaggedOnly(event.target.checked)} />
+          Only files with findings ({flaggedFileCount} of {diff.length})
+        </label>
+      )}
+      {flaggedOnly && visibleDiff.length === 0 && (
+        <p style={{ color: 'var(--color-text-muted)' }}>No flagged file matches the stored diff paths.</p>
+      )}
       {findings.length > 0 && (
         <div className="diff-jump-strip">
           <span className="detail-label">Jump to finding</span>
@@ -77,7 +100,7 @@ export function DiffTab({
         </div>
       )}
 
-      {diff.map((file) => {
+      {visibleDiff.map((file) => {
         const fileFindings = findings.filter((finding) => finding.file === file.path);
         const highlightLines =
           selected !== null && selected.file === file.path && selected.line !== null ? [selected.line] : [];

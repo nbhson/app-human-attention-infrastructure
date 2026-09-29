@@ -105,7 +105,13 @@ export function VerificationTab({
         <div
           data-testid="verification-action"
           role="alert"
-          style={{ border: `1px solid ${action.tone}`, borderRadius: 10, padding: '12px 14px', marginBottom: 16, background: 'var(--color-surface)' }}
+          style={{
+            border: `1px solid ${action.tone}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            marginBottom: 16,
+            background: 'var(--color-surface)',
+          }}
         >
           <div style={{ fontWeight: 700, color: action.tone, marginBottom: 4 }}>{action.title}</div>
           <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>{action.body}</div>
@@ -281,6 +287,30 @@ export function VerificationTab({
             Verification is a flag, not a gate: a FAILED run is evidence you weigh next to the findings, never a blocker
             on your decision or on a write-back.
           </p>
+
+          {verification.rendered !== null && verification.rendered.length > 0 && (
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                Raw verification output
+              </summary>
+              <pre
+                style={{
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius)',
+                  padding: 8,
+                  marginTop: 8,
+                  maxWidth: '100%',
+                  overflowX: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  fontSize: '0.78rem',
+                }}
+              >
+                {verification.rendered}
+              </pre>
+            </details>
+          )}
         </section>
       )}
     </div>
