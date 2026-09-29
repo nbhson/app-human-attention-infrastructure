@@ -72,8 +72,14 @@ import { computeTriage } from '../triage-rules.js';
 import { loadTriageRuleState } from '../triage-rules-store.js';
 import { CreateReviewBodySchema, formatZodError, ReviewDecideBodySchema } from '../validation.js';
 
-/** The per-host tool map, reused to resolve a report's repo slug to a write-back host. */
-const GIT_TOOL_MAP = new StaticGitToolMap();
+/**
+ * The per-host tool map, resolved per request (not module-level) so Bitbucket
+ * Server / Data Center domains from `BITBUCKET_DOMAINS` / `BITBUCKET_URL` are
+ * honoured — `.env` is loaded after this module is first imported.
+ */
+function getGitToolMap(): StaticGitToolMap {
+  return StaticGitToolMap.fromEnv();
+}
 
 /** Deterministic idempotency fingerprint for a human decision (P0 fix). */
 export function decisionDedupKey(input: {
@@ -715,7 +721,7 @@ export function registerReviewIngestRoutes(
       }
 
       const { host } = parseRepoPath(report.repo);
-      const provider = GIT_TOOL_MAP.resolveHost(host);
+      const provider = getGitToolMap().resolveHost(host);
       if (provider === undefined) {
         return reply.code(422).send({ error: `write-back unsupported for repo host "${host}"` });
       }

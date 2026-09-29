@@ -3,7 +3,7 @@
  * a single table entry instead of a REST adapter.
  *
  * Different Git MCP servers name the same capability differently
- * (`get_pull_request` vs `get_merge_request` vs `get_pullrequest`) and take
+ * (`get_pull_request` vs `get_merge_request` vs `getPullRequest`) and take
  * different argument shapes (`pull_number` vs `merge_request_iid` vs
  * `pull_request_id`). This map is the *only* place that variance lives:
  * {@link MCPGitProvider} asks "which host does this repo slug resolve to?" and
@@ -172,50 +172,119 @@ export const DEFAULT_GIT_TOOL_MAP: readonly GitToolMapEntry[] = [
   {
     host: GitProviderType.Bitbucket,
     domains: ['bitbucket.org', 'www.bitbucket.org'],
-    getPrTool: 'get_pullrequest',
-    getFilesTool: 'list_pullrequest_files',
-    commentTool: 'add_pr_comment',
+    // Tool names match @pavel-kalmykov/bitbucket-server-mcp (Server/DC API).
+    // get-files tool returns raw unified diff, parsed by unified-diff.ts.
+    // Status/label tools don't exist on Server — write-back fails loudly if attempted.
+    getPrTool: 'get_pull_request',
+    getFilesTool: 'get_diff',
+    commentTool: 'manage_comment',
     statusTool: 'set_pr_status',
-    labelTool: 'add_pr_labels',
+    labelTool: 'manage_labels',
     buildArgs: ({ owner, name, number }) => ({
-      workspace: owner,
-      repo_slug: name,
-      pull_request_id: number,
+      project: owner,
+      repository: name,
+      prId: number,
     }),
     buildCommentArgs: ({ owner, name, number, body }) => ({
-      workspace: owner,
-      repo_slug: name,
-      pull_request_id: number,
-      body,
+      action: 'create',
+      project: owner,
+      repository: name,
+      prId: number,
+      text: body,
     }),
     buildStatusArgs: ({ owner, name, number, state, description }) => ({
-      workspace: owner,
-      repo_slug: name,
-      pull_request_id: number,
+      project: owner,
+      repository: name,
+      prId: number,
       state,
       description,
     }),
-    buildLabelArgs: ({ owner, name, number, label }) => ({
-      workspace: owner,
-      repo_slug: name,
-      pull_request_id: number,
-      label,
+    buildLabelArgs: ({ owner, name, label }) => ({
+      action: 'add',
+      project: owner,
+      repository: name,
+      name: label,
     }),
   },
 ];
+
+/** Options for {@link StaticGitToolMap} beyond the built-in public-forge rows. */
+export interface StaticGitToolMapOptions {
+  /**
+   * Extra domains that route to the Bitbucket row — Bitbucket Server / Data
+   * Center instances (e.g. `git.company.com`) whose host contains no
+   * "bitbucket" keyword. Prefer {@link StaticGitToolMap.fromEnv} so these come
+   * from `BITBUCKET_DOMAINS` / `BITBUCKET_URL` instead of code.
+   */
+  readonly extraBitbucketDomains?: readonly string[];
+}
+
+/**
+ * Read the Bitbucket Server / Data Center domains out of the environment.
+ *
+ * - `BITBUCKET_DOMAINS`: comma-separated host list
+ *   (e.g. `git.company.com,bb.internal`).
+ * - `BITBUCKET_URL` / `BITBUCKET_BASE_URL`: the instance base URL
+ *   (e.g. `https://git.company.com`) — its host is routed to Bitbucket, and
+ *   the value is inherited by the `bitbucket` MCP subprocess for its own API
+ *   calls (see `packages/mcp/src/transport.ts`).
+ */
+export function bitbucketDomainsFromEnv(env: Record<string, string | undefined> = process.env): readonly string[] {
+  const domains = new Set<string>();
+  const list = env['BITBUCKET_DOMAINS'];
+  if (list !== undefined) {
+    for (const part of list.split(',')) {
+      const domain = part
+        .trim()
+        .toLowerCase()
+        .replace(/^www\./, '');
+      if (domain.length > 0) {
+        domains.add(domain);
+      }
+    }
+  }
+  for (const key of ['BITBUCKET_URL', 'BITBUCKET_BASE_URL'] as const) {
+    const raw = env[key];
+    if (raw === undefined || raw.length === 0) {
+      continue;
+    }
+    try {
+      domains.add(new URL(raw).host.toLowerCase().replace(/^www\./, ''));
+    } catch {
+      // An unparseable base URL is the operator's typo — ignore it here rather
+      // than crashing the whole tool map; the MCP call will fail loudly later.
+    }
+  }
+  return [...domains];
+}
 
 /** The production {@link GitToolMap} over {@link DEFAULT_GIT_TOOL_MAP}. */
 export class StaticGitToolMap implements GitToolMap {
   private readonly byHost = new Map<GitHost, GitToolMapEntry>();
   private readonly byDomain = new Map<string, GitHost>();
 
-  constructor(entries: readonly GitToolMapEntry[] = DEFAULT_GIT_TOOL_MAP) {
+  constructor(entries: readonly GitToolMapEntry[] = DEFAULT_GIT_TOOL_MAP, opts: StaticGitToolMapOptions = {}) {
     for (const entry of entries) {
       this.byHost.set(entry.host, entry);
       for (const domain of entry.domains) {
         this.byDomain.set(domain, entry.host);
       }
     }
+    for (const domain of opts.extraBitbucketDomains ?? []) {
+      this.byDomain.set(domain, GitProviderType.Bitbucket);
+    }
+  }
+
+  /**
+   * Build the production map with Bitbucket Server / Data Center domains read
+   * from the environment (`BITBUCKET_DOMAINS` / `BITBUCKET_URL`). Prefer this
+   * over the bare constructor at every runtime call site so a self-hosted
+   * Bitbucket instance routes to the Bitbucket row without a code change.
+   */
+  static fromEnv(env: Record<string, string | undefined> = process.env): StaticGitToolMap {
+    return new StaticGitToolMap(DEFAULT_GIT_TOOL_MAP, {
+      extraBitbucketDomains: bitbucketDomainsFromEnv(env),
+    });
   }
 
   resolveHost(domain: string): GitHost | undefined {
@@ -227,6 +296,10 @@ export class StaticGitToolMap implements GitToolMap {
     // https://gitlab.kidsplaza.org/dwh/web-ui/-/merge_requests/387 can be
     // fetched through the same `gitlab` MCP server.
     if (domain.includes('gitlab')) return GitProviderType.GitLab;
+    // Same idea for Bitbucket: bitbucket.company.com and friends route to the
+    // Bitbucket row. Hosts without the keyword (e.g. git.company.com) need an
+    // explicit `BITBUCKET_DOMAINS` / `BITBUCKET_URL` entry (see `fromEnv`).
+    if (domain.includes('bitbucket')) return GitProviderType.Bitbucket;
     return undefined;
   }
 

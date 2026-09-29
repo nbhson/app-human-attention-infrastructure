@@ -602,10 +602,11 @@ export function buildContainer(): Container {
     try {
       const registry = container.resolve<McpServerRegistry>(TOKENS.McpServerRegistry);
       // If MCP has at least one server configured, use the unified MCP provider
-      // (it routes github.com/gitlab.* /bitbucket.org via StaticGitToolMap).
+      // (it routes github.com/gitlab.* /bitbucket.org (+ self-hosted GitLab /
+      // Bitbucket Server via StaticGitToolMap.fromEnv) to the MCP servers).
       const servers = (registry as unknown as { config: { servers: unknown[] } })?.config?.servers;
       if (servers?.length) {
-        return new MCPGitProvider(registry, new StaticGitToolMap());
+        return new MCPGitProvider(registry, StaticGitToolMap.fromEnv());
       }
     } catch {
       // McpServerRegistry not yet available — fall through to legacy
@@ -644,7 +645,7 @@ export function buildContainer(): Container {
   c.register(TOKENS.WriteBackService, (container): WriteBackService => {
     return new MCPWriteBack(
       container.resolve<McpServerRegistry>(TOKENS.McpServerRegistry),
-      new StaticGitToolMap(),
+      StaticGitToolMap.fromEnv(),
       new StaticTicketToolMap(),
       new DrizzleWritebackLogStore(container.resolve<DrizzleDB>(TOKENS.Db)),
     );

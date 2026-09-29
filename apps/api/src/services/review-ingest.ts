@@ -192,6 +192,14 @@ export function parseGithubPrUrl(prUrl: string): { repo: string; number: number 
     return { repo: `bitbucket.org/${m[1]}/${m[2]}`, number: Number(m[3]) };
   }
 
+  // Bitbucket Server / Data Center (self-hosted, any host):
+  // /projects/{project}/repos/{repo}/pull-requests/{id}[/{overview,diff,commits,...}]
+  // (mirrors parsePrUrl in review-input-facade.ts — keep the two in sync).
+  const bbServerM = /^\/projects\/([^/]+)\/repos\/([^/]+)\/pull-requests\/(\d+)(?:\/.*)?$/.exec(path);
+  if (bbServerM) {
+    return { repo: `${host}/${bbServerM[1]}/${bbServerM[2]}`, number: Number(bbServerM[3]) };
+  }
+
   // Self-hosted GitLab (e.g. gitlab.kidsplaza.org): any host whose path matches
   // the GitLab MR shape `/-/merge_requests/<iid>`.
   const gitlabM = /^\/(.+)\/-\/merge_requests\/(\d+)\/?$/.exec(path);
@@ -207,7 +215,7 @@ export function parseGithubPrUrl(prUrl: string): { repo: string; number: number 
   }
 
   throw new ReviewIngestError(
-    `unsupported Git host "${host}" (expected github.com, gitlab.com, or bitbucket.org)`,
+    `unsupported Git host "${host}" (expected github.com, gitlab.com, bitbucket.org, or a self-hosted GitLab / Bitbucket Server URL shape)`,
     400,
   );
 }
@@ -394,6 +402,7 @@ export class ReviewIngestService {
       overall_verdict: agentOutput.overallVerdict,
       pr_payload: pr,
       was_repaired: agentOutput.wasRepaired === true,
+      health_score: agentOutput.healthScore ?? null,
     });
 
     // Batch insert findings + suggestions in two queries instead of N+1 round-trips.
@@ -503,6 +512,7 @@ export class ReviewIngestService {
       summary: placeholderSummary,
       overall_verdict: 'COMMENT' as const,
       pr_payload: pr,
+      health_score: null,
     });
 
     logger.info('review report created (pending)', {
@@ -695,6 +705,7 @@ export class ReviewIngestService {
               review_status: 'complete',
               batch_progress: null,
               was_repaired: agentOutput.wasRepaired === true,
+              health_score: agentOutput.healthScore ?? null,
             })
             .where(eq(reviewReports.id, reportId)),
         logger,

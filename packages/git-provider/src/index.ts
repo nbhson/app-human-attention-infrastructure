@@ -22,6 +22,7 @@ export * from './github-provider.js';
 export * from './github-mapper.js';
 export * from './git-tool-map.js';
 export * from './mcp-git-mapper.js';
+export * from './unified-diff.js';
 export * from './mcp-git-provider.js';
 export * from './head-sha.js';
 export * from './clone.js';

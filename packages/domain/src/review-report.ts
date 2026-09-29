@@ -155,3 +155,33 @@ export function createReviewReport(input: CreateReviewReportInput): ReviewReport
     ...input,
   };
 }
+
+/** Health rating for a PR dimension. */
+export const HealthRating = {
+  Excellent: 'excellent',
+  Good: 'good',
+  Fair: 'fair',
+  Poor: 'poor',
+} as const;
+/** A health rating value. */
+export type HealthRating = (typeof HealthRating)[keyof typeof HealthRating];
+
+/** Overall risk level for a PR. */
+export const OverallRiskLevel = {
+  Low: 'LOW',
+  Medium: 'MEDIUM',
+  High: 'HIGH',
+  Critical: 'CRITICAL',
+} as const;
+/** An overall risk level value. */
+export type OverallRiskLevel = (typeof OverallRiskLevel)[keyof typeof OverallRiskLevel];
+
+/** Multi-dimensional health score for a PR. */
+export interface PRHealthScore {
+  readonly architecture: HealthRating;
+  readonly codeQuality: HealthRating;
+  readonly security: HealthRating;
+  readonly performance: HealthRating;
+  readonly testing: HealthRating;
+  readonly overallRisk: OverallRiskLevel;
+}

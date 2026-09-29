@@ -334,12 +334,13 @@ describe('MCPWriteBack', () => {
     );
 
     expect(registry.gets).toEqual(['bitbucket', 'bitbucket', 'bitbucket']);
-    expect(client.calls.map((c) => c.name)).toEqual(['add_pr_comment', 'set_pr_status', 'add_pr_labels']);
+    expect(client.calls.map((c) => c.name)).toEqual(['manage_comment', 'set_pr_status', 'manage_labels']);
     expect(client.calls[0]?.args).toEqual({
-      workspace: 'acme',
-      repo_slug: 'api',
-      pull_request_id: 3,
-      body: 'ship it',
+      action: 'create',
+      project: 'acme',
+      repository: 'api',
+      prId: 3,
+      text: 'ship it',
     });
   });
 

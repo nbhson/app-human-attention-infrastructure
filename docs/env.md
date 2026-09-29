@@ -53,6 +53,9 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 | `GITLAB_PERSONAL_ACCESS_TOKEN` | unset | Same PAT value as `GITLAB_TOKEN` — the name `@zereight/mcp-gitlab` reads via `StdioTransport` env | `mcp-git-mapper.ts`, `transport.ts:70` |
 | `GITLAB_API_URL` | `https://gitlab.com/api/v4` | Required for self-hosted GitLab (e.g. `https://gitlab.xxx.org/api/v4`) | `@zereight/mcp-gitlab` docs |
 | `BITBUCKET_TOKEN` | unset | Same as above | `mcp.config.example.json` (`bitbucket` server, stdio local default) |
+| `BITBUCKET_URL` | unset | API base of the `bitbucket` MCP server (`bitbucket-mcp` v5): Cloud default `https://api.bitbucket.org/2.0`, Server / Data Center `https://<host>/rest/api/1.0` — its host is also routed to the Bitbucket row, and the value is inherited by the `bitbucket` MCP subprocess | `git-tool-map.ts` (`bitbucketDomainsFromEnv`), `transport.ts:70` |
+| `BITBUCKET_BASE_URL` | unset | Alias of `BITBUCKET_URL` (same routing effect) | `git-tool-map.ts` (`bitbucketDomainsFromEnv`) |
+| `BITBUCKET_DOMAINS` | unset | Comma-separated extra hosts routed to the Bitbucket row (e.g. `git.company.com`) — needed when the host contains no "bitbucket" keyword | `git-tool-map.ts` (`StaticGitToolMap.fromEnv`) |
 | `MCP_CONFIG_PATH` | `./mcp.config.json` | Path to the one MCP config file (`loadMcpConfig`) | `bootstrap.ts:623` |
 
 ## 5. Write-back gates (fail-safe 3-layer toggle)

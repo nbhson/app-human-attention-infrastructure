@@ -8,6 +8,7 @@
  */
 
 import type { FindingKind, ReviewSeverity, ReviewVerdict } from '@harness/domain';
+import type { PRHealthScore } from '@harness/domain';
 
 /** One problem the AI found in the PR (unidentified — see module doc). */
 export interface ReviewFindingOutput {
@@ -34,6 +35,8 @@ export interface ReviewAgentOutput {
   readonly overallVerdict: ReviewVerdict;
   readonly findings: ReviewFindingOutput[];
   readonly suggestions: FixSuggestionOutput[];
+  /** Multi-dimensional health score for the PR (architecture, codeQuality, security, performance, testing, overallRisk). */
+  readonly healthScore?: PRHealthScore;
   /**
    * True when the raw model text was truncated and the parser had to repair it
    * (`tryRepairTruncatedJson`) to recover a parseable document. The persisted

@@ -304,7 +304,7 @@ async function main(): Promise<void> {
       provider: GitProviderType.Bitbucket,
       repo: 'bitbucket.org/acme/api',
       number: '3',
-      commentTool: 'add_pr_comment',
+      commentTool: 'manage_comment',
       statusTool: 'set_pr_status',
     },
   ];

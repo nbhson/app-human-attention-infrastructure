@@ -216,8 +216,52 @@ If the diff contains any of the following, surface a CRITICAL finding with the f
 For any of the above: do NOT modify the diff, do NOT include the secret/PII/payload value in your JSON output's message or suggestion fields — only the file:line and a high-level description.
 
 ═══════════════════════════════════════════════════════════════════
-LARGE DIFF BEHAVIOR
+HEALTH SCORE — compute a multi-dimensional risk profile
 ═══════════════════════════════════════════════════════════════════
+
+You MUST include a "healthScore" object in your JSON output with the following six dimensions. Assess each based on the evidence in the diff and your findings:
+
+  - "architecture": Structural patterns, coupling, design principles in changed files.
+    - excellent: Clean separation, low coupling, follows established patterns.
+    - good: Minor coupling concerns, mostly follows patterns.
+    - fair: Noticeable coupling or pattern deviations in core areas.
+    - poor: High coupling, anti-patterns, or architectural violations in critical paths.
+
+  - "codeQuality": Findings density, complexity signals, maintainability.
+    - excellent: Zero or near-zero actionable findings; low complexity.
+    - good: Few findings (1-3); manageable complexity.
+    - fair: Moderate findings (4-8); some complex areas.
+    - poor: Many findings (9+); high complexity, hard to maintain.
+
+  - "security": Auth, secrets, injection, XSS, SQL, crypto, TLS/cert vulnerabilities.
+    - excellent: No security-relevant findings or keywords in changed files.
+    - good: One low-severity security finding or keyword.
+    - fair: 2-3 security findings/keywords or one MAJOR security issue.
+    - poor: 4+ security findings/keywords or CRITICAL security issue.
+
+  - "performance": Memory leaks, latency, N+1 queries, missing indexes, cache issues, regressions.
+    - excellent: No performance-relevant findings or keywords.
+    - good: One low-severity performance finding or keyword.
+    - fair: 2-3 performance findings/keywords or one MAJOR performance issue.
+    - poor: 4+ performance findings/keywords or CRITICAL performance issue.
+
+  - "testing": Test-to-source file ratio from PR composition (if visible in diff).
+    - excellent: 50%+ test files changed/added relative to source files.
+    - good: 25-49% test-to-source ratio.
+    - fair: 1-24% test-to-source ratio (some tests present).
+    - poor: 0% test files (no tests added/modified with source changes).
+
+  - "overallRisk": Composite risk level.
+    - LOW: No CRITICAL findings; ≤1 MAJOR; no security/perf issues.
+    - MEDIUM: 2-3 MAJOR findings; or any security/performance finding.
+    - HIGH: CRITICAL finding present; or 4+ MAJOR; or 2+ security issues.
+    - CRITICAL: Multiple CRITICAL findings; or fundamental security/architectural failure.
+
+Base ratings on EVIDENCE in the diff and your findings — not on confidence. An uncertain but high-impact concern still warrants a lower rating.
+
+═══════════════════════════════════════════════════════════════════
+LARGE DIFF BEHAVIOR
+══════════════════════════════════════════════════════════════════
 
 When the diff is large, INCREASE investigation depth — do NOT reduce it. Large diffs require: complete file coverage, complete hunk coverage, cross-file reasoning, requirement mapping, change-surface analysis, contract analysis, assumption hunting, regression hunting, failure-path analysis, counterfactual review, security review, configuration review, test adequacy review.
 
@@ -249,7 +293,15 @@ Return ONLY one JSON object. NO prose, NO markdown fences, NO explanation before
       "proposed": "<the proposed replacement code>",
       "rationale": "<why this change is correct>"
     }
-  ]
+  ],
+  "healthScore": {
+    "architecture": "excellent" | "good" | "fair" | "poor",
+    "codeQuality": "excellent" | "good" | "fair" | "poor",
+    "security": "excellent" | "good" | "fair" | "poor",
+    "performance": "excellent" | "good" | "fair" | "poor",
+    "testing": "excellent" | "good" | "fair" | "poor",
+    "overallRisk": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+  }
 }
 
 Verdict rules:

@@ -31,6 +31,22 @@ describe('parsePrUrl', () => {
     });
   });
 
+  it('parses a Bitbucket Server pull-request URL with an overview tab', () => {
+    expect(
+      parsePrUrl('https://eu-gitp-a001.iconcr.com/projects/SP0168/repos/horizon2-ui/pull-requests/2847/overview'),
+    ).toEqual({
+      repo: 'eu-gitp-a001.iconcr.com/SP0168/horizon2-ui',
+      number: 2847,
+    });
+  });
+
+  it('parses a Bitbucket Server pull-request URL without a trailing tab', () => {
+    expect(parsePrUrl('https://git.company.com/projects/PROJ/repos/api/pull-requests/42')).toEqual({
+      repo: 'git.company.com/PROJ/api',
+      number: 42,
+    });
+  });
+
   it('normalises a www-prefixed host to the canonical token', () => {
     expect(parsePrUrl('https://www.github.com/acme/widget/pull/2')).toEqual({
       repo: 'github.com/acme/widget',

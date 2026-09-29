@@ -68,7 +68,10 @@ export async function createTestDb(schemaName: string): Promise<TestDb> {
   return { sql, db };
 }
 
-export async function destroyTestDb(testDb: TestDb, schemaName: string): Promise<void> {
+export async function destroyTestDb(testDb: TestDb | undefined, schemaName: string): Promise<void> {
+  if (testDb === undefined) {
+    return;
+  }
   await testDb.sql.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
   await testDb.sql.end();
 }

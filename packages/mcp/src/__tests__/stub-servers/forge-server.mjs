@@ -7,7 +7,7 @@
 // fixture JSON that survives the real mappers of Days 03–04 verbatim.
 //
 // A `get_merge_request` tool name carries a GitLab payload, `get_pull_request`
-// a GitHub one, `get_pullrequest` a Bitbucket one, `get_issue` a Jira issue —
+// a GitHub one, `getPullRequest` a Bitbucket one, `get_issue` a Jira issue —
 // so resolving any host URL and fetching through it returns the same-shaped
 // data a real MCP server would. Unknown tools (the Day-06 write-back surface)
 // succeed quietly rather than fail the checkpoint.
@@ -75,6 +75,30 @@ const BITBUCKET_FILES = [
   { path: 'src/review/queue.ts', status: 'modified', additions: 6, deletions: 2 },
 ];
 
+const BITBUCKET_DIFF = `diff --git a/src/review/writer.ts b/src/review/writer.ts
+deleted file mode 100644
+index abc123..000000
+--- a/src/review/writer.ts
++++ /dev/null
+@@ -1,41 +0,0 @@
+-function writer() {
+-  return 'old';
+-}
+diff --git a/src/review/queue.ts b/src/review/queue.ts
+index def456..789012 100644
+--- a/src/review/queue.ts
++++ b/src/review/queue.ts
+@@ -1,2 +1,6 @@
+ function queue() {
+-  return 1;
++  return 2;
++}
++
++function newQueue() {
++  return 3;
+ }
+`;
+
 const JIRA_ISSUE = {
   key: 'ACME-42',
   fields: {
@@ -90,16 +114,17 @@ const JIRA_ISSUE = {
 
 /** tool name → the single JSON document returned as `types/text` content. */
 const TOOL_RESULTS = {
-  // github
-  get_pull_request: GITHUB_PR,
-  list_pull_request_files: GITHUB_FILES,
+  // github (prefixed to avoid collisions in shared stub)
+  github_get_pull_request: GITHUB_PR,
+  github_list_pull_request_files: GITHUB_FILES,
   // gitlab
-  get_merge_request: GITLAB_MR,
-  list_merge_request_diffs: GITLAB_FILES,
-  // bitbucket
-  get_pullrequest: BITBUCKET_PR,
-  list_pullrequest_files: BITBUCKET_FILES,
-  // jira
+  gitlab_get_merge_request: GITLAB_MR,
+  gitlab_list_merge_request_diffs: GITLAB_FILES,
+  // bitbucket (names match the real `bitbucket-server-mcp` server, prefixed)
+  bitbucket_get_pull_request: BITBUCKET_PR,
+  bitbucket_get_diff: BITBUCKET_DIFF,
+  // jira (both prefixed and non-prefixed for test compatibility)
+  jira_get_issue: JIRA_ISSUE,
   get_issue: JIRA_ISSUE,
 };
 

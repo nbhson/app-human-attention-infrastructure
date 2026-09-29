@@ -12,6 +12,9 @@ import type {
   FindingKind as FindingKindT,
   ReviewSeverity as ReviewSeverityT,
   ReviewVerdict as ReviewVerdictT,
+  HealthRating,
+  OverallRiskLevel,
+  PRHealthScore,
 } from '@harness/domain';
 
 import type { FixSuggestionOutput, ReviewAgentOutput, ReviewFindingOutput } from './review-output.js';
@@ -120,6 +123,36 @@ function normalizeSuggestions(raw: unknown): FixSuggestionOutput[] {
     });
   }
   return out;
+}
+
+const HEALTH_RATINGS = new Set<HealthRating>(['excellent', 'good', 'fair', 'poor']);
+const RISK_LEVELS = new Set<OverallRiskLevel>(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
+
+function normalizeHealthRating(raw: unknown): HealthRating {
+  if (typeof raw === 'string' && HEALTH_RATINGS.has(raw as HealthRating)) {
+    return raw as HealthRating;
+  }
+  return 'fair';
+}
+
+function normalizeRiskLevel(raw: unknown): OverallRiskLevel {
+  if (typeof raw === 'string' && RISK_LEVELS.has(raw as OverallRiskLevel)) {
+    return raw as OverallRiskLevel;
+  }
+  return 'MEDIUM';
+}
+
+function normalizeHealthScore(raw: unknown): PRHealthScore | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  return {
+    architecture: normalizeHealthRating(obj.architecture),
+    codeQuality: normalizeHealthRating(obj.codeQuality),
+    security: normalizeHealthRating(obj.security),
+    performance: normalizeHealthRating(obj.performance),
+    testing: normalizeHealthRating(obj.testing),
+    overallRisk: normalizeRiskLevel(obj.overallRisk),
+  };
 }
 
 /**
@@ -350,11 +383,13 @@ function toReviewOutput(parsed: unknown): ReviewAgentOutput {
     };
   }
 
+  const healthScore = normalizeHealthScore(inner.healthScore);
   return {
     summary: typeof inner.summary === 'string' ? inner.summary : '',
     overallVerdict: normalizeVerdict(inner.overallVerdict),
     findings: normalizeFindings(inner.findings),
     suggestions: normalizeSuggestions(inner.suggestions),
+    ...(healthScore !== undefined ? { healthScore } : {}),
   };
 }
 

@@ -86,11 +86,25 @@ describe('NewReviewPage', () => {
       target: { value: 'https://github.com/acme/app' },
     });
     expect(
-      await screen.findByText('Paste the full pull request URL — it should end in /pull/123.'),
+      await screen.findByText(
+        'Paste the full pull request URL — e.g. .../pull/123, .../-/merge_requests/123, or .../pull-requests/123.',
+      ),
     ).toBeInTheDocument();
     expect(button).toBeDisabled();
 
     fillValidUrl();
+    expect(button).toBeEnabled();
+  });
+
+  it('accepts a Bitbucket Server pull-request URL with a trailing tab', async () => {
+    renderNewReview();
+
+    const button = screen.getByRole('button', { name: /Start Review/ });
+    fireEvent.change(screen.getByLabelText(/Pull request URL/), {
+      target: {
+        value: 'https://eu-gitp-a001.iconcr.com/projects/SP0168/repos/horizon2-ui/pull-requests/2847/overview',
+      },
+    });
     expect(button).toBeEnabled();
   });
 

@@ -1,5 +1,7 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
+import type { PRHealthScore } from '@harness/domain';
+
 import {
   aiProviderCheck,
   findingKindCheck,
@@ -47,6 +49,8 @@ export const reviewReports = pgTable(
     batch_progress: jsonb('batch_progress'),
     /** Recalled memory entries during the "recalling" stage (JSON array of MemoryRetrievalResult). */
     recalled_memories: jsonb('recalled_memories'),
+    /** Multi-dimensional health score computed by the AI reviewer. */
+    health_score: jsonb('health_score').$type<PRHealthScore>(),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

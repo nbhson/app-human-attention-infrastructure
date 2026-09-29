@@ -95,8 +95,13 @@ function validatePrUrl(value: string): string | null {
   if (/\/-\/merge_requests\/\d+\/?$/.test(path)) {
     return null;
   }
-  // Bitbucket: /workspace/repo/pull-requests/<id>
+  // Bitbucket Cloud: /workspace/repo/pull-requests/<id>
   if (/\/pull-requests\/\d+\/?$/.test(path)) {
+    return null;
+  }
+  // Bitbucket Server / Data Center (self-hosted, any host):
+  // /projects/{project}/repos/{repo}/pull-requests/<id>[/{overview,diff,...}]
+  if (/\/projects\/[^/]+\/repos\/[^/]+\/pull-requests\/\d+(\/.*)?$/.test(path)) {
     return null;
   }
   const parts = path.split('/').filter(Boolean);
@@ -105,7 +110,7 @@ function validatePrUrl(value: string): string | null {
   if (pullIndex !== -1 && Number.isInteger(number) && number > 0) {
     return null;
   }
-  return 'Paste the full pull request URL — e.g. .../pull/123 or .../-/merge_requests/123.';
+  return 'Paste the full pull request URL — e.g. .../pull/123, .../-/merge_requests/123, or .../pull-requests/123.';
 }
 
 /** Turn a thrown create error into a headline + detail the user can act on. */
@@ -290,7 +295,8 @@ export default function NewReviewPage(): JSX.Element {
               </p>
             ) : (
               <p className="field-hint">
-                Paste a GitHub, GitLab (including self-hosted) or Bitbucket pull/merge request URL.
+                Paste a GitHub, GitLab (including self-hosted), Bitbucket Cloud, or Bitbucket Server / Data Center
+                pull/merge request URL.
               </p>
             )}
           </div>

@@ -153,6 +153,20 @@ FROM review_reports
 ORDER BY created_at DESC
 LIMIT 20;
 
+-- reports with health score (AI-computed multi-dimensional risk)
+SELECT id, repo, pr_number, overall_verdict, review_status,
+       health_score->>'architecture' AS architecture,
+       health_score->>'codeQuality' AS code_quality,
+       health_score->>'security' AS security,
+       health_score->>'performance' AS performance,
+       health_score->>'testing' AS testing,
+       health_score->>'overallRisk' AS overall_risk,
+       created_at
+FROM review_reports
+WHERE health_score IS NOT NULL
+ORDER BY created_at DESC
+LIMIT 20;
+
 -- reports still being processed (stuck or slow)
 SELECT id, repo, pr_number, review_status, batch_progress, created_at
 FROM review_reports

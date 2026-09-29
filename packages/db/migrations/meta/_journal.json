@@ -379,6 +379,13 @@
       "when": 1788465200000,
       "tag": "0053_was_repaired_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788465300000,
+      "tag": "0054_health_score_flag",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@
 
 import type { Issue, PullRequest } from '@harness/domain';
 import type { McpServerRegistry } from '@harness/mcp';
-import { MCPGitProvider, StaticGitToolMap } from '@harness/git-provider';
+import { MCPGitProvider, StaticGitToolMap, GitToolMap } from '@harness/git-provider';
 import { MCPTicketProvider, StaticTicketToolMap } from '@harness/ticket-provider';
 
 /** A review-input request failed for a user-correctable reason (bad URL, unknown host). */
@@ -53,6 +53,8 @@ export interface ResolveReviewInputOptions {
   readonly registry: McpServerRegistry;
   /** Jira site root (e.g. `https://acme.atlassian.net`), used for the issue url. */
   readonly jiraBaseUrl?: string;
+  /** Optional custom Git tool map (for tests with prefixed stub tool names). */
+  readonly gitToolMap?: GitToolMap;
 }
 
 /** Normalise a URL host to the canonical token the tool maps key on (lower, no `www.`). */
@@ -103,6 +105,14 @@ export function parsePrUrl(prUrl: string): ParsedPrUrl {
     return { repo: `bitbucket.org/${m[1]}/${m[2]}`, number: Number(m[3]) };
   }
 
+  // Bitbucket Server / Data Center (self-hosted, any host):
+  // /projects/{project}/repos/{repo}/pull-requests/{id}[/{overview,diff,commits,...}]
+  // The trailing tab segment (overview/diff/...) is ignored — it names the same PR.
+  const bbServer = /^\/projects\/([^/]+)\/repos\/([^/]+)\/pull-requests\/(\d+)(?:\/.*)?$/.exec(path);
+  if (bbServer) {
+    return { repo: `${host}/${bbServer[1]}/${bbServer[2]}`, number: Number(bbServer[3]) };
+  }
+
   // Self-hosted GitLab (e.g. gitlab.kidsplaza.org, gitlab.example.com): any host
   // whose path matches the GitLab MR shape `/-/merge_requests/<iid>` is routed
   // as GitLab. This keeps `gitlab.com` fast-pathed above but unblocks enterprise
@@ -112,7 +122,10 @@ export function parsePrUrl(prUrl: string): ParsedPrUrl {
     return { repo: `${host}/${gitlabM[1]}`, number: Number(gitlabM[2]) };
   }
 
-  throw new ReviewInputError(`unsupported Git host "${host}" (expected github.com, gitlab.com, or bitbucket.org)`, 400);
+  throw new ReviewInputError(
+    `unsupported Git host "${host}" (expected github.com, gitlab.com, bitbucket.org, or a self-hosted GitLab / Bitbucket Server URL shape)`,
+    400,
+  );
 }
 
 /**
@@ -126,7 +139,8 @@ export async function resolveReviewInput(
 ): Promise<ResolvedReviewInput> {
   const { repo, number } = parsePrUrl(request.prUrl);
 
-  const gitProvider = new MCPGitProvider(options.registry, new StaticGitToolMap());
+  const gitToolMap = options.gitToolMap ?? StaticGitToolMap.fromEnv();
+  const gitProvider = new MCPGitProvider(options.registry, gitToolMap);
   const pullRequest = await gitProvider.fetchPullRequest({ repo, number });
 
   let issue: Issue | undefined;

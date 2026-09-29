@@ -22,7 +22,6 @@ import { VerificationTab } from '../components/VerificationTab';
 import { WritebackDetailModal } from '../components/WritebackDetailModal';
 import { severityColor, sortFindingsBySeverity } from '../components/severity';
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldAlert, Sliders, Zap } from '../components/Icons';
-import type { PRHealthScore } from '../api/reviews';
 
 /**
  * AI review report page (review-reorient Phase 3) — the human-in-the-loop read
@@ -100,99 +99,6 @@ const visuallyHidden = {
   whiteSpace: 'nowrap',
   border: 0,
 } as const;
-
-function computeHealthScore(
-  findings: readonly {
-    readonly severity: string;
-    readonly file: string;
-    readonly kind: string;
-    readonly message: string;
-  }[],
-  stats: {
-    readonly composition?: readonly { readonly category: string; readonly files: number; readonly additions: number }[];
-    readonly languages?: readonly { readonly language: string }[];
-    readonly totalFiles?: number;
-  },
-): PRHealthScore {
-  const criticalCount = findings.filter((f) => f.severity === 'CRITICAL').length;
-  const majorCount = findings.filter((f) => f.severity === 'MAJOR').length;
-  const totalFindings = findings.length;
-
-  const securityKeywords = [
-    'auth',
-    'secret',
-    'password',
-    'token',
-    'credential',
-    'injection',
-    'xss',
-    'csrf',
-    'sql',
-    'crypto',
-    'encrypt',
-    'hash',
-    'ssl',
-    'tls',
-    'cert',
-  ];
-  const securityFindings = findings.filter((f) =>
-    securityKeywords.some((kw) => f.message.toLowerCase().includes(kw) || f.file.toLowerCase().includes(kw)),
-  ).length;
-
-  const perfKeywords = [
-    'performance',
-    'memory',
-    'leak',
-    'slow',
-    'latency',
-    'timeout',
-    'benchmark',
-    'regression',
-    'n+1',
-    'query',
-    'index',
-    'cache',
-  ];
-  const perfFindings = findings.filter((f) =>
-    perfKeywords.some((kw) => f.message.toLowerCase().includes(kw) || f.file.toLowerCase().includes(kw)),
-  ).length;
-
-  const testFiles = stats.composition?.find((c) => c.category === 'test')?.files ?? 0;
-  const sourceFiles = stats.composition?.find((c) => c.category === 'source')?.files ?? 0;
-  const testRatio = sourceFiles > 0 ? testFiles / sourceFiles : 0;
-
-  const architectureRating =
-    criticalCount === 0 && majorCount <= 2
-      ? 'excellent'
-      : criticalCount === 0
-        ? 'good'
-        : majorCount <= 3
-          ? 'fair'
-          : 'poor';
-  const codeQualityRating =
-    totalFindings === 0 ? 'excellent' : totalFindings <= 3 ? 'good' : totalFindings <= 8 ? 'fair' : 'poor';
-  const securityRating =
-    securityFindings === 0 ? 'excellent' : securityFindings === 1 ? 'good' : securityFindings <= 3 ? 'fair' : 'poor';
-  const performanceRating =
-    perfFindings === 0 ? 'excellent' : perfFindings <= 1 ? 'good' : perfFindings <= 3 ? 'fair' : 'poor';
-  const testingRating = testRatio >= 0.5 ? 'excellent' : testRatio >= 0.25 ? 'good' : testRatio > 0 ? 'fair' : 'poor';
-
-  let overallRisk: PRHealthScore['overallRisk'] = 'LOW';
-  if (criticalCount > 0 || securityFindings > 2) {
-    overallRisk = 'HIGH';
-  } else if (majorCount > 3 || securityFindings > 0 || perfFindings > 2) {
-    overallRisk = 'MEDIUM';
-  }
-
-  return {
-    architecture: architectureRating as PRHealthScore['architecture'],
-    codeQuality: codeQualityRating as PRHealthScore['codeQuality'],
-    security: securityRating as PRHealthScore['security'],
-    performance: performanceRating as PRHealthScore['performance'],
-    testing: testingRating as PRHealthScore['testing'],
-    overallRisk,
-  };
-}
 
 function reviewSkeleton(): JSX.Element {
   const block = { borderRadius: 12 } as const;
@@ -750,7 +656,7 @@ export default function ReviewReportPage(): JSX.Element {
     setActiveTab('review');
   };
 
-  const healthScore = computeHealthScore(data.findings, data.stats ?? {});
+  const healthScore = data.healthScore;
 
   const tabBadge = (tab: ReviewTabKey): string | number | undefined => {
     switch (tab) {
@@ -774,7 +680,7 @@ export default function ReviewReportPage(): JSX.Element {
         return '·';
       }
       case 'detail':
-        return healthScore.overallRisk;
+        return healthScore?.overallRisk;
       default:
         return undefined;
     }
