@@ -4,7 +4,7 @@ import { Link, NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { reviewsApi } from '../api/reviews';
-import { Activity, Command, Inbox, Plus, Sliders, X, Sun, Moon } from './Icons';
+import { Activity, BarChart3, Command, Inbox, Plus, Radio, Sliders, X, Sun, Moon } from './Icons';
 import { ActivityPanelProvider, SystemActivitySidebar, useActivityPanel } from './SystemActivitySidebar';
 import { useTheme } from '../context/ThemeContext';
 
@@ -120,6 +120,20 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
                 <span>Triage Rules</span>
               </span>
               <span className="nav-badge nav-badge--active">Active</span>
+            </NavLink>
+
+            <NavLink to="/audit" end className={navItemClass} data-accent="teal">
+              <span className="nav-item--left">
+                <Radio className="nav-item-icon" />
+                <span>Audit Log</span>
+              </span>
+            </NavLink>
+
+            <NavLink to="/ops" end className={navItemClass} data-accent="green">
+              <span className="nav-item--left">
+                <BarChart3 className="nav-item-icon" />
+                <span>Ops &amp; Learning</span>
+              </span>
             </NavLink>
           </nav>
         </div>

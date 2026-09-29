@@ -7,6 +7,7 @@ import ProvenancePage from './pages/ProvenancePage';
 import NewReviewPage from './pages/NewReviewPage';
 import ReviewReportPage from './pages/ReviewReportPage';
 import AuditPage from './pages/AuditPage';
+import OpsPage from './pages/OpsPage';
 import TriageRulesPage from './pages/TriageRulesPage';
 
 /**
@@ -44,6 +45,7 @@ function AppRoutes(): JSX.Element {
         <Route path="/reviews/new" element={<NewReviewPage />} />
         <Route path="/reviews/:id" element={<ReviewReportPage />} />
         <Route path="/audit" element={<AuditPage />} />
+        <Route path="/ops" element={<OpsPage />} />
         <Route path="/rules" element={<TriageRulesPage />} />
       </Routes>
     </div>

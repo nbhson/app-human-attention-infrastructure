@@ -87,6 +87,7 @@ runs**. No action needed — they are read-only historical data.
 ```bash
 curl -s localhost:3000/api/ops/metrics
 # → tasksByState, reviewQueueDepth, orphanedTasks
+# same gauges, glanceable: the Ops & Learning page (/ops) in the sidebar
 ```
 
 ```bash

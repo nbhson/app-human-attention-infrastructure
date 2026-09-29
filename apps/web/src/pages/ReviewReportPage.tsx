@@ -658,6 +658,14 @@ export default function ReviewReportPage(): JSX.Element {
 
   const healthScore = data.healthScore;
 
+  const tabTitle = (tab: ReviewTabKey): string | undefined => {
+    if (tab === 'trace') {
+      const memoryCount = data.recalledMemories?.length ?? 0;
+      return memoryCount > 0 ? `${data.trace.calls.length} model calls + ${memoryCount} recalled memories` : undefined;
+    }
+    return undefined;
+  };
+
   const tabBadge = (tab: ReviewTabKey): string | number | undefined => {
     switch (tab) {
       case 'review':
@@ -891,7 +899,12 @@ export default function ReviewReportPage(): JSX.Element {
       )}
 
       {/* 2 — AI review overview */}
-      <ReportStats stats={data.stats} overallVerdict={data.overallVerdict} />
+      <ReportStats
+        stats={data.stats}
+        overallVerdict={data.overallVerdict}
+        effectiveVerdict={data.effectiveVerdict}
+        matchedRules={data.triage.matchedRules}
+      />
 
       {/* 2b — summary & architectural impact + metrics visualization */}
       <SummaryMetricsPanel summary={data.summary} stats={data.stats} findings={findings} />
@@ -908,6 +921,7 @@ export default function ReviewReportPage(): JSX.Element {
               role="tab"
               aria-selected={selected}
               onClick={() => setActiveTab(tab.key)}
+              title={tabTitle(tab.key)}
               className={`review-tab${selected ? ' review-tab-active' : ''}`}
             >
               {tab.label}
@@ -967,6 +981,7 @@ export default function ReviewReportPage(): JSX.Element {
             stats={data.stats}
             findings={findings}
             overallVerdict={data.overallVerdict}
+            recalledMemories={data.recalledMemories}
           />
         )}
       </div>

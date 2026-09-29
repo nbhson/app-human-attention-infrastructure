@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import type { ReviewFinding, ReviewStats, ReviewTrace } from '../api/reviews';
+import type { RecalledMemory, ReviewFinding, ReviewStats, ReviewTrace } from '../api/reviews';
+import { RecalledMemoriesPanel } from './RecalledMemoriesPanel';
 import { ShadowJudgePanel } from './ShadowJudgePanel';
 
 /**
@@ -52,37 +53,38 @@ export function TraceTab({
   stats,
   findings,
   overallVerdict,
+  recalledMemories,
 }: {
   readonly trace: ReviewTrace;
   readonly createdAt: string;
   readonly stats: ReviewStats | undefined;
   readonly findings: readonly ReviewFinding[];
   readonly overallVerdict: Verdict;
+  readonly recalledMemories?: readonly RecalledMemory[] | null;
 }): JSX.Element {
   const anchored = findings.filter((finding) => finding.anchor.status === 'verified').length;
   const findingCount = findings.length;
 
   const repaired = (trace as unknown as { wasRepaired?: boolean }).wasRepaired === true;
-  const traceAction: { title: string; body: string } =
-    repaired
+  const traceAction: { title: string; body: string } = repaired
+    ? {
+        title: 'Action needed: AI output was truncated and auto-repaired',
+        body: 'Treat findings below as suspect — cross-check each against the Diff tab before deciding.',
+      }
+    : findingCount === 0
       ? {
-          title: 'Action needed: AI output was truncated and auto-repaired',
-          body: 'Treat findings below as suspect — cross-check each against the Diff tab before deciding.',
+          title: 'No findings — nothing to trace further',
+          body: 'The AI surfaced nothing actionable. Skim the Diff tab or move straight to the decision bar.',
         }
-      : findingCount === 0
+      : anchored < findingCount
         ? {
-            title: 'No findings — nothing to trace further',
-            body: 'The AI surfaced nothing actionable. Skim the Diff tab or move straight to the decision bar.',
+            title: `Action needed: ${findingCount - anchored} of ${findingCount} findings are unanchored`,
+            body: 'Open them in the Review tab and confirm each cited file:line exists in the diff.',
           }
-        : anchored < findingCount
-          ? {
-              title: `Action needed: ${findingCount - anchored} of ${findingCount} findings are unanchored`,
-              body: 'Open them in the Review tab and confirm each cited file:line exists in the diff.',
-            }
-          : {
-              title: 'Trace is clean — evidence lines up',
-              body: 'Every finding anchors in the diff. Use the timeline below for provenance, then decide.',
-            };
+        : {
+            title: 'Trace is clean — evidence lines up',
+            body: 'Every finding anchors in the diff. Use the timeline below for provenance, then decide.',
+          };
 
   return (
     <div data-testid="trace-tab" style={{ marginTop: 16 }}>
@@ -120,6 +122,19 @@ export function TraceTab({
           done
         />
         <Step
+          title="Past context recalled"
+          meta={
+            recalledMemories === null || recalledMemories === undefined
+              ? ['No recall metadata stored for this report']
+              : recalledMemories.length === 0
+                ? ['Recall ran — nothing relevant found']
+                : [
+                    `${recalledMemories.length} ${recalledMemories.length === 1 ? 'memory' : 'memories'} recalled — see panel below`,
+                  ]
+          }
+          done
+        />
+        <Step
           title="Code analysis completed"
           meta={[`${findingCount} ${findingCount === 1 ? 'finding' : 'findings'} generated`]}
           done
@@ -135,6 +150,10 @@ export function TraceTab({
         />
         <Step title="Final verdict generated" meta={[VERDICT_LABEL[overallVerdict] ?? overallVerdict]} done />
       </ol>
+
+      {recalledMemories !== null && recalledMemories !== undefined && (
+        <RecalledMemoriesPanel memories={recalledMemories} />
+      )}
 
       {trace.calls.length > 0 && (
         <section style={{ marginTop: 20 }}>

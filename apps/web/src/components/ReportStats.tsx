@@ -77,9 +77,13 @@ function Tile({ label, value, tone }: { label: string; value: string; tone?: str
 export function ReportStats({
   stats,
   overallVerdict,
+  effectiveVerdict,
+  matchedRules,
 }: {
   readonly stats: ReviewStats | undefined;
   readonly overallVerdict: Verdict;
+  readonly effectiveVerdict?: Verdict;
+  readonly matchedRules?: readonly string[];
 }): JSX.Element {
   // The backend may serve a report whose derived statistics block is missing
   // (e.g. a report written before the stats reduction landed). Degrade to a
@@ -103,6 +107,9 @@ export function ReportStats({
 
   const attentionPct = Math.round(stats.attentionShare * 100);
   const verdict = VERDICT_STYLE[overallVerdict] ?? VERDICT_STYLE.COMMENT;
+  const effective = VERDICT_STYLE[effectiveVerdict ?? overallVerdict] ?? VERDICT_STYLE.COMMENT;
+  const overridden = effectiveVerdict !== undefined && effectiveVerdict !== overallVerdict;
+  const shown = overridden ? effective : verdict;
 
   const severityRows = SEVERITIES.map((band) => ({
     band,
@@ -115,7 +122,7 @@ export function ReportStats({
       data-testid="report-stats"
       style={{
         border: '1px solid var(--color-border)',
-        borderTop: `3px solid ${verdict.color}`,
+        borderTop: `3px solid ${shown.color}`,
         borderRadius: 'var(--radius-lg)',
         padding: 'var(--space-4)',
         background: 'var(--color-surface-2)',
@@ -142,16 +149,36 @@ export function ReportStats({
               marginTop: 'var(--space-2)',
               padding: '5px 14px',
               borderRadius: 'var(--radius)',
-              background: verdict.color,
+              background: shown.color,
               color: 'var(--color-on-accent)',
               fontWeight: 700,
               fontSize: '0.9rem',
               letterSpacing: '0.01em',
             }}
           >
-            {verdict.label}
+            {shown.label}
           </span>
-          <p style={{ margin: 'var(--space-2) 0 0', color: 'var(--color-text-muted)' }}>{verdict.note}</p>
+          <p style={{ margin: 'var(--space-2) 0 0', color: 'var(--color-text-muted)' }}>{shown.note}</p>
+          {overridden ? (
+            <p
+              data-testid="verdict-override"
+              style={{
+                margin: 'var(--space-2) 0 0',
+                fontSize: '0.8rem',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              AI verdict: <strong>{verdict.label}</strong> → effective after triage: <strong>{effective.label}</strong>
+              {matchedRules !== undefined && matchedRules.length > 0 ? ` (${matchedRules.join(', ')})` : ''}
+            </p>
+          ) : (
+            <p
+              data-testid="verdict-ai"
+              style={{ margin: 'var(--space-1) 0 0', fontSize: '0.78rem', color: 'var(--color-text-faint)' }}
+            >
+              AI verdict = effective — no triage rule overrode it.
+            </p>
+          )}
         </div>
 
         <div>
