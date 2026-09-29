@@ -142,7 +142,9 @@ jobs:
         continue-on-error: true
         run: pnpm audit --audit-level=high
       - name: OSV scanner
-        uses: google/osv-scanner-action@v1
+        # v1 tag was removed upstream (action restructured into ./osv-scanner-action
+        # with `scan-args` instead of `lockfile`/`verbosity`); pin the full version.
+        uses: google/osv-scanner-action/osv-scanner-action@v2.6.0
         with:
-          lockfile: ./pnpm-lock.yaml
-          verbosity: info
+          scan-args: |-
+            --lockfile=./pnpm-lock.yaml

@@ -258,7 +258,7 @@ is armed.
 
 Bug reports, features, and docs fixes are welcome — see
 [`CONTRIBUTING.md`](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
-The green gate is `pnpm test && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm e2e` (coverage requires `docker compose up -d`; thresholds 50/45/50/50 lines/branches/functions/statements in `vitest.config.ts:coverage`).
+The green gate is `pnpm test && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm test:coverage:review && pnpm e2e` (coverage requires `docker compose up -d`; thresholds 50/45/50/50 lines/branches/functions/statements in `vitest.config.ts:coverage`, plus the review-slice ratchet 55/70/75/55 in `vitest.config.review.ts`).
 
 ## Documentation
 

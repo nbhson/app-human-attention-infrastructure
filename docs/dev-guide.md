@@ -118,6 +118,7 @@ pnpm test          # full test suite (~2 min)
 pnpm lint          # eslint with architecture boundary enforcement
 pnpm typecheck     # tsc --noEmit across all packages
 pnpm test:coverage # same suite with v8 coverage + 50/45/50/50 gate (needs docker compose up -d)
+pnpm test:coverage:review # review-slice ratchet 55/70/75/55 over apps/api review routes+services, @harness/review/writeback/orchestrator, db review schema, agent-runtime review/* (needs docker compose up -d)
 pnpm e2e           # full-system E2E (7 specs, serial, ~80s, needs docker compose up -d) — see e2e/README.md
 ```
 
@@ -169,6 +170,8 @@ docker compose up -d
 ```
 
 **401 on every API call** — session cookie missing. Log in at http://localhost:3000/api/auth/login first. If the loop persists after login, check `COOKIE_SECURE` — `true` on plain HTTP drops the `sid` cookie (see Environment Variables above).
+
+**Web component tests fail with duplicate elements when run via the package** — `apps/web` has no own vitest config; running `vitest` from inside `apps/web` falls back to `vite.config.ts` without `globals: true`, so RTL auto-cleanup never resets the DOM between cases. Always run web tests from the repo root (`pnpm vitest run --config vitest.config.ts apps/web/...`), the same way CI does.
 
 **Tests fail with schema errors** — migrations not applied:
 ```sh

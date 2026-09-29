@@ -28,8 +28,10 @@ export default defineConfig({
       ],
       // Global floor — deliberate 50/45/50/50 so local `pnpm test` without
       // DB still passes. The *real* bar lives in CI `gate` (Postgres-backed)
-      // and as a review-policy ratchet (docs/runbook R11). Use
-      // `pnpm test:coverage:review` for the enforced 80/70 slice gate.
+      // and as a review-slice ratchet (`vitest.config.review.ts`, run via
+      // `pnpm test:coverage:review`). multi-app component tests (apps/web)
+      // must run under this root config: it enables `globals`, which RTL
+      // auto-cleanup needs to reset the DOM between cases.
       thresholds: {
         lines: 50,
         branches: 45,
