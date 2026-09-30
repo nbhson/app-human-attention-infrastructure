@@ -124,6 +124,11 @@ export class DockerSandbox implements Sandbox {
         stderr += chunk.toString('utf8');
       });
 
+      // Guard a malformed limit (NaN/0/negative from env parsing) — fall back
+      // to 600s instead of a 1ms `setTimeout` or a never-firing timer that
+      // would leave the verification stuck at RUNNING.
+      const timeoutSeconds =
+        Number.isFinite(run.limits.timeoutSeconds) && run.limits.timeoutSeconds > 0 ? run.limits.timeoutSeconds : 600;
       const timer = setTimeout(() => {
         // A SIGKILLed `docker run` parent leaves the container orphaned; force-
         // remove it by name (day-26 §3.3 — `rm -f` both kills and reclaims, so
@@ -132,12 +137,12 @@ export class DockerSandbox implements Sandbox {
           finish({
             exitCode: 137,
             stdout: cap(stdout),
-            stderr: cap(`${stderr}\n...[sandbox timed out after ${run.limits.timeoutSeconds}s]`),
+            stderr: cap(`${stderr}\n...[sandbox timed out after ${timeoutSeconds}s]`),
             timedOut: true,
             durationMs: Date.now() - started,
           });
         });
-      }, run.limits.timeoutSeconds * 1000);
+      }, timeoutSeconds * 1000);
 
       proc.on('error', (error) => {
         if (settled) {

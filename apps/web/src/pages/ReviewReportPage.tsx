@@ -21,7 +21,17 @@ import { TraceTab } from '../components/TraceTab';
 import { VerificationTab } from '../components/VerificationTab';
 import { WritebackDetailModal } from '../components/WritebackDetailModal';
 import { severityColor, sortFindingsBySeverity } from '../components/severity';
-import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldAlert, Sliders, Zap } from '../components/Icons';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  RefreshCw,
+  ShieldAlert,
+  Sliders,
+  Zap,
+} from '../components/Icons';
 
 /**
  * AI review report page (review-reorient Phase 3) — the human-in-the-loop read
@@ -112,7 +122,7 @@ function reviewSkeleton(): JSX.Element {
     <main
       role="status"
       aria-label="Loading review report"
-      style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 112px' }}
+      style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 0' }}
     >
       {/* back link */}
       <Skeleton width={116} height={30} style={{ borderRadius: 8 }} />
@@ -163,18 +173,32 @@ export default function ReviewReportPage(): JSX.Element {
   const [activeTab, setActiveTab] = useState<ReviewTabKey>('review');
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [writebackDetail, setWritebackDetail] = useState<WritebackRecord | null>(null);
+  const [decisionOpen, setDecisionOpen] = useState(true);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['reviewReport', id],
     queryFn: () => reviewsApi.getReport(id),
     enabled: id !== '',
     refetchInterval: (query) => {
-      const d = query.state.data;
-      // Poll while the review is still being processed (not yet complete).
-      if (!d || d.reviewStatus === 'complete' || d.reviewStatus === 'error') {
+      const d = query.state.data as { reviewStatus?: string; verification?: { status?: string } | null } | undefined;
+      // Poll while the review is still being processed.
+      if (!d) {
+        return PENDING_POLL_MS;
+      }
+      if (d.reviewStatus !== 'complete' && d.reviewStatus !== 'error') {
+        return PENDING_POLL_MS;
+      }
+      if (d.reviewStatus === 'error') {
         return false;
       }
-      return PENDING_POLL_MS;
+      // Report is complete but sandbox verification runs fire-and-forget after
+      // it — keep polling while that run has not reached a terminal state so
+      // the Verification tab never looks stuck at "running".
+      const vStatus = d.verification?.status;
+      if (vStatus === 'RUNNING' || vStatus === 'PENDING') {
+        return PENDING_POLL_MS;
+      }
+      return false;
     },
   });
 
@@ -292,7 +316,7 @@ export default function ReviewReportPage(): JSX.Element {
     };
 
     return (
-      <main style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 112px' }}>
+      <main style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 0' }}>
         <header style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
           <Link
             to="/review"
@@ -695,7 +719,7 @@ export default function ReviewReportPage(): JSX.Element {
   };
 
   return (
-    <main style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 112px' }}>
+    <main style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 0' }}>
       {/* 1 — review context */}
       <header style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
         <div
@@ -987,152 +1011,181 @@ export default function ReviewReportPage(): JSX.Element {
       </div>
 
       {/* 4 — human decision */}
-      <section className="decision-bar">
-        <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem' }}>Your decision</h3>
-        {submitError && (
-          <div
-            role="alert"
-            style={{
-              background: 'var(--color-danger-bg)',
-              color: 'var(--color-danger)',
-              padding: 8,
-              borderRadius: 6,
-              marginBottom: 8,
-            }}
+      <section className="decision-bar" style={decisionOpen ? undefined : { padding: '10px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>
+            Your decision
+            {decision !== null && (
+              <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · {DECISION_LABEL[decision]}</span>
+            )}
+            {decision === null && data.decisions.length > 0 && (
+              <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>
+                {' '}
+                · {data.decisions.length} submitted
+              </span>
+            )}
+          </h3>
+          <button
+            type="button"
+            aria-expanded={decisionOpen}
+            aria-controls="decision-panel"
+            aria-label={decisionOpen ? 'Collapse decision panel' : 'Expand decision panel'}
+            onClick={() => setDecisionOpen((open) => !open)}
+            className="btn btn-ghost"
+            style={{ padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            {submitError}
-          </div>
-        )}
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (decision !== null) {
-              void decide.mutate();
-            }
-          }}
-        >
-          <div role="radiogroup" aria-label="Decision" className="decision-options">
-            {(Object.keys(DECISION_LABEL) as ReviewDecision[]).map((choice) => {
-              const selected = decision === choice;
-              const tone = DECISION_TONE[choice];
-              return (
-                <label
-                  key={choice}
-                  className={`decision-option${selected ? ' decision-option-selected' : ''}`}
-                  style={selected ? { background: tone, borderColor: tone } : undefined}
-                >
-                  <input
-                    type="radio"
-                    name="decision"
-                    value={choice}
-                    aria-label={choice}
-                    checked={selected}
-                    onChange={() => setDecision(choice)}
-                    style={visuallyHidden}
-                  />
-                  {DECISION_LABEL[choice]}
-                </label>
-              );
-            })}
-            <button
-              type="submit"
-              disabled={decision === null || decide.isPending}
-              className={decision === null ? 'btn btn-ghost' : 'btn btn-primary'}
-              style={{ marginLeft: 'auto' }}
-            >
-              {decide.isPending ? 'Submitting…' : 'Submit decision'}
-            </button>
-          </div>
-
-          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={writeback}
-                onChange={(event) => setWriteback(event.target.checked)}
-                disabled={!writebackAllowed}
-                aria-label="Write decision back to PR"
-              />
-              Write the decision back to the PR
-            </label>
-            {writeback && writebackAllowed && (
-              <textarea
-                aria-label="Write-back comment"
-                placeholder="Comment to post on the PR (leave blank for a decision summary)"
-                value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                rows={3}
+            {decisionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {decisionOpen ? 'Collapse' : 'Expand'}
+          </button>
+        </div>
+        {decisionOpen && (
+          <div id="decision-panel" style={{ marginTop: 8 }}>
+            {submitError && (
+              <div
+                role="alert"
                 style={{
-                  width: '100%',
+                  background: 'var(--color-danger-bg)',
+                  color: 'var(--color-danger)',
                   padding: 8,
                   borderRadius: 6,
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-surface)',
-                  color: 'var(--color-text)',
-                  font: 'inherit',
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
-                }}
-              />
-            )}
-            <p style={{ margin: 0, color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>
-              {!writebackArmed
-                ? 'Write-back is disabled on this deployment (WRITEBACK_ENABLED=0 is set). This ' +
-                  'decision will still be recorded, but nothing will be posted to the PR until an ' +
-                  'operator removes that override (or sets WRITEBACK_ENABLED=1), with the ' +
-                  'per-provider WRITEBACK_<PROVIDER> left armed.'
-                : requestChanges
-                  ? 'REQUEST_CHANGES is recorded for audit but never writes back to the PR.'
-                  : 'APPROVE posts a comment + success status; REJECT posts a comment + failure status.'}
-            </p>
-          </div>
-        </form>
-
-        {data.decisions.length > 0 && (
-          <div
-            data-testid="decision-audit"
-            style={{ marginTop: 12, fontSize: '0.82rem', color: 'var(--color-text-muted)' }}
-          >
-            {data.decisions.map((record) => (
-              <div key={record.id} style={{ marginBottom: 2 }}>
-                <strong>{record.decision}</strong>
-                {record.rationale !== null && ` — ${record.rationale}`}
-                {' · '}
-                {new Date(record.createdAt).toLocaleString()}
-                {' · '}
-                {record.writebackEnabled ? 'write-back ON' : 'write-back OFF'}
-              </div>
-            ))}
-            {data.writebacks.map((record) => (
-              <button
-                key={record.id}
-                type="button"
-                onClick={() => setWritebackDetail(record)}
-                style={{
-                  marginLeft: 16,
-                  padding: '4px 8px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--color-info)',
-                  textDecoration: 'underline',
-                  cursor: 'pointer',
-                  fontSize: '0.82rem',
-                  textAlign: 'left',
-                  font: 'inherit',
+                  marginBottom: 8,
                 }}
               >
-                {record.provider}/{record.action}: {record.status}
-                {record.error !== null && ` — ${record.error}`}
-              </button>
-            ))}
+                {submitError}
+              </div>
+            )}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (decision !== null) {
+                  void decide.mutate();
+                }
+              }}
+            >
+              <div role="radiogroup" aria-label="Decision" className="decision-options">
+                {(Object.keys(DECISION_LABEL) as ReviewDecision[]).map((choice) => {
+                  const selected = decision === choice;
+                  const tone = DECISION_TONE[choice];
+                  return (
+                    <label
+                      key={choice}
+                      className={`decision-option${selected ? ' decision-option-selected' : ''}`}
+                      style={selected ? { background: tone, borderColor: tone } : undefined}
+                    >
+                      <input
+                        type="radio"
+                        name="decision"
+                        value={choice}
+                        aria-label={choice}
+                        checked={selected}
+                        onChange={() => setDecision(choice)}
+                        style={visuallyHidden}
+                      />
+                      {DECISION_LABEL[choice]}
+                    </label>
+                  );
+                })}
+                <button
+                  type="submit"
+                  disabled={decision === null || decide.isPending}
+                  className={decision === null ? 'btn btn-ghost' : 'btn btn-primary'}
+                  style={{ marginLeft: 'auto' }}
+                >
+                  {decide.isPending ? 'Submitting…' : 'Submit decision'}
+                </button>
+              </div>
+
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={writeback}
+                    onChange={(event) => setWriteback(event.target.checked)}
+                    disabled={!writebackAllowed}
+                    aria-label="Write decision back to PR"
+                  />
+                  Write the decision back to the PR
+                </label>
+                {writeback && writebackAllowed && (
+                  <textarea
+                    aria-label="Write-back comment"
+                    placeholder="Comment to post on the PR (leave blank for a decision summary)"
+                    value={comment}
+                    onChange={(event) => setComment(event.target.value)}
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: 8,
+                      borderRadius: 6,
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-surface)',
+                      color: 'var(--color-text)',
+                      font: 'inherit',
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                )}
+                <p style={{ margin: 0, color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>
+                  {!writebackArmed
+                    ? 'Write-back is disabled on this deployment (WRITEBACK_ENABLED=0 is set). This ' +
+                      'decision will still be recorded, but nothing will be posted to the PR until an ' +
+                      'operator removes that override (or sets WRITEBACK_ENABLED=1), with the ' +
+                      'per-provider WRITEBACK_<PROVIDER> left armed.'
+                    : requestChanges
+                      ? 'REQUEST_CHANGES is recorded for audit but never writes back to the PR.'
+                      : 'APPROVE posts a comment + success status; REJECT posts a comment + failure status.'}
+                </p>
+              </div>
+            </form>
+
+            {data.decisions.length > 0 && (
+              <div
+                data-testid="decision-audit"
+                style={{ marginTop: 12, fontSize: '0.82rem', color: 'var(--color-text-muted)' }}
+              >
+                {data.decisions.map((record) => (
+                  <div key={record.id} style={{ marginBottom: 2 }}>
+                    <strong>{record.decision}</strong>
+                    {record.rationale !== null && ` — ${record.rationale}`}
+                    {' · '}
+                    {new Date(record.createdAt).toLocaleString()}
+                    {' · '}
+                    {record.writebackEnabled ? 'write-back ON' : 'write-back OFF'}
+                  </div>
+                ))}
+                {data.writebacks.map((record) => (
+                  <button
+                    key={record.id}
+                    type="button"
+                    onClick={() => setWritebackDetail(record)}
+                    style={{
+                      marginLeft: 16,
+                      padding: '4px 8px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--color-info)',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      fontSize: '0.82rem',
+                      textAlign: 'left',
+                      font: 'inherit',
+                    }}
+                  >
+                    {record.provider}/{record.action}: {record.status}
+                    {record.error !== null && ` — ${record.error}`}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </section>

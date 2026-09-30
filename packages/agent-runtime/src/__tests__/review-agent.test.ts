@@ -35,6 +35,12 @@ describe('ReviewAgent', () => {
     expect(call?.messages[0]?.content).toContain('https://github.com/acme/app/pull/7');
     expect(call?.messages[0]?.content).toContain('The retry loop must not spin forever.');
     expect(call?.messages[0]?.content).toContain('--- a/src/loop.ts');
+    // The request carries its output contract so schema-capable providers can
+    // enforce the envelope instead of merely requesting it (review-schema.ts).
+    expect(call?.jsonSchema).toMatchObject({
+      type: 'object',
+      required: expect.arrayContaining(['summary', 'overallVerdict', 'findings', 'healthScore']),
+    });
   });
 
   it('injects operator instructions (text.md) into the review prompt when provided', async () => {
@@ -156,5 +162,27 @@ describe('ReviewAgent', () => {
     const agent = new ReviewAgent(llm);
 
     await expect(agent.review(INPUT, { model: 'claude-sonnet-4-6' })).rejects.toThrow(/truncated/);
+  });
+
+  it('constrains the summary pass to a bare file-summary array schema', async () => {
+    const llm = new MockLLM([mockTextResponse('[{"file":"src/loop.ts","risk":"low","summary":"retry guard added"}]')]);
+    const agent = new ReviewAgent(llm);
+
+    const out = await agent.summarizeFiles(INPUT, { model: 'claude-sonnet-4-6' });
+
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ file: 'src/loop.ts', risk: 'low' });
+    // A bare-array contract — the backend accepts top-level arrays so the
+    // triage pass cannot silently reshape into an object it will then swallow.
+    expect(llm.calls[0]?.jsonSchema).toMatchObject({
+      type: 'array',
+      items: {
+        properties: expect.objectContaining({
+          file: expect.objectContaining({ type: 'string' }),
+          risk: expect.objectContaining({ type: 'string' }),
+          summary: expect.objectContaining({ type: 'string' }),
+        }),
+      },
+    });
   });
 });

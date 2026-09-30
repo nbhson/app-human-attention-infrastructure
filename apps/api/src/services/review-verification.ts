@@ -27,7 +27,14 @@ import type { IEventBus } from '@harness/event-bus';
 import type { Logger } from '@harness/di';
 import type { GitProvider } from '@harness/git-provider';
 import { cloneInputFromPullRequest } from '@harness/git-provider';
-import { CheckStatus, CloneVerifier, flagReport, renderFlag } from '@harness/verification-engine';
+import {
+  CheckStatus,
+  CloneVerifier,
+  RequestTimeoutError,
+  flagReport,
+  renderFlag,
+  withTimeout,
+} from '@harness/verification-engine';
 
 export interface ReviewVerificationDeps {
   readonly db: DrizzleDB;
@@ -43,6 +50,30 @@ export interface ReviewVerificationDeps {
 /** The sandbox root clones land in (mirrors `bootstrap.ts`'s `SANDBOX_ROOT`). */
 function sandboxRoot(): string {
   return process.env.SANDBOX_ROOT ?? './sandbox';
+}
+
+/**
+ * Clone+verify budget in seconds. Validated: a malformed
+ * `VERIFY_CLONE_TIMEOUT_S` (NaN/0/negative) falls back to 600 instead of
+ * poisoning `setTimeout` downstream.
+ */
+function cloneTimeoutSeconds(): number {
+  const raw = Number(process.env.VERIFY_CLONE_TIMEOUT_S ?? '600');
+  return Number.isFinite(raw) && raw > 0 ? raw : 600;
+}
+
+/**
+ * A RUNNING row older than this is treated as orphaned (process died between
+ * insert and terminal update) and may be re-run. Two per-check budgets plus
+ * clone overhead and a 5-minute grace period.
+ */
+function staleRunningThresholdMs(): number {
+  return cloneTimeoutSeconds() * 2 * 1000 + 300_000;
+}
+
+/** Total wall-clock budget for one `verifier.verify()` call (both checks + overhead). */
+function verifyTotalTimeoutMs(): number {
+  return cloneTimeoutSeconds() * 2 * 1000 + 60_000;
 }
 
 /** Markdown for an all-SKIPPED run — nothing ran, so it must never read as PASSED. */
@@ -88,17 +119,31 @@ export class ReviewVerificationService {
     }
 
     const existing = await db
-      .select({ id: reviewVerifications.id, status: reviewVerifications.status })
+      .select({
+        id: reviewVerifications.id,
+        status: reviewVerifications.status,
+        updated_at: reviewVerifications.updated_at,
+      })
       .from(reviewVerifications)
       .where(eq(reviewVerifications.report_id, reportId))
       .limit(1);
     // Allow re-run from terminal ERROR/SKIPPED (retry path deletes rows anyway);
-    // only skip when a run already succeeded/failed or is in flight.
-    if (
-      existing[0] &&
-      (existing[0].status === 'RUNNING' || existing[0].status === 'PASSED' || existing[0].status === 'FAILED')
-    ) {
+    // only skip when a run already succeeded/failed or is freshly in flight. A
+    // stale RUNNING row (process died mid-run) is re-runnable so reports never
+    // stay stuck at "running" forever.
+    if (existing[0] && (existing[0].status === 'PASSED' || existing[0].status === 'FAILED')) {
       return; // one verification per report
+    }
+    if (existing[0]?.status === 'RUNNING') {
+      const updatedAt = existing[0].updated_at instanceof Date ? existing[0].updated_at.getTime() : null;
+      const ageMs = updatedAt === null ? 0 : Date.now() - updatedAt;
+      if (ageMs < staleRunningThresholdMs()) {
+        return; // genuinely in flight
+      }
+      logger.info('review verification stale RUNNING detected, re-running', {
+        review_report_id: reportId,
+        age_ms: ageMs,
+      });
     }
 
     const rowId = existing[0]?.id ?? uuidv7();
@@ -159,7 +204,8 @@ export class ReviewVerificationService {
     }
 
     try {
-      const result = await verifier.verify(clone);
+      const totalMs = verifyTotalTimeoutMs();
+      const result = await withTimeout(verifier.verify(clone), totalMs, () => new RequestTimeoutError());
       const flag = flagReport(result.checks);
       // An honest distinction the flag alone collapses: "nothing failed" is not
       // necessarily "passed". If every check was SKIPPED (no declared build/test
@@ -195,7 +241,14 @@ export class ReviewVerificationService {
         head_sha: result.headSha,
       });
     } catch (error) {
-      await this.markError(rowId, `verify failed: ${String(error)}`);
+      if (error instanceof RequestTimeoutError) {
+        await this.markError(
+          rowId,
+          `verify timed out after ${Math.round(verifyTotalTimeoutMs() / 1000)}s — the clone's build/test did not finish in budget (VERIFY_CLONE_TIMEOUT_S=${cloneTimeoutSeconds()})`,
+        );
+      } else {
+        await this.markError(rowId, `verify failed: ${String(error)}`);
+      }
     } finally {
       await this.cleanup(workdir);
     }

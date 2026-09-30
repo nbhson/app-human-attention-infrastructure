@@ -200,4 +200,72 @@ describe('BitbucketDirectProvider (Server)', () => {
     expect(pr.files[0]!.additions).toBe(2);
     expect(pr.files[0]!.deletions).toBe(1);
   });
+
+  it('reconstructs patches from Server RestDiffLine objects (regression: headers-only bug)', async () => {
+    const serverMeta = {
+      id: 8,
+      title: 'Fix template',
+      description: '',
+      author: { user: { displayName: 'bob' } },
+      fromRef: { displayId: 'feature', latestCommit: 'sha1' },
+      toRef: { displayId: 'main', latestCommit: 'sha0' },
+      links: { self: [{ href: 'https://git.company.com/projects/P/repos/R/pull-requests/8' }] },
+    };
+    const serverDiff = {
+      diffs: [
+        {
+          source: { toString: 'a.html' },
+          destination: { toString: 'a.html' },
+          hunks: [
+            {
+              sourceLine: 229,
+              sourceSpan: 23,
+              destinationLine: 229,
+              destinationSpan: 27,
+              segments: [
+                { type: 'REMOVED', lines: [{ source: 230, line: '<old></old>' }] },
+                {
+                  type: 'ADDED',
+                  lines: [
+                    { destination: 230, line: '<new1></new1>' },
+                    { destination: 231, line: '<new2></new2>' },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/pull-requests/8')) return jsonResponse(serverMeta);
+      if (url.includes('/diff')) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: { get: () => 'application/json' },
+          text: async () => JSON.stringify(serverDiff),
+          json: async () => serverDiff,
+        } as unknown as Response;
+      }
+      if (url.includes('/changes')) return jsonResponse({ values: [], isLastPage: true });
+      if (url.includes('/commits')) return jsonResponse({ values: [], isLastPage: true });
+      throw new Error(`unexpected ${url}`);
+    });
+    const provider = new BitbucketDirectProvider({
+      token: 't',
+      serverBaseUrl: 'https://git.company.com',
+      fetchFn: fetchMock as unknown as typeof fetch,
+    });
+    const pr = await provider.fetchPullRequest({ repo: 'git.company.com/P/R', number: 8 });
+    expect(pr.files).toHaveLength(1);
+    expect(pr.files[0]!.patch).toContain('@@ -229,23 +229,27 @@');
+    expect(pr.files[0]!.patch).toContain('+<new1>');
+    expect(pr.files[0]!.patch).toContain('-<old>');
+    expect(pr.files[0]!.additions).toBe(2);
+    expect(pr.files[0]!.deletions).toBe(1);
+    expect(patchHasCodeLines(pr.files[0]!.patch)).toBe(true);
+  });
 });

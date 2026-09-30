@@ -20,6 +20,7 @@ import type { LLMProvider } from '../llm/llm-provider.js';
 import { parseReviewOutput, ReviewParseError } from './parse-review.js';
 import { buildReviewPrompt } from './review-prompt.js';
 import type { ReviewPromptInput } from './review-prompt.js';
+import { FILE_SUMMARY_SCHEMA, REVIEW_OUTPUT_SCHEMA } from './review-schema.js';
 import type { FileSummary, ReviewAgentOutput } from './review-output.js';
 
 export interface ReviewAgentOptions {
@@ -46,6 +47,9 @@ export class ReviewAgent {
       messages: [{ role: 'user', content: prompt.userMessage }],
       maxTokens: opts.maxTokens ?? this.defaultMaxTokens,
       systemPrompt: prompt.systemPrompt,
+      // Constrain the envelope, don't just request it — see review-schema.ts for
+      // what a prompt-only contract costs on a local model.
+      jsonSchema: REVIEW_OUTPUT_SCHEMA,
       ...(opts.correlationId !== undefined ? { correlation_id: opts.correlationId } : {}),
     });
     // A reasoning model exhausted its output budget: the review JSON is partial
@@ -75,6 +79,10 @@ export class ReviewAgent {
       messages: [{ role: 'user', content: summaryPrompt.userMessage }],
       maxTokens: Math.min(opts.maxTokens ?? this.defaultMaxTokens, 4000),
       systemPrompt: summaryPrompt.systemPrompt,
+      // A bare array, not an envelope — `parseFileSummary` returns `[]` on
+      // unparseable text, so an unenforced shape here degrades the triage pass
+      // to a silent no-op rather than an error.
+      jsonSchema: FILE_SUMMARY_SCHEMA,
       ...(opts.correlationId !== undefined ? { correlation_id: opts.correlationId } : {}),
     });
     return parseFileSummary(response.content);

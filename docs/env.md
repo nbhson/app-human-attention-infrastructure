@@ -24,8 +24,12 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 | `AI_API_KEY` | `""` | Key for `AI_BASE_URL` | `bootstrap.ts:189` |
 | `AI_MODEL` | `gpt-4.1` (or `mock` when both providers unset) | Model id for `OpenAICompatibleProvider` | `bootstrap.ts:176` |
 | `AI_PROVIDER` | `custom` | Stamp on report provenance (`openai\|gemini\|opencode\|custom`) | `bootstrap.ts:172` |
-| `AI_TIMEOUT_MS` | `600000` (10 min) | LLM request timeout — sized to full 32k budget at ~65 tok/s | `bootstrap.ts:198` |
+| `AI_TIMEOUT_MS` | `600000` (10 min) | LLM request timeout — sized to full 32k budget at ~65 tok/s; raise together with `AI_MAX_TOKENS` for large PRs or slow local models (Ollama CPU) | `bootstrap.ts:198` |
 | `AI_MAX_TOKENS` | `32000` | `maxTokens` for every `ReviewAgent` call | `bootstrap.ts:644` |
+| `AI_STRUCTURED_OUTPUT` | `1` (on; `0`/`false`/`off`/`no` opts out) | Constrain the reviewer to its JSON Schema via `response_format: json_schema`. A local model answers a prompt-only contract with a bare findings array + prose verdict, losing `summary`/`healthScore` and degrading `overallVerdict` to `COMMENT`. Set `0` only if the endpoint rejects `response_format` (older Ollama: HTTP 400 `response_format\|json_schema\|strict` — the provider already retries once without it) | `bootstrap.ts`, `openai-compatible-provider.ts`, `review-schema.ts` |
+
+> **Ollama local (troubleshooting):** `AI_BASE_URL=http://localhost:11434/v1` + `AI_MODEL=<ollama list>` + empty `AI_API_KEY` (requires `ollama serve` + `ollama pull <model>`). `fetch failed` means TCP never connected — not a model name issue:
+> `ollama serve` down, wrong port, IPv6 `localhost → ::1` vs Ollama on `127.0.0.1` (try `http://127.0.0.1:11434/v1`), or `localhost` inside Docker meaning the API container itself (use `http://host.docker.internal:11434/v1` on Mac/Win). A wrong model name surfaces as HTTP 404, a rejected `response_format` as HTTP 400 (auto-retried once without it, or set `AI_STRUCTURED_OUTPUT=0`). Async failures map to actionable `❌ Review failed: cannot reach… / timed out… / model not found…` summaries in `review-ingest.ts`.
 
 > **Provider resilience (code defaults, not env):** `OpenAICompatibleProvider` retries transient faults (`timeout`/`network`/`429`/`502`/`503`/`504`) up to 2 extra attempts with capped exponential backoff + jitter (`maxRetries`, default 2). `GitHubProvider`/`JiraProvider` apply the same policy per REST call (30s `AbortSignal` timeout, 2 retries, transient-only — programming errors never retry). Tune via constructor args, not env.
 | `MOCK_LLM_SCRIPT` | unset | Path to canned `MockScript` JSON (e2e/tests) | `bootstrap.ts:149` |
@@ -80,7 +84,7 @@ Layer 3 is the per-decision `writeback: true` flag on `POST /api/reviews/:id/dec
 | `VERIFY_SANDBOX_CPU` | `1.0` | CPU limit for sandbox | `bootstrap.ts:559` |
 | `VERIFY_SANDBOX_MEMORY` | `512m` | Memory limit | `bootstrap.ts:560` |
 | `VERIFY_SANDBOX_TIMEOUT_S` | `30` | Per-check sandbox timeout (s) | `packages/sandbox` |
-| `VERIFY_CLONE_TIMEOUT_S` | `600` | Clone+verify budget (s) for `SandboxRunner` | `bootstrap.ts:689` |
+| `VERIFY_CLONE_TIMEOUT_S` | `600` | Per-check clone+verify budget (s) for `SandboxRunner`; malformed values fall back to 600. The verification service races the whole `COMPILE→TEST` run against `2×budget+60s` and marks `ERROR` on timeout (never stuck at `RUNNING`); a stale `RUNNING` row older than `2×budget+5min` (orphaned by a restart) is re-runnable, and the report page keeps polling while `verification` is `PENDING`/`RUNNING` | `bootstrap.ts`, `review-verification.ts`, `ReviewReportPage.tsx` |
 | `SANDBOX_ROOT` | `./sandbox` | Same as Core — duplicated here for discoverability | `bootstrap.ts:209` |
 
 Build the image once: `docker build -t harness-verify:node20 packages/sandbox`.

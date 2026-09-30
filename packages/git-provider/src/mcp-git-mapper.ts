@@ -307,6 +307,24 @@ function parsePr(result: ToolResult): McpPrPayload {
 }
 
 /** Normalise a host-agnostic file-status token into the domain status union. */
+/**
+ * Extract the text of one Bitbucket Server diff line.
+ *
+ * Real Server/DC `get_diff` returns `RestDiffLine` objects
+ * (`{ source, destination, line, truncated, ... }`) — not bare strings.
+ * The MCP stub + older fixtures use bare strings, so accept both.
+ * Returns `undefined` when the entry carries no usable text.
+ */
+function diffLineText(line: unknown): string | undefined {
+  if (typeof line === 'string') {
+    return line;
+  }
+  if (isRecord(line) && typeof line['line'] === 'string') {
+    return line['line'] as string;
+  }
+  return undefined;
+}
+
 function mapFileStatus(token: string): PullRequestFileStatus {
   const statusByToken: Record<string, PullRequestFileStatus> = {
     added: 'CREATED',
@@ -484,15 +502,17 @@ function parseBitbucketServerDiff(raw: Record<string, unknown>): PullRequestFile
           continue;
         }
         const type = typeof seg['type'] === 'string' ? seg['type'] : '';
+        const kind = type.toUpperCase();
         const lines = Array.isArray(seg['lines']) ? seg['lines'] : [];
         for (const line of lines) {
-          if (typeof line !== 'string') {
+          const text = diffLineText(line);
+          if (text === undefined) {
             continue;
           }
-          const prefix = type === 'ADDED' ? '+' : type === 'REMOVED' ? '-' : ' ';
-          patchLines.push(`${prefix}${line}`);
-          if (type === 'ADDED') additions += 1;
-          else if (type === 'REMOVED') deletions += 1;
+          const prefix = kind === 'ADDED' ? '+' : kind === 'REMOVED' ? '-' : ' ';
+          patchLines.push(`${prefix}${text}`);
+          if (kind === 'ADDED') additions += 1;
+          else if (kind === 'REMOVED') deletions += 1;
         }
       }
     }

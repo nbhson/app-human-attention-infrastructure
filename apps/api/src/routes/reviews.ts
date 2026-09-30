@@ -59,6 +59,7 @@ import { formatRejectWritebackBody } from '../format-review-writeback.js';
 import { checkSensitiveRateLimit } from '../rate-limit.js';
 import { DecisionInsertError, ReviewIngestError, ReviewIngestService } from '../services/review-ingest.js';
 import { computeFindingAnchor } from '../finding-anchor.js';
+import { withDeterministicTestingScore } from '../review-health.js';
 import { computeReviewStats } from '../review-stats.js';
 import { writebackEnabled } from '../writeback-gate.js';
 import { normalizePrFiles } from '../pr-files.js';
@@ -500,8 +501,15 @@ export function registerReviewIngestRoutes(
         })),
         // v5 health score: AI-assessed 1–100 per dimension, stored in
         // `review_reports.health_score`. Legacy reports have NULL → undefined so
-        // the Detail tab renders its honest empty state.
-        healthScore: (report.health_score as unknown as Record<string, unknown> | null) ?? undefined,
+        // the Detail tab renders its honest empty state. The `testing`
+        // dimension is recomputed from the file list on every read: the model
+        // miscounts the test-to-source ratio from diff text, and this also
+        // corrects rows stored before the ingest-side override existed.
+        healthScore:
+          withDeterministicTestingScore(
+            report.health_score as unknown as Record<string, unknown> | null,
+            normalizePrFiles(report.pr_payload).map((file) => file.path),
+          ) ?? undefined,
         // The machine-side verification (wedge #1): null when no run has been
         // recorded yet (e.g. the report predates this field, or verification is
         // disabled and no row was written). The UI renders the honest status —

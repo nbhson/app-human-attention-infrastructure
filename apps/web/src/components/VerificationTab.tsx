@@ -223,6 +223,14 @@ export function VerificationTab({
             </span>
           </div>
 
+          {(verification.status === 'RUNNING' || verification.status === 'PENDING') && (
+            <p style={{ margin: '12px 0 0', color: 'var(--color-info)' }} role="status">
+              <span aria-hidden="true">⟳ </span>
+              Sandbox run in progress — the PR clone&apos;s build then test are running in Docker. This can take several
+              minutes (budget `VERIFY_CLONE_TIMEOUT_S`, default 10min); this tab refreshes automatically.
+            </p>
+          )}
+
           {skipped && (
             <p style={{ margin: '12px 0 0', color: 'var(--color-warning)' }}>
               Skipped — nothing ran, so there is no pass/fail result. The head and duration above are the sandbox

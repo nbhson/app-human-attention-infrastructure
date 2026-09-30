@@ -203,6 +203,10 @@ function buildRawLLMProvider(): LLMProvider {
       // ≈ the full 32k budget at the measured rate — raise `AI_TIMEOUT_MS` on a
       // slower endpoint, and `AI_MAX_TOKENS` alongside it for very large PRs.
       timeoutMs: envInt('AI_TIMEOUT_MS', 600_000),
+      // Translate `LLMRequest.jsonSchema` into a `response_format` structured-output
+      // constraint. On by default; `AI_STRUCTURED_OUTPUT=0` opts out for an
+      // OpenAI-compatible server that rejects the field.
+      structuredOutput: !/^(0|false|off|no)$/i.test((process.env.AI_STRUCTURED_OUTPUT ?? '').trim()),
     });
   }
   return new MockLLM(loadMockScript(process.env.MOCK_LLM_SCRIPT));
@@ -717,10 +721,11 @@ export function buildContainer(): Container {
   // stored. On by default (opt out via `VERIFY_REVIEW_ENABLED=0`), sandbox-only, never a gate.
   c.register(TOKENS.ReviewVerifier, (container) => {
     const image = process.env.VERIFY_SANDBOX_IMAGE ?? 'harness-verify:node20';
+    const rawTimeout = Number(process.env.VERIFY_CLONE_TIMEOUT_S ?? '600');
     const limits: SandboxLimits = {
       cpu: process.env.VERIFY_SANDBOX_CPU ?? '1.0',
       memory: process.env.VERIFY_SANDBOX_MEMORY ?? '512m',
-      timeoutSeconds: Number(process.env.VERIFY_CLONE_TIMEOUT_S ?? '600'),
+      timeoutSeconds: Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 600,
     };
     const runner = new SandboxRunner({
       sandbox: container.resolve<Sandbox>(TOKENS.Sandbox),

@@ -214,4 +214,62 @@ describe('mapMcpGitPullRequest', () => {
       mapMcpGitPullRequest(GitProviderType.Bitbucket, 'bitbucket.org/acme/widget', textResult(PR_PAYLOAD), garbage),
     ).toThrow(/no unified-diff file blocks/);
   });
+
+  it('parses Bitbucket Server {diffs} with RestDiffLine objects (not bare strings)', () => {
+    // Real Server/DC get_diff returns lines as { source, destination, line }.
+    // The old parser dropped them (`typeof line !== "string"`), leaving only
+    // `@@` headers with +0/-0 — the "Diff tab shows file but no content" bug.
+    const serverDiff = {
+      diffs: [
+        {
+          source: {
+            toString:
+              'ClientApp/src/app/tracker/consents/modules/consent-request-detail/components/shared/consent-template/consent-template.component.html',
+          },
+          destination: {
+            toString:
+              'ClientApp/src/app/tracker/consents/modules/consent-request-detail/components/shared/consent-template/consent-template.component.html',
+          },
+          hunks: [
+            {
+              sourceLine: 229,
+              sourceSpan: 23,
+              destinationLine: 229,
+              destinationSpan: 27,
+              segments: [
+                {
+                  type: 'CONTEXT',
+                  lines: [{ source: 229, destination: 229, line: '<div>context</div>' }],
+                },
+                {
+                  type: 'REMOVED',
+                  lines: [{ source: 230, line: '<old-line></old-line>' }],
+                },
+                {
+                  type: 'ADDED',
+                  lines: [
+                    { destination: 230, line: '<new-line-1></new-line-1>' },
+                    { destination: 231, line: '<new-line-2></new-line-2>' },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const pr = mapMcpGitPullRequest(
+      GitProviderType.Bitbucket,
+      'git.company.com/P/R',
+      textResult(PR_PAYLOAD),
+      textResult(serverDiff),
+    );
+    expect(pr.files).toHaveLength(1);
+    expect(pr.files[0]!.additions).toBe(2);
+    expect(pr.files[0]!.deletions).toBe(1);
+    expect(pr.files[0]!.patch).toContain('@@ -229,23 +229,27 @@');
+    expect(pr.files[0]!.patch).toContain('+<new-line-1>');
+    expect(pr.files[0]!.patch).toContain('-<old-line>');
+    expect(pr.files[0]!.patch).toContain(' <div>context</div>');
+  });
 });

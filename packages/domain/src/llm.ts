@@ -29,6 +29,22 @@ export interface LLMRequest {
   /** Tool definitions in Anthropic tool-use format. */
   tools?: LLMToolDefinition[];
   /**
+   * The JSON Schema of the document the caller expects back, as a *structured
+   * output* constraint where the provider supports one.
+   *
+   * A prompt asking for JSON is a request, not a guarantee. A small or local
+   * model routinely answers with a bare findings *array* followed by prose such
+   * as `**Verdict: REQUEST_CHANGES**`; the tolerant scanner in `parse-review.ts`
+   * salvages the findings from that shape, but `summary`/`healthScore` arrive
+   * empty and the absent `overallVerdict` silently degrades to `COMMENT` — a PR
+   * the model wanted to block gets stored as non-blocking. Declaring the schema
+   * makes the contract enforceable instead of advisory.
+   *
+   * Providers that cannot constrain output (Anthropic, the mock) ignore this.
+   * See `AI_STRUCTURED_OUTPUT` for the server-side opt-out.
+   */
+  jsonSchema?: Record<string, unknown>;
+  /**
    * Task lifecycle id (== tasks.id in Phase 1) — set by the ReActLoop so
    * `LoggingLLMProvider` records it into `llm_call_log.correlation_id`
    * (day-27 §2.2). Null only for calls made outside an agent run.

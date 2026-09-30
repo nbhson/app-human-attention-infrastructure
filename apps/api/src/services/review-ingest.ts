@@ -17,6 +17,7 @@
 import { eq } from 'drizzle-orm';
 
 import { isReviewableFile } from '../review-file-classify.js';
+import { withDeterministicTestingScore } from '../review-health.js';
 import { redactSensitivePatch } from '../review-secret-redact.js';
 import { envInt } from '../env-utils.js';
 
@@ -402,7 +403,14 @@ export class ReviewIngestService {
       overall_verdict: agentOutput.overallVerdict,
       pr_payload: pr,
       was_repaired: agentOutput.wasRepaired === true,
-      health_score: agentOutput.healthScore ?? null,
+      // The AI miscounts the test-to-source ratio from diff text (e.g. poor/1
+      // with two *.spec.ts files in the diff) — recompute `testing` from the
+      // file list so the stored score matches the Detail tab rubric.
+      health_score:
+        withDeterministicTestingScore(
+          agentOutput.healthScore,
+          pr.files.map((file) => file.path),
+        ) ?? null,
     });
 
     // Batch insert findings + suggestions in two queries instead of N+1 round-trips.
@@ -571,6 +579,16 @@ export class ReviewIngestService {
 
       const { repo, number } = parseGithubPrUrl(input.prUrl);
       const pr = await gitProvider.fetchPullRequest({ repo, number });
+      // Persist the freshly-fetched payload so the Diff tab never stays stuck
+      // on a stale headers-only patch from `createReview` (e.g. Bitbucket
+      // Server `RestDiffLine` objects the old parser dropped → `@@` only,
+      // +0/−0). Retry then heals existing reports without re-creating them.
+      await retryTransient(
+        'store refreshed pr_payload',
+        () => db.update(reviewReports).set({ pr_payload: pr }).where(eq(reviewReports.id, reportId)),
+        logger,
+        reportId,
+      );
 
       let requirement = '';
       if (input.jiraTicket !== undefined && ticketProvider) {
@@ -705,7 +723,12 @@ export class ReviewIngestService {
               review_status: 'complete',
               batch_progress: null,
               was_repaired: agentOutput.wasRepaired === true,
-              health_score: agentOutput.healthScore ?? null,
+              // Same deterministic testing override as the sync path above.
+              health_score:
+                withDeterministicTestingScore(
+                  agentOutput.healthScore,
+                  pr.files.map((file) => file.path),
+                ) ?? null,
             })
             .where(eq(reviewReports.id, reportId)),
         logger,
@@ -727,6 +750,15 @@ export class ReviewIngestService {
       const isTruncated = errorMsg.includes('truncated');
       const isParseError = error instanceof ReviewParseError || errorMsg.includes('not valid JSON');
       const isRateLimited = /\b429\b|rate limit/i.test(errorMsg);
+      const isTimeout =
+        error instanceof OpenAICompatibleError ? error.kind === 'timeout' : /\btimed out\b/i.test(errorMsg);
+      const isNetwork =
+        error instanceof OpenAICompatibleError
+          ? error.kind === 'network'
+          : /fetch failed|ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(errorMsg);
+      const isAuth = /\b401\b|unauthorized|invalid api key/i.test(errorMsg);
+      const isModelNotFound = /\b404\b|model .* not found/i.test(errorMsg);
+      const isBadStructured = /\b400\b.*(response_format|json_schema|strict)/i.test(errorMsg);
       let rawOutput: string | undefined;
       if (error instanceof ReviewParseError && error.cause instanceof Error) {
         rawOutput = error.cause.message;
@@ -734,9 +766,12 @@ export class ReviewIngestService {
       logger.error('review processing failed', {
         report_id: reportId,
         error: errorMsg,
+        error_kind: error instanceof OpenAICompatibleError ? error.kind : undefined,
         is_truncated: isTruncated,
         is_parse_error: isParseError,
         is_rate_limited: isRateLimited,
+        is_timeout: isTimeout,
+        is_network: isNetwork,
         ...(rawOutput !== undefined ? { raw_output: rawOutput.slice(0, 3000) } : {}),
       });
       const userMessage = isTruncated
@@ -745,7 +780,17 @@ export class ReviewIngestService {
           ? '❌ Review failed: the AI provider is rate-limited (HTTP 429) — wait a moment and hit Retry, or reduce REVIEW_MAX_CONCURRENCY, or upgrade the provider plan'
           : isParseError
             ? '❌ Review failed: AI review output was not valid JSON — try again'
-            : `❌ Review failed: ${errorMsg}`;
+            : isNetwork
+              ? `❌ Review failed: cannot reach the AI endpoint (${errorMsg}) — check 'ollama serve' + 'ollama list', try AI_BASE_URL=http://127.0.0.1:11434/v1 instead of localhost, or http://host.docker.internal:11434/v1 when the API runs in Docker`
+              : isTimeout
+                ? `❌ Review failed: AI request timed out (${errorMsg}) — raise AI_TIMEOUT_MS (and AI_MAX_TOKENS for large PRs) or use a faster endpoint`
+                : isAuth
+                  ? `❌ Review failed: AI provider rejected the credentials (${errorMsg}) — check AI_API_KEY / ANTHROPIC_API_KEY`
+                  : isModelNotFound
+                    ? `❌ Review failed: AI model not found (${errorMsg}) — run 'ollama list' / 'ollama pull <model>' and check AI_MODEL`
+                    : isBadStructured
+                      ? `❌ Review failed: AI endpoint rejected structured output (${errorMsg}) — set AI_STRUCTURED_OUTPUT=0 and retry`
+                      : `❌ Review failed: ${errorMsg}`;
       await retryTransient(
         'status error fallback',
         () =>

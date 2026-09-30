@@ -102,6 +102,26 @@ function countLines(patch: string): { additions: number; deletions: number } {
   return { additions, deletions };
 }
 
+/**
+ * Extract the text of one Bitbucket Server diff line.
+ *
+ * Real Server/DC `/diff` returns `RestDiffLine` objects
+ * (`{ source, destination, line, truncated, ... }`) — not bare strings.
+ * Tests / older fixtures use bare strings, so accept both.
+ */
+function diffLineText(line: unknown): string | undefined {
+  if (typeof line === 'string') {
+    return line;
+  }
+  if (typeof line === 'object' && line !== null && !Array.isArray(line)) {
+    const text = (line as Record<string, unknown>)['line'];
+    if (typeof text === 'string') {
+      return text;
+    }
+  }
+  return undefined;
+}
+
 /** True when a patch carries at least one real +/- code line (not just headers). */
 export function patchHasCodeLines(patch: string): boolean {
   for (const line of patch.split('\n')) {
@@ -206,7 +226,13 @@ export class BitbucketDirectProvider implements GitProvider {
     if (files.length === 0 && diffstat.length > 0) {
       // diffstat-only fallback: file list with empty patches (review can still
       // name the files; hybrid validation will flag "no content" honestly).
-      files = diffstat.map((d) => ({ path: d.path, status: d.status, additions: d.additions, deletions: d.deletions, patch: '' }));
+      files = diffstat.map((d) => ({
+        path: d.path,
+        status: d.status,
+        additions: d.additions,
+        deletions: d.deletions,
+        patch: '',
+      }));
     }
     if (files.length === 0) {
       throw new GitProviderError(
@@ -471,7 +497,10 @@ export class BitbucketDirectProvider implements GitProvider {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
       if (!response.ok) {
-        throw new GitProviderError(`${method} ${path} failed: ${response.status} ${response.statusText}`, response.status);
+        throw new GitProviderError(
+          `${method} ${path} failed: ${response.status} ${response.statusText}`,
+          response.status,
+        );
       }
       return response;
     });
@@ -527,9 +556,13 @@ interface CloudDiffstatEntry {
 function toCloudEntry(v: unknown): CloudDiffstatEntry | null {
   if (!isRecord(v)) return null;
   const path =
-    typeof v['new'] === 'object' && v['new'] !== null && typeof (v['new'] as Record<string, unknown>)['path'] === 'string'
+    typeof v['new'] === 'object' &&
+    v['new'] !== null &&
+    typeof (v['new'] as Record<string, unknown>)['path'] === 'string'
       ? ((v['new'] as Record<string, unknown>)['path'] as string)
-      : typeof v['old'] === 'object' && v['old'] !== null && typeof (v['old'] as Record<string, unknown>)['path'] === 'string'
+      : typeof v['old'] === 'object' &&
+          v['old'] !== null &&
+          typeof (v['old'] as Record<string, unknown>)['path'] === 'string'
         ? ((v['old'] as Record<string, unknown>)['path'] as string)
         : typeof v['path'] === 'string'
           ? (v['path'] as string)
@@ -654,13 +687,15 @@ function serverDiffsToFiles(raw: { diffs: unknown[] }): PullRequestFile[] {
       for (const seg of segments) {
         if (!isRecord(seg)) continue;
         const type = typeof seg['type'] === 'string' ? seg['type'] : '';
+        const kind = type.toUpperCase();
         const lines = Array.isArray(seg['lines']) ? (seg['lines'] as unknown[]) : [];
         for (const line of lines) {
-          if (typeof line !== 'string') continue;
-          const prefix = type === 'ADDED' ? '+' : type === 'REMOVED' ? '-' : ' ';
-          patchLines.push(`${prefix}${line}`);
-          if (type === 'ADDED') additions += 1;
-          else if (type === 'REMOVED') deletions += 1;
+          const text = diffLineText(line);
+          if (text === undefined) continue;
+          const prefix = kind === 'ADDED' ? '+' : kind === 'REMOVED' ? '-' : ' ';
+          patchLines.push(`${prefix}${text}`);
+          if (kind === 'ADDED') additions += 1;
+          else if (kind === 'REMOVED') deletions += 1;
         }
       }
     }

@@ -91,4 +91,115 @@ describe('OpenAICompatibleProvider', () => {
       usage: { inputTokens: 5, outputTokens: 2 },
     });
   });
+
+  it('sends a response_format json_schema constraint when the request declares a jsonSchema', async () => {
+    const bodies: unknown[] = [];
+    const provider = new OpenAICompatibleProvider({
+      ...CONFIG,
+      fetchImpl: (async (_input: unknown, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify(OK_BODY), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }) as typeof fetch,
+    });
+
+    await provider.complete({ ...REQUEST, jsonSchema: { type: 'object' } });
+
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toMatchObject({
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'structured_output', schema: { type: 'object' }, strict: true },
+      },
+    });
+  });
+
+  it('omits response_format when no jsonSchema is declared', async () => {
+    const bodies: unknown[] = [];
+    const provider = new OpenAICompatibleProvider({
+      ...CONFIG,
+      fetchImpl: (async (_input: unknown, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify(OK_BODY), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }) as typeof fetch,
+    });
+
+    await provider.complete(REQUEST);
+
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).not.toHaveProperty('response_format');
+  });
+
+  it('omits response_format when structuredOutput is false even with a jsonSchema', async () => {
+    const bodies: unknown[] = [];
+    const provider = new OpenAICompatibleProvider({
+      ...CONFIG,
+      structuredOutput: false,
+      fetchImpl: (async (_input: unknown, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify(OK_BODY), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }) as typeof fetch,
+    });
+
+    await provider.complete({ ...REQUEST, jsonSchema: { type: 'object' } });
+
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).not.toHaveProperty('response_format');
+  });
+
+  it('includes the endpoint and a hint when the network drops with a cause', async () => {
+    const provider = new OpenAICompatibleProvider({
+      ...CONFIG,
+      maxRetries: 0,
+      fetchImpl: (async () => {
+        const error = new TypeError('fetch failed');
+        (error as { cause?: unknown }).cause = new Error('connect ECONNREFUSED 127.0.0.1:11434');
+        throw error;
+      }) as typeof fetch,
+    });
+
+    const error = await provider.complete(REQUEST).catch((e: unknown) => e);
+    expect(String((error as Error).message)).toMatch(/ECONNREFUSED/i);
+    expect(String((error as Error).message)).toMatch(/cannot reach the AI endpoint/i);
+    expect(String((error as Error).message)).toMatch(/ollama serve/i);
+  });
+
+  it('retries once without response_format when the server rejects it with 400', async () => {
+    const bodies: unknown[] = [];
+    let calls = 0;
+    const provider = new OpenAICompatibleProvider({
+      ...CONFIG,
+      maxRetries: 0,
+      fetchImpl: (async (_input: unknown, init?: RequestInit) => {
+        calls += 1;
+        bodies.push(JSON.parse(String(init?.body)));
+        if (calls === 1) {
+          return new Response(JSON.stringify({ error: 'response_format json_schema unsupported' }), {
+            status: 400,
+            statusText: 'Bad Request',
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify(OK_BODY), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }) as typeof fetch,
+    });
+
+    await expect(provider.complete({ ...REQUEST, jsonSchema: { type: 'object' } })).resolves.toMatchObject({
+      content: 'reviewed',
+    });
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]).toHaveProperty('response_format');
+    expect(bodies[1]).not.toHaveProperty('response_format');
+  });
 });

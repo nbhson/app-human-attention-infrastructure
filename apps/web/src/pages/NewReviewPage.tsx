@@ -68,8 +68,12 @@ function shortSha(sha: string | null): string {
 
 /** How often to re-check the report while the background verification is in flight. */
 const VERIFICATION_POLL_MS = 3_000;
-/** Upper bound on re-checks — past this the user should open the report page. */
-const VERIFICATION_POLL_ATTEMPTS = 20;
+/**
+ * Upper bound on re-checks — 200 × 3s = 10min, matching the backend clone+verify
+ * budget (`VERIFY_CLONE_TIMEOUT_S` default 600s). Past this the run has timed
+ * out server-side; the user should open the report page for the terminal state.
+ */
+const VERIFICATION_POLL_ATTEMPTS = 200;
 
 /** Terminal verification states — the poll stops once one of these is seen. */
 function isVerificationTerminal(status: ReviewVerificationStatus): boolean {
