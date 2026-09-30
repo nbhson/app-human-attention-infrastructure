@@ -69,7 +69,7 @@ REVIEW_TWO_PASS=true
 ```
 Code defaults (when env is unset): `REVIEW_MAX_BATCH_SIZE=5`, `REVIEW_MAX_BATCH_TOKENS=30000`, `REVIEW_MAX_CONCURRENCY=4` (`apps/api/src/bootstrap.ts:654`). `.env.example` overrides to `10 / 10000` for a gentler provider default — either is valid; the code default is the source of truth. Two-pass mode is ON by default — a lightweight summary pass runs first, then only high/medium risk files are deep-reviewed. Lower these values if the AI provider is rate-limited.
 
-**Health Score (reviewer-v6)** — the AI reviewer computes a multi-dimensional PR health assessment (`health_score` in `review_reports`) with BOTH a categorical rating AND a fine-grained 1–100 score per dimension (never a fixed 25/50/75/100 map):
+**Health Score (reviewer-v8)** — the AI reviewer computes a multi-dimensional PR health assessment (`health_score` in `review_reports`) with BOTH a categorical rating AND a fine-grained 1–100 score per dimension (never a fixed 25/50/75/100 map):
 - Dimensions: `architecture`, `codeQuality`, `security`, `performance`, `testing` (each `excellent|good|fair|poor` + `*Score` 1–100, higher = healthier; rating consistent with score: excellent 85–100, good 70–84, fair 50–69, poor 1–49)
 - Composite: `overallRisk` (`LOW|MEDIUM|HIGH|CRITICAL` + `overallRiskScore` 1–100, higher = riskier)
 - Review axes explicitly cover architecture & structure (SOLID, layering, coupling), clean code & maintainability, and API/contract compatibility

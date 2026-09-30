@@ -18,7 +18,7 @@
 import type { LLMProvider } from '../llm/llm-provider.js';
 
 import { parseReviewOutput, ReviewParseError } from './parse-review.js';
-import { buildReviewPrompt } from './review-prompt.js';
+import { buildMemoriesSection, buildReviewPrompt } from './review-prompt.js';
 import type { ReviewPromptInput } from './review-prompt.js';
 import { FILE_SUMMARY_SCHEMA, REVIEW_OUTPUT_SCHEMA } from './review-schema.js';
 import type { FileSummary, ReviewAgentOutput } from './review-output.js';
@@ -111,12 +111,16 @@ Rules:
 - Summarise concisely — this is a triage pass, not a full review.`;
 
   const requirement = input.requirement.trim().length > 0 ? input.requirement.trim() : '(none provided)';
+  // The triage gate sees past-review context too: a file with a known-bad
+  // history must not be gated out before the deep review ever sees it.
+  const memoriesSection = buildMemoriesSection(input.relatedMemories);
   const userMessage = [
     `PULL REQUEST: ${input.prUrl}`,
     `TITLE: ${input.prTitle}`,
     '',
     'REQUIREMENT:',
     requirement,
+    ...(memoriesSection.length > 0 ? ['', memoriesSection] : []),
     '',
     'DIFF:',
     input.diff.trim(),

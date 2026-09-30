@@ -875,6 +875,10 @@ export class ReviewIngestService {
           requirement: opts.requirement,
           diff: summaryDiff,
           ...(opts.instructions !== undefined ? { instructions: opts.instructions } : {}),
+          // The triage gate decides which files earn a deep review — it must
+          // see the same past-review context as the review pass, otherwise a
+          // file with a known-bad history can be gated out before review.
+          ...(relatedMemories !== undefined && relatedMemories.length > 0 ? { relatedMemories } : {}),
         },
         {
           model: opts.model,

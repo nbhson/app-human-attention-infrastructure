@@ -80,7 +80,10 @@ AI provider's token limit.
 ### Two-pass review (optional)
 
 When enabled, the review runs a fast `summarizeFiles()` pass first (risk
-assessment per file), then only reviews `high`/`medium` risk files in detail:
+assessment per file), then only reviews `high`/`medium` risk files in detail.
+The summary pass receives the same `relatedMemories` and operator
+`instructions` as the deep-review pass, so a file with a known-bad history
+is not gated out before review:
 
 ```typescript
 interface FileSummary {

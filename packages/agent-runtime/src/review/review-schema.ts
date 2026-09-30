@@ -1,6 +1,6 @@
 /**
  * JSON Schemas for the reviewer's structured output — the machine-readable twin
- * of the `reviewer-v6` contract written out in prose in `review-prompt.ts`.
+ * of the `reviewer-v8` contract written out in prose in `review-prompt.ts`.
  *
  * The prompt asks for the right shape; these schemas *enforce* it. Prompt-only
  * compliance is not enough on a local model: asked for the `reviewer-v6`
