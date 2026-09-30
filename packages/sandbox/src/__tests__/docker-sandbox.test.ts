@@ -31,6 +31,8 @@ const mode = process.env.FAKE_DOCKER_MODE;
 if (mode === 'exit0') { process.stdout.write('compile ok\\n'); process.exit(0); }
 if (mode === 'exit3') { process.stderr.write('TS2322: boom\\n'); process.exit(3); }
 if (mode === 'exit125') { process.stderr.write('Cannot connect to the Docker daemon\\n'); process.exit(125); }
+if (mode === 'exit1-daemon') { process.stderr.write('failed to connect to the docker API at unix:///Users/x/.docker/run/docker.sock; check if the path is correct and if the daemon is running\\n'); process.exit(1); }
+if (mode === 'exit1-program') { process.stderr.write('TS2322: boom\\n'); process.exit(1); }
 if (mode === 'hang') { setTimeout(() => process.exit(0), 2000); } else { process.exit(0); }
 `;
 
@@ -102,6 +104,18 @@ describe('DockerSandbox.run (day-22 §3.2)', () => {
   it('tags a missing image / daemon error (125) as SandboxInfraError, not a check result', async () => {
     const { sandbox } = stubDocker('exit125');
     await expect(sandbox.run(makeRun())).rejects.toBeInstanceOf(SandboxInfraError);
+  });
+
+  it('tags a daemon-down CLI failure (exit 1 + connection message) as SandboxInfraError', async () => {
+    const { sandbox } = stubDocker('exit1-daemon');
+    await expect(sandbox.run(makeRun())).rejects.toBeInstanceOf(SandboxInfraError);
+  });
+
+  it('still passes through a program exit 1 without a daemon message', async () => {
+    const { sandbox } = stubDocker('exit1-program');
+    const result = await sandbox.run(makeRun());
+    expect(result.exitCode).toBe(1);
+    expect(result.timedOut).toBe(false);
   });
 
   it('reports timedOut and force-removes the container when the command hangs', async () => {

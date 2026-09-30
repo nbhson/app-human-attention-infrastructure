@@ -40,6 +40,16 @@ function cap(output: string): string {
 /** Docker-level failure exit codes (not program results). */
 const DOCKER_INFRA_EXIT_CODES = new Set([125, 126, 127]);
 
+/**
+ * Docker Desktop / CLI daemon-connection failures exit 1 (not 125) with a
+ * connection message on stderr, e.g. `failed to connect to the docker API at
+ * unix://...docker.sock` or `Cannot connect to the Docker daemon`. Without
+ * this discriminator a down daemon would be recorded as a check `FAILED`
+ * instead of a {@link SandboxInfraError} (fallback / SKIPPED).
+ */
+const DOCKER_DAEMON_DOWN_PATTERN =
+  /cannot connect to the docker daemon|failed to connect to the docker api|is the docker daemon running|docker daemon is not running|dial unix.*docker\.sock|no such file or directory.*docker\.sock/i;
+
 export interface DockerSandboxOptions {
   /** Override the `docker` binary path (tests inject a stub). */
   readonly dockerBinary?: string;
@@ -158,6 +168,13 @@ export class DockerSandbox implements Sandbox {
         clearTimeout(timer);
         if (DOCKER_INFRA_EXIT_CODES.has(code ?? -1)) {
           reject(new SandboxInfraError(`docker run failed with exit ${code}`));
+          return;
+        }
+        // Daemon-down via the CLI surfaces as exit 1 + a connection message
+        // (not 125) — route it to infra so callers fall back instead of
+        // recording a false FAILED.
+        if ((code ?? 0) !== 0 && DOCKER_DAEMON_DOWN_PATTERN.test(`${stdout}\n${stderr}`)) {
+          reject(new SandboxInfraError(`docker daemon unavailable (exit ${code}): ${cap(stderr).slice(0, 300)}`));
           return;
         }
         finish({
