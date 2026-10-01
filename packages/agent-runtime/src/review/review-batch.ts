@@ -14,6 +14,7 @@ import { OpenAICompatibleError } from '../llm/openai-compatible-provider.js';
 import { ReviewParseError } from './parse-review.js';
 import { ReviewAgent } from './review-agent.js';
 import type { ReviewAgentOptions } from './review-agent.js';
+import { filterImpactScopeForBatch } from './review-impact.js';
 import type { ReviewPromptInput } from './review-prompt.js';
 import type { ReviewAgentOutput, ReviewFindingOutput, FixSuggestionOutput } from './review-output.js';
 
@@ -47,6 +48,12 @@ export interface BatchReviewOptions {
   readonly relatedMemories?: ReviewPromptInput['relatedMemories'];
   /** Optional operator instructions / skill text injected into every batch's prompt. */
   readonly instructions?: ReviewPromptInput['instructions'];
+  /**
+   * Within-PR impact edges (see `review-impact.ts`), injected into every batch's
+   * prompt (filtered to the batch's files) so each parallel call enumerates the
+   * same visible callers for a shared change.
+   */
+  readonly impactScope?: ReviewPromptInput['impactScope'];
   /** Max tokens for the agent's response per batch (default 8000). */
   readonly maxAgentTokens?: number;
   /**
@@ -86,9 +93,15 @@ function buildReviewInput(
     requirement: string;
     relatedMemories?: ReviewPromptInput['relatedMemories'];
     instructions?: ReviewPromptInput['instructions'];
+    impactScope?: ReviewPromptInput['impactScope'];
     autoReviewMode?: boolean;
   },
 ): ReviewPromptInput {
+  const batchPaths = batch.map((f) => f.path);
+  const scopedImpact =
+    opts.impactScope !== undefined && opts.impactScope.length > 0
+      ? filterImpactScopeForBatch(opts.impactScope, batchPaths)
+      : undefined;
   return {
     prUrl: opts.prUrl,
     prTitle: opts.prTitle,
@@ -97,6 +110,7 @@ function buildReviewInput(
     autoReviewMode: opts.autoReviewMode,
     ...(opts.relatedMemories !== undefined ? { relatedMemories: opts.relatedMemories } : {}),
     ...(opts.instructions !== undefined ? { instructions: opts.instructions } : {}),
+    ...(scopedImpact !== undefined && scopedImpact.length > 0 ? { impactScope: scopedImpact } : {}),
   } as ReviewPromptInput;
 }
 
@@ -205,6 +219,9 @@ async function reviewBatchWithRetry(
     ...(index === 0 && opts.relatedMemories !== undefined ? { relatedMemories: opts.relatedMemories } : {}),
     // Instructions apply to every batch — the operator's guidance is uniform.
     ...(opts.instructions !== undefined ? { instructions: opts.instructions } : {}),
+    // Impact scope applies to every batch (filtered per batch inside
+    // buildReviewInput) — each parallel call needs the same caller context.
+    ...(opts.impactScope !== undefined ? { impactScope: opts.impactScope } : {}),
     ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
   });
   const agentOpts = buildAgentOptions(opts.model, opts.correlationId, opts.maxAgentTokens, opts.reasoningEffort);

@@ -55,7 +55,7 @@ behind progressive findings:
 batchReview(
   agent, files,
   { prUrl, prTitle, requirement, model, correlationId,
-    maxBatchSize, maxBatchTokens, instructions? },
+    maxBatchSize, maxBatchTokens, instructions?, impactScope? },
   onBatch?, // (batchIndex, batchCount, output) => Promise<void>
 )
 ```
@@ -63,6 +63,13 @@ batchReview(
 When `instructions` is provided (the operator-uploaded "text.md" skills file
 from the Triage Rules page), it is injected into every batch's prompt as an
 authoritative guidance section — the PR + Jira + text.md + AI flow.
+
+When `impactScope` is provided (`buildImpactScope(files)` — within-PR import
+edges: which changed files import which), it is injected into every batch's
+prompt (filtered per batch) as an `IMPACT SCOPE` section, so a shared
+function/component change enumerates all its visible callers instead of being
+judged locally. Callers outside the PR stay unknown by design — the prompt
+requires the model to state that assumption instead of inventing callers.
 
 ### Context-aware file budgeting
 
@@ -81,9 +88,9 @@ AI provider's token limit.
 
 When enabled, the review runs a fast `summarizeFiles()` pass first (risk
 assessment per file), then only reviews `high`/`medium` risk files in detail.
-The summary pass receives the same `relatedMemories` and operator
-`instructions` as the deep-review pass, so a file with a known-bad history
-is not gated out before review:
+The summary pass receives the same `relatedMemories`, operator
+`instructions`, and `impactScope` as the deep-review pass, so a file with a
+known-bad history — or with in-PR callers — is not gated out before review:
 
 ```typescript
 interface FileSummary {
@@ -109,7 +116,8 @@ interface FileSummary {
 | `review/review-agent.ts`            | `ReviewAgent` — read-only reviewer.                                                                                                                                                                                       |
 | `review/review-output.ts`           | `ReviewAgentOutput` / `ReviewFindingOutput` / `FixSuggestionOutput` value objects.                                                                                                                                        |
 | `review/review-batch.ts`            | `batchReview()` — split files into parallel batches, merge results, per-batch callback.                                                                                                                                   |
-| `review/review-prompt.ts`           | `buildReviewPrompt()` — system + user prompt with instructions, memories, mode support.                                                                                                                                   |
+| `review/review-prompt.ts`           | `buildReviewPrompt()` — reviewer-v9 system + user prompt with instructions, memories, mode support, and IMPACT SCOPE.                                                                                                                            |
+| `review/review-impact.ts`           | `buildImpactScope()` / `buildImpactScopeSection()` — within-PR import edges + prompt section so shared changes enumerate visible callers.                                                                                                        |
 | `review/review-budget.ts`           | `budgetFiles()` — context-aware file prioritisation by keyword overlap.                                                                                                                                                   |
 
 ---

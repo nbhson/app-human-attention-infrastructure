@@ -11,4 +11,6 @@ export * from './review/review-output.js';
 export * from './review/parse-review.js';
 export * from './review/review-batch.js';
 export * from './review/review-budget.js';
+export * from './review/review-impact.js';
+export * from './review/review-prompt.js';
 export * from './review/review-schema.js';

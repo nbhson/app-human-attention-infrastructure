@@ -18,6 +18,7 @@
 import type { LLMProvider } from '../llm/llm-provider.js';
 
 import { parseReviewOutput, ReviewParseError } from './parse-review.js';
+import { buildImpactScopeSection } from './review-impact.js';
 import { buildMemoriesSection, buildReviewPrompt } from './review-prompt.js';
 import type { ReviewPromptInput } from './review-prompt.js';
 import { FILE_SUMMARY_SCHEMA, REVIEW_OUTPUT_SCHEMA } from './review-schema.js';
@@ -124,6 +125,9 @@ Rules:
   // The triage gate sees past-review context too: a file with a known-bad
   // history must not be gated out before the deep review ever sees it.
   const memoriesSection = buildMemoriesSection(input.relatedMemories);
+  // ...and the same caller context: a shared file with in-PR callers must not
+  // be gated to "low risk" before the deep review traces its impact.
+  const impactSection = buildImpactScopeSection(input.impactScope ?? []);
   const userMessage = [
     `PULL REQUEST: ${input.prUrl}`,
     `TITLE: ${input.prTitle}`,
@@ -131,6 +135,8 @@ Rules:
     'REQUIREMENT:',
     requirement,
     ...(memoriesSection.length > 0 ? ['', memoriesSection] : []),
+    '',
+    impactSection,
     '',
     'DIFF:',
     input.diff.trim(),

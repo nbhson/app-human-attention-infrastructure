@@ -22,7 +22,7 @@ import { redactSensitivePatch } from '../review-secret-redact.js';
 import { envInt } from '../env-utils.js';
 
 import { AnthropicError, OpenAICompatibleError, ReviewParseError } from '@harness/agent-runtime';
-import { batchReview, budgetFiles } from '@harness/agent-runtime';
+import { batchReview, budgetFiles, buildImpactScope } from '@harness/agent-runtime';
 import type { BatchReviewOptions, ReviewAgent, ReviewAgentOutput } from '@harness/agent-runtime';
 import {
   brand,
@@ -870,6 +870,12 @@ export class ReviewIngestService {
     // default (pre-setting behaviour).
     const reasoningEffort = await this.resolveReasoningEffort();
 
+    // Within-PR impact edges: which changed files import which other changed
+    // files. Forwarded to the triage pass and every review batch so a shared
+    // function/component change enumerates all its visible callers instead of
+    // being judged locally. Usages outside the PR stay unknown by design.
+    const impactScope = buildImpactScope(reviewable);
+
     // 3. Two-pass: summarise first, then only deep-review high/medium risk files.
     //    For large PRs (50+ files) the summary pass would send ALL diff content
     //    in a single AI call, which is extremely slow with reasoning models. Skip
@@ -890,6 +896,9 @@ export class ReviewIngestService {
           // see the same past-review context as the review pass, otherwise a
           // file with a known-bad history can be gated out before review.
           ...(relatedMemories !== undefined && relatedMemories.length > 0 ? { relatedMemories } : {}),
+          // ...and the same caller context, so a shared file with in-PR
+          // callers is not gated to "low risk" before impact is traced.
+          ...(impactScope.length > 0 ? { impactScope } : {}),
         },
         {
           model: opts.model,
@@ -947,6 +956,7 @@ export class ReviewIngestService {
         ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
         ...(relatedMemories !== undefined && relatedMemories.length > 0 ? { relatedMemories } : {}),
         ...(opts.instructions !== undefined && opts.instructions.length > 0 ? { instructions: opts.instructions } : {}),
+        ...(impactScope.length > 0 ? { impactScope } : {}),
         // A batch that permanently fails (after retries) is skipped so the rest
         // of the review still completes — log it here for visibility/audit.
         onBatchFailure: (batchIndex: number, attempts: number, error: unknown) => {
