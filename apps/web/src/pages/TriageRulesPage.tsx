@@ -17,8 +17,7 @@ interface Rule {
   readonly strictness: string;
   readonly icon: typeof ShieldAlert;
   /** Which backend toggle this rule maps to. */
-  readonly stateKey:
-    'securityBlock' | 'performanceRegression' | 'schemaIntegrity' | 'autoReviewEnabled' | 'includeInstructions';
+  readonly stateKey: 'securityBlock' | 'performanceRegression' | 'schemaIntegrity' | 'autoReviewEnabled';
 }
 
 const RULES: readonly Rule[] = [
@@ -54,15 +53,6 @@ const RULES: readonly Rule[] = [
     strictness: 'All severities',
     icon: Zap,
     stateKey: 'autoReviewEnabled',
-  },
-  {
-    name: 'Review instructions (text.md)',
-    description:
-      'Upload a markdown skills/instructions file and enable the PR + Jira + text.md + AI flow. When ON with a file uploaded, the instructions are injected into the AI review prompt alongside the PR diff and Jira requirement.',
-    category: 'Flow',
-    strictness: 'Optional',
-    icon: Sliders,
-    stateKey: 'includeInstructions',
   },
 ];
 
@@ -242,9 +232,9 @@ export default function TriageRulesPage(): JSX.Element {
                 style={{
                   padding: '8px 12px',
                   borderRadius: '8px',
-                  border: '1px solid var(--color-border, #333)',
-                  background: 'var(--color-surface-raised, #1b1c20)',
-                  color: 'inherit',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface-input)',
+                  color: 'var(--color-text)',
                   fontSize: '14px',
                 }}
               >
@@ -266,21 +256,42 @@ export default function TriageRulesPage(): JSX.Element {
               justifyContent: 'flex-start',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', width: '100%' }}>
-              <span className="rq-rule-icon" style={{ marginTop: '2px' }}>
-                <Sliders />
-              </span>
-              <div style={{ flex: '1 1 auto', minWidth: '0' }}>
-                <div className="rq-rule-head">
-                  <span className="rq-rule-name">Upload text.md (instructions)</span>
-                  <span className="rq-rule-cat">PR + Jira + text.md + AI</span>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                width: '100%',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: '0', flex: '1 1 auto' }}>
+                <span className="rq-rule-icon" style={{ marginTop: '2px' }}>
+                  <Sliders />
+                </span>
+                <div style={{ flex: '1 1 auto', minWidth: '0' }}>
+                  <div className="rq-rule-head">
+                    <span className="rq-rule-name">Review instructions (text.md)</span>
+                    <span className="rq-rule-cat">PR + Jira + text.md + AI</span>
+                  </div>
+                  <p className="rq-rule-desc">
+                    Upload a markdown skills/instructions file and enable the PR + Jira + text.md + AI flow.{' '}
+                    {state.includeInstructions
+                      ? 'Instructions are ON — this file is injected into every AI review prompt.'
+                      : 'Toggle ON to inject this file into AI reviews alongside the PR diff and Jira requirement.'}
+                  </p>
                 </div>
-                <p className="rq-rule-desc">
-                  {state.includeInstructions
-                    ? 'Instructions are ON — this file is injected into every AI review prompt.'
-                    : 'Enable "Review instructions (text.md)" above to inject this file into AI reviews.'}
-                </p>
               </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={state.includeInstructions}
+                aria-label="Toggle Review instructions (text.md)"
+                className={`rq-toggle ${state.includeInstructions ? 'rq-toggle--on' : 'rq-toggle--off'}`}
+                onClick={() => toggle('includeInstructions')}
+              >
+                <span className="rq-toggle-knob" />
+              </button>
             </div>
 
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', marginTop: '10px' }}>
@@ -292,7 +303,9 @@ export default function TriageRulesPage(): JSX.Element {
                   gap: '6px',
                   padding: '8px 14px',
                   borderRadius: '8px',
-                  border: '1px solid var(--color-border, #333)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface-input)',
+                  color: 'var(--color-text)',
                   cursor: 'pointer',
                   fontSize: '14px',
                   whiteSpace: 'nowrap',
@@ -320,9 +333,9 @@ export default function TriageRulesPage(): JSX.Element {
                 marginTop: '10px',
                 padding: '10px',
                 borderRadius: '8px',
-                border: '1px solid var(--color-border, #333)',
-                background: 'var(--color-surface-raised, #1b1c20)',
-                color: 'inherit',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface-input)',
+                color: 'var(--color-text)',
                 fontFamily: 'monospace',
                 fontSize: '13px',
                 resize: 'vertical',
