@@ -10,46 +10,52 @@
  */
 
 :root {
-  /* Surfaces + text */
-  --color-bg: #ffffff;
-  --color-surface: #f6f8fa;
+  /* Surfaces + text — light theme is a slate canvas (bg) with white
+     sidebar/cards so depth reads without relying on faint borders. */
+  --color-bg: #eef2f7;
+  --color-surface: #ffffff;
   --color-surface-2: #ffffff;
-  --color-border: #d0d7de;
-  --color-text: #1f2328;
-  --color-text-muted: #57606a;
-  --color-text-faint: #6e7781;
+  --color-border: #dbe2ec;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-faint: #64748b;
 
-  /* Status + verdict */
-  --color-danger: #cf222e;
-  --color-danger-bg: #ffebe9;
-  --color-warning: #bc4c00;
-  --color-warning-bg: #fff8c5;
-  --color-success: #1a7f37;
-  --color-info: #0969da;
+  /* Status + verdict — darkened for ≥4.5:1 text contrast on light fills. */
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fee2e2;
+  --color-warning: #b45309;
+  --color-warning-bg: #fef3c7;
+  --color-success: #15803d;
+  --color-info: #1d4ed8;
   /* Text drawn on top of `--color-info` (and other accent fills) — dark in the
      dark theme where the accent brightens, white in light. */
   --color-on-accent: #ffffff;
 
   /* Brand / field fills shared by the landing page. */
   --accent: #2563eb;
-  --field: #f6f8fa;
+  --field: #f8fafc;
 
   /* Severity bands (status palette, reserved — never reused as "series N") */
-  --sev-critical: #cf222e;
-  --sev-major: #bc4c00;
-  --sev-minor: #9a6700;
-  --sev-nit: #6e7781;
-  --sev-info: #0969da;
+  --sev-critical: #b91c1c;
+  --sev-major: #b45309;
+  --sev-minor: #92400e;
+  --sev-nit: #64748b;
+  --sev-info: #1d4ed8;
 
   /* Priority tiers keyed off the queue `label` */
-  --prio-critical: #dc2626;
-  --prio-high: #ea580c;
-  --prio-medium: #ca8a04;
-  --prio-low: #6b7280;
+  --prio-critical: #b91c1c;
+  --prio-high: #c2410c;
+  --prio-medium: #a16207;
+  --prio-low: #64748b;
+
+  --verdict-approve: #15803d;
+  --verdict-request-changes: #b45309;
+  --verdict-comment: #1d4ed8;
+  --attention: #b45309;
 
   /* Skeleton shimmer */
-  --skeleton-base: #eaeef2;
-  --skeleton-shine: #f6f8fa;
+  --skeleton-base: #e2e8f0;
+  --skeleton-shine: #f1f5f9;
 
   /* Geometry + type */
   --radius: 6px;
@@ -62,40 +68,43 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
   /* Additional surface tones for queue/sidebar/modal depth layers */
-  --color-surface-deep: #f0f3f6;
-  --color-surface-alt: #eaecef;
-  --color-surface-input: #f6f8fa;
-  --color-surface-input-alt: #f0f3f6;
-  --color-surface-card: #f6f8fa;
+  --color-surface-deep: #e2e8f0;
+  --color-surface-alt: #f1f5f9;
+  --color-surface-input: #ffffff;
+  --color-surface-input-alt: #f8fafc;
+  --color-surface-card: #ffffff;
   --color-surface-modal: #ffffff;
-  --color-surface-muted: #f0f3f6;
-  --color-surface-card-alt: #f6f8fa;
-  --color-surface-elevated: #f6f8fa;
-  --color-surface-selected: #eaecef;
-  --color-border-strong: #d0d7de;
-  --color-border-hover: #afb8c1;
-  --color-text-subtle: #6e7781;
-  --color-text-dim: #9ca3af;
-  --color-text-subtlest: #6e7781;
-  --color-text-subdued: #57606a;
-  /* Semantic accents */
-  --color-emerald: #10b981;
-  --color-blue: #3b82f6;
-  --color-purple: #a855f7;
-  --color-amber: #f59e0b;
-  --color-rose: #f43f5e;
+  --color-surface-muted: #f8fafc;
+  --color-surface-card-alt: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-selected: #dbeafe;
+  --color-border-strong: #cbd5e1;
+  --color-border-hover: #94a3b8;
+  --color-text-subtle: #64748b;
+  --color-text-dim: #475569;
+  --color-text-subtlest: #334155;
+  --color-text-subdued: #1e293b;
+  /* Semantic accents — 700-scale so text/icons hit contrast on white. */
+  --color-emerald: #047857;
+  --color-blue: #1d4ed8;
+  --color-purple: #7e22ce;
+  --color-amber: #b45309;
+  --color-rose: #be123c;
 
-  --shadow-card: 0 4px 6px -2px rgba(0, 0, 0, 0.08);
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 4px 12px -2px rgba(15, 23, 42, 0.08);
 
-  /* Overlay tones for depth in light mode */
-  --color-overlay-dark: rgba(0, 0, 0, 0.04);
-  --color-overlay-border: rgba(0, 0, 0, 0.08);
+  /* Overlay tones for depth in light mode — opaque slate so metric
+     cards, pills and status wells read as fills, not ghosts. */
+  --color-overlay-dark: #f8fafc;
+  --color-overlay-border: #e2e8f0;
 
   /* Shadow and overlay tokens */
-  --shadow-dark: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-modal: 0 10px 30px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 25px 50px rgba(0, 0, 0, 0.2);
-  --overlay-white: var(--overlay-white);
+  --shadow-dark: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow-modal: 0 10px 30px rgba(15, 23, 42, 0.16);
+  --shadow-lg: 0 25px 50px rgba(15, 23, 42, 0.18);
+  --overlay-white: #f1f5f9;
 }
 
 /* Manual theme toggle — `[data-theme]` overrides `prefers-color-scheme`. */
@@ -176,43 +185,75 @@
 }
 
 [data-theme='light'] {
-  --color-bg: #ffffff;
-  --color-surface: #f6f8fa;
+  --color-bg: #eef2f7;
+  --color-surface: #ffffff;
   --color-surface-2: #ffffff;
-  --color-border: #d0d7de;
-  --color-text: #1f2328;
-  --color-text-muted: #57606a;
-  --color-text-faint: #6e7781;
+  --color-border: #dbe2ec;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-faint: #64748b;
 
-  --color-danger: #cf222e;
-  --color-danger-bg: #ffebe9;
-  --color-warning: #bc4c00;
-  --color-warning-bg: #fff8c5;
-  --color-success: #1a7f37;
-  --color-info: #0969da;
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fee2e2;
+  --color-warning: #b45309;
+  --color-warning-bg: #fef3c7;
+  --color-success: #15803d;
+  --color-info: #1d4ed8;
   --color-on-accent: #ffffff;
 
   --accent: #2563eb;
-  --field: #f6f8fa;
+  --field: #f8fafc;
 
-  --sev-critical: #cf222e;
-  --sev-major: #bc4c00;
-  --sev-minor: #9a6700;
-  --sev-nit: #6e7781;
-  --sev-info: #0969da;
+  --sev-critical: #b91c1c;
+  --sev-major: #b45309;
+  --sev-minor: #92400e;
+  --sev-nit: #64748b;
+  --sev-info: #1d4ed8;
 
-  --verdict-approve: #1a7f37;
-  --verdict-request-changes: #bc4c00;
-  --verdict-comment: #0969da;
-  --attention: #bc4c00;
+  --verdict-approve: #15803d;
+  --verdict-request-changes: #b45309;
+  --verdict-comment: #1d4ed8;
+  --attention: #b45309;
 
-  --prio-critical: #dc2626;
-  --prio-high: #ea580c;
-  --prio-medium: #ca8a04;
-  --prio-low: #6b7280;
+  --prio-critical: #b91c1c;
+  --prio-high: #c2410c;
+  --prio-medium: #a16207;
+  --prio-low: #64748b;
 
-  --skeleton-base: #eaeef2;
-  --skeleton-shine: #f6f8fa;
+  --skeleton-base: #e2e8f0;
+  --skeleton-shine: #f1f5f9;
+
+  --color-surface-deep: #e2e8f0;
+  --color-surface-alt: #f1f5f9;
+  --color-surface-input: #ffffff;
+  --color-surface-input-alt: #f8fafc;
+  --color-surface-card: #ffffff;
+  --color-surface-modal: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-surface-card-alt: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-selected: #dbeafe;
+  --color-border-strong: #cbd5e1;
+  --color-border-hover: #94a3b8;
+  --color-text-subtle: #64748b;
+  --color-text-dim: #475569;
+  --color-text-subtlest: #334155;
+  --color-text-subdued: #1e293b;
+  --color-emerald: #047857;
+  --color-blue: #1d4ed8;
+  --color-purple: #7e22ce;
+  --color-amber: #b45309;
+  --color-rose: #be123c;
+
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 4px 12px -2px rgba(15, 23, 42, 0.08);
+  --color-overlay-dark: #f8fafc;
+  --color-overlay-border: #e2e8f0;
+  --shadow-dark: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow-modal: 0 10px 30px rgba(15, 23, 42, 0.16);
+  --shadow-lg: 0 25px 50px rgba(15, 23, 42, 0.18);
+  --overlay-white: #f1f5f9;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -6627,6 +6668,111 @@ button.nav-item {
 }
 
 /*__SA_END__*/
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Light-theme contrast polish — fixes dark-tuned hardcodes that wash out
+   or turn unreadable on a light canvas. Dark theme is untouched.
+   Covers: sidebar/menu active states, tabs, cards, metrics, findings,
+   bulk bar, decision bar, pills and status wells.
+   ------------------------------------------------------------------------- */
+[data-theme='light'] .nav-item-active {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme='light'] .nav-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme='light'] .sa-tab-active {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+[data-theme='light'] .rq-view-btn--active {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+[data-theme='light'] .rq-card,
+[data-theme='light'] .lq-card,
+[data-theme='light'] .rq-compact,
+[data-theme='light'] .lq-metric,
+[data-theme='light'] .rq-metric,
+[data-theme='light'] .queue-metric,
+[data-theme='light'] .finding-card,
+[data-theme='light'] .finding-detail,
+[data-theme='light'] .form-card,
+[data-theme='light'] .progress-panel,
+[data-theme='light'] .result-panel,
+[data-theme='light'] .lq-rules-section,
+[data-theme='light'] .rq-rule,
+[data-theme='light'] .rq-archive-row,
+[data-theme='light'] .diff-file,
+[data-theme='light'] .sa-metric,
+[data-theme='light'] .sa-telemetry-card {
+  background: #ffffff;
+  border-color: #dbe2ec;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 4px 12px -2px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme='light'] .rq-card--selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.25);
+}
+
+[data-theme='light'] .rq-findings {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme='light'] .rq-finding {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+[data-theme='light'] .rq-bulk {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+[data-theme='light'] .decision-bar {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.12);
+}
+
+[data-theme='light'] .review-tab-active {
+  color: #0f172a;
+  border-bottom-color: #1d4ed8;
+}
+
+[data-theme='light'] .rq-pill--idle {
+  background: #f8fafc;
+  border-color: #dbe2ec;
+  color: #475569;
+}
+
+[data-theme='light'] .rq-pill--idle .rq-pill-count {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+[data-theme='light'] .rq-search-kbd {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+[data-theme='light'] .sidebar-status {
+  background: #f8fafc;
+  border-color: #dbe2ec;
+}
 
 /* Honour users who ask the OS for less motion — collapse the entrance
    animations to a near-instant settle instead of a slide. */

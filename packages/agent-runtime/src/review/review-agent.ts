@@ -29,6 +29,14 @@ export interface ReviewAgentOptions {
   readonly maxTokens?: number;
   /** Task lifecycle id recorded into `llm_call_log.correlation_id` by `LoggingLLMProvider`. */
   readonly correlationId?: string;
+  /**
+   * Thinking/reasoning budget for reasoning-capable models (forwarded to
+   * `LLMRequest.reasoningEffort`). Absent = model default. Sourced from the
+   * triage-rules `reasoningEffort` setting — the operator's lever against
+   * thinking models burning the whole `AI_MAX_TOKENS` budget on
+   * chain-of-thought before the review JSON.
+   */
+  readonly reasoningEffort?: 'none' | 'low' | 'medium' | 'high';
 }
 
 export class ReviewAgent {
@@ -51,6 +59,7 @@ export class ReviewAgent {
       // what a prompt-only contract costs on a local model.
       jsonSchema: REVIEW_OUTPUT_SCHEMA,
       ...(opts.correlationId !== undefined ? { correlation_id: opts.correlationId } : {}),
+      ...(opts.reasoningEffort !== undefined ? { reasoningEffort: opts.reasoningEffort } : {}),
     });
     // A reasoning model exhausted its output budget: the review JSON is partial
     // or missing entirely. OpenAI-compatible endpoints report this as
@@ -84,6 +93,7 @@ export class ReviewAgent {
       // to a silent no-op rather than an error.
       jsonSchema: FILE_SUMMARY_SCHEMA,
       ...(opts.correlationId !== undefined ? { correlation_id: opts.correlationId } : {}),
+      ...(opts.reasoningEffort !== undefined ? { reasoningEffort: opts.reasoningEffort } : {}),
     });
     return parseFileSummary(response.content);
   }

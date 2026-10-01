@@ -47,9 +47,20 @@ function formatTime(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 }
 
+/** `125000` → `"2m 5s"`; sub-minute stays seconds-only. */
+function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return 'unknown duration';
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  if (minutes < 60) return `${minutes}m ${totalSeconds % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
 export function TraceTab({
   trace,
   createdAt,
+  completedAt,
   stats,
   findings,
   overallVerdict,
@@ -57,6 +68,8 @@ export function TraceTab({
 }: {
   readonly trace: ReviewTrace;
   readonly createdAt: string;
+  /** Null while the review is still in flight or on legacy rows. */
+  readonly completedAt: string | null;
   readonly stats: ReviewStats | undefined;
   readonly findings: readonly ReviewFinding[];
   readonly overallVerdict: Verdict;
@@ -66,6 +79,12 @@ export function TraceTab({
   const findingCount = findings.length;
   const totalIn = trace.calls.reduce((sum, call) => sum + call.inputTokens, 0);
   const totalOut = trace.calls.reduce((sum, call) => sum + call.outputTokens, 0);
+  const startedMs = new Date(createdAt).getTime();
+  const completedMs = completedAt !== null ? new Date(completedAt).getTime() : NaN;
+  const durationLabel =
+    completedAt !== null && Number.isFinite(startedMs) && Number.isFinite(completedMs) && completedMs >= startedMs
+      ? formatDuration(completedMs - startedMs)
+      : null;
 
   const repaired = (trace as unknown as { wasRepaired?: boolean }).wasRepaired === true;
   const traceAction: { title: string; body: string } = repaired
@@ -151,6 +170,20 @@ export function TraceTab({
           done
         />
         <Step title="Final verdict generated" meta={[VERDICT_LABEL[overallVerdict] ?? overallVerdict]} done />
+        <Step
+          title="Review completed"
+          meta={
+            completedAt !== null
+              ? [
+                  <span key="t" className="trace-step-time">
+                    {formatTime(completedAt)}
+                  </span>,
+                  ...(durationLabel !== null ? [`Total pipeline time: ${durationLabel}`] : []),
+                ]
+              : ['Still in flight — no completion timestamp stored yet']
+          }
+          done={completedAt !== null}
+        />
       </ol>
 
       {recalledMemories !== null && recalledMemories !== undefined && (

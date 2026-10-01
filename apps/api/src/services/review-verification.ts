@@ -191,7 +191,18 @@ export class ReviewVerificationService {
       return;
     }
     const pr = rawPayload as PullRequest;
-    const cloneInput = cloneInputFromPullRequest(pr);
+    // `cloneInputFromPullRequest` throws on an unusable head SHA (e.g. the
+    // empty `head.sha` some forge mappers store). That throw used to escape
+    // outside any try block, orphaning the row at RUNNING forever with no
+    // workdir, no container, and no further DB write. A report with no usable
+    // SHA has nothing to clone, so record an honest SKIPPED instead.
+    let cloneInput: ReturnType<typeof cloneInputFromPullRequest>;
+    try {
+      cloneInput = cloneInputFromPullRequest(pr);
+    } catch (error) {
+      await this.markSkipped(rowId, `cannot verify: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     const workdir = `${sandboxRoot()}/verify-${reportId}`;
 
     let clone;

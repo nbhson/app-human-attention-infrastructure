@@ -35,6 +35,23 @@ export interface TriageRuleState {
   readonly includeInstructions: boolean;
   /** The uploaded instructions / skill text (markdown) sent to the AI. */
   readonly instructionsContent: string;
+  /**
+   * Thinking/reasoning budget for reasoning-capable models, forwarded to every
+   * review + triage-summary LLM call as `reasoningEffort`.
+   *
+   * - `'default'` — send nothing (model default; pre-setting behaviour).
+   * - `'low'` — cap the trace (`reasoning_effort: "low"`).
+   * - `'off'` — ask for no thinking at all (`reasoning_effort: "none"`).
+   *
+   * Best-effort: some model/server pairs ignore the field on the
+   * OpenAI-compatible endpoint. Defaults to `'default'`.
+   */
+  readonly reasoningEffort: 'default' | 'low' | 'off';
+}
+
+/** Valid `reasoningEffort` values (anything else falls back to `'default'`). */
+function normalizeReasoningEffort(raw: unknown): 'default' | 'low' | 'off' {
+  return raw === 'low' || raw === 'off' ? raw : 'default';
 }
 
 const SINGLETON_ID = 'singleton';
@@ -47,6 +64,7 @@ const DEFAULT_STATE: TriageRuleState = {
   autoReviewEnabled: false,
   includeInstructions: false,
   instructionsContent: '',
+  reasoningEffort: 'default',
 };
 
 function toState(row: {
@@ -56,6 +74,7 @@ function toState(row: {
   auto_review_enabled: boolean;
   include_instructions: boolean;
   instructions_content: string | null;
+  reasoning_effort?: string | null;
 }): TriageRuleState {
   return {
     securityBlock: row.security_block,
@@ -64,6 +83,10 @@ function toState(row: {
     autoReviewEnabled: row.auto_review_enabled,
     includeInstructions: row.include_instructions,
     instructionsContent: row.instructions_content ?? '',
+    // `reasoning_effort` is absent on rows read through a select that predates
+    // the 0056 migration — fall back to the model default then, not to an
+    // arbitrary cap.
+    reasoningEffort: normalizeReasoningEffort(row.reasoning_effort ?? null),
   };
 }
 
@@ -89,6 +112,7 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
     autoReviewEnabled: patch.autoReviewEnabled ?? current.autoReviewEnabled,
     includeInstructions: patch.includeInstructions ?? current.includeInstructions,
     instructionsContent: patch.instructionsContent ?? current.instructionsContent,
+    reasoningEffort: patch.reasoningEffort ?? current.reasoningEffort,
   };
 
   await db
@@ -101,6 +125,9 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
       auto_review_enabled: next.autoReviewEnabled,
       include_instructions: next.includeInstructions,
       instructions_content: next.instructionsContent,
+      // NULL = model default, so a legacy row and an explicit 'default' read
+      // identically through `normalizeReasoningEffort`.
+      reasoning_effort: next.reasoningEffort === 'default' ? null : next.reasoningEffort,
     })
     .onConflictDoUpdate({
       target: triageRules.id,
@@ -111,6 +138,7 @@ export async function saveTriageRuleState(db: DrizzleDB, patch: Partial<TriageRu
         auto_review_enabled: next.autoReviewEnabled,
         include_instructions: next.includeInstructions,
         instructions_content: next.instructionsContent,
+        reasoning_effort: next.reasoningEffort === 'default' ? null : next.reasoningEffort,
       },
     });
 

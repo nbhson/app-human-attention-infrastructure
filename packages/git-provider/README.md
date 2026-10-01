@@ -58,6 +58,25 @@ The per-host variance (tool names like `get_pull_request` vs `get_merge_request`
 argument keys like `pull_number` vs `merge_request_iid`) lives entirely in
 `GitToolMap` — adding a forge is a table row, never a new adapter class.
 
+## Clone authentication
+
+`cloneAndCheckout` is the same shallow clone + detach-checkout-at-head-SHA on
+every host, but private repos need credentials on `git` too — the API token
+alone only covers the fetch path. Auth rides on
+`git -c http.extraHeader="Authorization: …"` for the `clone` and `fetch`
+steps, **never baked into the clone URL**, so the token never leaks into `ps`
+output, shell history, or `CloneError` text (stderr is redacted before it
+reaches logs/DB). The spawned `git` also runs with `GIT_TERMINAL_PROMPT=0`,
+so a missing/bad credential fails fast instead of hanging to the 120s
+timeout (`exit 124`).
+
+| Provider | Clone credentials |
+| -------- | ----------------- |
+| `GitHubProvider` | `Bearer <GITHUB_TOKEN>` from its constructor. |
+| `BitbucketDirectProvider` | `Basic <user:pass>` when `BITBUCKET_USERNAME` + password is set, else `Bearer <BITBUCKET_TOKEN>`; self-hosted Server/DC repos clone via the `/scm/PROJ/repo.git` URL shape (`cloneUrlFor(repo, serverBaseUrl)`). |
+| `HybridGitProvider` | Bitbucket repos clone through the direct provider (authed); everything else delegates to primary. |
+| `MCPGitProvider` | No credentials of its own — falls back to `defaultAuthHeaderForRepo(repo)` from the process env (`GITHUB_TOKEN` for `*github*` hosts, `GITLAB_TOKEN`/`GITLAB_PERSONAL_ACCESS_TOKEN` for `*gitlab*` hosts, `BITBUCKET_*` on Cloud or the `BITBUCKET_URL`-matched self-hosted host). Anonymous when nothing matches (public repos). |
+
 ## Modules
 
 | Module                | What it provides                                                                                                                                                                                                                                          |
@@ -69,7 +88,7 @@ argument keys like `pull_number` vs `merge_request_iid`) lives entirely in
 | `mcp-git-mapper.ts`   | `mapMcpGitPullRequest` — `ToolContent[]` → `PullRequest`.                                                                                                                                                                                                 |
 | `mcp-git-provider.ts` | `MCPGitProvider` — fetch via MCP tools; `UnknownProviderHostError`.                                                                                                                                                                                       |
 | `head-sha.ts`         | `resolveHeadSha` + `cloneInputFromPullRequest` — validated head-SHA extraction.                                                                                                                                                                           |
-| `clone.ts`            | `cloneAndCheckout` (shallow clone + detach-checkout-at-SHA), `CloneError`, injectable `RunGit`.                                                                                                                                                           |
+| `clone.ts`            | `cloneAndCheckout` (shallow clone + detach-checkout-at-SHA), `CloneError`, injectable `RunGit`. `CloneOptions` carries `authHeader` (`Authorization` value via `http.extraHeader`, never in the URL) + `cloneUrl` override; `cloneUrlFor(repo, serverBaseUrl?)` builds the Bitbucket Server `/scm/` shape; `defaultAuthHeaderForRepo(repo, env?)` resolves env credentials per host. |
 
 ## Test strategy
 
@@ -99,7 +118,8 @@ src/
 // GitProvider, FetchPullRequestInput, GitProviderError, parseRepoPath,
 // GitHubProvider, mapGithubPullRequest, GitToolMap, StaticGitToolMap,
 // mapMcpGitPullRequest, MCPGitProvider, UnknownProviderHostError,
-// resolveHeadSha, cloneInputFromPullRequest, cloneAndCheckout, CloneError
+// resolveHeadSha, cloneInputFromPullRequest, cloneAndCheckout, CloneError,
+// CloneOptions, cloneUrlFor, defaultAuthHeaderForRepo
 ```
 
 ## Dependency rule

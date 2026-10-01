@@ -402,6 +402,8 @@ export class ReviewIngestService {
       summary: agentOutput.summary,
       overall_verdict: agentOutput.overallVerdict,
       pr_payload: pr,
+      review_status: 'complete',
+      completed_at: new Date(),
       was_repaired: agentOutput.wasRepaired === true,
       // The AI miscounts the test-to-source ratio from diff text (e.g. poor/1
       // with two *.spec.ts files in the diff) — recompute `testing` from the
@@ -560,6 +562,7 @@ export class ReviewIngestService {
             .set({
               review_status: 'error',
               summary: '❌ Review failed: no Git provider configured',
+              completed_at: new Date(),
             })
             .where(eq(reviewReports.id, reportId)),
         logger,
@@ -721,6 +724,7 @@ export class ReviewIngestService {
               summary: agentOutput.summary,
               overall_verdict: agentOutput.overallVerdict,
               review_status: 'complete',
+              completed_at: new Date(),
               batch_progress: null,
               was_repaired: agentOutput.wasRepaired === true,
               // Same deterministic testing override as the sync path above.
@@ -800,6 +804,7 @@ export class ReviewIngestService {
               review_status: 'error',
               summary: userMessage,
               overall_verdict: 'COMMENT' as const,
+              completed_at: new Date(),
             })
             .where(eq(reviewReports.id, reportId)),
         logger,
@@ -859,6 +864,12 @@ export class ReviewIngestService {
       return { summary: '', overallVerdict: 'COMMENT' as const, findings: [], suggestions: [] };
     }
 
+    // Operator thinking budget (Triage Rules page `reasoningEffort`): forwarded
+    // to every review + triage-summary LLM call so a thinking model doesn't burn
+    // the whole `AI_MAX_TOKENS` budget on chain-of-thought. `undefined` = model
+    // default (pre-setting behaviour).
+    const reasoningEffort = await this.resolveReasoningEffort();
+
     // 3. Two-pass: summarise first, then only deep-review high/medium risk files.
     //    For large PRs (50+ files) the summary pass would send ALL diff content
     //    in a single AI call, which is extremely slow with reasoning models. Skip
@@ -884,6 +895,7 @@ export class ReviewIngestService {
           model: opts.model,
           correlationId: opts.correlationId,
           ...(opts.maxAgentTokens !== undefined ? { maxTokens: opts.maxAgentTokens } : {}),
+          ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
         } as Parameters<typeof reviewAgent.summarizeFiles>[1],
       );
       const highRiskFiles = new Set(
@@ -932,6 +944,7 @@ export class ReviewIngestService {
         maxConcurrency: maxConcurrency ?? 4,
         ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
         ...(opts.maxAgentTokens !== undefined ? { maxAgentTokens: opts.maxAgentTokens } : {}),
+        ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
         ...(relatedMemories !== undefined && relatedMemories.length > 0 ? { relatedMemories } : {}),
         ...(opts.instructions !== undefined && opts.instructions.length > 0 ? { instructions: opts.instructions } : {}),
         // A batch that permanently fails (after retries) is skipped so the rest
@@ -974,5 +987,18 @@ export class ReviewIngestService {
     }
     const content = state.instructionsContent.trim();
     return content.length > 0 ? content : undefined;
+  }
+
+  /**
+   * Resolve the operator's thinking budget (Triage Rules page `reasoningEffort`)
+   * into the `reasoning_effort` value sent on every review LLM call.
+   * `'off'` → `'none'` (ask for no thinking), `'low'` → `'low'` (cap the
+   * trace), `'default'` → `undefined` (send nothing — model default).
+   */
+  private async resolveReasoningEffort(): Promise<'none' | 'low' | undefined> {
+    const state = await loadTriageRuleState(this.deps.db);
+    if (state.reasoningEffort === 'off') return 'none';
+    if (state.reasoningEffort === 'low') return 'low';
+    return undefined;
   }
 }

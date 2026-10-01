@@ -309,6 +309,12 @@ export interface ReviewReport {
   /** Which triage rules fired, and why. */
   readonly triage: TriageSummary;
   readonly createdAt: string;
+  /**
+   * Wall-clock instant the pipeline reached `complete`/`error`. Null while the
+   * review is still in flight (and on legacy rows completed before the column
+   * existed) — the UI hides the "completed in …" line then.
+   */
+  readonly completedAt: string | null;
   /** Derived statistics; absent when the backend serves a report without them. */
   readonly stats?: ReviewStats;
   /** Recalled memory entries from the "recalling" stage; null if none or stage not reached. */

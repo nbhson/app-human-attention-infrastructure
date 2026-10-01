@@ -6,8 +6,9 @@
  *    principal, so the rules page can render without elevating).
  *  - `PUT /api/triage-rules` — upsert a partial `{ securityBlock?,
  *    performanceRegression?, schemaIntegrity?, autoReviewEnabled?,
- *    includeInstructions?, instructionsContent? }` patch. Absent keys are left
- *    unchanged; booleans must be booleans and `instructionsContent` a string.
+ *    includeInstructions?, instructionsContent?, reasoningEffort? }` patch. Absent keys are left
+ *    unchanged; booleans must be booleans, `instructionsContent` a string, and
+ *    `reasoningEffort` one of `'default' | 'low' | 'off'` (anything else is ignored).
  *    Guarded by `Reviewer`/`Admin` (the same guard as the review decision route —
  *    reviewers may tune their own triage), matching the "operator-mutable at
  *    runtime" intent, not a secret-bearing ADMIN-only control.
@@ -32,6 +33,7 @@ interface TriageRulesBody {
   readonly autoReviewEnabled?: unknown;
   readonly includeInstructions?: unknown;
   readonly instructionsContent?: unknown;
+  readonly reasoningEffort?: unknown;
 }
 
 function pickBooleans(body: TriageRulesBody | undefined): Partial<TriageRuleState> {
@@ -45,6 +47,7 @@ function pickBooleans(body: TriageRulesBody | undefined): Partial<TriageRuleStat
     autoReviewEnabled?: boolean;
     includeInstructions?: boolean;
     instructionsContent?: string;
+    reasoningEffort?: 'default' | 'low' | 'off';
   } = {};
   if (typeof body.securityBlock === 'boolean') patch.securityBlock = body.securityBlock;
   if (typeof body.performanceRegression === 'boolean') {
@@ -54,6 +57,11 @@ function pickBooleans(body: TriageRulesBody | undefined): Partial<TriageRuleStat
   if (typeof body.autoReviewEnabled === 'boolean') patch.autoReviewEnabled = body.autoReviewEnabled;
   if (typeof body.includeInstructions === 'boolean') patch.includeInstructions = body.includeInstructions;
   if (typeof body.instructionsContent === 'string') patch.instructionsContent = body.instructionsContent;
+  // 'default' clears the cap back to NULL (model default); unknown values are
+  // ignored rather than stored, so a typo can never poison the review path.
+  if (body.reasoningEffort === 'low' || body.reasoningEffort === 'off' || body.reasoningEffort === 'default') {
+    patch.reasoningEffort = body.reasoningEffort;
+  }
   return patch;
 }
 

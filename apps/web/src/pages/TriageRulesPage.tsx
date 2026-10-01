@@ -73,6 +73,7 @@ const FALLBACK_STATE: TriageRuleState = {
   autoReviewEnabled: false,
   includeInstructions: false,
   instructionsContent: '',
+  reasoningEffort: 'default',
 };
 
 /** Clear an uploaded `.md` file's text content from a FileReader. */
@@ -193,6 +194,66 @@ export default function TriageRulesPage(): JSX.Element {
           <p style={{ color: 'var(--color-text-muted)', padding: '16px 0' }}>Loading triage rules…</p>
         ) : (
           <div className="rq-rules-list">{RULES.map((rule) => renderRule(rule, state[rule.stateKey]))}</div>
+        )}
+
+        {!isLoading && (
+          <div
+            className="rq-rule"
+            style={{
+              marginTop: '18px',
+              flexDirection: 'column',
+              alignItems: 'stretch',
+              justifyContent: 'flex-start',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', width: '100%' }}>
+              <span className="rq-rule-icon" style={{ marginTop: '2px' }}>
+                <Zap />
+              </span>
+              <div style={{ flex: '1 1 auto', minWidth: '0' }}>
+                <div className="rq-rule-head">
+                  <span className="rq-rule-name">Model thinking (reasoning effort)</span>
+                  <span className="rq-rule-cat">Model</span>
+                </div>
+                <p className="rq-rule-desc">
+                  Caps how much a thinking model may reason before answering — its chain-of-thought shares the same
+                  output budget as the review JSON, so unbounded thinking is what truncates large reviews. Applies to
+                  every review from here on (in-flight reviews keep their old setting). Best-effort: some model/server
+                  pairs ignore this on the OpenAI-compatible endpoint — if truncation persists, switch AI_MODEL to a
+                  non-thinking model instead.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', marginTop: '10px' }}>
+              <label htmlFor="reasoning-effort" style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
+                Reasoning effort
+              </label>
+              <select
+                id="reasoning-effort"
+                aria-label="Model thinking budget"
+                value={state.reasoningEffort ?? 'default'}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === 'low' || value === 'off' || value === 'default') {
+                    mutation.mutate({ reasoningEffort: value });
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-border, #333)',
+                  background: 'var(--color-surface-raised, #1b1c20)',
+                  color: 'inherit',
+                  fontSize: '14px',
+                }}
+              >
+                <option value="default">Default — model decides</option>
+                <option value="low">Low — cap the thinking trace</option>
+                <option value="off">Off — ask for no thinking</option>
+              </select>
+            </div>
+          </div>
         )}
 
         {!isLoading && (

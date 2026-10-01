@@ -427,6 +427,10 @@ export function registerReviewIngestRoutes(
           matchedRules: triage.matchedRules,
         },
         createdAt: report.created_at,
+        // Null while the pipeline is still in flight; set when it reaches
+        // `complete`/`error` (and cleared on retry). The UI derives the
+        // "completed in …" display from `completedAt - createdAt`.
+        completedAt: report.completed_at ?? null,
         // The server's *current* write-back arming (the WRITEBACK_ENABLED ceiling).
         // The UI uses this to disable + explain the "write back" checkbox rather
         // than letting an operator tick it and silently record OFF. The
@@ -857,6 +861,7 @@ export function registerReviewIngestRoutes(
           summary: '',
           overall_verdict: 'COMMENT',
           batch_progress: null,
+          completed_at: null,
         })
         .where(eq(reviewReports.id, id));
 

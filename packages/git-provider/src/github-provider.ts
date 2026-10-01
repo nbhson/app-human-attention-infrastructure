@@ -230,9 +230,12 @@ export class GitHubProvider implements GitProvider {
   }
 
   async cloneAndCheckout(input: CloneInput, workdir: string): Promise<CloneResult> {
-    // Clone + head-SHA checkout is host-agnostic; auth for private repos is the
-    // caller's concern (the sandbox wiring lands Day 12), not this seam's.
-    return cloneAndCheckout(input, workdir);
+    // Private repos need the API token on `git` too — via `http.extraHeader`,
+    // never baked into the URL. Anonymous when no token is configured.
+    const token = this.token.trim();
+    return cloneAndCheckout(input, workdir, {
+      ...(token.length > 0 ? { authHeader: `Bearer ${token}` } : {}),
+    });
   }
 
   private baseHeaders(): Record<string, string> {

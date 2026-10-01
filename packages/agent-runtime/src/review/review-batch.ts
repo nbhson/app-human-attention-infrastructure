@@ -50,6 +50,11 @@ export interface BatchReviewOptions {
   /** Max tokens for the agent's response per batch (default 8000). */
   readonly maxAgentTokens?: number;
   /**
+   * Thinking/reasoning budget forwarded to every batch's `ReviewAgent` call
+   * (see `ReviewAgentOptions.reasoningEffort`). Absent = model default.
+   */
+  readonly reasoningEffort?: ReviewAgentOptions['reasoningEffort'];
+  /**
    * Max concurrent AI requests (default 4).
    * Prevents overwhelming the provider with too many parallel calls.
    * Raise on a provider with generous rate limits; lower on a strict one
@@ -99,11 +104,17 @@ function buildReviewInput(
  * Build agent options, conditionally including optional fields for
  * `exactOptionalPropertyTypes` compatibility.
  */
-function buildAgentOptions(model: string, correlationId: string, maxTokens?: number): ReviewAgentOptions {
+function buildAgentOptions(
+  model: string,
+  correlationId: string,
+  maxTokens?: number,
+  reasoningEffort?: ReviewAgentOptions['reasoningEffort'],
+): ReviewAgentOptions {
   return {
     model,
     correlationId,
     ...(maxTokens !== undefined ? { maxTokens } : {}),
+    ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
   } as ReviewAgentOptions;
 }
 
@@ -196,7 +207,7 @@ async function reviewBatchWithRetry(
     ...(opts.instructions !== undefined ? { instructions: opts.instructions } : {}),
     ...(opts.autoReviewMode !== undefined ? { autoReviewMode: opts.autoReviewMode } : {}),
   });
-  const agentOpts = buildAgentOptions(opts.model, opts.correlationId, opts.maxAgentTokens);
+  const agentOpts = buildAgentOptions(opts.model, opts.correlationId, opts.maxAgentTokens, opts.reasoningEffort);
 
   let lastError: unknown;
   let attempts = 0;
@@ -481,11 +492,26 @@ function mergeHealthScores(outputs: readonly ReviewAgentOutput[]): ReviewAgentOu
     }
     return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
   };
-  const arch = avgRating((h) => h.architecture, (h) => h.architectureScore);
-  const qual = avgRating((h) => h.codeQuality, (h) => h.codeQualityScore);
-  const sec = avgRating((h) => h.security, (h) => h.securityScore);
-  const perf = avgRating((h) => h.performance, (h) => h.performanceScore);
-  const test = avgRating((h) => h.testing, (h) => h.testingScore);
+  const arch = avgRating(
+    (h) => h.architecture,
+    (h) => h.architectureScore,
+  );
+  const qual = avgRating(
+    (h) => h.codeQuality,
+    (h) => h.codeQualityScore,
+  );
+  const sec = avgRating(
+    (h) => h.security,
+    (h) => h.securityScore,
+  );
+  const perf = avgRating(
+    (h) => h.performance,
+    (h) => h.performanceScore,
+  );
+  const test = avgRating(
+    (h) => h.testing,
+    (h) => h.testingScore,
+  );
   // overallRisk: worst (max risk score) wins — a single critical batch must not
   // be averaged away.
   const riskScores = scored.map((o) => {

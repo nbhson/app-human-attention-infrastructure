@@ -36,6 +36,7 @@ const DEFAULT_STATE = {
   autoReviewEnabled: false,
   includeInstructions: false,
   instructionsContent: '',
+  reasoningEffort: 'default' as const,
 };
 
 describe('TriageRulesPage', () => {
@@ -51,6 +52,7 @@ describe('TriageRulesPage', () => {
       autoReviewEnabled: false,
       includeInstructions: false,
       instructionsContent: '',
+      reasoningEffort: 'default' as const,
     });
 
     renderPage();
@@ -75,5 +77,17 @@ describe('TriageRulesPage', () => {
     fireEvent.click(toggle);
 
     await waitFor(() => expect(mocked.update).toHaveBeenCalledWith({ securityBlock: false }));
+  });
+
+  it('persists the reasoning-effort setting through the update endpoint', async () => {
+    mocked.get.mockResolvedValue(DEFAULT_STATE);
+    mocked.update.mockResolvedValue({ ...DEFAULT_STATE, reasoningEffort: 'low' as const });
+
+    renderPage();
+
+    const select = await screen.findByLabelText('Model thinking budget');
+    fireEvent.change(select, { target: { value: 'low' } });
+
+    await waitFor(() => expect(mocked.update).toHaveBeenCalledWith({ reasoningEffort: 'low' }));
   });
 });

@@ -29,7 +29,7 @@ import type {
 
 import { GitProviderError, parseRepoPath } from './git-provider.js';
 import type { CloneInput, CloneResult, FetchPullRequestInput, GitProvider } from './git-provider.js';
-import { cloneAndCheckout } from './clone.js';
+import { cloneAndCheckout, cloneUrlFor } from './clone.js';
 import { parseUnifiedDiff } from './unified-diff.js';
 
 export interface BitbucketDirectOptions {
@@ -471,7 +471,27 @@ export class BitbucketDirectProvider implements GitProvider {
   }
 
   async cloneAndCheckout(input: CloneInput, workdir: string): Promise<CloneResult> {
-    return cloneAndCheckout(input, workdir);
+    // Private repos (Cloud + self-hosted Server/DC) need credentials on `git`
+    // too — via `http.extraHeader`, never baked into the URL. Server/DC also
+    // needs the `/scm/PROJ/repo.git` URL shape (see `cloneUrlFor`).
+    const { host } = parseRepoPath(input.repo);
+    return cloneAndCheckout(input, workdir, {
+      ...(this.cloneAuthHeader() ? { authHeader: this.cloneAuthHeader()! } : {}),
+      ...(this.isServerHost(host) && this.serverBaseUrl
+        ? { cloneUrl: cloneUrlFor(input.repo, this.serverBaseUrl) }
+        : {}),
+    });
+  }
+
+  /** `Authorization` value for `git -c http.extraHeader`, if credentials exist. */
+  private cloneAuthHeader(): string | undefined {
+    if (this.username && this.password) {
+      return `Basic ${Buffer.from(`${this.username}:${this.password}`).toString('base64')}`;
+    }
+    if (this.token.length > 0) {
+      return `Bearer ${this.token}`;
+    }
+    return undefined;
   }
 
   // ─── HTTP ───────────────────────────────────────────────────────────────

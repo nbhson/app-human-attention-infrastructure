@@ -19,6 +19,7 @@ import type { PullRequest } from '@harness/domain';
 
 import { BitbucketDirectProvider, bitbucketDirectFromEnv, patchHasCodeLines } from './bitbucket-provider.js';
 import { GitProviderError, parseRepoPath } from './git-provider.js';
+import { resolveHeadSha } from './head-sha.js';
 import type { CloneInput, CloneResult, FetchPullRequestInput, GitProvider } from './git-provider.js';
 import type { GitToolMap } from './git-tool-map.js';
 import { MCPGitProvider } from './mcp-git-provider.js';
@@ -57,6 +58,21 @@ export function fileContentStats(pr: PullRequest): FileContentStats {
 export function hasUsableFileContent(pr: PullRequest): boolean {
   if (pr.files.length === 0) return false;
   return pr.files.some((f) => patchHasCodeLines(f.patch));
+}
+
+/**
+ * A record carries a clonable head SHA. Bitbucket-Server MCP responses often
+ * omit `fromRef.latestCommit` while still carrying rich diffs — reviewable but
+ * not clonable, which used to store `head.sha: ''` and orphan the later
+ * verification at RUNNING (now an honest SKIPPED, but still never verified).
+ */
+export function hasUsableHeadSha(pr: PullRequest): boolean {
+  try {
+    resolveHeadSha(pr);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function contentQualityReason(pr: PullRequest): string {
@@ -129,6 +145,27 @@ export class HybridGitProvider implements GitProvider {
     }
 
     if (primaryResult && hasUsableFileContent(primaryResult)) {
+      if (!enableFallback || !this.bitbucketDirect || hasUsableHeadSha(primaryResult)) {
+        return primaryResult;
+      }
+      // MCP returned reviewable files but no clonable head SHA (a Bitbucket
+      // Server MCP response without fromRef.latestCommit). The direct REST
+      // channel carries latestCommit — prefer a complete record so the stored
+      // payload can actually be cloned and verified instead of recorded with
+      // an empty SHA that verification must SKIP.
+      try {
+        const direct = await this.bitbucketDirect.fetchPullRequest(input);
+        if (hasUsableFileContent(direct) && hasUsableHeadSha(direct)) {
+          this.options.onFallback?.({
+            repo: input.repo,
+            number: input.number,
+            reason: 'MCP result missing head SHA',
+          });
+          return direct;
+        }
+      } catch {
+        // Direct failed too — fall through to the SHA-less MCP result below.
+      }
       return primaryResult;
     }
 
@@ -142,9 +179,7 @@ export class HybridGitProvider implements GitProvider {
     }
 
     const reason =
-      primaryError instanceof Error
-        ? `MCP failed (${primaryError.message})`
-        : contentQualityReason(primaryResult!);
+      primaryError instanceof Error ? `MCP failed (${primaryError.message})` : contentQualityReason(primaryResult!);
     this.options.onFallback?.({ repo: input.repo, number: input.number, reason });
 
     try {
@@ -166,7 +201,11 @@ export class HybridGitProvider implements GitProvider {
       }
       // Surface the direct error with MCP context so operators see both channels.
       if (error instanceof GitProviderError) {
-        throw new GitProviderError(`bitbucket hybrid failed — direct: ${error.message} | MCP: ${reason}`, error.status, error.cause);
+        throw new GitProviderError(
+          `bitbucket hybrid failed — direct: ${error.message} | MCP: ${reason}`,
+          error.status,
+          error.cause,
+        );
       }
       throw error;
     }
@@ -185,6 +224,12 @@ export class HybridGitProvider implements GitProvider {
   }
 
   async cloneAndCheckout(input: CloneInput, workdir: string): Promise<CloneResult> {
+    // MCP has no credentials for `git` — a Bitbucket repo with direct creds
+    // must clone through the direct provider (auth header + `/scm/` URL),
+    // otherwise the anonymous clone hangs to exit 124 on private repos.
+    if (this.isBitbucketRepo(input.repo) && this.bitbucketDirect) {
+      return this.bitbucketDirect.cloneAndCheckout(input, workdir);
+    }
     return this.primary.cloneAndCheckout(input, workdir);
   }
 }

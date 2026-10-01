@@ -23,6 +23,11 @@ import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
  * instructions/skill text is injected into the review prompt alongside the PR
  * diff and Jira requirement. When OFF (default), the flow stays PR + Jira + AI.
  *
+ * `reasoning_effort` caps the thinking/reasoning budget of reasoning-capable
+ * models (`'low'`, or `'off'` to ask for no thinking at all). NULL (default)
+ * sends nothing — the model default. Best-effort: some model/server pairs
+ * ignore it on the OpenAI-compatible endpoint.
+ *
  * All three rules default `true`, matching the rules page's `enabledByDefault`.
  * The state lives in the DB (not in code/ATTENTION policy) because it is
  * operator-mutable at runtime via `PUT /api/triage-rules`.
@@ -35,5 +40,6 @@ export const triageRules = pgTable('triage_rules', {
   auto_review_enabled: boolean('auto_review_enabled').notNull().default(false),
   include_instructions: boolean('include_instructions').notNull().default(false),
   instructions_content: text('instructions_content'),
+  reasoning_effort: text('reasoning_effort'),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

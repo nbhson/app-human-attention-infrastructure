@@ -163,6 +163,21 @@ function reviewSkeleton(): JSX.Element {
 /** How often to poll for an in-progress report (ms). */
 const PENDING_POLL_MS = 3_000;
 
+function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+}
+
+/** `125000` → `"2m 5s"`; sub-minute stays seconds-only. */
+function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return 'unknown duration';
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  if (minutes < 60) return `${minutes}m ${totalSeconds % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
 export default function ReviewReportPage(): JSX.Element {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
@@ -848,6 +863,15 @@ export default function ReviewReportPage(): JSX.Element {
             <span>
               {data.aiProvider}/{data.model}
             </span>
+            {data.completedAt !== null && (
+              <>
+                <span style={{ color: 'var(--color-text-faint)' }}>·</span>
+                <span title={`Started ${formatDateTime(data.createdAt)}`}>
+                  ✅ Completed {formatDateTime(data.completedAt)} · took{' '}
+                  {formatDuration(new Date(data.completedAt).getTime() - new Date(data.createdAt).getTime())}
+                </span>
+              </>
+            )}
           </p>
         </div>
       </header>
@@ -1002,6 +1026,7 @@ export default function ReviewReportPage(): JSX.Element {
           <TraceTab
             trace={data.trace}
             createdAt={data.createdAt}
+            completedAt={data.completedAt}
             stats={data.stats}
             findings={findings}
             overallVerdict={data.overallVerdict}

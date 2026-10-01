@@ -56,7 +56,12 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
   // cookie is sent across origins during dev. In production operators should
   // pin `APP_CORS_ORIGINS` to their deploy domain. Default to localhost only
   // (never `*`) to avoid leaking credentials to arbitrary origins.
-  const rawCorsOrigins = process.env.APP_CORS_ORIGINS ?? 'http://localhost:3000';
+  // NOTE (dev): the Vite UI runs on :5173/:5174, so both are allowed by
+  // default. Direct browser → :3000 calls would otherwise get no
+  // `access-control-allow-origin` and the session cookie flow breaks.
+  // Override with APP_CORS_ORIGINS env when needed.
+  const rawCorsOrigins =
+    process.env.APP_CORS_ORIGINS ?? 'http://localhost:3000,http://localhost:5173,http://localhost:5174';
   if (
     rawCorsOrigins
       .split(',')

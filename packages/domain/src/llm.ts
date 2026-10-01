@@ -45,6 +45,19 @@ export interface LLMRequest {
    */
   jsonSchema?: Record<string, unknown>;
   /**
+   * Thinking/reasoning budget hint for reasoning-capable models, sent only by
+   * providers whose endpoint honours it (the OpenAI-compatible `/chat/completions`
+   * `reasoning_effort` field that Ollama exposes for thinking models).
+   *
+   * `'none'` asks the model not to think at all, `'low'` caps the trace.
+   * Absent = don't send anything (model default). Best-effort: some
+   * model/server pairs ignore it (notably Gemma 4 on Ollama's `/v1` endpoint),
+   * and an endpoint that rejects the value fails the call — callers only set
+   * this behind an explicit operator opt-in. Providers that cannot express it
+   * (Anthropic, the mock) ignore it.
+   */
+  reasoningEffort?: 'none' | 'low' | 'medium' | 'high';
+  /**
    * Task lifecycle id (== tasks.id in Phase 1) — set by the ReActLoop so
    * `LoggingLLMProvider` records it into `llm_call_log.correlation_id`
    * (day-27 §2.2). Null only for calls made outside an agent run.

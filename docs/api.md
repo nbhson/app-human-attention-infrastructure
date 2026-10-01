@@ -80,6 +80,7 @@ With `OIDC_MOCK=true` (dev default): `GET /api/auth/login` redirects to self-cal
     "aiProvider": "custom", "model": "gpt-4.1",
     "summary": "...", "overallVerdict": "COMMENT",
     "reviewStatus": "complete", "batchProgress": null,
+    "createdAt": "...", "completedAt": "...",
     "effectiveVerdict": "COMMENT",
     "triage": { "securityBlocked": false, "regressionRisk": false, "matchedRules": [] },
     "writeback": { "enabled": true },
@@ -103,6 +104,7 @@ With `OIDC_MOCK=true` (dev default): `GET /api/auth/login` redirects to self-cal
   }
   ```
   `verification` is `null` when no `review_verifications` row exists (pre-wedge reports or `VERIFY_REVIEW_ENABLED=0`). `writeback.enabled` reflects the server's current `WRITEBACK_ENABLED` ceiling.   `healthScore` (reviewer-v8) carries BOTH categorical ratings AND AI-assessed 1–100 `*Score` numbers per dimension (`overallRiskScore` higher = riskier); Detail tab shows the assessed score, or an honestly-labelled legacy estimate when `*Score` is absent (pre-v6 reports) — may be `undefined` for legacy reports without any score. Exception: the `testing` / `testingScore` dimension is computed deterministically from the PR file list (test-to-source file ratio via the same taxonomy as `stats.composition`: 50%+ excellent, 25–49% good, 1–24% fair, 0% poor), overriding the model's value both at ingest and on read — the model miscounts test files from diff text.
+  `completedAt` is the wall-clock instant the pipeline reached `complete`/`error` (migration `0055`); it is `null` while the review is in flight and on legacy rows completed before the column existed, and `POST /api/reviews/:id/retry` clears it back to `null`. The report page derives the "Completed … · took …" line from `completedAt - createdAt`.
 
 ### `POST /api/reviews/auto`
 
@@ -184,7 +186,7 @@ Trace propagation: `trace.ts` `registerTraceHook` wraps every request in an `htt
 | `GET` | `/api/learning/cycles?limit=` | `Reviewer\|Admin` | — | Last N `learning.loop_completed` events from `event_log` |
 | `GET/POST` | `/api/triage-rules` | `Admin` (POST) / any auth (GET) | `{ autoReviewEnabled, rules: [...] }` | Triage gate state (high-signal vs full-review mode + `text.md` injection) |
 
-Triage rules live in `triage-rules` table; `ReviewIngestService` reads `loadTriageRuleState(db)` on every ingest so POST takes effect immediately.
+Triage rules live in `triage-rules` table; `ReviewIngestService` reads `loadTriageRuleState(db)` on every ingest so POST takes effect immediately. `PUT /api/triage-rules` also accepts `reasoningEffort: 'default' | 'low' | 'off'` (migration `0056`) — the thinking budget forwarded as `reasoning_effort` on every review LLM call (`'off'` asks for no thinking, `'low'` caps the trace; best-effort, some model/server pairs ignore it).
 
 ---
 

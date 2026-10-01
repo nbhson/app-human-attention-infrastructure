@@ -55,6 +55,13 @@ interface OpenAIChatRequest {
   readonly max_tokens: number;
   readonly temperature: number;
   /**
+   * Thinking/reasoning budget for reasoning-capable models (Ollama exposes
+   * this on `/v1/chat/completions` for thinking models). Only sent when the
+   * caller explicitly sets `LLMRequest.reasoningEffort` — absent otherwise, so
+   * servers that reject the field never see it unless the operator opted in.
+   */
+  reasoning_effort?: 'none' | 'low' | 'medium' | 'high';
+  /**
    * Only sent when {@link LLMRequest.jsonSchema} asks for it and
    * {@link OpenAICompatibleConfig.structuredOutput} has not disabled it.
    */
@@ -122,6 +129,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
       messages,
       max_tokens: req.maxTokens,
       temperature: this.config.temperature ?? 0,
+      ...(req.reasoningEffort !== undefined ? { reasoning_effort: req.reasoningEffort } : {}),
     };
     // Grammar-constrained structured output. Deliberately NOT `json_object`: that
     // mode only guarantees "some valid JSON", and with the reviewer prompt's

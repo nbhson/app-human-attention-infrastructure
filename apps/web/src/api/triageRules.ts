@@ -28,6 +28,19 @@ export interface TriageRuleState {
   readonly includeInstructions: boolean;
   /** The operator-supplied instructions / skill text (markdown). */
   readonly instructionsContent: string;
+  /**
+   * Thinking/reasoning budget for reasoning-capable models, sent on every
+   * review LLM call as `reasoning_effort`.
+   *
+   * - `'default'` — send nothing (model default).
+   * - `'low'` — cap the trace (`reasoning_effort: "low"`): faster, smaller output.
+   * - `'off'` — ask for no thinking at all (`reasoning_effort: "none"`).
+   *
+   * Best-effort: some model/server pairs ignore the field on the
+   * OpenAI-compatible endpoint — a thinking model that still truncates should
+   * be swapped for a non-thinking one instead.
+   */
+  readonly reasoningEffort: 'default' | 'low' | 'off';
 }
 
 /** An API failure carrying a status code so the page can branch on it. */

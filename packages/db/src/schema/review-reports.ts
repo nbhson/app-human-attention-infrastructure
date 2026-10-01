@@ -51,6 +51,12 @@ export const reviewReports = pgTable(
     recalled_memories: jsonb('recalled_memories'),
     /** Multi-dimensional health score computed by the AI reviewer. */
     health_score: jsonb('health_score').$type<PRHealthScore>(),
+    /**
+     * Wall-clock time the pipeline reached a terminal stage (`complete` or
+     * `error`). Null while the review is still in flight — the UI derives the
+     * "completed in …" display from `completed_at - created_at`.
+     */
+    completed_at: timestamp('completed_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

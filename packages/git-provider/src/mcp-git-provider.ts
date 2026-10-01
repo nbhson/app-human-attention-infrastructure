@@ -18,7 +18,7 @@ import type { McpClient, McpServerRegistry } from '@harness/mcp';
 
 import { GitProviderError, parseRepoPath } from './git-provider.js';
 import type { CloneInput, CloneResult, FetchPullRequestInput, GitProvider } from './git-provider.js';
-import { cloneAndCheckout } from './clone.js';
+import { cloneAndCheckout, defaultAuthHeaderForRepo } from './clone.js';
 import { mapMcpGitPullRequest } from './mcp-git-mapper.js';
 import type { GitHost, GitToolMap } from './git-tool-map.js';
 
@@ -74,7 +74,15 @@ export class MCPGitProvider implements GitProvider {
   async cloneAndCheckout(input: CloneInput, workdir: string): Promise<CloneResult> {
     // The clone/checkout is provider-agnostic (git is the same tool on every
     // host); the head SHA was already resolved into `input` by the fetch path.
-    return cloneAndCheckout(input, workdir);
+    // MCP carries no credentials itself, so fall back to the process env
+    // (`GITHUB_TOKEN` / `GITLAB_TOKEN` / `BITBUCKET_*`) for private repos —
+    // otherwise the anonymous clone hangs to exit 124. Bitbucket callers
+    // should go through `HybridGitProvider`, which prefers the direct
+    // provider's authed clone (correct `/scm/` URL + explicit creds).
+    const authHeader = defaultAuthHeaderForRepo(input.repo);
+    return cloneAndCheckout(input, workdir, {
+      ...(authHeader ? { authHeader } : {}),
+    });
   }
 
   /** A domain that resolves to a known host but has no config entry is "unknown". */

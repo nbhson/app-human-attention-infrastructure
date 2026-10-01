@@ -62,6 +62,8 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 | `BITBUCKET_DOMAINS` | unset | Comma-separated extra hosts routed to the Bitbucket row (e.g. `git.company.com`) — needed when the host contains no "bitbucket" keyword | `git-tool-map.ts` (`StaticGitToolMap.fromEnv`) |
 | `MCP_CONFIG_PATH` | `./mcp.config.json` | Path to the one MCP config file (`loadMcpConfig`) | `bootstrap.ts:623` |
 
+> These tokens double as `git clone` credentials for machine verification (`ReviewVerificationService`): the clone path sends them as an `Authorization` header via `git -c http.extraHeader` (never in the URL), with `GIT_TERMINAL_PROMPT=0` so a missing credential fails fast instead of hanging. See `packages/git-provider/README.md` ("Clone authentication").
+
 ## 5. Write-back gates (fail-safe 3-layer toggle)
 
 | Var | Default | Effect | Code ref |

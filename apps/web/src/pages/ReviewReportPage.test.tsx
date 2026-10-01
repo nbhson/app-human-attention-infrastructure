@@ -42,6 +42,7 @@ const report: ReviewReport = {
   effectiveVerdict: 'REQUEST_CHANGES',
   triage: { securityBlocked: false, regressionRisk: false, schemaGate: false, matchedRules: [] },
   createdAt: '2026-08-23T00:00:00.000Z',
+  completedAt: '2026-08-23T00:03:25.000Z',
   stats: {
     totalFiles: 1,
     addedLines: 40,

@@ -56,12 +56,111 @@ export interface CloneOptions {
   readonly timeoutMs?: number;
   /** Override the git runner (tests); defaults to spawning the system `git`. */
   readonly run?: RunGit;
+  /**
+   * Full `Authorization` header value for private repos, e.g. `Bearer <token>`
+   * or `Basic <base64>`. Sent via `git -c http.extraHeader=...` so the token
+   * never lands in the clone URL (no leak into `ps` output or error text).
+   * When absent the clone is anonymous (public repos).
+   */
+  readonly authHeader?: string;
+  /**
+   * Explicit clone URL override (e.g. Bitbucket Server `/scm/PROJ/repo.git`
+   * shape). Defaults to {@link cloneUrlFor} when absent.
+   */
+  readonly cloneUrl?: string;
 }
 
-/** `https://<host>/<owner>/<name>.git` — identical across all three forges. */
-function cloneUrlFor(repo: string): string {
+/**
+ * `https://<host>/<owner>/<name>.git` — identical across all three forges.
+ *
+ * Bitbucket Server/DC uses `https://<host>/scm/<project>/<repo>.git` instead.
+ * When `serverBaseUrl` points at the same host as `repo`, build the `/scm/`
+ * shape against it so self-hosted clones resolve instead of hanging/404ing.
+ */
+export function cloneUrlFor(repo: string, serverBaseUrl?: string): string {
   const { host, owner, name } = parseRepoPath(repo);
+  if (serverBaseUrl) {
+    try {
+      const base = new URL(serverBaseUrl.replace(/\/+$/, ''));
+      if (base.host.toLowerCase() === host.toLowerCase()) {
+        return `${base.origin}/scm/${owner}/${name}.git`;
+      }
+    } catch {
+      // Malformed base URL — fall through to the default shape.
+    }
+  }
   return `https://${host}/${owner}/${name}.git`;
+}
+
+/** Strip credentials from git stderr before it reaches logs/DB. */
+function redactSecrets(text: string): string {
+  return text
+    .replace(/Authorization:\s*(Bearer|Basic)\s+\S+/gi, 'Authorization: <redacted>')
+    .replace(/https?:\/\/[^/\s]*:[^@/\s]*@/g, 'https://<redacted>@')
+    .replace(/(x-access-token:|oauth2:)\S+/gi, '$1<redacted>');
+}
+
+/**
+ * Best-effort `Authorization` header for `repo` from the process env, so
+ * providers without their own credentials (e.g. `MCPGitProvider`) can still
+ * clone private repos instead of hanging anonymously to exit 124.
+ *
+ * - GitHub (`github.com` + GHES): `GITHUB_TOKEN` → `Bearer`.
+ * - GitLab (any `*gitlab*` host): `GITLAB_TOKEN` (fallback
+ *   `GITLAB_PERSONAL_ACCESS_TOKEN`) → `Bearer`.
+ * - Bitbucket: `BITBUCKET_USERNAME`+`BITBUCKET_PASSWORD` → `Basic`, else
+ *   `BITBUCKET_TOKEN` → `Bearer` — on Cloud (`*bitbucket*`) or on the
+ *   self-hosted host matching `BITBUCKET_URL` (which has no "bitbucket"
+ *   keyword, e.g. `git.company.com`).
+ *
+ * Returns `undefined` when no usable credentials exist (public repo path —
+ * the clone stays anonymous but still fails fast via `GIT_TERMINAL_PROMPT=0`).
+ */
+export function defaultAuthHeaderForRepo(
+  repo: string,
+  env: Record<string, string | undefined> = process.env,
+): string | undefined {
+  let host: string;
+  try {
+    host = parseRepoPath(repo).host.toLowerCase();
+  } catch {
+    return undefined;
+  }
+  const nonEmpty = (v: string | undefined): string | undefined => {
+    const t = v?.trim();
+    return t && t.length > 0 ? t : undefined;
+  };
+  if (host.includes('github')) {
+    const token = nonEmpty(env['GITHUB_TOKEN']);
+    if (token) return `Bearer ${token}`;
+    return undefined;
+  }
+  if (host.includes('gitlab')) {
+    const token = nonEmpty(env['GITLAB_TOKEN']) ?? nonEmpty(env['GITLAB_PERSONAL_ACCESS_TOKEN']);
+    if (token) return `Bearer ${token}`;
+    return undefined;
+  }
+  const bitbucketUser = nonEmpty(env['BITBUCKET_USERNAME']);
+  const bitbucketPass = nonEmpty(env['BITBUCKET_PASSWORD']) ?? nonEmpty(env['BITBUCKET_APP_PASSWORD']);
+  const bitbucketToken = nonEmpty(env['BITBUCKET_TOKEN']);
+  const isBitbucketHost =
+    host.includes('bitbucket') ||
+    (() => {
+      try {
+        const raw = env['BITBUCKET_URL'] ?? env['BITBUCKET_BASE_URL'];
+        if (!raw) return false;
+        return new URL(raw.replace(/\/+$/, '').replace(/\/rest\/api\/.*$/, '')).host.toLowerCase() === host;
+      } catch {
+        return false;
+      }
+    })();
+  if (isBitbucketHost) {
+    if (bitbucketUser && bitbucketPass) {
+      return `Basic ${Buffer.from(`${bitbucketUser}:${bitbucketPass}`).toString('base64')}`;
+    }
+    if (bitbucketToken) return `Bearer ${bitbucketToken}`;
+  }
+  return undefined;
 }
 
 /** The first non-empty line of a git error, for a compact failure message. */
@@ -82,6 +181,10 @@ function defaultRunGit(timeoutMs: number): RunGit {
           timeout: timeoutMs,
           maxBuffer: 16 * 1024 * 1024,
           encoding: 'utf8',
+          // Never prompt for credentials on a headless server: without this a
+          // private repo hangs until the wall-clock timeout (exit 124) instead
+          // of failing fast with "terminal prompts disabled".
+          env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
         },
         (error, stdout, stderr) => {
           const out = String(stdout);
@@ -112,7 +215,13 @@ export async function cloneAndCheckout(
   options: CloneOptions = {},
 ): Promise<CloneResult> {
   const run = options.run ?? defaultRunGit(options.timeoutMs ?? CLONE_TIMEOUT_MS);
-  const cloneUrl = cloneUrlFor(input.repo);
+  const cloneUrl = options.cloneUrl ?? cloneUrlFor(input.repo);
+  // Auth rides on `http.extraHeader`, never in the URL — so `ps`, shell
+  // history, and CloneError text never carry the token.
+  const authPrefix: string[] =
+    options.authHeader && options.authHeader.trim().length > 0
+      ? ['-c', `http.extraHeader=Authorization: ${options.authHeader.trim()}`]
+      : [];
 
   const steps: ReadonlyArray<{
     readonly label: string;
@@ -121,11 +230,11 @@ export async function cloneAndCheckout(
   }> = [
     {
       label: 'clone',
-      args: ['clone', '--depth', '1', '--no-tags', '--branch', input.sourceBranch, cloneUrl, workdir],
+      args: [...authPrefix, 'clone', '--depth', '1', '--no-tags', '--branch', input.sourceBranch, cloneUrl, workdir],
     },
     {
       label: 'fetch',
-      args: ['fetch', '--depth', '1', 'origin', input.headSha],
+      args: [...authPrefix, 'fetch', '--depth', '1', 'origin', input.headSha],
       cwd: workdir,
     },
     {
@@ -139,7 +248,7 @@ export async function cloneAndCheckout(
     const result = await run(step.args, step.cwd === undefined ? undefined : { cwd: step.cwd });
     if (result.exitCode !== 0) {
       throw new CloneError(
-        `git ${step.label} failed (exit ${result.exitCode}): ${firstLine(result.stderr)}`,
+        `git ${step.label} failed (exit ${result.exitCode}): ${firstLine(redactSecrets(result.stderr))}`,
         step.label,
       );
     }
