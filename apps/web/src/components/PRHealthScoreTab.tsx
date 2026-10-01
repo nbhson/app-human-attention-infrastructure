@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { PRHealthScore, HealthRating, OverallRiskLevel } from '../api/reviews';
+import type { PRHealthScore, HealthRating, OverallRiskLevel, ReviewFinding, ReviewStats } from '../api/reviews';
 import { Activity, AlertTriangle, CheckCircle2, Layers, ShieldCheck, Zap } from './Icons';
+import { ScoreHelp, type ScoreDimensionKey } from './ScoreExplanation';
 
 const HEALTH_COLORS: Record<HealthRating, string> = {
   excellent: 'var(--color-success)',
@@ -89,13 +90,7 @@ const SCORE_KEY: Record<(typeof CATEGORY_CONFIG)[number]['key'], keyof PRHealthS
   testing: 'testingScore',
 };
 
-function RatingBadge({
-  rating,
-  score,
-}: {
-  readonly rating: HealthRating;
-  readonly score: number;
-}): JSX.Element {
+function RatingBadge({ rating, score }: { readonly rating: HealthRating; readonly score: number }): JSX.Element {
   const color = HEALTH_COLORS[rating];
   const gradient = HEALTH_GRADIENTS[rating];
   return (
@@ -239,19 +234,27 @@ function RadarChart({ scores }: { readonly scores: readonly number[] }): JSX.Ele
 }
 
 function CategoryCard({
+  dimension,
   label,
   icon: Icon,
   desc,
   rating,
   score,
   estimated,
+  findings,
+  stats,
+  onViewFinding,
 }: {
+  readonly dimension: ScoreDimensionKey;
   readonly label: string;
   readonly icon: React.ComponentType<{ readonly size?: number; readonly className?: string }>;
   readonly desc: string;
   readonly rating: HealthRating;
   readonly score: number;
   readonly estimated: boolean;
+  readonly findings: readonly ReviewFinding[];
+  readonly stats?: ReviewStats;
+  readonly onViewFinding?: (findingId: string) => void;
 }): JSX.Element {
   const color = HEALTH_COLORS[rating];
   const gradient = HEALTH_GRADIENTS[rating];
@@ -267,12 +270,23 @@ function CategoryCard({
         boxShadow: isHovered ? 'var(--shadow-elevated)' : 'var(--shadow-card)',
         transition: 'all 0.3s ease',
         position: 'relative',
-        overflow: 'hidden',
+        overflow: 'visible',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: gradient }} />
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: gradient,
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+        }}
+      />
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
         <div
           style={{
@@ -292,7 +306,28 @@ function CategoryCard({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text)' }}>{label}</div>
+              <div
+                style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: 'var(--color-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>{label}</span>
+                {score < 100 && (
+                  <ScoreHelp
+                    dimension={dimension}
+                    label={label}
+                    score={score}
+                    findings={findings}
+                    stats={stats}
+                    onViewFinding={onViewFinding}
+                  />
+                )}
+              </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 2, lineHeight: 1.4 }}>
                 {desc}
               </div>
@@ -438,7 +473,17 @@ function RiskGauge({
   );
 }
 
-export function PRHealthScoreTab({ healthScore }: { readonly healthScore: PRHealthScore | undefined }): JSX.Element {
+export function PRHealthScoreTab({
+  healthScore,
+  findings = [],
+  stats,
+  onViewFinding,
+}: {
+  readonly healthScore: PRHealthScore | undefined;
+  readonly findings?: readonly ReviewFinding[];
+  readonly stats?: ReviewStats;
+  readonly onViewFinding?: (findingId: string) => void;
+}): JSX.Element {
   if (!healthScore) {
     return (
       <div style={{ padding: 48, textAlign: 'center', color: 'var(--color-text-muted)' }}>
@@ -611,12 +656,16 @@ export function PRHealthScoreTab({ healthScore }: { readonly healthScore: PRHeal
           {categories.map((cat) => (
             <CategoryCard
               key={cat.key}
+              dimension={cat.key as ScoreDimensionKey}
               label={cat.label}
               icon={cat.icon}
               desc={cat.desc}
               rating={cat.rating}
               score={cat.score}
               estimated={cat.estimated}
+              findings={findings}
+              stats={stats}
+              onViewFinding={onViewFinding}
             />
           ))}
         </div>

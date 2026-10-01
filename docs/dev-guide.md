@@ -74,6 +74,7 @@ Code defaults (when env is unset): `REVIEW_MAX_BATCH_SIZE=5`, `REVIEW_MAX_BATCH_
 - Composite: `overallRisk` (`LOW|MEDIUM|HIGH|CRITICAL` + `overallRiskScore` 1–100, higher = riskier)
 - Review axes explicitly cover architecture & structure (SOLID, layering, coupling), clean code & maintainability, and API/contract compatibility
 - Surfaced in the UI **Detail** tab via `PRHealthScoreTab` component
+- Sub-100 dimensions show a `?` trigger (`ScoreExplanation.tsx`): hover/focus/click opens a popover with correlated reasons + top suggestions derived from the report's own findings/stats (heuristic, not a second AI verdict); `View finding` jumps to the Review tab
 - No local heuristic — single source of truth from the AI
 
 **Impact Scope (reviewer-v9)** — every review prompt carries an `IMPACT SCOPE` section derived by `buildImpactScope()` (`packages/agent-runtime/src/review/review-impact.ts`): static import edges among the PR's own changed files, so a shared function/component change is traced against all its visible in-PR callers. Callers outside the PR are unknown by design — the prompt requires the model to state that assumption (`external callers unknown — verify ...`) instead of inventing callers. Full-repo reverse-dependency tracing (via `@harness/code-index`) is future work; the prompt's cross-file workflow (STEP 5) and output contract are unchanged.

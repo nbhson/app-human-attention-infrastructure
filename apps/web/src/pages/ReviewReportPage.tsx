@@ -993,7 +993,12 @@ export default function ReviewReportPage(): JSX.Element {
 
         {activeTab === 'detail' && (
           <div style={{ marginTop: 16 }}>
-            <PRHealthScoreTab healthScore={healthScore} />
+            <PRHealthScoreTab
+              healthScore={healthScore}
+              findings={findings}
+              stats={data.stats}
+              onViewFinding={openInReview}
+            />
           </div>
         )}
 
