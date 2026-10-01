@@ -41,7 +41,7 @@
     "@eslint/js": "^9.16.0",
     "@types/node": "^22.10.1",
     "@vitest/coverage-v8": "^2.1.8",
-    "eslint": "^9.16.0",
+    "eslint": "^10.10.0",
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-boundaries": "^5.4.0",
     "github-mcp-server-js": "^0.1.7",
