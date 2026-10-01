@@ -223,12 +223,10 @@ describe('mapMcpGitPullRequest', () => {
       diffs: [
         {
           source: {
-            toString:
-              'ClientApp/src/app/tracker/consents/modules/consent-request-detail/components/shared/consent-template/consent-template.component.html',
+            toString: 'src/app/shared/common/template.html',
           },
           destination: {
-            toString:
-              'ClientApp/src/app/tracker/consents/modules/consent-request-detail/components/shared/consent-template/consent-template.component.html',
+            toString: 'src/app/shared/common/template.html',
           },
           hunks: [
             {
