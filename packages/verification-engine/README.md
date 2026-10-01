@@ -35,8 +35,18 @@ seam, never a sibling engine's concrete (never `agent-runtime`, never `code-inde
 
 Fail-closed ordering (both paths): a compile failure short-circuits before tests.
 In the clone path (`clone-checks/*`), a non-passing COMPILE short-circuits TEST to
-`SKIPPED`; the package scripts are discovered by `parsePackageScripts` and run in
-the Docker sandbox by `SandboxRunner`.
+`SKIPPED`; the package scripts are discovered by `parsePackageScripts` /
+`resolvePackageScripts` and run in the Docker sandbox by `SandboxRunner`.
+
+Manifest discovery covers repos whose `package.json` lives one level down
+(`ClientApp/`, `frontend/`, `apps/web`, …) with no root manifest: root is tried
+first, then each one-level child (sorted, skipping `node_modules`/dot dirs);
+the first manifest declaring `build`/`test` wins and the runner `cd`s into its
+`subdir` via `sh -lc` (the pinned `node:20-alpine` image has no `bash`). Only
+the literal script *name* (`<pm> run build`) is executed, never the body;
+the package manager comes from the lockfile next to the manifest
+(`pnpm-lock.yaml` → `pnpm`, `yarn.lock` → `yarn`, else `npm`). Anything deeper
+than one level must be wired explicitly, not guessed.
 
 ## Check contract
 
@@ -61,7 +71,7 @@ timeouts, aggregation, persistence, and event publication — checks never do.
 | `executors/sandboxed-check.ts`                     | `SandboxedCheck` — runs through `TOKENS.Sandbox`.                                        |
 | `clone-verifier.ts`                                | `CloneVerifier` — COMPILE → TEST over a `CloneWorktree` in the Docker sandbox.           |
 | `clone-checks/*`                                   | `CloneCompileCheck` / `CloneTestCheck` — package-script compile/test against the clone.  |
-| `sandbox-runner.ts`                                | `SandboxRunner`, `parsePackageScripts`, `resolvePackageScripts`, `runScriptCheck`.       |
+| `sandbox-runner.ts`                                | `SandboxRunner`, `parsePackageScripts`, `resolvePackageScripts` (+`subdir`), `detectPackageManager`, `runScriptCheck`. |
 | `targeted-verifier.ts`                             | `TargetedVerifier` — affected set when complete, else the full suite.                    |
 | `parse-vitest-json.ts`                             | Vitest JSON report → `ParsedTestResult[]`.                                               |
 | `report-flag.ts` / `report-render.ts`              | `flagReport` / `renderFlag` — annotate (never gate) the report.                          |
@@ -125,7 +135,8 @@ src/
 // checks: CompileCheck, TestCheck, SandboxedCheck, CloneCompileCheck, CloneTestCheck
 // clone/targeted: CloneVerifier, CloneWorktree, CloneVerificationReport,
 //                 TargetedVerifier, AffectedTestsResolver, TargetedRunResult
-// sandbox: SandboxRunner, parsePackageScripts, resolvePackageScripts, runScriptCheck
+// sandbox: SandboxRunner, parsePackageScripts, resolvePackageScripts,
+//          ResolvedPackageScripts, detectPackageManager, PackageManager, runScriptCheck
 // flag/render: flagReport, renderFlag, FLAG_TAIL_LENGTH, FlaggedCheck, VerificationFlag
 // helpers: parseVitestJson, evidence store, sanitizedEnv, timeout
 ```

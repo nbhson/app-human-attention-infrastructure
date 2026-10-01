@@ -22,13 +22,14 @@ export type { SandboxedCheckOptions } from './executors/sandboxed-check.js';
 export { CloneCompileCheck } from './clone-checks/compile-check.js';
 export { CloneTestCheck } from './clone-checks/test-check.js';
 export {
+  detectPackageManager,
   parsePackageScripts,
   resolvePackageScripts,
   runScriptCheck,
   SandboxRunner,
   toCheckResult,
 } from './sandbox-runner.js';
-export type { PackageManager, PackageScripts, SandboxRunnerOptions } from './sandbox-runner.js';
+export type { PackageManager, PackageScripts, ResolvedPackageScripts, SandboxRunnerOptions } from './sandbox-runner.js';
 export { CloneVerifier } from './clone-verifier.js';
 export type { CloneVerifierOptions, CloneVerificationReport, CloneWorktree } from './clone-verifier.js';
 export { TargetedVerifier } from './targeted-verifier.js';

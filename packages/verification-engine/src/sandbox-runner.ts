@@ -23,7 +23,8 @@
  *     the throwaway clone worktree itself (day-12 §2.3).
  */
 
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { computeWorkdirManifest, SandboxInfraError } from '@harness/sandbox';
 import type { Sandbox, SandboxLimits, SandboxResult } from '@harness/sandbox';
@@ -36,14 +37,69 @@ import { CheckStatus } from './types.js';
 /** A lockfile-revealed package manager — the tool that runs `run <script>`. */
 export type PackageManager = 'npm' | 'pnpm' | 'yarn';
 
-/** A script name resolved from the clone's `package.json` (`undefined` = absent). */
+/**
+ * Declared `build`/`test` script *bodies* from the clone's `package.json`
+ * (`undefined` = absent). The runner executes the literal script *name*
+ * (`<pm> run build`), never these bodies as argv — presence here only decides
+ * whether there is something to run.
+ */
 export interface PackageScripts {
   readonly build?: string;
   readonly test?: string;
 }
 
 /**
- * Parse a `package.json` body into its declared `build`/`test` script *names*.
+ * A resolved manifest plus where it was found. `subdir` is the one-level
+ * child directory holding the winning `package.json` (`undefined`/absent =
+ * root). Only ever a single path component from `readdir` — never nested,
+ * never `..` — so `runScript` can safely `cd` into it inside the sandbox.
+ */
+export interface ResolvedPackageScripts extends PackageScripts {
+  readonly subdir?: string;
+}
+
+/** Single-quote a string for POSIX `sh -lc` (alpine has no `bash`). */
+function quotePosix(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+/** True when `subdir` is a safe single-level child (no traversal, no separator). */
+function isSafeSubdir(subdir: string): boolean {
+  return (
+    subdir.length > 0 &&
+    !subdir.includes('/') &&
+    !subdir.includes('\\') &&
+    subdir !== '.' &&
+    subdir !== '..' &&
+    !subdir.startsWith('.')
+  );
+}
+
+/**
+ * Detect the package manager from the lockfile next to the resolved manifest
+ * (`pnpm-lock.yaml` → `pnpm`, `yarn.lock` → `yarn`, else `npm`). Falls back to
+ * `npm` when the workdir is missing or has no lockfile — resolution "fails
+ * open", never throws.
+ */
+export async function detectPackageManager(workdir: string, subdir?: string): Promise<PackageManager> {
+  const base = subdir ? join(workdir, subdir) : workdir;
+  try {
+    await stat(join(base, 'pnpm-lock.yaml'));
+    return 'pnpm';
+  } catch {
+    // No pnpm lockfile — try yarn next.
+  }
+  try {
+    await stat(join(base, 'yarn.lock'));
+    return 'yarn';
+  } catch {
+    // No yarn lockfile either — default to npm.
+  }
+  return 'npm';
+}
+
+/**
+ * Parse a `package.json` body into its declared `build`/`test` script *bodies*.
  * Malformed JSON or a missing `scripts` block yields an empty object — resolution
  * "fails open" (no script → the check records SKIPPED), never a throw.
  */
@@ -69,18 +125,54 @@ export function parsePackageScripts(raw: string): PackageScripts {
 }
 
 /**
- * Resolve a clone's declared build/test scripts from its `package.json`. A clone
- * with no manifest (or an unreadable one) is not an error — it simply declares
- * nothing, so there is nothing to run.
+ * Resolve a clone's declared build/test scripts from its `package.json`.
+ *
+ * Many real repos keep the frontend manifest one level down
+ * (`<workdir>/ClientApp/package.json`, `frontend/`, `apps/web`, …) with no
+ * root `package.json`. Reading only the root therefore misses the scripts and
+ * SKIPs both checks forever. So: try root first, then each one-level child
+ * (sorted alphabetically for determinism, skipping `.git`, `node_modules`,
+ * and dot dirs like `.github`/`.husky`). The first manifest declaring a
+ * `build` or `test` script wins, returning its `subdir` so the runner can `cd`
+ * before running.
+ *
+ * Only one level deep, deliberately: deeper recursion would scan
+ * `node_modules`/`dist`/`build` (slow + non-deterministic) and could pick up a
+ * test-fixture `package.json` nested under `src/.../__tests__/`. Anything
+ * deeper than one level should be declared explicitly, not guessed.
+ *
+ * A clone with no manifest (or an unreadable one) is not an error — it simply
+ * declares nothing, so there is nothing to run.
  */
-export async function resolvePackageScripts(workdir: string): Promise<PackageScripts> {
-  let raw: string;
+export async function resolvePackageScripts(workdir: string): Promise<ResolvedPackageScripts> {
+  const candidates: string[] = [''];
   try {
-    raw = await readFile(`${workdir}/package.json`, 'utf8');
+    const entries = await readdir(workdir, { withFileTypes: true });
+    const subdirs = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => name !== 'node_modules' && !name.startsWith('.'))
+      .sort();
+    for (const subdir of subdirs) {
+      candidates.push(subdir);
+    }
   } catch {
-    return {};
+    // Workdir unreadable (missing clone) — fall through to the root-only
+    // attempt below, which degrades to {} on read failure.
   }
-  return parsePackageScripts(raw);
+  for (const subdir of candidates) {
+    let raw: string;
+    try {
+      raw = await readFile(join(workdir, subdir, 'package.json'), 'utf8');
+    } catch {
+      continue;
+    }
+    const parsed = parsePackageScripts(raw);
+    if (parsed.build !== undefined || parsed.test !== undefined) {
+      return subdir ? { ...parsed, subdir } : { ...parsed };
+    }
+  }
+  return {};
 }
 
 /** Injectable knobs for {@link SandboxRunner}. */
@@ -115,13 +207,27 @@ export class SandboxRunner {
 
   /** Resolve + run one of the clone's scripts, mapped to the sandbox runtime. */
   async runScript(workdir: string, script: 'build' | 'test'): Promise<SandboxResult | undefined> {
-    const scriptName = await this.resolveScriptName(workdir, script);
-    if (scriptName === undefined) {
+    const resolved = await this.resolveScript(workdir, script);
+    if (resolved === undefined) {
       return undefined;
     }
+    const packageManager = this.options.packageManager ?? (await detectPackageManager(workdir, resolved.subdir));
+    // Run the literal script *name* (`npm run build`), never the script body
+    // (`ng build`) as argv. When the manifest lives in a subdir, `cd` there
+    // first — the sandbox mounts the clone at /workdir with --workdir /workdir.
+    // `sh` (not `bash`): the pinned `node:20-alpine` image has no bash, so
+    // `bash -lc` exits 127 → SandboxInfraError → permanent SKIP.
+    const command =
+      resolved.subdir !== undefined
+        ? ([
+            'sh',
+            '-lc',
+            `cd ${quotePosix(resolved.subdir)} && ${packageManager} run ${quotePosix(resolved.name)}`,
+          ] as const)
+        : ([packageManager, 'run', resolved.name] as const);
     const manifest = await computeWorkdirManifest(workdir);
     const result = await this.options.sandbox.run({
-      command: [this.options.packageManager ?? 'npm', 'run', scriptName],
+      command: [...command],
       image: this.options.image,
       workdirPath: workdir,
       workdirContents: manifest.files,
@@ -134,14 +240,28 @@ export class SandboxRunner {
     return result;
   }
 
-  /** Override wins; otherwise the clone's declared script name for `script`. */
-  private async resolveScriptName(workdir: string, script: 'build' | 'test'): Promise<string | undefined> {
+  /**
+   * Override wins for the script *name*, but the `subdir` still comes from
+   * manifest resolution so an explicit override also runs in the right
+   * directory. Otherwise the literal script name (`build`/`test`) runs when
+   * the manifest declares it — never the script *body* (`ng build`) as argv,
+   * which the package manager would read as a script called `ng build`.
+   */
+  private async resolveScript(
+    workdir: string,
+    script: 'build' | 'test',
+  ): Promise<{ name: string; subdir?: string } | undefined> {
+    const declared = await resolvePackageScripts(workdir);
+    const subdir = declared.subdir !== undefined && isSafeSubdir(declared.subdir) ? declared.subdir : undefined;
     const override = script === 'build' ? this.options.buildCommand : this.options.testCommand;
     if (override !== undefined) {
-      return override;
+      return { name: override, ...(subdir !== undefined ? { subdir } : {}) };
     }
-    const declared = await resolvePackageScripts(workdir);
-    return script === 'build' ? declared.build : declared.test;
+    const isDeclared = script === 'build' ? declared.build !== undefined : declared.test !== undefined;
+    if (!isDeclared) {
+      return undefined;
+    }
+    return { name: script, ...(subdir !== undefined ? { subdir } : {}) };
   }
 }
 

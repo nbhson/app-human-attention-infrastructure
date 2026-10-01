@@ -188,6 +188,15 @@ docker build -t harness-verify:node20 packages/sandbox
 If you don't set `VERIFY_SANDBOX_ENABLED=1`, the app falls back to the
 in-process path (no sandbox, no Docker needed).
 
+**Machine verification always `SKIPPED`** — the PR's `package.json` lives in a
+subdirectory (e.g. `ClientApp/package.json`) with no root manifest, so no
+`build`/`test` script was found. `SandboxRunner` resolves root first, then each
+one-level child, and `cd`s into the winning `subdir` before running
+(`sh -lc`, lockfile picks the package manager). Check the per-check reason on
+the `review_verifications` row / Verification section: `no build script
+declared` means layout (nothing to run), `sandbox unavailable: …` means Docker
+is down. Layouts deeper than one level must be wired explicitly.
+
 ---
 
 ### Feature gates (unset ⇒ default)

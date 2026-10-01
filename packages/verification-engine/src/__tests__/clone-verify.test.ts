@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -10,7 +10,7 @@ import { CloneCompileCheck } from '../clone-checks/compile-check.js';
 import { CloneTestCheck } from '../clone-checks/test-check.js';
 import { CloneVerifier } from '../clone-verifier.js';
 import type { CloneWorktree } from '../clone-verifier.js';
-import { parsePackageScripts, resolvePackageScripts, SandboxRunner } from '../sandbox-runner.js';
+import { detectPackageManager, parsePackageScripts, resolvePackageScripts, SandboxRunner } from '../sandbox-runner.js';
 import type { SandboxRunnerOptions } from '../sandbox-runner.js';
 import { CheckKind, CheckStatus } from '../types.js';
 
@@ -165,6 +165,69 @@ describe('SandboxRunner script resolution (day-12 §3.2)', () => {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { build: 'tsc -p .', test: 'vitest run' } }));
 
     expect(await resolvePackageScripts(dir)).toEqual({ build: 'tsc -p .', test: 'vitest run' });
+  });
+
+  it('resolves a nested one-level manifest (ClientApp) with its subdir', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clone-verify-nested-'));
+    mkdirSync(join(dir, 'ClientApp'));
+    writeFileSync(
+      join(dir, 'ClientApp', 'package.json'),
+      JSON.stringify({ scripts: { build: 'ng build', test: 'jest' } }),
+    );
+
+    expect(await resolvePackageScripts(dir)).toEqual({ build: 'ng build', test: 'jest', subdir: 'ClientApp' });
+  });
+
+  it('prefers root over a nested manifest and ignores node_modules/dot dirs', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clone-verify-rootfirst-'));
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { build: 'tsc -p .', test: 'vitest run' } }));
+    mkdirSync(join(dir, 'ClientApp'));
+    writeFileSync(join(dir, 'ClientApp', 'package.json'), JSON.stringify({ scripts: { build: 'ng build' } }));
+    // A manifest hiding in node_modules or a dot dir must never win.
+    mkdirSync(join(dir, 'node_modules'));
+    writeFileSync(join(dir, 'node_modules', 'package.json'), JSON.stringify({ scripts: { build: 'evil' } }));
+    mkdirSync(join(dir, '.github'));
+    writeFileSync(join(dir, '.github', 'package.json'), JSON.stringify({ scripts: { build: 'evil' } }));
+
+    expect(await resolvePackageScripts(dir)).toEqual({ build: 'tsc -p .', test: 'vitest run' });
+  });
+
+  it('runs the nested script via sh -lc with cd (alpine has no bash)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clone-verify-cd-'));
+    mkdirSync(join(dir, 'ClientApp'));
+    writeFileSync(
+      join(dir, 'ClientApp', 'package.json'),
+      JSON.stringify({ scripts: { build: 'ng build', test: 'jest' } }),
+    );
+    const sb = new ScriptedSandbox([result(), result()]);
+    const r = new SandboxRunner({
+      sandbox: sb,
+      image: 'harness-verify:node20',
+      limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 60 },
+    });
+
+    const report = await new CloneVerifier({
+      compile: new CloneCompileCheck(r),
+      test: new CloneTestCheck(r),
+    }).verify({ workdir: dir, headSha: LEFT, sourceBranch: 'b', targetBranch: 'main' });
+
+    expect(report.checks[0]?.status).toBe(CheckStatus.PASSED);
+    expect(sb.runs).toHaveLength(2);
+    // Literal script *name* (`run build`), never the body (`ng build`) as argv.
+    expect(sb.runs[0]?.command).toEqual(['sh', '-lc', `cd 'ClientApp' && npm run 'build'`]);
+    expect(sb.runs[1]?.command).toEqual(['sh', '-lc', `cd 'ClientApp' && npm run 'test'`]);
+  });
+
+  it('detects the package manager from the lockfile next to the manifest', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clone-verify-pm-'));
+    mkdirSync(join(dir, 'ClientApp'));
+    writeFileSync(join(dir, 'ClientApp', 'package.json'), JSON.stringify({ scripts: { build: 'x' } }));
+
+    expect(await detectPackageManager(dir, 'ClientApp')).toBe('npm');
+    writeFileSync(join(dir, 'ClientApp', 'yarn.lock'), '');
+    expect(await detectPackageManager(dir, 'ClientApp')).toBe('yarn');
+    writeFileSync(join(dir, 'ClientApp', 'pnpm-lock.yaml'), '');
+    expect(await detectPackageManager(dir, 'ClientApp')).toBe('pnpm');
   });
 });
 

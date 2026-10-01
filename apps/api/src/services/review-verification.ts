@@ -35,6 +35,7 @@ import {
   renderFlag,
   withTimeout,
 } from '@harness/verification-engine';
+import type { CheckResult } from '@harness/verification-engine';
 
 export interface ReviewVerificationDeps {
   readonly db: DrizzleDB;
@@ -76,12 +77,29 @@ function verifyTotalTimeoutMs(): number {
   return cloneTimeoutSeconds() * 2 * 1000 + 60_000;
 }
 
-/** Markdown for an all-SKIPPED run — nothing ran, so it must never read as PASSED. */
-function renderSkippedMarkdown(): string {
+/**
+ * Markdown for an all-SKIPPED run — nothing ran, so it must never read as
+ * PASSED. Carries the per-check reason so a missing manifest
+ * (`no build script declared`) is distinguishable from infra
+ * (`sandbox unavailable: …`).
+ */
+function renderSkippedMarkdown(checks: readonly CheckResult[]): string {
+  const rows = checks.map((check) => `- ${check.checkKind}: ${check.output}`).join('\n');
   return (
     '## Verification — SKIPPED\n\n' +
-    '_No build/test checks ran (script not declared or sandbox unavailable) — nothing was verified._\n'
+    '_No build/test checks ran — nothing was verified._\n' +
+    (rows.length > 0 ? `\n${rows}\n` : '')
   );
+}
+
+/**
+ * One-line error for an all-SKIPPED run. The old generic
+ * `(undeclared or sandbox unavailable)` hid the layout-vs-Docker distinction;
+ * joining the per-check outputs keeps it honest without bloating the row.
+ */
+function skippedReason(checks: readonly CheckResult[]): string {
+  const parts = checks.map((check) => `${check.checkKind}: ${check.output.slice(0, 300)}`);
+  return `no build/test scripts ran (${parts.join(' | ')})`;
 }
 
 export class ReviewVerificationService {
@@ -229,7 +247,7 @@ export class ReviewVerificationService {
       // `renderFlag` only serialises PASSED/FAILED, so an all-SKIPPED run would
       // otherwise render as "PASSED" while `status` says SKIPPED. Emit the honest
       // SKIPPED markdown instead.
-      const rendered = allSkipped ? renderSkippedMarkdown() : renderFlag(flag);
+      const rendered = allSkipped ? renderSkippedMarkdown(result.checks) : renderFlag(flag);
 
       await db
         .update(reviewVerifications)
@@ -241,7 +259,7 @@ export class ReviewVerificationService {
           duration_ms: result.durationMs,
           flag,
           rendered,
-          error: allSkipped && !flag.failed ? 'no build/test scripts ran (undeclared or sandbox unavailable)' : null,
+          error: allSkipped && !flag.failed ? skippedReason(result.checks) : null,
           updated_at: new Date(),
         })
         .where(eq(reviewVerifications.id, rowId));
