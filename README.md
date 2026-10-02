@@ -18,12 +18,12 @@ queryable, and auditable.
 
 ![DETAILS Review UI](./DETAILS.png)
 
-|                    |                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------ |
-| **Status**         | Feature-complete · tagged `v0.6.1-harness` · review-only control plane (`review-reorient`) |
+|                    |                                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| **Status**         | Feature-complete · tagged `v0.6.1-harness` · review-only control plane (`review-reorient`)                              |
 | **Quality gates**  | build ✅ · typecheck ✅ · lint ✅ · 189 test files (51 tables) · 7 e2e specs ✅ · `pnpm test` green on `v0.6.1-harness` |
-| **Stack**          | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker     |
-| **Boundary model** | 25 `@harness/*` packages (see package list below); engines never import another engine     |
+| **Stack**          | TypeScript · Fastify · React (Vite) · PostgreSQL 16 (Drizzle) · OpenTelemetry · Docker                                  |
+| **Boundary model** | 25 `@harness/*` packages (see package list below); engines never import another engine                                  |
 
 > Root `package.json` is `0.0.0` (unpublished workspace) — the version badge tracks the git tag.
 
@@ -32,6 +32,76 @@ queryable, and auditable.
 > retired. The product is now a read-only **PR review control plane**: the AI is
 > the _reviewer_, not the author. See [§What changed](#what-changed) and the
 > [Phase-3 exit review](docs/retros/phase3-exit-review.md).
+
+## Architecture
+
+### 1. Repository layout
+
+```text
+hai-harness/
+├── apps/api/            # Fastify API + DI bootstrap duy nhất (bootstrap.ts / app.ts)
+├── apps/web/            # React + Vite UI (Review / Queue / Audit / Ops)
+├── packages/            # 25 x @harness/*
+├── docs/architecture/   # spec + wiring-map.md + runtime-startup.md
+└── docker-compose.yml   # Postgres 16 + pgvector :5432 (service duy nhất)
+```
+
+- `apps/api/src/routes/`: 10 groups, 31 handlers. Slice chính là `reviews.ts`
+  (`POST/GET /api/reviews`, `/:id/decision` | `retry`, `/auto`) + `review.ts`
+  (`queue`, `:id/claim` | `decide` | `drop` | `release` | `escalate`).
+- `apps/web/src/`: `pages/` + `components/` + `api/` + `context/`.
+
+### 2. Package layers (25 packages)
+
+| Tầng           | Packages                                                                                                                                                       |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundation     | `domain`, `event-bus`, `di`, `db`, `observability`                                                                                                             |
+| Engines        | `orchestrator`, `agent-runtime`, `artifact-tracker`, `verification-engine`, `attention-engine`, `context-engine`, `review`, `auth`, `embeddings`, `evaluation` |
+| Review slice   | `git-provider`, `ticket-provider`, `writeback`, `memory`, `judge`, `benchmark`                                                                                 |
+| Tooling / leaf | `object-store`, `sandbox`, `mcp`, `code-index`                                                                                                                 |
+
+> **Quy tắc biên:** engine chỉ import shared (`domain` / `event-bus` / `db` / `di`),
+> không bao giờ import engine khác — enforce bởi `eslint-plugin-boundaries` +
+> `architecture.test.ts`. Nối chéo chỉ qua seam/host ở `apps/api`
+> (vd: `CloneVerifier`, `TargetedVerifier`, `RetrieverFactory`).
+>
+> **DI tập trung:** `buildContainer()` trong `apps/api/src/bootstrap.ts` — chỗ duy
+> nhất `new InProcessEventBus()`, còn lại `resolve(TOKENS.*)`. Full object-graph ở
+> `docs/architecture/wiring-map.md`.
+
+### 3. Review vertical slice (luồng duy nhất)
+
+```text
+UI paste PR URL + Jira? → POST /api/reviews → 202 Accepted
+  → GitProvider.fetchPullRequest (GitHub / GitLab / Bitbucket qua mcp.config.json)
+  → TicketProvider.fetchIssue (Jira qua MCP)
+  → tạo Task anchor rồi CANCELLED ngay (giữ provenance)
+  → ReviewWorkerSubscriber (nghe review.requested, chạy async)
+  → ReviewAgent (LLMProvider: Anthropic / OpenAI-compatible) → report + findings[] + fix[]
+  → persist review_reports / review_findings / fix_suggestions
+    (review_status: pending → fetching → recalling → reviewing → storing → complete,
+     batch_progress cho PR lớn)
+  → Verification (clone vào Docker Sandbox build/test, flag không gate)
+    + Judge + Memory + Attention scoring
+  → UI hiện report → HUMAN DECISION (approve / request-changes / reject,
+    dedup_key sha256, idempotent)
+  → WriteBack saga COMMENT+STATUS (PR) / COMMENT+TRANSITION (Jira),
+    toggle 3 lớp, log vào writeback_log, 207 nếu nửa lỗi
+```
+
+Mọi bước ghi vào `event_log` append-only + `correlation_id`
+(replayable / auditable). DB: Postgres + Drizzle, OpenTelemetry trace / metrics.
+
+### 4. Engines giữ lại sau pivot `review-reorient`
+
+Code-gen bị xóa (`AgentRunner`, `Dispatcher`, `WorkflowRunner`, `MergeService`, …).
+Giữ lại: Task state-machine 13 states, `ReviewAgent` / Ingest, Context
+(`tiktoken` budget), Verification (sandbox), Attention
+(score + route + `AUTO_APPROVABLE` gated), Review queue, `ArtifactTracker`,
+Memory / Judge / Learning-loop (`evaluate → calibrate → deploy → observe`).
+
+Nguyên tắc: _Evidence before confidence_, _Human attention là tài nguyên khan hiếm_,
+_Shadow-then-default_ (hybrid / fitted weights chỉ lên default khi thắng A/B).
 
 ---
 
@@ -95,15 +165,15 @@ The review slice creates a task purely to anchor the provenance trail and
 immediately `CANCELLED` it — the retired dispatcher used to pull `PENDING`/`REWORK`
 tasks into the code-gen workflow, and a cancelled task is never consumed.
 
-| Engine                  | Role                                                                                                                     |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **Orchestrator**        | Owns the Task state machine + `TaskService` (the dispatch/workflow/retry loop is retired)                                |
-| **Agent Runtime**       | The read-only **reviewer**: `LLMProvider` + `ReviewAgent` → structured report (the write/`write_file` tools are retired) |
-| **Context Engine**      | Gathers, ranks, and budgets the context a reviewer sees (exact `tiktoken` tokens)                                        |
-| **Verification Engine** | Independent compile + test + sandboxed checks (real tooling)                                                             |
-| **Attention Engine**    | Scores each change and budgets human attention (+ gated auto-approve)                                                    |
-| **Review**               | A human APPROVES / REJECTS every change, with rationale; the Review tab filters findings by text and copies suggested fixes, the Diff tab can hide files without findings, and queue cards show the triage-effective verdict |
-| **Artifact Tracker**    | Snapshots, diffs, and provenance for every change                                                                        |
+| Engine                  | Role                                                                                                                                                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Orchestrator**        | Owns the Task state machine + `TaskService` (the dispatch/workflow/retry loop is retired)                                                                                                                                    |
+| **Agent Runtime**       | The read-only **reviewer**: `LLMProvider` + `ReviewAgent` → structured report (the write/`write_file` tools are retired)                                                                                                     |
+| **Context Engine**      | Gathers, ranks, and budgets the context a reviewer sees (exact `tiktoken` tokens)                                                                                                                                            |
+| **Verification Engine** | Independent compile + test + sandboxed checks (real tooling)                                                                                                                                                                 |
+| **Attention Engine**    | Scores each change and budgets human attention (+ gated auto-approve)                                                                                                                                                        |
+| **Review**              | A human APPROVES / REJECTS every change, with rationale; the Review tab filters findings by text and copies suggested fixes, the Diff tab can hide files without findings, and queue cards show the triage-effective verdict |
+| **Artifact Tracker**    | Snapshots, diffs, and provenance for every change                                                                                                                                                                            |
 
 See [the wiring map](docs/architecture/wiring-map.md) for the full object graph.
 
@@ -128,17 +198,17 @@ nitpicks like a missing trailing newline.
 
 ## Capabilities
 
-| Area                     | What's shipped                                                                                                                                                                                       |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Ingest**               | Paste a PR/MR URL + Jira ticket; fetch the diff + requirement through the **MCP** config — GitHub / GitLab / Bitbucket / Jira via one `mcp.config.json`, tokens referenced by env var (never inline) |
-| **Review**               | The configured AI (Anthropic or OpenAI-compatible, `key`+`baseUrl`+`model`) reviews the diff **read-only** → report + findings + fix suggestions + **health score** (architecture, codeQuality, security, performance, testing, overallRisk) |
-| **Review modes**       | Two modes via Triage Rules settings (`POST /api/triage-rules`):<br>- **High-signal** (default, OFF): only CRITICAL/MAJOR findings — attention router for humans<br>- **Full code review** (ON): ALL severities (CRITICAL/MAJOR/MINOR/NIT/INFO) — like GitHub Copilot Review, SonarQube<br>- **Review instructions** (text.md): upload a markdown skills file via the UI; when ON, injected into every AI review prompt alongside the PR diff and Jira requirement (PR + Jira + text.md + AI flow)                                                          |
-| **Verify**               | Clone into the Docker sandbox and run build/test; dependency-graph targeted verification; a FAILED run _flags_ the report, never authors a fix                                                       |
-| **Attention & decision** | Score + route every review; a human APPROVES / REJECTS; `AUTO_APPROVABLE` stays the only auto-path — gated + sampling-audited; **Detail tab shows AI health score** (6 dimensions); the overview badge shows the **effective verdict after triage** with the raw AI verdict alongside when a rule overrides it |
-| **Write-back**           | On by default (opt-out), fail-safe 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; `WRITEBACK_ENABLED=0` = nothing external           |
-| **Memory**               | Review / finding / decision memory tiers, distilled + relevance-scored, with consolidation / decay / archive; recalled memories are visible in the report's **AI trace** tab (timeline step + panel) |
-| **Quality & learning**   | LLM-as-judge (rubric-scored) + inter-judge agreement, a versioned gold corpus, and a closed learning loop feeding decisions + judge signals back into calibration/routing                            |
-| **Observability**        | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id`; sidebar nav exposes the **Audit Log** page (`/audit`, the `/api/audit` timeline) and the **Ops & Learning** page (`/ops`: DB health, queue depth, orphan alarm, recent learning cycles); the AI trace tab totals model-call tokens and the Verification tab keeps the raw flag output one click away |
+| Area                     | What's shipped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ingest**               | Paste a PR/MR URL + Jira ticket; fetch the diff + requirement through the **MCP** config — GitHub / GitLab / Bitbucket / Jira via one `mcp.config.json`, tokens referenced by env var (never inline)                                                                                                                                                                                                                                                                                              |
+| **Review**               | The configured AI (Anthropic or OpenAI-compatible, `key`+`baseUrl`+`model`) reviews the diff **read-only** → report + findings + fix suggestions + **health score** (architecture, codeQuality, security, performance, testing, overallRisk)                                                                                                                                                                                                                                                      |
+| **Review modes**         | Two modes via Triage Rules settings (`POST /api/triage-rules`):<br>- **High-signal** (default, OFF): only CRITICAL/MAJOR findings — attention router for humans<br>- **Full code review** (ON): ALL severities (CRITICAL/MAJOR/MINOR/NIT/INFO) — like GitHub Copilot Review, SonarQube<br>- **Review instructions** (text.md): upload a markdown skills file via the UI; when ON, injected into every AI review prompt alongside the PR diff and Jira requirement (PR + Jira + text.md + AI flow) |
+| **Verify**               | Clone into the Docker sandbox and run build/test; dependency-graph targeted verification; a FAILED run _flags_ the report, never authors a fix                                                                                                                                                                                                                                                                                                                                                    |
+| **Attention & decision** | Score + route every review; a human APPROVES / REJECTS; `AUTO_APPROVABLE` stays the only auto-path — gated + sampling-audited; **Detail tab shows AI health score** (6 dimensions); the overview badge shows the **effective verdict after triage** with the raw AI verdict alongside when a rule overrides it                                                                                                                                                                                    |
+| **Write-back**           | On by default (opt-out), fail-safe 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; `WRITEBACK_ENABLED=0` = nothing external                                                                                                                                                                                                                                                                                                        |
+| **Memory**               | Review / finding / decision memory tiers, distilled + relevance-scored, with consolidation / decay / archive; recalled memories are visible in the report's **AI trace** tab (timeline step + panel)                                                                                                                                                                                                                                                                                              |
+| **Quality & learning**   | LLM-as-judge (rubric-scored) + inter-judge agreement, a versioned gold corpus, and a closed learning loop feeding decisions + judge signals back into calibration/routing                                                                                                                                                                                                                                                                                                                         |
+| **Observability**        | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id`; sidebar nav exposes the **Audit Log** page (`/audit`, the `/api/audit` timeline) and the **Ops & Learning** page (`/ops`: DB health, queue depth, orphan alarm, recent learning cycles); the AI trace tab totals model-call tokens and the Verification tab keeps the raw flag output one click away                                                                                    |
 
 ## What changed
 
