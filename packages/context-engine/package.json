@@ -26,7 +26,7 @@
     "@harness/embeddings": "workspace:^",
     "@harness/event-bus": "workspace:^",
     "@harness/observability": "workspace:^",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.3",
     "js-tiktoken": "^1.0.21"
   },
   "devDependencies": {
