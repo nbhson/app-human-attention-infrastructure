@@ -48,6 +48,25 @@ the package manager comes from the lockfile next to the manifest
 (`pnpm-lock.yaml` → `pnpm`, `yarn.lock` → `yarn`, else `npm`). Anything deeper
 than one level must be wired explicitly, not guessed.
 
+Before build/test, the runner installs `node_modules` when missing
+(`ensureInstalled`, on by default, off via `VERIFY_INSTALL_DEPS=0`): a frozen
+install (`npm ci` / `corepack pnpm|yarn install --frozen-lockfile`) when a
+lockfile is present, plain `install` otherwise. The install runs in its own
+container with `network: 'bridge'` (registry egress for that step only, caches
+redirected to `/tmp` because the rootfs is read-only); build/test stay on
+`network: 'none'`. An install failure records FAILED with the `[deps]`-tagged
+log, never a silent skip. Container exit `127` without a Docker image/pull
+message is the program's own "command not found" (missing toolchain or
+`node_modules/.bin`), so it is a FAILED result with evidence — only `125`/`126`
+and `127`-with-docker-message are `SandboxInfraError` (→ SKIPPED).
+
+Resource sizing for real-world clones: the install container gets `network:
+'bridge'` plus a `1g` `/tmp` tmpfs (a cold npm cache for a large app is
+hundreds of MB — the 64m build default dies `ENOSPC`); build/test keep the
+small tmpfs but run with `--max-old-space-size` at 3/4 of the container memory
+limit (`heapMbForMemory`), and the clone path defaults to `4g` — an
+Angular-class `ng build` peaks past 1 GB of heap and OOMs at 512m.
+
 ## Check contract
 
 The **check abstraction** is the plug-in point every check shares. A check is a

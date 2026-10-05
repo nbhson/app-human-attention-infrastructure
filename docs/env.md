@@ -85,9 +85,10 @@ Layer 3 is the per-decision `writeback: true` flag on `POST /api/reviews/:id/dec
 | `VERIFY_SANDBOX_IMAGE` | `harness-verify:node20` | Docker image for sandbox | `bootstrap.ts:556` |
 | `VERIFY_SANDBOX_CPU` | `1.0` | CPU limit for sandbox | `bootstrap.ts:559` |
 | `VERIFY_SANDBOX_MEMORY` | `512m` | Memory limit | `bootstrap.ts:560` |
-| `VERIFY_SANDBOX_TIMEOUT_S` | `30` | Per-check sandbox timeout (s) | `packages/sandbox` |
-| `VERIFY_CLONE_TIMEOUT_S` | `600` | Per-check clone+verify budget (s) for `SandboxRunner`; malformed values fall back to 600. The verification service races the whole `COMPILE→TEST` run against `2×budget+60s` and marks `ERROR` on timeout (never stuck at `RUNNING`); a stale `RUNNING` row older than `2×budget+5min` (orphaned by a restart) is re-runnable, and the report page keeps polling while `verification` is `PENDING`/`RUNNING` | `bootstrap.ts`, `review-verification.ts`, `ReviewReportPage.tsx` |
-| `SANDBOX_ROOT` | `./sandbox` | Same as Core — duplicated here for discoverability | `bootstrap.ts:209` |
+| `VERIFY_SANDBOX_TIMEOUT_S` | `30` (legacy alias) | Alias for `VERIFY_CLONE_TIMEOUT_S` — honored when `VERIFY_CLONE_TIMEOUT_S` is unset. Kept because it was documented but unread; an operator-set value here used to be silently ignored (heavy `ng build` killed at 900s despite `.env` saying 1200) | `bootstrap.ts`, `review-verification.ts` |
+| `VERIFY_CLONE_TIMEOUT_S` | `900` | Per-check clone+verify budget (s) for `SandboxRunner`; malformed values fall back to 900. Angular-class `ng build` needs headroom (900 minimum, 1200–1800 on Docker Desktop/Windows bind mounts). The verification service races the whole `COMPILE→TEST` run against `2×budget+install+60s` and marks `ERROR` on timeout (never stuck at `RUNNING`); a stale `RUNNING` row older than `2×budget+install+5min` (orphaned by a restart) is re-runnable, and the report page keeps polling while `verification` is `PENDING`/`RUNNING` | `bootstrap.ts`, `review-verification.ts`, `ReviewReportPage.tsx` |
+| `VERIFY_INSTALL_TIMEOUT_S` | `600` | Wall-clock budget (s) for the `node_modules` install step (own container, registry egress); large apps can need 900+ for a cold `npm ci` | `bootstrap.ts`, `review-verification.ts` |
+| `SANDBOX_ROOT` | `./sandbox` | Clone worktree root (created at boot). **WSL: when the repo lives on `/mnt/*` (Windows 9P mount, measured ~80x slower than ext4 on small-file I/O), cold `npm ci` + ngcc + `ng build` cannot fit any step budget there — set `SANDBOX_ROOT=/tmp/harness-sandbox` (Linux-native ext4). The API logs a boot warning while worktrees resolve under `/mnt/` | `bootstrap.ts:209` |
 
 Build the image once: `docker build -t harness-verify:node20 packages/sandbox`.
 

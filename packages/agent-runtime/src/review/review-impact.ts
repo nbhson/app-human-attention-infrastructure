@@ -1,5 +1,5 @@
 /**
- * Impact scope (reviewer-v9) — within-PR caller/call-site context for the AI reviewer.
+  * Impact scope (reviewer-v9, kept in v10) — within-PR caller/call-site context for the AI reviewer.
  *
  * The reviewer only receives the PR diff, so a change to a shared function or
  * component looks locally safe while its callers break. This module derives a

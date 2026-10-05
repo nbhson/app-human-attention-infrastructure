@@ -196,3 +196,44 @@ describe('batchReview resilience', () => {
     expect(failures.map((f) => f.index).sort()).toEqual([0, 1]);
   });
 });
+
+describe('mergeOutputs risk coherence', () => {
+  it('caps a merged CRITICAL risk unsupported by whole-review evidence', async () => {
+    const { mergeOutputs } = await import('../review/review-batch.js');
+    const merged = mergeOutputs([
+      {
+        summary: 'a',
+        overallVerdict: 'APPROVE',
+        findings: [{ severity: 'MINOR', kind: 'correctness', file: 'x.ts', message: 'nit' }],
+        suggestions: [],
+        healthScore: {
+          architecture: 'excellent',
+          codeQuality: 'excellent',
+          security: 'excellent',
+          performance: 'excellent',
+          testing: 'excellent',
+          overallRisk: 'CRITICAL',
+          overallRiskScore: 90,
+        },
+      },
+      {
+        summary: 'b',
+        overallVerdict: 'APPROVE',
+        findings: [{ severity: 'INFO', kind: 'correctness', file: 'y.ts', message: 'note' }],
+        suggestions: [],
+        healthScore: {
+          architecture: 'excellent',
+          codeQuality: 'excellent',
+          security: 'excellent',
+          performance: 'excellent',
+          testing: 'excellent',
+          overallRisk: 'MEDIUM',
+          overallRiskScore: 40,
+        },
+      },
+    ]);
+
+    expect(merged.healthScore?.overallRiskScore).toBe(34);
+    expect(merged.healthScore?.overallRisk).toBe('LOW');
+  });
+});

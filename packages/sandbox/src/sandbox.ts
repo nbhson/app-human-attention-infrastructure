@@ -34,7 +34,7 @@ export interface SandboxLimits {
 
 /** A single sandbox execution request (day-22 §2.1). */
 export interface SandboxRun {
-  /** The command line to run inside the container, e.g. `['bash', '-lc', 'tsc …']`. */
+  /** The command line to run inside the container, e.g. `['sh', '-lc', 'tsc …']` (alpine has no `bash`). */
   readonly command: string[];
   /** The pinned image (built from a committed Dockerfile, never `latest`). */
   readonly image: string;
@@ -44,8 +44,21 @@ export interface SandboxRun {
   readonly workdirContents: SandboxWorkdirFile[];
   /** Resource + time budgets. */
   readonly limits: SandboxLimits;
-  /** Always `'none'` — the sandbox has no egress. */
-  readonly network: 'none';
+  /**
+   * The container network. `'none'` (default, no egress) is the safe mode for
+   * running untrusted code. `'bridge'` is reserved for the dependency-install
+   * step (`<pm> ci` needs the registry) — build/test always stay on `'none'`
+   * so installed code never gets egress.
+   */
+  readonly network: 'none' | 'bridge';
+  /**
+   * Size of the writable `/tmp` tmpfs (e.g. `'64m'`, `'1g'`). Default `'64m`.
+   * The dependency-install step needs far more (a cold npm cache for a large
+   * app is hundreds of MB — with 64m `npm ci` dies `ENOSPC`); build/test use
+   * `512m` (Angular-class `ng build` spills compiler temp + npm cache there
+   * and stalls in "setup" on a full /tmp instead of failing loudly).
+   */
+  readonly tmpfsSize?: string;
   /**
    * Whether `/workdir` is mounted writable (day-23 §2.2). Default `false` —
    * read-only — which verification (Day 22) and Code-Mode tier 0 rely on.

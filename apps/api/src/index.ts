@@ -54,6 +54,18 @@ bus.publish(
 
 const start = async (): Promise<void> => {
   try {
+    // WSL footgun guard: when the repo lives on a Windows drive (`/mnt/d/…`),
+    // the default `./sandbox` worktrees sit on the 9P mount — small-file I/O
+    // there measured ~80x slower than ext4 (3000 files: 8.9s vs 0.1s), so a
+    // cold `npm ci` + ngcc compat + `ng build` for an Angular-class clone
+    // cannot fit any sane step budget and dies at "[sandbox timed out]".
+    // Point SANDBOX_ROOT at a Linux-native path instead. Non-fatal by design.
+    const resolvedSandboxRoot = resolve(process.cwd(), process.env.SANDBOX_ROOT ?? './sandbox');
+    if (resolvedSandboxRoot.startsWith('/mnt/')) {
+      app.log.warn(
+        `sandbox worktrees are on a /mnt/* (Windows) mount (${resolvedSandboxRoot}) — clone build/test will be extremely slow there; set SANDBOX_ROOT=/tmp/harness-sandbox (Linux-native ext4)`,
+      );
+    }
     // Make sure the verification sandbox image exists before serving, so a fresh
     // checkout doesn't silently drop every review verification into SKIPPED
     // ("sandbox unavailable", Docker exit 125). `ensureImage` inspects first (a

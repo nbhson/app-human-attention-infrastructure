@@ -69,7 +69,7 @@ REVIEW_TWO_PASS=true
 ```
 Code defaults (when env is unset): `REVIEW_MAX_BATCH_SIZE=5`, `REVIEW_MAX_BATCH_TOKENS=30000`, `REVIEW_MAX_CONCURRENCY=4` (`apps/api/src/bootstrap.ts:654`). `.env.example` overrides to `10 / 10000` for a gentler provider default — either is valid; the code default is the source of truth. Two-pass mode is ON by default — a lightweight summary pass runs first, then only high/medium risk files are deep-reviewed. Lower these values if the AI provider is rate-limited.
 
-**Health Score (reviewer-v9; output contract unchanged since v8)** — the AI reviewer computes a multi-dimensional PR health assessment (`health_score` in `review_reports`) with BOTH a categorical rating AND a fine-grained 1–100 score per dimension (never a fixed 25/50/75/100 map):
+**Health Score (reviewer-v10; output contract unchanged since v8)** — the AI reviewer computes a multi-dimensional PR health assessment (`health_score` in `review_reports`) with BOTH a categorical rating AND a fine-grained 1–100 score per dimension (never a fixed 25/50/75/100 map):
 - Dimensions: `architecture`, `codeQuality`, `security`, `performance`, `testing` (each `excellent|good|fair|poor` + `*Score` 1–100, higher = healthier; rating consistent with score: excellent 85–100, good 70–84, fair 50–69, poor 1–49)
 - Composite: `overallRisk` (`LOW|MEDIUM|HIGH|CRITICAL` + `overallRiskScore` 1–100, higher = riskier)
 - Review axes explicitly cover architecture & structure (SOLID, layering, coupling), clean code & maintainability, and API/contract compatibility
@@ -197,6 +197,13 @@ the `review_verifications` row / Verification section: `no build script
 declared` means layout (nothing to run), `sandbox unavailable: …` means Docker
 is down. Layouts deeper than one level must be wired explicitly.
 
+**Machine verification `FAILED exit 127 (ng/jest: not found)`** — deps were
+never installed (clone is source-only). The runner now installs them first
+(`npm ci` / frozen lockfile, own container with registry egress; build/test
+stay offline). If the `[deps]` log shows the install itself failing, check
+registry egress and `VERIFY_INSTALL_TIMEOUT_S`. Opt out with
+`VERIFY_INSTALL_DEPS=0` (back to fail-fast `127`).
+
 ---
 
 ### Feature gates (unset ⇒ default)
@@ -208,7 +215,11 @@ is down. Layouts deeper than one level must be wired explicitly.
 | `VERIFY_REVIEW_ENABLED` | `ON` | Clone → build → test verifier (wedge #1); `0`/`false` → `SKIPPED` | `apps/api/src/services/review-verification.ts` |
 | `VERIFY_SANDBOX_ENABLED` | `OFF` | `SandboxedCheck` vs in-process `CompileCheck` | `packages/sandbox/README.md` |
 | `VERIFY_SANDBOX_IMAGE` | `harness-verify:node20` | Docker image for sandbox | `docker build -t harness-verify:node20 packages/sandbox` |
-| `VERIFY_CLONE_TIMEOUT_S` | `600` | Clone+verify budget (s) | `apps/api/src/bootstrap.ts:683` |
+| `VERIFY_CLONE_TIMEOUT_S` | `900` | Clone+verify budget (s); Angular-class builds need the headroom (1 CPU never finished in 600s) | `apps/api/src/bootstrap.ts:683` |
+| `VERIFY_SANDBOX_CPU` | `1.0` (engine) / `2.0` (clone verify) | Container CPUs; clone default because `ng build` is heavily parallel | `apps/api/src/bootstrap.ts` |
+| `VERIFY_SANDBOX_MEMORY` | `512m` (engine) / `4g` (clone verify) | Container memory; clone default fits Angular-class builds, heap (`--max-old-space-size`) is sized at 3/4 of it | `apps/api/src/bootstrap.ts` |
+| `VERIFY_INSTALL_DEPS` | `ON` | Install `node_modules` before clone build/test; `0`/`false` → skip install | `packages/verification-engine/src/sandbox-runner.ts` |
+| `VERIFY_INSTALL_TIMEOUT_S` | `600` | Deps-install step budget (s, counted inside the verify total) | `apps/api/src/bootstrap.ts` |
 | `FITTED_WEIGHTS_ENABLED` | `OFF` | `DbWeightsProvider` vs `StaticWeightsAdapter` (CF-2) | `packages/attention-engine/README.md` |
 | `EMBEDDINGS_BASE_URL` | unset | `StubEmbedder` → `OpenAICompatibleEmbedder` | `packages/embeddings/README.md` |
 | `OBJECT_STORE_ENDPOINT` | unset | Inline `snapshots` → S3/MinIO offload | `packages/object-store/README.md` |

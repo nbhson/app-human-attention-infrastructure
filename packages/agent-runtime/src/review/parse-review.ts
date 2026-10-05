@@ -164,6 +164,65 @@ function riskFromScore(score: number | undefined, fallback: OverallRiskLevel): O
   return 'LOW';
 }
 
+/** Band floors for risk labels under the prompt contract (LOW 1–34, MEDIUM 35–64, HIGH 65–84, CRITICAL 85–100). */
+const RISK_BAND_FLOOR: Record<OverallRiskLevel, number> = { LOW: 1, MEDIUM: 35, HIGH: 65, CRITICAL: 85 };
+
+/**
+ * Highest `overallRiskScore` the filed evidence supports. A concrete finding
+ * caps the composite — CRITICAL lifts the cap entirely, MAJOR caps at HIGH
+ * (84), anything lower (or nothing filed) caps at LOW (34). The verdict can
+ * only lift (`REQUEST_CHANGES` → 84, `COMMENT` → 64: the reviewer asserts
+ * gravity beyond filed findings); `APPROVE` never lifts. So a flipped scale
+ * ("90 = healthy" from a small model, with INFO/MINOR-only findings and an
+ * APPROVE) collapses to LOW instead of rendering CRITICAL next to
+ * all-excellent dimensions. Never raises — a modest score with real evidence
+ * passes through untouched.
+ */
+function evidenceRiskCap(findings: readonly ReviewFindingOutput[], verdict: ReviewVerdictT): number {
+  let cap = 34;
+  for (const finding of findings) {
+    if (finding.severity === ReviewSeverity.Critical) {
+      return 100;
+    }
+    if (finding.severity === ReviewSeverity.Major) {
+      cap = Math.max(cap, 84);
+    }
+  }
+  if (verdict === ReviewVerdict.RequestChanges) {
+    cap = Math.max(cap, 84);
+  } else if (verdict === ReviewVerdict.Comment) {
+    cap = Math.max(cap, 64);
+  }
+  return cap;
+}
+
+/**
+ * Coerce a parsed `healthScore` to agree with its own findings + verdict.
+ * Exported so the batch merge (`mergeOutputs`) can re-apply it to the
+ * whole-review evidence after taking the per-batch max.
+ */
+export function cohereRiskToEvidence(
+  healthScore: PRHealthScore,
+  findings: readonly ReviewFindingOutput[],
+  verdict: ReviewVerdictT,
+): PRHealthScore {
+  const cap = evidenceRiskCap(findings, verdict);
+  const score = healthScore.overallRiskScore;
+  if (score !== undefined) {
+    if (score <= cap) {
+      return healthScore;
+    }
+    const clamped = Math.max(1, Math.min(cap, score));
+    return { ...healthScore, overallRiskScore: clamped, overallRisk: riskFromScore(clamped, healthScore.overallRisk) };
+  }
+  // Label-only legacy shape: demote a label whose band floor exceeds the cap.
+  if (RISK_BAND_FLOOR[healthScore.overallRisk] > cap) {
+    const level: OverallRiskLevel = cap >= 65 ? 'HIGH' : cap >= 35 ? 'MEDIUM' : 'LOW';
+    return { ...healthScore, overallRisk: level };
+  }
+  return healthScore;
+}
+
 /**
  * Accept three shapes per dimension so old + new prompts both parse:
  * - legacy string: `"security": "good"`
@@ -466,12 +525,14 @@ function toReviewOutput(parsed: unknown): ReviewAgentOutput {
   }
 
   const healthScore = normalizeHealthScore(inner.healthScore);
+  const verdict = normalizeVerdict(inner.overallVerdict);
+  const findings = normalizeFindings(inner.findings);
   return {
     summary: typeof inner.summary === 'string' ? inner.summary : '',
-    overallVerdict: normalizeVerdict(inner.overallVerdict),
-    findings: normalizeFindings(inner.findings),
+    overallVerdict: verdict,
+    findings,
     suggestions: normalizeSuggestions(inner.suggestions),
-    ...(healthScore !== undefined ? { healthScore } : {}),
+    ...(healthScore !== undefined ? { healthScore: cohereRiskToEvidence(healthScore, findings, verdict) } : {}),
   };
 }
 

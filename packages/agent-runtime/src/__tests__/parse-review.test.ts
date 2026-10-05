@@ -250,8 +250,7 @@ describe('parseReviewOutput', () => {
     expect(out.findings[1]?.file).toBe('src/y.ts');
   });
 
-  it('salvages an envelope truncated mid-string inside a nested finding (no stop_reason truncation flag)', () => {
-    const truncated = `{
+  it('salvages an envelope truncated mid-string inside a nested finding (no stop_reason truncation flag)', () => {    const truncated = `{
   "summary": "This PR introduces backend routes.",
   "overallVerdict": "REQUEST_CHANGES",
   "findings": [
@@ -272,5 +271,91 @@ describe('parseReviewOutput', () => {
     expect(out.overallVerdict).toBe('REQUEST_CHANGES');
     expect(out.findings.length).toBeGreaterThanOrEqual(1);
     expect(out.findings[0]?.file).toBe('toeic-reading-be/src/routes/toeic.routes.js');
+  });
+});
+
+describe('overallRisk evidence coherence', () => {
+  function review(healthScore: Record<string, unknown>, findings: unknown[], verdict = 'APPROVE'): string {
+    return JSON.stringify({ summary: 's', overallVerdict: verdict, findings, suggestions: [], healthScore });
+  }
+
+  const EXCELLENT_DIMS = {
+    architecture: 'excellent',
+    architectureScore: 85,
+    codeQuality: 'excellent',
+    codeQualityScore: 88,
+    security: 'excellent',
+    securityScore: 90,
+    performance: 'excellent',
+    performanceScore: 90,
+    testing: 'excellent',
+    testingScore: 90,
+  };
+
+  it('collapses a flipped 90/CRITICAL to LOW when evidence is INFO/MINOR-only with APPROVE', () => {
+    const out = parseReviewOutput(
+      review({ ...EXCELLENT_DIMS, overallRisk: 'CRITICAL', overallRiskScore: 90 }, [
+        { severity: 'INFO', file: 'a.ts', message: 'note' },
+        { severity: 'MINOR', file: 'b.ts', message: 'nit' },
+      ]),
+    );
+
+    expect(out.healthScore?.overallRiskScore).toBe(34);
+    expect(out.healthScore?.overallRisk).toBe('LOW');
+    // Dimensions pass through untouched — only the risk is cohered.
+    expect(out.healthScore?.securityScore).toBe(90);
+    expect(out.healthScore?.security).toBe('excellent');
+  });
+
+  it('keeps a CRITICAL 90 backed by a CRITICAL finding', () => {
+    const out = parseReviewOutput(
+      review({ ...EXCELLENT_DIMS, overallRisk: 'CRITICAL', overallRiskScore: 90 }, [
+        { severity: 'CRITICAL', file: 'a.ts', message: 'sql injection' },
+      ]),
+    );
+
+    expect(out.healthScore?.overallRiskScore).toBe(90);
+    expect(out.healthScore?.overallRisk).toBe('CRITICAL');
+  });
+
+  it('caps at HIGH (84) with a MAJOR finding and lifts REQUEST_CHANGES to 84', () => {
+    const majorOnly = review({ ...EXCELLENT_DIMS, overallRisk: 'CRITICAL', overallRiskScore: 95 }, [
+      { severity: 'MAJOR', file: 'a.ts', message: 'null deref' },
+    ]);
+    expect(parseReviewOutput(majorOnly).healthScore?.overallRiskScore).toBe(84);
+
+    const infoOnlyBlocker = review({ ...EXCELLENT_DIMS, overallRisk: 'CRITICAL', overallRiskScore: 95 }, [
+      { severity: 'INFO', file: 'a.ts', message: 'note' },
+    ], 'REQUEST_CHANGES');
+    const blocked = parseReviewOutput(infoOnlyBlocker);
+    expect(blocked.healthScore?.overallRiskScore).toBe(84);
+    expect(blocked.healthScore?.overallRisk).toBe('HIGH');
+  });
+
+  it('lifts COMMENT to MEDIUM (64) but never raises a modest score', () => {
+    const out = parseReviewOutput(
+      review({ ...EXCELLENT_DIMS, overallRisk: 'CRITICAL', overallRiskScore: 90 }, [
+        { severity: 'INFO', file: 'a.ts', message: 'note' },
+      ], 'COMMENT'),
+    );
+    expect(out.healthScore?.overallRiskScore).toBe(64);
+    expect(out.healthScore?.overallRisk).toBe('MEDIUM');
+
+    const modest = parseReviewOutput(
+      review({ ...EXCELLENT_DIMS, overallRisk: 'LOW', overallRiskScore: 20 }, [
+        { severity: 'MAJOR', file: 'a.ts', message: 'bug' },
+      ]),
+    );
+    expect(modest.healthScore?.overallRiskScore).toBe(20);
+    expect(modest.healthScore?.overallRisk).toBe('LOW');
+  });
+
+  it('demotes a label-only CRITICAL without a numeric score', () => {
+    const out = parseReviewOutput(
+      review({ ...EXCELLENT_DIMS, overallRisk: 'CRITICAL' }, [
+        { severity: 'MINOR', file: 'a.ts', message: 'nit' },
+      ]),
+    );
+    expect(out.healthScore?.overallRisk).toBe('LOW');
   });
 });

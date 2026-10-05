@@ -22,7 +22,10 @@ export type { SandboxedCheckOptions } from './executors/sandboxed-check.js';
 export { CloneCompileCheck } from './clone-checks/compile-check.js';
 export { CloneTestCheck } from './clone-checks/test-check.js';
 export {
+  buildInstallArgs,
   detectPackageManager,
+  hasLockfile,
+  heapMbForMemory,
   parsePackageScripts,
   resolvePackageScripts,
   runScriptCheck,

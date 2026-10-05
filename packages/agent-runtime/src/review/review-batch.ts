@@ -11,7 +11,7 @@
 import type { PullRequestFile } from '@harness/domain';
 
 import { OpenAICompatibleError } from '../llm/openai-compatible-provider.js';
-import { ReviewParseError } from './parse-review.js';
+import { cohereRiskToEvidence, ReviewParseError } from './parse-review.js';
 import { ReviewAgent } from './review-agent.js';
 import type { ReviewAgentOptions } from './review-agent.js';
 import { filterImpactScopeForBatch } from './review-impact.js';
@@ -478,7 +478,18 @@ export function mergeOutputs(outputs: readonly ReviewAgentOutput[]): ReviewAgent
     overallVerdict: worstVerdict as ReviewAgentOutput['overallVerdict'],
     findings: allFindings,
     suggestions: allSuggestions,
-    ...(healthScore !== undefined ? { healthScore } : {}),
+    // Re-cohere against the whole-review evidence: the merge takes the max
+    // per-batch risk, so a flipped batch clamped at parse time stays clamped,
+    // and a batch calling CRITICAL without filing anything gets capped here.
+    ...(healthScore !== undefined
+      ? {
+          healthScore: cohereRiskToEvidence(
+            healthScore,
+            allFindings,
+            worstVerdict as ReviewAgentOutput['overallVerdict'],
+          ),
+        }
+      : {}),
     // If any batch's JSON was truncated and repaired, the merged report is
     // also suspect — propagate the flag so the UI can warn.
     ...(outputs.some((o) => o.wasRepaired === true) ? { wasRepaired: true } : {}),

@@ -565,7 +565,7 @@ export function buildContainer(): Container {
             inner: compileCheck,
             sandbox: container.resolve<Sandbox>(TOKENS.Sandbox),
             image: process.env.VERIFY_SANDBOX_IMAGE ?? 'harness-verify:node20',
-            buildCommand: () => ['bash', '-lc', 'cd /workdir && tsc --noEmit -p .'],
+            buildCommand: () => ['sh', '-lc', 'cd /workdir && tsc --noEmit -p .'],
             limits: {
               cpu: process.env.VERIFY_SANDBOX_CPU ?? '1.0',
               memory: process.env.VERIFY_SANDBOX_MEMORY ?? '512m',
@@ -721,16 +721,34 @@ export function buildContainer(): Container {
   // stored. On by default (opt out via `VERIFY_REVIEW_ENABLED=0`), sandbox-only, never a gate.
   c.register(TOKENS.ReviewVerifier, (container) => {
     const image = process.env.VERIFY_SANDBOX_IMAGE ?? 'harness-verify:node20';
-    const rawTimeout = Number(process.env.VERIFY_CLONE_TIMEOUT_S ?? '600');
+    // VERIFY_SANDBOX_TIMEOUT_S is honored as a legacy alias — it was documented
+    // but unread, so an operator-set 1200s was silently ignored (build killed at
+    // the 900s default). CLONE wins when both are set.
+    const rawTimeout = Number(
+      process.env.VERIFY_CLONE_TIMEOUT_S ?? process.env.VERIFY_SANDBOX_TIMEOUT_S ?? '900',
+    );
+    const timeoutSeconds = Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 900;
+    const rawInstall = Number(process.env.VERIFY_INSTALL_TIMEOUT_S ?? '600');
     const limits: SandboxLimits = {
-      cpu: process.env.VERIFY_SANDBOX_CPU ?? '1.0',
-      memory: process.env.VERIFY_SANDBOX_MEMORY ?? '512m',
-      timeoutSeconds: Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 600,
+      // Real-world clone builds (Angular AOT) are heavily parallel: 1 CPU
+      // crawls past the step budget (observed: `ng build` stuck at "setup"
+      // for the full 600s → SIGKILL 137), 2 CPUs finished the same build in
+      // ~3 min. Override with VERIFY_SANDBOX_CPU.
+      cpu: process.env.VERIFY_SANDBOX_CPU ?? '2.0',
+      // Clone builds run real-world apps (Angular-class `ng build` peaks past
+      // 1 GB of Node heap) — 512m OOMs them. The runner sizes
+      // `--max-old-space-size` from this limit, so keep the two coherent.
+      memory: process.env.VERIFY_SANDBOX_MEMORY ?? '4g',
+      timeoutSeconds,
     };
     const runner = new SandboxRunner({
       sandbox: container.resolve<Sandbox>(TOKENS.Sandbox),
       image,
       limits,
+      // Deps install needs registry egress in its own container; build/test
+      // stay on `network: none`. Opt out with `VERIFY_INSTALL_DEPS=0`.
+      installDependencies: process.env.VERIFY_INSTALL_DEPS !== '0' && process.env.VERIFY_INSTALL_DEPS !== 'false',
+      installTimeoutSeconds: Number.isFinite(rawInstall) && rawInstall > 0 ? rawInstall : 600,
     });
     return new CloneVerifier({
       compile: new CloneCompileCheck(runner),

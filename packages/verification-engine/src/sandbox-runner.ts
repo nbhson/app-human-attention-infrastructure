@@ -25,7 +25,6 @@
 
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-
 import { computeWorkdirManifest, SandboxInfraError } from '@harness/sandbox';
 import type { Sandbox, SandboxLimits, SandboxResult } from '@harness/sandbox';
 import { observeSandboxDuration, recordSandboxRun } from '@harness/observability';
@@ -73,6 +72,25 @@ function isSafeSubdir(subdir: string): boolean {
     subdir !== '..' &&
     !subdir.startsWith('.')
   );
+}
+
+/**
+ * Node heap (MB) derived from the container memory limit: 3/4 of it, floor
+ * 256. A real-world Angular build peaks past 1 GB of heap, so the 512m
+ * default sandbox OOMs (`ng build` SIGABRT) while the container limit still
+ * has room — sizing `--max-old-space-size` from the limit keeps the two
+ * coherent. Returns `undefined` for an unparsable limit (heap flag omitted).
+ */
+export function heapMbForMemory(memory: string): number | undefined {
+  const match = /^(\d+)([mMgG])$/.exec(memory.trim());
+  if (!match) {
+    return undefined;
+  }
+  const mb = match[2]?.toLowerCase() === 'g' ? Number(match[1]) * 1024 : Number(match[1]);
+  if (!Number.isFinite(mb) || mb <= 0) {
+    return undefined;
+  }
+  return Math.max(256, Math.floor(mb * 0.75));
 }
 
 /**
@@ -189,6 +207,52 @@ export interface SandboxRunnerOptions {
   readonly buildCommand?: string;
   /** Override the resolved `test` script *name* (skip `package.json`). */
   readonly testCommand?: string;
+  /**
+   * Install `node_modules` before build/test when missing (default `true`).
+   * The clone is source-only and the build sandbox has no network, so without
+   * this every external repo 127s on its own CLI (`ng`, `jest`, …). The
+   * install runs in its own container with `network: 'bridge'` (registry
+   * egress for that step only); build/test stay on `'none'`. Set `false` to
+   * opt out (`VERIFY_INSTALL_DEPS=0`).
+   */
+  readonly installDependencies?: boolean;
+  /** Wall-clock budget for the install step in seconds (default 600). */
+  readonly installTimeoutSeconds?: number;
+}
+
+/**
+ * The frozen install argv for `pm` next to the manifest. A lockfile means a
+ * reproducible `ci`/frozen install; without one it degrades to a plain
+ * `install`. `pnpm`/`yarn` run through `corepack` (the pinned alpine image
+ * ships only `npm`, and standalone `pnpm`/`yarn` binaries are not guaranteed)
+ * with the download prompt disabled — the install step has registry egress.
+ */
+export function buildInstallArgs(pm: PackageManager, frozen: boolean): string[] {
+  if (pm === 'npm') {
+    return frozen ? ['npm', 'ci'] : ['npm', 'install', '--no-audit', '--no-fund'];
+  }
+  if (pm === 'pnpm') {
+    return frozen
+      ? ['corepack', 'pnpm', 'install', '--frozen-lockfile']
+      : ['corepack', 'pnpm', 'install', '--no-frozen-lockfile'];
+  }
+  return frozen
+    ? ['corepack', 'yarn', 'install', '--frozen-lockfile']
+    : ['corepack', 'yarn', 'install'];
+}
+
+/** True when the manifest directory pins its deps with a lockfile. */
+export async function hasLockfile(workdir: string, subdir?: string): Promise<boolean> {
+  const base = subdir ? join(workdir, subdir) : workdir;
+  for (const lock of ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock']) {
+    try {
+      await stat(join(base, lock));
+      return true;
+    } catch {
+      // Absent — try the next lockfile name.
+    }
+  }
+  return false;
 }
 
 /** Runs one of a clone's declared scripts in the sandbox. */
@@ -212,17 +276,38 @@ export class SandboxRunner {
       return undefined;
     }
     const packageManager = this.options.packageManager ?? (await detectPackageManager(workdir, resolved.subdir));
+    // The clone is source-only (`node_modules` never comes with `git clone`)
+    // and the build container has no network — without an install step the
+    // PR's own CLI (`ng`, `jest`, …) 127s. Install first (own container,
+    // registry egress for that step only); an install failure is returned as
+    // the result so the check records an honest FAILED with the install log.
+    const installed = await this.ensureInstalled(workdir, resolved.subdir, packageManager);
+    if (installed !== null && (installed.timedOut || installed.exitCode !== 0)) {
+      return installed;
+    }
     // Run the literal script *name* (`npm run build`), never the script body
     // (`ng build`) as argv. When the manifest lives in a subdir, `cd` there
     // first — the sandbox mounts the clone at /workdir with --workdir /workdir.
     // `sh` (not `bash`): the pinned `node:20-alpine` image has no bash, so
-    // `bash -lc` exits 127 → SandboxInfraError → permanent SKIP.
+    // `bash -lc` exits 127 (a program result, not infra — see docker-sandbox
+    // 127 discrimination). `NODE_OPTIONS` sizes the heap from the container
+    // limit (Angular-class builds OOM otherwise); `npm_config_cache` keeps
+    // npm's logs/cache writable under the read-only rootfs. `CI=true` +
+    // `NGCLI_ANALYTICS=false` force non-interactive CLI behavior — Angular's
+    // first-run analytics prompt / progress reporting can stall waiting on a
+    // TTY that does not exist inside `docker run` (observed: `ng build` stuck
+    // at "Generating browser application bundles (phase: setup)" until the
+    // container was SIGKILLed at the step budget).
+    const heap = heapMbForMemory(this.options.limits.memory);
+    const envPrefix =
+      `export CI=true NGCLI_ANALYTICS=false npm_config_cache=/tmp/npm-cache` +
+      (heap !== undefined ? ` NODE_OPTIONS=--max-old-space-size=${heap}` : '');
     const command =
       resolved.subdir !== undefined
         ? ([
             'sh',
             '-lc',
-            `cd ${quotePosix(resolved.subdir)} && ${packageManager} run ${quotePosix(resolved.name)}`,
+            `cd ${quotePosix(resolved.subdir)} && ${envPrefix} && ${packageManager} run ${quotePosix(resolved.name)}`,
           ] as const)
         : ([packageManager, 'run', resolved.name] as const);
     const manifest = await computeWorkdirManifest(workdir);
@@ -233,11 +318,78 @@ export class SandboxRunner {
       workdirContents: manifest.files,
       limits: this.options.limits,
       network: 'none',
+      // Angular-class builds spill well past the 64m default /tmp (compiler
+      // temp + npm cache both live there under the read-only rootfs) — a full
+      // /tmp stalls `ng build` in "setup" instead of failing loudly. 512m is
+      // cheap insurance; the install step keeps its own 1g.
+      tmpfsSize: '512m',
       workspaceWritable: true,
     });
     recordSandboxRun();
     observeSandboxDuration(result.durationMs / 1000);
     return result;
+  }
+
+  /**
+   * Ensure `node_modules` exists for the manifest directory, installing it
+   * when absent. Returns `null` when there is nothing to do (opted out or
+   * already installed); otherwise the install container's result, tagged with
+   * a `[deps]` prefix so a FAILED check reads as "install failed", never as
+   * "build failed". A {@link SandboxInfraError} propagates (→ SKIPPED); a
+   * non-zero install is returned (→ FAILED with the install log).
+   */
+  async ensureInstalled(
+    workdir: string,
+    subdir: string | undefined,
+    packageManager: PackageManager,
+  ): Promise<SandboxResult | null> {
+    if (this.options.installDependencies === false) {
+      return null;
+    }
+    const base = subdir ? join(workdir, subdir) : workdir;
+    try {
+      const st = await stat(join(base, 'node_modules'));
+      if (st.isDirectory()) {
+        return null;
+      }
+    } catch {
+      // Missing — fall through to the install below.
+    }
+    const frozen = await hasLockfile(workdir, subdir);
+    const args = buildInstallArgs(packageManager, frozen);
+    // The rootfs is `--read-only` with only `/tmp` writable, so point every
+    // package-manager cache at `/tmp` — otherwise `ci` dies writing `~/.npm`.
+    // `sh` (not `bash`): the pinned `node:20-alpine` image has no bash.
+    // `2>&1` keeps npm's stdout/stderr in one ordered stream (its `npm error`
+    // block was otherwise lost between the two pipes); on failure the npm
+    // debug log tail is appended so the real reason (EUSAGE/EBADENGINE/EACCES/
+    // ENOSPC/ELIFECYCLE…) is in the check output instead of a dead log path
+    // inside the removed container.
+    const cd = subdir !== undefined ? `cd ${quotePosix(subdir)} && ` : '';
+    const installPart = args.map((part) => quotePosix(part)).join(' ');
+    const script =
+      `${cd}export npm_config_cache=/tmp/npm-cache XDG_CACHE_HOME=/tmp/.cache ` +
+      `COREPACK_HOME=/tmp/corepack COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && ` +
+      `{ ${installPart} 2>&1 || { code=$?; echo '[deps] install failed — npm debug log tail:'; ` +
+      `tail -n 40 /tmp/npm-cache/_logs/*debug*.log 2>/dev/null; exit $code; }; }`;
+    const timeoutSeconds = this.options.installTimeoutSeconds ?? 600;
+    const manifest = await computeWorkdirManifest(workdir);
+    const result = await this.options.sandbox.run({
+      command: ['sh', '-lc', script],
+      image: this.options.image,
+      workdirPath: workdir,
+      workdirContents: manifest.files,
+      limits: { ...this.options.limits, timeoutSeconds },
+      network: 'bridge',
+      // A cold package cache for a large app is hundreds of MB — the 64m
+      // default tmpfs makes `npm ci` die ENOSPC (seen on horizon2-ui).
+      tmpfsSize: '1g',
+      workspaceWritable: true,
+    });
+    recordSandboxRun();
+    observeSandboxDuration(result.durationMs / 1000);
+    const prefix = `[deps] ${args.join(' ')}${subdir ? ` (in ${subdir}/)` : ''}\n`;
+    return { ...result, stdout: `${prefix}${result.stdout}`, stderr: result.stderr };
   }
 
   /**
@@ -268,13 +420,21 @@ export class SandboxRunner {
 /** Map a raw sandbox measurement to the check vocabulary (exit code → status). */
 export function toCheckResult(kind: CheckKind, result: SandboxResult, durationMs: number): CheckResult {
   const combined = `${result.stdout}${result.stderr}`;
+  // 127 from inside the container means "command not found" — almost always a
+  // missing toolchain (`pnpm`/`yarn` — the image ships only npm, the rest go
+  // through `corepack`) or an uninstalled `node_modules/.bin`. Without this
+  // hint the bare `sh: ...: not found` reads as infra noise.
+  const body =
+    result.exitCode === 127 && !result.timedOut
+      ? `${combined}\n[hint] exit 127 = command not found inside the sandbox image (only npm preinstalled; pnpm/yarn via corepack) or missing node_modules/.bin — check the [deps] install log above`
+      : combined;
   return {
     checkKind: kind,
     status: result.timedOut ? CheckStatus.TIMED_OUT : result.exitCode === 0 ? CheckStatus.PASSED : CheckStatus.FAILED,
     durationMs,
     exitCode: result.exitCode,
-    output: truncateOutput(combined),
-    evidenceBody: combined,
+    output: truncateOutput(body),
+    evidenceBody: body,
   };
 }
 
@@ -325,5 +485,21 @@ export async function runScriptCheck(
       output: `no ${script} script declared`,
     };
   }
-  return toCheckResult(kind, result, Date.now() - started);
+  const check = toCheckResult(kind, result, Date.now() - started);
+  // Host-side probe: the sandbox bind-mounts the clone, so a missing
+  // `node_modules` on the host is also missing inside. When the container
+  // already said "command not found", name the directory so the row tells the
+  // operator exactly where `npm ci` (or a toolchain install) is needed.
+  if (result.exitCode === 127 && !result.timedOut) {
+    const declared = await resolvePackageScripts(workdir).catch(() => ({} as ResolvedPackageScripts));
+    const base = declared.subdir ? join(workdir, declared.subdir) : workdir;
+    try {
+      await stat(join(base, 'node_modules'));
+    } catch {
+      const location = declared.subdir ? `${declared.subdir}/` : '';
+      const extra = ` — no node_modules in ${location || 'workdir'} (clone is source-only, sandbox has no network to install)`;
+      return { ...check, output: truncateOutput(`${check.output}${extra}`) };
+    }
+  }
+  return check;
 }

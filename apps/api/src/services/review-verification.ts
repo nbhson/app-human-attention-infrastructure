@@ -55,11 +55,28 @@ function sandboxRoot(): string {
 
 /**
  * Clone+verify budget in seconds. Validated: a malformed
- * `VERIFY_CLONE_TIMEOUT_S` (NaN/0/negative) falls back to 600 instead of
- * poisoning `setTimeout` downstream.
+ * `VERIFY_CLONE_TIMEOUT_S` (NaN/0/negative) falls back to 900 instead of
+ * poisoning `setTimeout` downstream. 900 (not 600): an Angular-class `ng
+ * build` on 2 CPUs takes ~3 min, on 1 CPU it never finished inside 600s —
+ * the budget needs headroom for the slowest supported clone.
+ *
+ * `VERIFY_SANDBOX_TIMEOUT_S` is honored as a legacy alias so an operator-set
+ * value there is never silently ignored (it used to be documented but unread,
+ * leaving heavy builds killed at 900s despite `.env` saying 1200).
  */
 function cloneTimeoutSeconds(): number {
-  const raw = Number(process.env.VERIFY_CLONE_TIMEOUT_S ?? '600');
+  const raw = Number(process.env.VERIFY_CLONE_TIMEOUT_S ?? process.env.VERIFY_SANDBOX_TIMEOUT_S ?? '900');
+  return Number.isFinite(raw) && raw > 0 ? raw : 900;
+}
+
+/**
+ * Install-step budget in seconds. The runner installs `node_modules` (registry
+ * egress in its own container) before build/test, so the wall-clock budget
+ * must cover it — otherwise a large `npm ci` (Angular-size) trips the
+ * `withTimeout` and the row reads ERROR instead of a verdict.
+ */
+function installTimeoutSeconds(): number {
+  const raw = Number(process.env.VERIFY_INSTALL_TIMEOUT_S ?? '600');
   return Number.isFinite(raw) && raw > 0 ? raw : 600;
 }
 
@@ -69,12 +86,12 @@ function cloneTimeoutSeconds(): number {
  * clone overhead and a 5-minute grace period.
  */
 function staleRunningThresholdMs(): number {
-  return cloneTimeoutSeconds() * 2 * 1000 + 300_000;
+  return (cloneTimeoutSeconds() * 2 + installTimeoutSeconds()) * 1000 + 300_000;
 }
 
-/** Total wall-clock budget for one `verifier.verify()` call (both checks + overhead). */
+/** Total wall-clock budget for one `verifier.verify()` call (install + both checks + overhead). */
 function verifyTotalTimeoutMs(): number {
-  return cloneTimeoutSeconds() * 2 * 1000 + 60_000;
+  return (cloneTimeoutSeconds() * 2 + installTimeoutSeconds()) * 1000 + 60_000;
 }
 
 /**
@@ -273,7 +290,7 @@ export class ReviewVerificationService {
       if (error instanceof RequestTimeoutError) {
         await this.markError(
           rowId,
-          `verify timed out after ${Math.round(verifyTotalTimeoutMs() / 1000)}s — the clone's build/test did not finish in budget (VERIFY_CLONE_TIMEOUT_S=${cloneTimeoutSeconds()})`,
+          `verify timed out after ${Math.round(verifyTotalTimeoutMs() / 1000)}s — the clone's build/test did not finish in budget (VERIFY_CLONE_TIMEOUT_S=${cloneTimeoutSeconds()}, alias VERIFY_SANDBOX_TIMEOUT_S)`,
         );
       } else {
         await this.markError(rowId, `verify failed: ${String(error)}`);

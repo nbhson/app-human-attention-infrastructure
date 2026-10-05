@@ -10,7 +10,7 @@ import { CloneCompileCheck } from '../clone-checks/compile-check.js';
 import { CloneTestCheck } from '../clone-checks/test-check.js';
 import { CloneVerifier } from '../clone-verifier.js';
 import type { CloneWorktree } from '../clone-verifier.js';
-import { detectPackageManager, parsePackageScripts, resolvePackageScripts, SandboxRunner } from '../sandbox-runner.js';
+import { buildInstallArgs, detectPackageManager, hasLockfile, heapMbForMemory, parsePackageScripts, resolvePackageScripts, SandboxRunner } from '../sandbox-runner.js';
 import type { SandboxRunnerOptions } from '../sandbox-runner.js';
 import { CheckKind, CheckStatus } from '../types.js';
 
@@ -55,6 +55,9 @@ function runner(sandbox: Sandbox, overrides: Partial<SandboxRunnerOptions> = {})
     limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 60 },
     buildCommand: 'build',
     testCommand: 'test',
+    // These ordering tests use a nonexistent workdir — disable the install
+    // step to isolate verifier behavior (install has its own suite below).
+    installDependencies: false,
     ...overrides,
   });
 }
@@ -199,6 +202,8 @@ describe('SandboxRunner script resolution (day-12 §3.2)', () => {
       join(dir, 'ClientApp', 'package.json'),
       JSON.stringify({ scripts: { build: 'ng build', test: 'jest' } }),
     );
+    // Deps present so the test isolates the cd/argv behavior (no install run).
+    mkdirSync(join(dir, 'ClientApp', 'node_modules'));
     const sb = new ScriptedSandbox([result(), result()]);
     const r = new SandboxRunner({
       sandbox: sb,
@@ -214,8 +219,18 @@ describe('SandboxRunner script resolution (day-12 §3.2)', () => {
     expect(report.checks[0]?.status).toBe(CheckStatus.PASSED);
     expect(sb.runs).toHaveLength(2);
     // Literal script *name* (`run build`), never the body (`ng build`) as argv.
-    expect(sb.runs[0]?.command).toEqual(['sh', '-lc', `cd 'ClientApp' && npm run 'build'`]);
-    expect(sb.runs[1]?.command).toEqual(['sh', '-lc', `cd 'ClientApp' && npm run 'test'`]);
+    // Heap follows the container limit (512m → 384); npm cache stays on /tmp;
+    // CI=true + NGCLI_ANALYTICS=false keep Angular non-interactive (no TTY stall).
+    expect(sb.runs[0]?.command).toEqual([
+      'sh',
+      '-lc',
+      `cd 'ClientApp' && export CI=true NGCLI_ANALYTICS=false npm_config_cache=/tmp/npm-cache NODE_OPTIONS=--max-old-space-size=384 && npm run 'build'`,
+    ]);
+    expect(sb.runs[1]?.command).toEqual([
+      'sh',
+      '-lc',
+      `cd 'ClientApp' && export CI=true NGCLI_ANALYTICS=false npm_config_cache=/tmp/npm-cache NODE_OPTIONS=--max-old-space-size=384 && npm run 'test'`,
+    ]);
   });
 
   it('detects the package manager from the lockfile next to the manifest', async () => {
@@ -228,6 +243,141 @@ describe('SandboxRunner script resolution (day-12 §3.2)', () => {
     expect(await detectPackageManager(dir, 'ClientApp')).toBe('yarn');
     writeFileSync(join(dir, 'ClientApp', 'pnpm-lock.yaml'), '');
     expect(await detectPackageManager(dir, 'ClientApp')).toBe('pnpm');
+  });
+  it('maps container exit 127 to FAILED with a toolchain hint (not a blind SKIP)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clone-verify-127-'));
+    mkdirSync(join(dir, 'ClientApp'));
+    writeFileSync(
+      join(dir, 'ClientApp', 'package.json'),
+      JSON.stringify({ scripts: { build: 'ng build', test: 'jest' } }),
+    );
+    // No node_modules in ClientApp — the clone is source-only. Install is
+    // disabled here to isolate the 127 hint/probe behavior.
+    const sb = new ScriptedSandbox([result({ exitCode: 127, stderr: 'sh: ng: not found\n' })]);
+    const r = new SandboxRunner({
+      sandbox: sb,
+      image: 'harness-verify:node20',
+      limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 60 },
+      installDependencies: false,
+    });
+
+    const checkResult = await new CloneCompileCheck(r).run(dir);
+
+    expect(checkResult.status).toBe(CheckStatus.FAILED);
+    expect(checkResult.output).toContain('ng: not found');
+    expect(checkResult.output).toContain('exit 127');
+    expect(checkResult.output).toContain('no node_modules in ClientApp/');
+  });
+});
+
+describe('SandboxRunner deps install', () => {
+  function workdirWithManifest(subdir = 'ClientApp'): string {
+    const dir = mkdtempSync(join(tmpdir(), 'clone-verify-install-'));
+    mkdirSync(join(dir, subdir));
+    writeFileSync(
+      join(dir, subdir, 'package.json'),
+      JSON.stringify({ scripts: { build: 'ng build', test: 'jest' } }),
+    );
+    return dir;
+  }
+
+  it('builds frozen install args per package manager (corepack for pnpm/yarn)', () => {
+    expect(buildInstallArgs('npm', true)).toEqual(['npm', 'ci']);
+    expect(buildInstallArgs('npm', false)).toEqual(['npm', 'install', '--no-audit', '--no-fund']);
+    expect(buildInstallArgs('pnpm', true)).toEqual(['corepack', 'pnpm', 'install', '--frozen-lockfile']);
+    expect(buildInstallArgs('yarn', true)).toEqual(['corepack', 'yarn', 'install', '--frozen-lockfile']);
+  });
+
+  it('detects a lockfile next to the manifest', async () => {
+    const dir = workdirWithManifest();
+    expect(await hasLockfile(dir, 'ClientApp')).toBe(false);
+    writeFileSync(join(dir, 'ClientApp', 'package-lock.json'), '{}');
+    expect(await hasLockfile(dir, 'ClientApp')).toBe(true);
+  });
+
+  it('sizes the node heap at 3/4 of the container memory', () => {
+    expect(heapMbForMemory('512m')).toBe(384);
+    expect(heapMbForMemory('4g')).toBe(3072);
+    expect(heapMbForMemory('2G')).toBe(1536);
+    expect(heapMbForMemory('')).toBeUndefined();
+    expect(heapMbForMemory('huge')).toBeUndefined();
+  });
+
+  it('skips the install when node_modules already exists (no extra sandbox run)', async () => {
+    const dir = workdirWithManifest();
+    mkdirSync(join(dir, 'ClientApp', 'node_modules'));
+    const sb = new ScriptedSandbox([result()]);
+    const r = new SandboxRunner({
+      sandbox: sb,
+      image: 'harness-verify:node20',
+      limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 60 },
+    });
+
+    const checkResult = await new CloneCompileCheck(r).run(dir);
+
+    expect(checkResult.status).toBe(CheckStatus.PASSED);
+    expect(sb.runs).toHaveLength(1); // build only, no install
+    expect(sb.runs[0]?.network).toBe('none');
+  });
+
+  it('installs with registry egress before build, then runs the build offline', async () => {
+    const dir = workdirWithManifest();
+    writeFileSync(join(dir, 'ClientApp', 'package-lock.json'), '{}');
+    const sb = new ScriptedSandbox([result(), result()]);
+    const r = new SandboxRunner({
+      sandbox: sb,
+      image: 'harness-verify:node20',
+      limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 60 },
+    });
+
+    const checkResult = await new CloneCompileCheck(r).run(dir);
+
+    expect(checkResult.status).toBe(CheckStatus.PASSED);
+    expect(sb.runs).toHaveLength(2);
+    expect(sb.runs[0]?.network).toBe('bridge'); // install: registry egress
+    expect(sb.runs[0]?.tmpfsSize).toBe('1g'); // install: cold cache needs room (64m dies ENOSPC)
+    expect(sb.runs[0]?.command.slice(0, 2)).toEqual(['sh', '-lc']);
+    expect(sb.runs[0]?.command[2]).toContain('npm');
+    expect(sb.runs[0]?.command[2]).toContain('ci');
+    // Failure debug: merged stream + npm debug-log tail so the real reason
+    // (EUSAGE/ENOSPC/…) lands in the check output, not a dead container path.
+    expect(sb.runs[0]?.command[2]).toContain('2>&1');
+    expect(sb.runs[0]?.command[2]).toContain('_logs');
+    expect(sb.runs[1]?.network).toBe('none'); // build: stays offline
+    expect(sb.runs[1]?.tmpfsSize).toBe('512m'); // build: Angular spills past the 64m default /tmp
+  });
+
+  it('records FAILED with the [deps]-tagged log when the install fails (build never runs)', async () => {
+    const dir = workdirWithManifest();
+    const sb = new ScriptedSandbox([result({ exitCode: 1, stderr: 'npm ERR! 404 Not Found' })]);
+    const r = new SandboxRunner({
+      sandbox: sb,
+      image: 'harness-verify:node20',
+      limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 60 },
+    });
+
+    const checkResult = await new CloneCompileCheck(r).run(dir);
+
+    expect(checkResult.status).toBe(CheckStatus.FAILED);
+    expect(checkResult.output).toContain('[deps]');
+    expect(checkResult.output).toContain('404 Not Found');
+    expect(sb.runs).toHaveLength(1); // install only, no build attempt
+  });
+
+  it('opts out of the install with installDependencies: false', async () => {
+    const dir = workdirWithManifest();
+    const sb = new ScriptedSandbox([result()]);
+    const r = new SandboxRunner({
+      sandbox: sb,
+      image: 'harness-verify:node20',
+      limits: { cpu: '1.0', memory: '512m', timeoutSeconds: 60 },
+      installDependencies: false,
+    });
+
+    await new CloneCompileCheck(r).run(dir);
+
+    expect(sb.runs).toHaveLength(1);
+    expect(sb.runs[0]?.network).toBe('none');
   });
 });
 

@@ -98,7 +98,7 @@ export interface ReviewPrompt {
  *     stating the external-callers-unknown assumption instead of inventing
  *     callers. Output contract intentionally UNCHANGED.
  */
-export const REVIEW_PROMPT_VERSION = 'reviewer-v9';
+export const REVIEW_PROMPT_VERSION = 'reviewer-v10';
 
 const SYSTEM_PROMPT = `You are a senior code reviewer operating as a HUMAN-ATTENTION ROUTING ENGINE.
 
@@ -1494,6 +1494,10 @@ Multiple CRITICAL findings;
 or fundamental security/architectural failure.
 
 The overall risk score must reflect evidence from the complete review.
+
+Hard ceiling (no exceptions): with no MAJOR or CRITICAL finding filed,
+overallRiskScore MUST be below 65. A score of 65+ without a MAJOR/CRITICAL
+finding is a scoring error, not a judgment call.
 
 Suggested interpretation:
 

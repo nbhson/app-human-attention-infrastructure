@@ -13,10 +13,15 @@
  *
  * Docker reserves exit codes 125 ("daemon error"), 126 ("command cannot
  * execute") and 127 ("command not found") for *its own* failures — an image
- * that does not exist lands here, not in a program result. Those are surfaced
- * as {@link SandboxInfraError} so the engine falls back to in-process
- * verification rather than recording a false `FAILED` (§2.4). Program results
- * (1–124, 128+) are passed through verbatim.
+ * that does not exist lands here, not in a program result. 125/126 are always
+ * infra (a program almost never exits with them). 127 is ambiguous: the
+ * program inside the container also exits 127 on "command not found"
+ * (`sh: ng: not found`, missing `node_modules/.bin`), so it is only treated
+ * as {@link SandboxInfraError} when the output carries a Docker image/pull
+ * message — otherwise it passes through as the program's own FAILED result
+ * (§2.4). Program results (1–124, 127-without-docker-message, 128+) are
+ * passed through verbatim, and infra rejects always carry the container log
+ * tail so a SKIPPED row is debuggable instead of a bare "exit 127".
  */
 
 import { spawn } from 'node:child_process';
@@ -37,8 +42,17 @@ function cap(output: string): string {
   return output.slice(0, OUTPUT_CAP - marker.length) + marker;
 }
 
-/** Docker-level failure exit codes (not program results). */
-const DOCKER_INFRA_EXIT_CODES = new Set([125, 126, 127]);
+/** Docker-level failure exit codes that are never program results. */
+const DOCKER_HARD_INFRA_EXIT_CODES = new Set([125, 126]);
+
+/**
+ * 127 is shared between Docker ("image not found") and the program inside the
+ * container ("command not found"). Only treat it as infra when the output
+ * proves Docker itself failed — otherwise `sh: ng: not found` (missing
+ * toolchain / uninstalled `node_modules`) would SKIP instead of FAIL.
+ */
+const DOCKER_IMAGE_ERROR_PATTERN =
+  /docker:\s*error response|no such image|unable to find image|image .* not found|manifest .* not found|pull access denied|repository .* not found|does not exist or no pull access/i;
 
 /**
  * Docker Desktop / CLI daemon-connection failures exit 1 (not 125) with a
@@ -67,10 +81,19 @@ export class DockerSandbox implements Sandbox {
    * flags without a daemon (§6: test each flag, not just its presence).
    */
   buildArgs(run: SandboxRun, containerName: string): string[] {
-    // P1 fix: defense-in-depth — even though `SandboxRun.network` is typed as
-    // `'none'`, fail closed if a future caller ever passes anything else.
-    if (run.network !== 'none') {
-      throw new SandboxInfraError(`refusing to run sandbox with network "${run.network}" (must be "none")`);
+    // Defense-in-depth: the network is a closed union (`'none' | 'bridge'`),
+    // so anything else fails closed here. `'bridge'` is only ever requested
+    // by the explicit dependency-install step — build/test always pass
+    // `'none'` so untrusted code never gets egress.
+    if (run.network !== 'none' && run.network !== 'bridge') {
+      throw new SandboxInfraError(`refusing to run sandbox with network "${run.network}" (must be "none" or "bridge")`);
+    }
+    // The tmpfs size is operator input (install needs ~1g for a cold package
+    // cache, build/test keep 64m) — accept only `<digits>m|g`, fail closed
+    // otherwise so a malformed limit cannot reach the docker CLI.
+    const tmpfsSize = run.tmpfsSize ?? '64m';
+    if (!/^\d+[mMgG]$/.test(tmpfsSize)) {
+      throw new SandboxInfraError(`refusing to run sandbox with tmpfs size "${tmpfsSize}" (must match <digits>m|g)`);
     }
     return [
       'run',
@@ -89,7 +112,7 @@ export class DockerSandbox implements Sandbox {
       '--pids-limit',
       '256',
       '--tmpfs',
-      '/tmp:rw,noexec,nosuid,size=64m',
+      `/tmp:rw,noexec,nosuid,size=${tmpfsSize}`,
       '--cpus',
       run.limits.cpu,
       '--memory',
@@ -166,8 +189,17 @@ export class DockerSandbox implements Sandbox {
 
       proc.on('close', (code) => {
         clearTimeout(timer);
-        if (DOCKER_INFRA_EXIT_CODES.has(code ?? -1)) {
-          reject(new SandboxInfraError(`docker run failed with exit ${code}`));
+        const combined = `${stdout}\n${stderr}`;
+        if (DOCKER_HARD_INFRA_EXIT_CODES.has(code ?? -1)) {
+          reject(new SandboxInfraError(`docker run failed with exit ${code}: ${cap(stderr).slice(0, 500)}`));
+          return;
+        }
+        // 127 discrimination: Docker's own image/pull failure → infra;
+        // the program's "command not found" (missing toolchain or
+        // node_modules/.bin) → a real result so the caller records FAILED
+        // with evidence instead of a blind SKIPPED.
+        if ((code ?? -1) === 127 && DOCKER_IMAGE_ERROR_PATTERN.test(combined)) {
+          reject(new SandboxInfraError(`docker image unavailable (exit 127): ${cap(stderr).slice(0, 500)}`));
           return;
         }
         // Daemon-down via the CLI surfaces as exit 1 + a connection message

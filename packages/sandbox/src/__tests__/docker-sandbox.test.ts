@@ -31,6 +31,8 @@ const mode = process.env.FAKE_DOCKER_MODE;
 if (mode === 'exit0') { process.stdout.write('compile ok\\n'); process.exit(0); }
 if (mode === 'exit3') { process.stderr.write('TS2322: boom\\n'); process.exit(3); }
 if (mode === 'exit125') { process.stderr.write('Cannot connect to the Docker daemon\\n'); process.exit(125); }
+if (mode === 'exit127-image') { process.stderr.write('docker: Error response from daemon: No such image: harness-verify:node20\\n'); process.exit(127); }
+if (mode === 'exit127-program') { process.stderr.write("sh: ng: not found\\n"); process.exit(127); }
 if (mode === 'exit1-daemon') { process.stderr.write('failed to connect to the docker API at unix:///Users/x/.docker/run/docker.sock; check if the path is correct and if the daemon is running\\n'); process.exit(1); }
 if (mode === 'exit1-program') { process.stderr.write('TS2322: boom\\n'); process.exit(1); }
 if (mode === 'hang') { setTimeout(() => process.exit(0), 2000); } else { process.exit(0); }
@@ -82,6 +84,27 @@ describe('DockerSandbox.buildArgs (day-22 §2.2)', () => {
     // The rootfs stays read-only even when the workspace is writable.
     expect(writable).toEqual(expect.arrayContaining(['--read-only']));
   });
+
+  it('allows bridge network for the explicit deps-install step (build/test stay on none)', () => {
+    const sandbox = new DockerSandbox();
+    const args = sandbox.buildArgs(makeRun({ network: 'bridge' }), 'harness-verify-install');
+    expect(args).toEqual(expect.arrayContaining(['--network', 'bridge']));
+  });
+
+  it('defaults /tmp tmpfs to 64m and allows a larger one for the install step', () => {
+    const sandbox = new DockerSandbox();
+    expect(sandbox.buildArgs(makeRun(), 'x')).toEqual(
+      expect.arrayContaining(['--tmpfs', '/tmp:rw,noexec,nosuid,size=64m']),
+    );
+    expect(sandbox.buildArgs(makeRun({ tmpfsSize: '1g' }), 'x')).toEqual(
+      expect.arrayContaining(['--tmpfs', '/tmp:rw,noexec,nosuid,size=1g']),
+    );
+  });
+
+  it('fails closed on a malformed tmpfs size', () => {
+    const sandbox = new DockerSandbox();
+    expect(() => sandbox.buildArgs(makeRun({ tmpfsSize: 'huge' }), 'x')).toThrow(SandboxInfraError);
+  });
 });
 
 describe('DockerSandbox.run (day-22 §3.2)', () => {
@@ -104,6 +127,21 @@ describe('DockerSandbox.run (day-22 §3.2)', () => {
   it('tags a missing image / daemon error (125) as SandboxInfraError, not a check result', async () => {
     const { sandbox } = stubDocker('exit125');
     await expect(sandbox.run(makeRun())).rejects.toBeInstanceOf(SandboxInfraError);
+  });
+
+  it('tags a Docker image failure (127 + daemon message) as SandboxInfraError with the log tail', async () => {
+    const { sandbox } = stubDocker('exit127-image');
+    const error = await sandbox.run(makeRun()).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(SandboxInfraError);
+    expect(String(error)).toContain('No such image');
+  });
+
+  it('passes through a program command-not-found (127 without docker message) as FAILED evidence, not infra', async () => {
+    const { sandbox } = stubDocker('exit127-program');
+    const result = await sandbox.run(makeRun());
+    expect(result.exitCode).toBe(127);
+    expect(result.timedOut).toBe(false);
+    expect(result.stderr).toContain('ng: not found');
   });
 
   it('tags a daemon-down CLI failure (exit 1 + connection message) as SandboxInfraError', async () => {
