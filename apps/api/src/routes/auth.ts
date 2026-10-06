@@ -14,7 +14,7 @@
  * from `APP_URL` so the demo works behind a tunnel/port change.
  */
 
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { AuthService, SessionService } from '@harness/auth';
 import type { OidcProvider } from '@harness/auth';
@@ -61,7 +61,47 @@ export function stopPendingLoginPruner(): void {
 }
 
 /** The absolute callback URL the IdP redirects to. */
-function callbackUrl(): string {
+function callbackUrl(request?: FastifyRequest): string {
+  // LAN fix: the old code always returned `${APP_URL}/api/auth/callback`
+  // (default http://localhost:3000). A browser on another machine in the LAN
+  // that opens http://<server-ip>:5174/api/auth/login gets a 302 to
+  // `http://localhost:3000/...` — `localhost` there resolves to *its own*
+  // machine, so login never completes and every later `/api/reviews` call
+  // stays 401 (no `sid` cookie for the LAN host).
+  //
+  // When the mock IdP is in use there is no pre-registered redirect URI to
+  // honour (the mock just echoes back to whatever `redirectUri` we pass), so
+  // we can safely derive the base from the incoming request: prefer the
+  // browser-facing origin (Origin/Referer carry the LAN host
+  // `http://192.168.x.x:5174` even when Vite proxies with `Host:
+  // localhost:3000`), then X-Forwarded-Host/Host, and only fall back to
+  // APP_URL. Callbacks then flow back through the same host:port the browser
+  // used (e.g. via the Vite `/api` proxy), the `sid` cookie is set for the
+  // LAN host, and `credentials: 'include'` fetches from `:5174` are
+  // authenticated — no need to expose `:3000` to the LAN.
+  // With a real IdP the redirect URI must match the registered one, so keep
+  // the static APP_URL there.
+  if (process.env.OIDC_MOCK === 'true' && request) {
+    const origin = request.headers.origin ?? request.headers.referer;
+    if (typeof origin === 'string') {
+      const match = origin.match(/^https?:\/\/[^/]+/);
+      if (match) {
+        return `${match[0].replace(/\/$/, '')}/api/auth/callback`;
+      }
+    }
+    const forwardedHost = request.headers['x-forwarded-host'] ?? request.headers['x-forwarded-server'];
+    const host = (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ?? request.headers.host;
+    if (typeof host === 'string' && host.length > 0) {
+      const forwardedProto = request.headers['x-forwarded-proto'];
+      const proto =
+        (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)?.split(',')[0]?.trim() ||
+        (host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'http');
+      const cleanHost = host.split(',')[0]?.trim();
+      if (cleanHost) {
+        return `${proto}://${cleanHost.replace(/\/$/, '')}/api/auth/callback`;
+      }
+    }
+  }
   const base = process.env.APP_URL ?? 'http://localhost:3000';
   return `${base.replace(/\/$/, '')}/api/auth/callback`;
 }
@@ -81,12 +121,12 @@ export function registerAuthRoutes(app: FastifyInstance, container: Container): 
     auth: container.resolve<AuthService>(TOKENS.AuthService),
   });
 
-  app.get('/api/auth/login', async (_request, reply) => {
+  app.get('/api/auth/login', async (request, reply) => {
     prunePendingLogins();
     const { provider } = resolve();
     const state = randomToken();
     const codeVerifier = randomToken();
-    const redirectUri = callbackUrl();
+    const redirectUri = callbackUrl(request);
     pendingLogins.set(state, { codeVerifier, redirectUri, issuedAt: Date.now() });
 
     const url = await provider.getAuthorizationUrl(state, codeVerifier, redirectUri);

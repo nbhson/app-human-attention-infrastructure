@@ -13,7 +13,22 @@ export default defineConfig({
     // `localhost` inside the proxy below is resolved from inside WSL,
     // where the API also runs, so it stays correct.
     proxy: {
-      '/api': 'http://localhost:3000',
+      // Object form (not the string shorthand) on purpose:
+      // - `changeOrigin: true` keeps the shorthand's behaviour (Host rewritten
+      //   to the API target).
+      // - `xfwd: true` makes the proxy add `x-forwarded-host/proto` carrying
+      //   the *browser-facing* host (e.g. `192.168.x.x:5174` for a LAN client).
+      //   The API's mock-OIDC login (`GET /api/auth/login`, see
+      //   `apps/api/src/routes/auth.ts`) reads those headers to build a
+      //   callback URL the browser can actually reach. Without them the API
+      //   only sees `Host: localhost:3000` and 302s the browser to
+      //   `http://localhost:3000/...` — which from a LAN machine resolves to
+      //   itself, so login never completes and `/api/reviews` stays 401.
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        xfwd: true,
+      },
     },
   },
 });
