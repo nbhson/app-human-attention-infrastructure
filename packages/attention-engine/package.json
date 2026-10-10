@@ -26,7 +26,7 @@
     "@harness/event-bus": "workspace:^",
     "@harness/object-store": "workspace:^",
     "diff": "^9.0.0",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.3",
     "@harness/observability": "workspace:^"
   },
   "devDependencies": {

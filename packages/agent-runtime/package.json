@@ -20,13 +20,13 @@
     "test": "vitest run --root ../.. packages/agent-runtime"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.120.0",
+    "@anthropic-ai/sdk": "^0.132.0",
     "@harness/db": "workspace:^",
     "@harness/domain": "workspace:^",
     "@harness/event-bus": "workspace:^",
     "@harness/observability": "workspace:^",
     "@harness/sandbox": "workspace:^",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
