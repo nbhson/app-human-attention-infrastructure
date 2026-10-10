@@ -27,7 +27,7 @@
     "@harness/object-store": "workspace:^",
     "@harness/observability": "workspace:^",
     "diff": "^9.0.0",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
