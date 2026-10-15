@@ -26,6 +26,6 @@
   },
   "dependencies": {
     "@harness/domain": "workspace:^",
-    "pino": "^9.5.0"
+    "pino": "^10.3.1"
   }
 }
