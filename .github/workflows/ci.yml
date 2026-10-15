@@ -67,7 +67,7 @@ jobs:
     env:
       DATABASE_URL: postgres://harness:harness@localhost:5432/harness
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -106,7 +106,7 @@ jobs:
     env:
       DATABASE_URL: postgres://harness:harness@localhost:5432/harness
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -131,7 +131,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
