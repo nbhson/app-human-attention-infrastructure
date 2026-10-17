@@ -148,7 +148,7 @@ jobs:
         # table stays visible in logs but never blocks `gate`; remediation
         # (e.g. handlebars 4.7.8→4.7.9, react-router/vite majors) is tracked
         # follow-up work, not a drive-by upgrade.
-        uses: google/osv-scanner-action/osv-scanner-action@v2.6.0
+        uses: google/osv-scanner-action/osv-scanner-action@v2.7.0
         continue-on-error: true
         with:
           scan-args: |-
