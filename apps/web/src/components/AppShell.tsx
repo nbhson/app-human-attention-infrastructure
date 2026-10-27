@@ -67,6 +67,9 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
 
   return (
     <div className="app-shell">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="sidebar-brand">
@@ -156,7 +159,9 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
         </div>
       </aside>
 
-      <div className="app-main">{children}</div>
+      <div id="main-content" tabIndex={-1} className="app-main">
+        {children}
+      </div>
       <SystemActivitySidebar />
 
       {shortcutsOpen && (

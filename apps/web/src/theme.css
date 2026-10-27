@@ -526,6 +526,31 @@ button {
   background: var(--color-bg);
 }
 
+/* Skip link — visually hidden until focused (a11y: first tab stop jumps past
+   the sidebar straight into the page's main content region). */
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 8px;
+  z-index: 2000;
+  padding: 10px 16px;
+  border-radius: 0 0 8px 8px;
+  background: var(--color-accent, #2563eb);
+  color: var(--color-on-accent, #fff);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.15s ease-out;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+.app-main:focus {
+  outline: none;
+}
+
 .page {
   max-width: 920px;
   margin: 0 auto;
