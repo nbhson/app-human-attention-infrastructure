@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { reviewApi } from '../api/review';
 
 /**
@@ -19,11 +20,28 @@ export function EvidenceModal({
     staleTime: 60_000,
   });
 
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard support: focus the dialog when it opens, close it with Escape,
+  // and restore focus to the trigger when it closes.
+  useEffect(() => {
+    const panel = panelRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    panel?.focus();
+
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Evidence"
+      role="presentation"
       style={{
         position: 'fixed',
         inset: 0,
@@ -35,6 +53,11 @@ export function EvidenceModal({
       }}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="evidence-modal-title"
         style={{
           background: 'var(--color-surface-2)',
           color: 'var(--color-text)',
@@ -47,7 +70,9 @@ export function EvidenceModal({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>Evidence</h3>
+          <h3 id="evidence-modal-title" style={{ margin: 0 }}>
+            Evidence
+          </h3>
           <button type="button" onClick={onClose}>
             Close
           </button>
