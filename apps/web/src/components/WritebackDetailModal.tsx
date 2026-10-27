@@ -1,4 +1,5 @@
 import type { WritebackRecord } from '../api/reviews';
+import { useEffect, useRef } from 'react';
 
 function StatusBadge({ status }: { readonly status: string }): JSX.Element {
   const styles: Record<string, { bg: string; text: string }> = {
@@ -75,11 +76,31 @@ interface WritebackDetailModalProps {
 }
 
 export function WritebackDetailModal({ record, onClose }: WritebackDetailModalProps): JSX.Element | null {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard support: focus the dialog when it opens, close it with Escape,
+  // and restore focus to the trigger when it closes (only while visible).
+  useEffect(() => {
+    if (!record) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    panelRef.current?.focus();
+
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previouslyFocused?.focus();
+    };
+  }, [record, onClose]);
+
   if (!record) return null;
 
   return (
     <div
       className="modal-overlay"
+      role="presentation"
       style={{
         position: 'fixed',
         inset: 0,
@@ -92,11 +113,13 @@ export function WritebackDetailModal({ record, onClose }: WritebackDetailModalPr
         animation: 'fadeIn 0.15s ease-out',
       }}
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="writeback-modal-title"
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="writeback-modal-title"
         style={{
           width: '100%',
           maxWidth: 640,
