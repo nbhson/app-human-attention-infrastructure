@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -43,6 +43,7 @@ export function AppShell({ children }: { readonly children: ReactNode }): JSX.El
 
 function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Element {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const shortcutsPanelRef = useRef<HTMLDivElement>(null);
   const { isOpen: isActivityOpen, toggle: toggleActivityPanel } = useActivityPanel();
   const { data: summary } = useQuery({
     queryKey: ['reviewsSummary'],
@@ -64,6 +65,16 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // Move keyboard focus into the shortcuts dialog when it opens (and restore
+  // it to the trigger when it closes) so screen-reader and keyboard users
+  // land inside the modal instead of staying on the button behind it.
+  useEffect(() => {
+    if (!shortcutsOpen) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    shortcutsPanelRef.current?.focus();
+    return () => previouslyFocused?.focus();
+  }, [shortcutsOpen]);
 
   return (
     <div className="app-shell">
@@ -167,6 +178,8 @@ function AppShellLayout({ children }: { readonly children: ReactNode }): JSX.Ele
       {shortcutsOpen && (
         <div className="rq-modal" role="presentation" onClick={() => setShortcutsOpen(false)}>
           <div
+            ref={shortcutsPanelRef}
+            tabIndex={-1}
             className="rq-modal-panel"
             role="dialog"
             aria-modal="true"
