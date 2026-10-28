@@ -14,7 +14,10 @@ import { desc, eq } from 'drizzle-orm';
 
 import { eventLog } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import { EventType } from '@harness/domain';
+import { EventType, Role } from '@harness/domain';
+import { requireRole } from '@harness/auth';
+import { TOKENS } from '@harness/di';
+import type { Container } from '@harness/di';
 
 /** Default page size for the ops view. */
 const DEFAULT_LIMIT = 20;
@@ -71,8 +74,14 @@ export async function recentLearningCycles(
 }
 
 /** Register `GET /api/learning/cycles` over an already-resolved `DrizzleDB`. */
-export function registerLearningRoutes(app: FastifyInstance, db: DrizzleDB): void {
-  app.get<{ Querystring: { limit?: string } }>('/api/learning/cycles', async (request) => {
+export function registerLearningRoutes(app: FastifyInstance, container: Container): void {
+  const db = container.resolve<DrizzleDB>(TOKENS.Db);
+  // Read-only, but vẫn là dữ liệu nội bộ (cycle outcomes, sample counts) —
+  // yêu cầu ít nhất OPERATOR. Không guard trước đây = endpoint mở cho bất kỳ
+  // ai chạm được mạng.
+  const canView = requireRole(container, Role.Operate);
+
+  app.get<{ Querystring: { limit?: string } }>('/api/learning/cycles', { preHandler: canView }, async (request) => {
     const rawLimit = Number.parseInt(request.query.limit ?? '', 10);
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : DEFAULT_LIMIT;
     return { cycles: await recentLearningCycles(db, Math.min(limit, 100)) };

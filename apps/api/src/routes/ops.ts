@@ -12,9 +12,12 @@ import type { FastifyInstance } from 'fastify';
 
 import { and, count, eq, inArray, lt } from 'drizzle-orm';
 
+import { requireRole } from '@harness/auth';
+import { TOKENS } from '@harness/di';
+import type { Container } from '@harness/di';
 import { reviewQueue, tasks } from '@harness/db';
 import type { DrizzleDB } from '@harness/db';
-import { ReviewQueueStatus, TaskStatus } from '@harness/domain';
+import { ReviewQueueStatus, Role, TaskStatus } from '@harness/domain';
 
 /** Orphan-alarm window (day-27 §2.3 Q8): EXECUTING/VERIFYING past this long is stuck. */
 const ORPHAN_WINDOW_MS = 10 * 60_000;
@@ -33,15 +36,22 @@ export async function orphanedTaskCount(db: DrizzleDB, olderThanMs = ORPHAN_WIND
   return rows.length;
 }
 
-/** Register the `/api/ops/*` endpoints over an already-resolved `DrizzleDB`. */
-export function registerOpsRoutes(app: FastifyInstance, db: DrizzleDB): void {
+/** Register the `/api/ops/*` endpoints over the already-wired container. */
+export function registerOpsRoutes(app: FastifyInstance, container: Container): void {
+  const db = container.resolve<DrizzleDB>(TOKENS.Db);
+  // `/api/ops/health` chủ đích để MỞ (liveness probe của LB/container không
+  // có credential) — chỉ trả `{ok, now}`, không lộ dữ liệu.
   app.get('/api/ops/health', async () => {
     // A single cheap probe proves the connection is live; failure throws → 500.
     await db.select({ id: tasks.id }).from(tasks).limit(1);
     return { ok: true, now: new Date().toISOString() };
   });
 
-  app.get('/api/ops/metrics', async () => {
+  // `/api/ops/metrics` là dữ liệu vận hành nội bộ (task-state distribution,
+  // queue depth) — guard OPERATOR trở lên, không public như health.
+  const canView = requireRole(container, Role.Operate);
+
+  app.get('/api/ops/metrics', { preHandler: canView }, async () => {
     const [byState, queueRows] = await Promise.all([
       db.select({ state: tasks.state, n: count() }).from(tasks).groupBy(tasks.state),
       db.select({ n: count() }).from(reviewQueue).where(eq(reviewQueue.status, ReviewQueueStatus.Queued)),

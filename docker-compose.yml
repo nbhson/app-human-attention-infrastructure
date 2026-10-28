@@ -7,7 +7,9 @@ services:
       POSTGRES_PASSWORD: harness
       POSTGRES_DB: harness
     ports:
-      - '5432:5432'
+      # Chỉ bind loopback: '5432:5432' mặc định bind 0.0.0.0 → mọi máy trong
+      # mạng LAN đều thấy Postgres với password dev "harness".
+      - '127.0.0.1:5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

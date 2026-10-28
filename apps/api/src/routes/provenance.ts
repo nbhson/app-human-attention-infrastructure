@@ -11,16 +11,20 @@
 import type { FastifyInstance } from 'fastify';
 
 import { buildProvenanceChain } from '@harness/artifact-tracker';
+import { requireRole } from '@harness/auth';
 import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 import type { DrizzleDB } from '@harness/db';
-import { brand } from '@harness/domain';
+import { brand, Role } from '@harness/domain';
 
 /** Register `GET /api/tasks/:id/provenance`. */
 export function registerProvenanceRoutes(app: FastifyInstance, container: Container): void {
   const db = container.resolve<DrizzleDB>(TOKENS.Db);
+  // Provenance chain lộ toàn bộ causal trail của một task (inputs, decisions,
+  // artifacts) — dữ liệu nội bộ, guard OPERATOR trở lên.
+  const canView = requireRole(container, Role.Operate);
 
-  app.get<{ Params: { id: string } }>('/api/tasks/:id/provenance', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/tasks/:id/provenance', { preHandler: canView }, async (request, reply) => {
     const chain = await buildProvenanceChain(db, brand(request.params.id, 'TaskID'));
     if (chain.task === null) {
       return reply.code(404).send({ error: 'task not found' });

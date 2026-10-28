@@ -9,9 +9,7 @@
 
 import Fastify, { type FastifyInstance } from 'fastify';
 
-import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
-import type { DrizzleDB } from '@harness/db';
 
 import { registerReviewRoutes } from './routes/review.js';
 import { registerReviewIngestRoutes } from './routes/reviews.js';
@@ -115,12 +113,12 @@ export function buildApp(container: Container, opts?: { readonly logger?: boolea
   registerReviewIngestRoutes(app, container, checkReviewRateLimit);
   registerProvenanceRoutes(app, container);
   registerAuditRoutes(app, container);
-  registerOpsRoutes(app, container.resolve<DrizzleDB>(TOKENS.Db));
+  registerOpsRoutes(app, container);
   registerMetricsRoutes(app);
   registerAdminRoutes(app, container);
   registerSettingsRoutes(app, container);
   registerTriageRulesRoutes(app, container);
-  registerLearningRoutes(app, container.resolve<DrizzleDB>(TOKENS.Db));
+  registerLearningRoutes(app, container);
 
   // Clean up the rate-limit pruner when the server shuts down.
   app.addHook('onClose', () => {
