@@ -9,6 +9,8 @@
  * must log in once (SSO) and the cookie rides along on every request.
  */
 
+import { getJson, postJson } from './http';
+
 const BASE = '/api/review';
 
 /** A queue row as returned by `GET /api/review/queue`. */
@@ -112,36 +114,12 @@ export class ReviewApiError extends Error {
   }
 }
 
-async function json<T>(res: Promise<Response>): Promise<T> {
-  const response = await res;
-  let body: { error?: string };
-  try {
-    body = (await response.json()) as { error?: string };
-  } catch {
-    throw new ReviewApiError(
-      response.status || 0,
-      `request failed (${response.status || 'network'}) — non-JSON response`,
-    );
-  }
-  if (!response.ok) {
-    throw new ReviewApiError(response.status, body.error ?? `request failed (${response.status})`);
-  }
-  return body as T;
-}
-
 function post<T>(path: string, body: unknown): Promise<T> {
-  return json<T>(
-    fetch(`${BASE}${path}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body),
-    }),
-  );
+  return postJson<T>(`${BASE}${path}`, body, (status, message) => new ReviewApiError(status, message));
 }
 
 function get<T>(path: string): Promise<T> {
-  return json<T>(fetch(`${BASE}${path}`, { credentials: 'include' }));
+  return getJson<T>(`${BASE}${path}`, (status, message) => new ReviewApiError(status, message));
 }
 
 export const reviewApi = {

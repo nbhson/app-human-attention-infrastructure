@@ -3,6 +3,8 @@
  * timeline from `GET /api/audit`, one entry per thing the system did.
  */
 
+import { getJson } from './http';
+
 const BASE = '/api/audit';
 
 /** The four append-only sources unified into the timeline. */
@@ -34,15 +36,6 @@ export interface AuditFilters {
   readonly before?: string;
 }
 
-async function json<T>(res: Promise<Response>): Promise<T> {
-  const response = await res;
-  const body = (await response.json()) as { error?: string };
-  if (!response.ok) {
-    throw new Error(body.error ?? `request failed (${response.status})`);
-  }
-  return body as T;
-}
-
 export const auditApi = {
   list(filters: AuditFilters): Promise<AuditPage> {
     const params = new URLSearchParams();
@@ -52,6 +45,6 @@ export const auditApi = {
     if (filters.limit !== undefined) params.set('limit', String(filters.limit));
     if (filters.before !== undefined) params.set('before', filters.before);
     const qs = params.toString();
-    return json<AuditPage>(fetch(`${BASE}${qs.length > 0 ? `?${qs}` : ''}`));
+    return getJson<AuditPage>(`${BASE}${qs.length > 0 ? `?${qs}` : ''}`);
   },
 };

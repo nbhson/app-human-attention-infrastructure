@@ -7,6 +7,8 @@
  * `includeInstructions` + `instructionsContent`.
  */
 
+import { getJson, putJson } from './http';
+
 const BASE = '/api/triage-rules';
 
 /** The triage-rule toggles + optional operator instructions ("text.md"). */
@@ -54,28 +56,17 @@ export class TriageRulesError extends Error {
   }
 }
 
-async function request<T>(res: Promise<Response>): Promise<T> {
-  const response = await res;
-  const body = (await response.json()) as { error?: string };
-  if (!response.ok) {
-    throw new TriageRulesError(response.status, body.error ?? `request failed (${response.status})`);
-  }
-  return body as T;
+function toError(status: number, message: string): TriageRulesError {
+  return new TriageRulesError(status, message);
 }
 
 export const triageRulesApi = {
   /** Read the current rule state (defaults all-ON before the row is seeded). */
   get(): Promise<TriageRuleState> {
-    return request<TriageRuleState>(fetch(BASE));
+    return getJson<TriageRuleState>(BASE, toError);
   },
   /** Upsert a partial patch (absent keys are left unchanged). */
   update(patch: Partial<TriageRuleState>): Promise<TriageRuleState> {
-    return request<TriageRuleState>(
-      fetch(BASE, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(patch),
-      }),
-    );
+    return putJson<TriageRuleState>(BASE, patch, toError);
   },
 };

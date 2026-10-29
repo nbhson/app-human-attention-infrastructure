@@ -3,6 +3,8 @@
  * provenance sections from `GET /api/tasks/:id/provenance`.
  */
 
+import { getJson } from './http';
+
 const BASE = '/api/tasks';
 
 /** One event in the causal timeline; `occurredAt` is the ISO wall-clock time. */
@@ -43,17 +45,8 @@ export interface ProvenanceChain {
   readonly events: readonly ProvenanceEvent[];
 }
 
-async function json<T>(res: Promise<Response>): Promise<T> {
-  const response = await res;
-  const body = (await response.json()) as { error?: string };
-  if (!response.ok) {
-    throw new Error(body.error ?? `request failed (${response.status})`);
-  }
-  return body as T;
-}
-
 export const provenanceApi = {
   getChain(taskId: string): Promise<ProvenanceChain> {
-    return json<ProvenanceChain>(fetch(`${BASE}/${taskId}/provenance`));
+    return getJson<ProvenanceChain>(`${BASE}/${taskId}/provenance`);
   },
 };

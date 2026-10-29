@@ -5,6 +5,8 @@
  * report + findings + fix suggestions, and record a human decision.
  */
 
+import { getJson, postJson } from './http';
+
 const BASE = '/api/reviews';
 
 /** Trust-loop anchor status: did the finding's `file:line` resolve into the diff? */
@@ -437,34 +439,12 @@ export class ReviewsApiError extends Error {
   }
 }
 
-async function json<T>(res: Promise<Response>): Promise<T> {
-  const response = await res;
-  // P1 fix: non-JSON bodies (gateway HTML, aborts) must not throw a raw
-  // SyntaxError — normalise to ReviewsApiError so classifyError stays useful.
-  let body: { error?: string };
-  try {
-    body = (await response.json()) as { error?: string };
-  } catch {
-    throw new ReviewsApiError(
-      response.status || 0,
-      `request failed (${response.status || 'network'}) — non-JSON response`,
-    );
-  }
-  if (!response.ok) {
-    throw new ReviewsApiError(response.status, body.error ?? `request failed (${response.status})`);
-  }
-  return body as T;
+function toReviewsError(status: number, message: string): ReviewsApiError {
+  return new ReviewsApiError(status, message);
 }
 
 function post<T>(path: string, body: unknown): Promise<T> {
-  return json<T>(
-    fetch(`${BASE}${path}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body),
-    }),
-  );
+  return postJson<T>(`${BASE}${path}`, body, toReviewsError);
 }
 
 export const reviewsApi = {
@@ -477,15 +457,15 @@ export const reviewsApi = {
   },
   /** List reports; `pending=true` keeps only ones still awaiting a decision. */
   list(pending?: boolean): Promise<ReviewsListItem[]> {
-    return json<ReviewsListItem[]>(fetch(`${BASE}${pending ? '?pending=1' : ''}`, { credentials: 'include' }));
+    return getJson<ReviewsListItem[]>(`${BASE}${pending ? '?pending=1' : ''}`, toReviewsError);
   },
   /** Lightweight pending/decided/approved counts for the sidebar + header KPIs. */
   summary(): Promise<ReviewListSummary> {
-    return json<ReviewListSummary>(fetch(`${BASE}/summary`, { credentials: 'include' }));
+    return getJson<ReviewListSummary>(`${BASE}/summary`, toReviewsError);
   },
   /** Read back the stored report, findings, and fix suggestions. */
   getReport(id: string): Promise<ReviewReport> {
-    return json<ReviewReport>(fetch(`${BASE}/${id}`, { credentials: 'include' }));
+    return getJson<ReviewReport>(`${BASE}/${id}`, toReviewsError);
   },
   /** Re-run a failed review: resets status to pending and re-publishes the worker event. */
   retry(id: string): Promise<{ reportId: string; status: 'pending' }> {

@@ -5,6 +5,8 @@
  * polled by the Ops page.
  */
 
+import { getJson } from './http';
+
 export interface OpsHealth {
   readonly ok: boolean;
   readonly now: string;
@@ -14,6 +16,13 @@ export interface OpsMetrics {
   readonly tasksByState: Record<string, number>;
   readonly reviewQueueDepth: number;
   readonly orphanedTasks: number;
+}
+
+/** Component checks from the readiness probe (`GET /api/ops/ready`). */
+export interface OpsReadiness {
+  readonly ok: boolean;
+  readonly checks: { readonly db: boolean };
+  readonly now: string;
 }
 
 export interface LearningCycle {
@@ -26,22 +35,17 @@ export interface LearningCycle {
   readonly occurred_at: string;
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path, { credentials: 'include' });
-  if (!res.ok) {
-    throw new Error(`request failed (${res.status})`);
-  }
-  return (await res.json()) as T;
-}
-
 export const opsApi = {
   health(): Promise<OpsHealth> {
-    return get<OpsHealth>('/api/ops/health');
+    return getJson<OpsHealth>('/api/ops/health');
+  },
+  ready(): Promise<OpsReadiness> {
+    return getJson<OpsReadiness>('/api/ops/ready');
   },
   metrics(): Promise<OpsMetrics> {
-    return get<OpsMetrics>('/api/ops/metrics');
+    return getJson<OpsMetrics>('/api/ops/metrics');
   },
   cycles(limit = 20): Promise<{ cycles: readonly LearningCycle[] }> {
-    return get<{ cycles: readonly LearningCycle[] }>(`/api/learning/cycles?limit=${limit}`);
+    return getJson<{ cycles: readonly LearningCycle[] }>(`/api/learning/cycles?limit=${limit}`);
   },
 };
