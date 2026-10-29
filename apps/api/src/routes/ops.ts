@@ -29,11 +29,14 @@ const ORPHAN_WINDOW_MS = 10 * 60_000;
  */
 export async function orphanedTaskCount(db: DrizzleDB, olderThanMs = ORPHAN_WINDOW_MS): Promise<number> {
   const cutoff = new Date(Date.now() - olderThanMs);
+  // SQL COUNT, not select-then-rows.length: the orphan window can be long and
+  // a stuck queue can hold thousands of rows — counting server-side keeps the
+  // metrics endpoint O(1) in payload.
   const rows = await db
-    .select({ id: tasks.id })
+    .select({ n: count() })
     .from(tasks)
     .where(and(inArray(tasks.state, [TaskStatus.Executing, TaskStatus.Verifying]), lt(tasks.updated_at, cutoff)));
-  return rows.length;
+  return rows[0]?.n ?? 0;
 }
 
 /** Register the `/api/ops/*` endpoints over the already-wired container. */
@@ -45,6 +48,22 @@ export function registerOpsRoutes(app: FastifyInstance, container: Container): v
     // A single cheap probe proves the connection is live; failure throws → 500.
     await db.select({ id: tasks.id }).from(tasks).limit(1);
     return { ok: true, now: new Date().toISOString() };
+  });
+
+  // `/api/ops/ready` là READINESS (khác liveness): process sống nhưng DB chưa
+  // reachable thì LB/orchestrator phải ngừng route traffic → trả 503 thay vì
+  // crash. Vẫn mở như health — chỉ trả boolean checks, không lộ dữ liệu.
+  app.get('/api/ops/ready', async (_request, reply) => {
+    const checks: { db: boolean } = { db: false };
+    try {
+      await db.select({ id: tasks.id }).from(tasks).limit(1);
+      checks.db = true;
+    } catch {
+      // Deliberately no rethrow: readiness reports component state (503) so
+      // the orchestrator drains this instance, it doesn't restart it.
+      return reply.code(503).send({ ok: false, checks, now: new Date().toISOString() });
+    }
+    return { ok: true, checks, now: new Date().toISOString() };
   });
 
   // `/api/ops/metrics` là dữ liệu vận hành nội bộ (task-state distribution,

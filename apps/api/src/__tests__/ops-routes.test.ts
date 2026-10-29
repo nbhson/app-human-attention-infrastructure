@@ -36,6 +36,7 @@ import {
   TaskStatus,
 } from '@harness/domain';
 import { InProcessEventBus } from '@harness/event-bus';
+import type { DrizzleDB } from '@harness/db';
 
 import { registerAuthHook } from '../auth.js';
 import { registerAuthRoutes } from '../routes/auth.js';
@@ -147,6 +148,34 @@ describe('ops routes', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ ok: true });
+    await app.close();
+  });
+
+  it('GET /api/ops/ready reports component checks without a credential', async () => {
+    const projectId = await seedProject('ops');
+    await insertTask(projectId, TaskStatus.Queued);
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/api/ops/ready' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ok: true, checks: { db: true } });
+
+    // Readiness ≠ liveness: a broken DB dependency must be a 503 so an
+    // orchestrator stops routing traffic to this instance (no crash needed).
+    const brokenContainer = new Container();
+    const brokenDb = {
+      select: () => {
+        throw new Error('db unreachable');
+      },
+    } as unknown as DrizzleDB;
+    brokenContainer.register(TOKENS.Db, () => brokenDb);
+    const brokenApp = Fastify({ logger: false });
+    registerOpsRoutes(brokenApp, brokenContainer);
+    const down = await brokenApp.inject({ method: 'GET', url: '/api/ops/ready' });
+    expect(down.statusCode).toBe(503);
+    expect(down.json()).toMatchObject({ ok: false, checks: { db: false } });
+    await brokenApp.close();
     await app.close();
   });
 
