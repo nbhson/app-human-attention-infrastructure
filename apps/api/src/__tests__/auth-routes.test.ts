@@ -14,6 +14,7 @@ import { Container, TOKENS } from '@harness/di';
 
 import { registerAuthHook } from '../auth.js';
 import { registerAuthRoutes } from '../routes/auth.js';
+import { clearRateLimits } from '../rate-limit.js';
 
 const SCHEMA = 'harness_test_auth_routes';
 const SECRET = 'test-secret-that-is-long-enough-for-hs256';
@@ -29,6 +30,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  clearRateLimits(); // module-level buckets must not leak between cases
   await testDb.db.delete(sessions);
   await testDb.db.delete(users);
 });
@@ -140,5 +142,19 @@ describe('auth routes', () => {
     expect(userRows[0]!.oidc_sub).toBe('mock|demo');
     expect(sessionRows).toHaveLength(1);
     expect(sessionRows[0]!.revoked_at).toBeNull();
+  });
+
+  it('login is rate-limited: 30 per minute per IP, then 429', async () => {
+    const app = buildApp();
+    // The sensitive bucket (30/min, shared with decide/retry) guards the
+    // unauthenticated login surface too — a flood must stop at the edge
+    // instead of hammering the IdP and growing pendingLogins.
+    for (let i = 0; i < 30; i += 1) {
+      const res = await app.inject({ method: 'GET', url: '/api/auth/login' });
+      expect(res.statusCode).toBe(302);
+    }
+    const limited = await app.inject({ method: 'GET', url: '/api/auth/login' });
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: expect.stringContaining('rate limited') });
   });
 });

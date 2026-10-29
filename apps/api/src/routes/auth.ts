@@ -24,6 +24,7 @@ import { TOKENS } from '@harness/di';
 import type { Container } from '@harness/di';
 
 import { randomToken, readCookie } from '../auth.js';
+import { checkSensitiveRateLimit } from '../rate-limit.js';
 
 /** TTL for the PKCE/state nonce held between login and callback. */
 const PENDING_TTL_MS = 10 * 60_000;
@@ -122,6 +123,11 @@ export function registerAuthRoutes(app: FastifyInstance, container: Container): 
   });
 
   app.get('/api/auth/login', async (request, reply) => {
+    // Abuse-sensitive like decide/retry: an unauthenticated flood here hammers
+    // the IdP and grows the pendingLogins map (pruned, but why let it grow).
+    if (!checkSensitiveRateLimit(request.ip)) {
+      return reply.code(429).send({ error: 'rate limited — too many login attempts' });
+    }
     prunePendingLogins();
     const { provider } = resolve();
     const state = randomToken();
@@ -134,6 +140,9 @@ export function registerAuthRoutes(app: FastifyInstance, container: Container): 
   });
 
   app.get<{ Querystring: { code?: string; state?: string } }>('/api/auth/callback', async (request, reply) => {
+    if (!checkSensitiveRateLimit(request.ip)) {
+      return reply.code(429).send({ error: 'rate limited — too many login attempts' });
+    }
     const { code, state } = request.query;
     if (!code || !state) {
       return reply.code(400).send({ error: 'missing code or state' });
