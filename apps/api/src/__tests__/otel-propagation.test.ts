@@ -259,6 +259,10 @@ describe('trace_id ↔ correlation_id propagation (day-03 §3.4)', () => {
     expect(child!.spanContext().traceId).toBe(root!.spanContext().traceId);
     expect(child!.parentSpanId).toBe(root!.spanContext().spanId);
 
+    // Round 2 support seam: the response echoes the request's correlation id,
+    // so a ticket can be joined to the trace/audit rows without log spelunking.
+    expect(res.headers['x-correlation-id']).toBe(root!.attributes['harness.correlation_id']);
+
     // The child carries the *request's* correlation id (ambient), not its own.
     expect(child!.attributes['harness.correlation_id']).toBe(root!.attributes['harness.correlation_id']);
 

@@ -28,13 +28,20 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** The `http.request` span for this request, opened in onRequest. */
     traceSpan?: Span;
+    /** The correlation id minted for this request (echoed on the response). */
+    correlationId?: string;
   }
 }
 
 /** Register the tracing onRequest/onResponse hook pair over the app. */
 export function registerTraceHook(app: FastifyInstance): void {
-  app.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
-    runWithCorrelation({ correlationId: newCorrelationID() }, () => {
+  app.addHook('onRequest', (request: FastifyRequest, reply, done) => {
+    const correlationId = newCorrelationID();
+    request.correlationId = correlationId;
+    // Support/debug seam (round 2): every response carries the id that joins
+    // the OTel span, the audit timeline, and the server log for this request.
+    reply.header('x-correlation-id', correlationId);
+    runWithCorrelation({ correlationId }, () => {
       const span = startSpan('http.request', {
         'http.method': request.method,
         'http.route': request.routeOptions?.url ?? request.url,
