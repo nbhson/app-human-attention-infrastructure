@@ -5,7 +5,8 @@ import { opsApi } from '../api/ops';
 
 /**
  * Ops page — the operator surface over the otherwise API-only endpoints:
- * `GET /api/ops/health` (DB liveness), `GET /api/ops/metrics`
+ * `GET /api/ops/health` (DB liveness), `GET /api/ops/ready` (readiness
+ * component checks), `GET /api/ops/metrics`
  * (task-state distribution, review-queue depth, orphan alarm), and
  * `GET /api/learning/cycles` (recent learning-loop outcomes).
  *
@@ -17,11 +18,14 @@ function Card({
   label,
   value,
   sub,
+  tone,
 }: {
   readonly label: string;
   readonly value: string;
   readonly sub: string;
+  readonly tone?: 'ok' | 'down';
 }): JSX.Element {
+  const valueColor = tone === 'ok' ? 'var(--color-success)' : tone === 'down' ? 'var(--color-danger)' : undefined;
   return (
     <div
       style={{
@@ -43,7 +47,15 @@ function Card({
       >
         {label}
       </div>
-      <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+      <div
+        style={{
+          fontSize: '1.5rem',
+          fontWeight: 700,
+          marginTop: 4,
+          fontVariantNumeric: 'tabular-nums',
+          color: valueColor,
+        }}
+      >
         {value}
       </div>
       <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>{sub}</div>
@@ -53,6 +65,7 @@ function Card({
 
 export default function OpsPage(): JSX.Element {
   const health = useQuery({ queryKey: ['opsHealth'], queryFn: () => opsApi.health(), refetchInterval: 15_000 });
+  const ready = useQuery({ queryKey: ['opsReady'], queryFn: () => opsApi.ready(), refetchInterval: 15_000 });
   const metrics = useQuery({ queryKey: ['opsMetrics'], queryFn: () => opsApi.metrics(), refetchInterval: 10_000 });
   const cycles = useQuery({ queryKey: ['learningCycles'], queryFn: () => opsApi.cycles(), refetchInterval: 15_000 });
 
@@ -67,15 +80,28 @@ export default function OpsPage(): JSX.Element {
       </p>
       <h2 style={{ margin: '0 0 4px' }}>Ops &amp; Learning</h2>
       <p style={{ margin: '0 0 16px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
-        Liveness, queue depth, stuck-task alarm, and recent learning-loop cycles. Read-only — the database is the
-        dashboard.
+        Liveness, readiness, queue depth, stuck-task alarm, and recent learning-loop cycles. Read-only — the database is
+        the dashboard.
       </p>
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <Card
           label="DB health"
           value={health.isLoading ? '…' : health.data?.ok === true ? 'OK' : 'DOWN'}
+          tone={health.data?.ok === true ? 'ok' : health.isLoading ? undefined : 'down'}
           sub={health.data ? `as of ${new Date(health.data.now).toLocaleString()}` : 'probing /api/ops/health'}
+        />
+        <Card
+          label="Readiness"
+          value={ready.isLoading ? '…' : ready.data?.ok === true ? 'READY' : 'NOT READY'}
+          tone={ready.data?.ok === true ? 'ok' : ready.isLoading ? undefined : 'down'}
+          sub={
+            ready.data
+              ? `db: ${ready.data.checks.db ? 'up' : 'down'} · as of ${new Date(ready.data.now).toLocaleTimeString()}`
+              : ready.isError
+                ? '503 — instance not receiving traffic'
+                : 'probing /api/ops/ready'
+          }
         />
         <Card
           label="Review queue depth"
