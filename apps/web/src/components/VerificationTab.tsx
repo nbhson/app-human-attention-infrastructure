@@ -1,4 +1,6 @@
 import type { ReviewFinding, ReviewVerification, ReviewVerificationStatus } from '../api/reviews';
+import { AlertTriangle, ArrowRight, Check, RefreshCw, Sliders } from './Icons';
+import { VERIFICATION_STATUS } from './statusIcons';
 
 /**
  * Verification tab (trust loop) — "what still needs human validation?" Two
@@ -16,17 +18,13 @@ import type { ReviewFinding, ReviewVerification, ReviewVerificationStatus } from
  */
 
 /** Status → glanceable tone (theme tokens, so it follows dark mode). */
-const TONE: Record<
-  ReviewVerificationStatus,
-  { readonly icon: string; readonly label: string; readonly color: string }
-> = {
-  PENDING: { icon: '◷', label: 'pending', color: 'var(--color-text-muted)' },
-  RUNNING: { icon: '⟳', label: 'running', color: 'var(--color-info)' },
-  PASSED: { icon: '✓', label: 'passed', color: 'var(--color-success)' },
-  FAILED: { icon: '✕', label: 'failed', color: 'var(--color-danger)' },
-  SKIPPED: { icon: '→', label: 'skipped', color: 'var(--color-warning)' },
-  ERROR: { icon: '⚠', label: 'error', color: 'var(--color-danger)' },
-};
+const TONE = VERIFICATION_STATUS;
+
+/** The sandbox status's icon, sized for the status pill. */
+function StatusIcon({ status }: { readonly status: ReviewVerificationStatus }): JSX.Element {
+  const Icon = TONE[status].Icon;
+  return <Icon size={12} />;
+}
 
 const field = {
   color: 'var(--color-text-faint)',
@@ -156,15 +154,17 @@ export function VerificationTab({
                     {finding.line !== null ? `:${finding.line}` : ''}
                   </button>
                   <span className={`finding-flag ${ok ? 'finding-flag-ok' : 'finding-flag-warn'}`}>
-                    <span aria-hidden="true">{ok ? '✓' : '⚠'}</span>
+                    <span aria-hidden="true">{ok ? <Check size={12} /> : <AlertTriangle size={12} />}</span>
                     {ok ? 'Evidence in diff' : 'Unanchored — validate'}
                   </span>
                   <span className={`finding-flag ${hasFix ? 'finding-flag-ok' : 'finding-flag-muted'}`}>
-                    <span aria-hidden="true">⚙</span>
+                    <span aria-hidden="true">
+                      <Sliders size={12} />
+                    </span>
                     {hasFix ? 'Fix suggested' : 'No fix'}
                   </span>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => onOpenReview(finding.id)}>
-                    View in Review →
+                    View in Review <ArrowRight size={12} />
                   </button>
                 </li>
               );
@@ -204,7 +204,9 @@ export function VerificationTab({
                 letterSpacing: '0.03em',
               }}
             >
-              <span aria-hidden="true">{TONE[verification.status].icon}</span>
+              <span aria-hidden="true">
+                <StatusIcon status={verification.status} />
+              </span>
               {TONE[verification.status].label}
             </span>
             {!skipped && (
@@ -225,7 +227,9 @@ export function VerificationTab({
 
           {(verification.status === 'RUNNING' || verification.status === 'PENDING') && (
             <p style={{ margin: '12px 0 0', color: 'var(--color-info)' }} role="status">
-              <span aria-hidden="true">⟳ </span>
+              <span aria-hidden="true">
+                <RefreshCw size={12} />
+              </span>{' '}
               Sandbox run in progress — the PR clone&apos;s build then test are running in Docker. This can take several
               minutes (budget `VERIFY_CLONE_TIMEOUT_S`, default 10min); this tab refreshes automatically.
             </p>

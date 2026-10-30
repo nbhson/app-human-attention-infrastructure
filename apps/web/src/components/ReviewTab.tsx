@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FixSuggestion, ReviewFinding } from '../api/reviews';
 import { AnchorBadge } from './AnchorBadge';
+import { ArrowRight, Check, Sliders } from './Icons';
 import { SEVERITIES, severityColor, severityLabel } from './severity';
 
 /**
@@ -159,7 +160,13 @@ function CopyButton({ text }: { readonly text: string }): JSX.Element {
         }
       }}
     >
-      {copied ? 'Copied ✓' : 'Copy fix'}
+      {copied ? (
+        <>
+          <Check size={12} /> Copied
+        </>
+      ) : (
+        'Copy fix'
+      )}
     </button>
   );
 }
@@ -198,7 +205,10 @@ function FindingCard({
         <AnchorBadge anchor={finding.anchor} />
         {hasFix && (
           <span className="finding-flag finding-flag-ok">
-            <span aria-hidden="true">⚙</span> fix
+            <span aria-hidden="true">
+              <Sliders size={12} />
+            </span>{' '}
+            fix
           </span>
         )}
         {outcome !== null && <span className="finding-flag finding-flag-muted">{outcome}</span>}
@@ -285,7 +295,7 @@ function FindingDetail({
 
       <div className="detail-actions">
         <button type="button" className="btn btn-primary btn-sm" onClick={onOpenInDiff}>
-          Open in Diff →
+          Open in Diff <ArrowRight size={12} />
         </button>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenVerification}>
           View verification

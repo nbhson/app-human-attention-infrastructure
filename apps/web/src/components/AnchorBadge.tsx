@@ -1,4 +1,6 @@
 import type { FindingAnchor } from '../api/reviews';
+import type { IconProps } from './Icons';
+import { AlertTriangle, Check } from './Icons';
 
 /**
  * Trust-loop anchor badge (review-reorient Phase 3) — turns a finding's
@@ -11,20 +13,20 @@ import type { FindingAnchor } from '../api/reviews';
 const TONE: Record<
   FindingAnchor['status'],
   {
-    readonly icon: string;
+    readonly Icon: (props: IconProps) => JSX.Element;
     readonly label: string;
     readonly color: string;
     readonly background: string;
   }
 > = {
   verified: {
-    icon: '✓',
+    Icon: Check,
     label: 'anchored',
     color: 'var(--color-success)',
     background: 'transparent',
   },
   unverified: {
-    icon: '⚠',
+    Icon: AlertTriangle,
     label: 'not anchored',
     color: 'var(--color-warning)',
     background: 'var(--color-warning-bg)',
@@ -51,7 +53,9 @@ export function AnchorBadge({ anchor }: { readonly anchor: FindingAnchor }): JSX
         whiteSpace: 'nowrap',
       }}
     >
-      <span aria-hidden="true">{tone.icon}</span>
+      <span aria-hidden="true">
+        <tone.Icon size={12} />
+      </span>
       {tone.label}
     </span>
   );

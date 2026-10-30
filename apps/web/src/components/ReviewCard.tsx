@@ -182,7 +182,9 @@ export function ReviewCard({
                       <span>{review.branch.source}</span>
                       {review.branch.target && (
                         <>
-                          <span className="rq-card-arrow">→</span>
+                          <span className="rq-card-arrow" aria-hidden="true">
+                            <ArrowRight size={12} />
+                          </span>
                           <span>{review.branch.target}</span>
                         </>
                       )}

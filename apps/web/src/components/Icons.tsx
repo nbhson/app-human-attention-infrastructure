@@ -309,3 +309,36 @@ export function Sun({ size = 16, className }: IconProps): JSX.Element {
     <path key="i" d="m19.07 4.93-1.41 1.41" />,
   ]);
 }
+
+export function Brain({ size = 16, className }: IconProps): JSX.Element {
+  return glyph(size, className, [
+    <path key="a" d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />,
+    <path key="b" d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />,
+    <path key="c" d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />,
+    <path key="d" d="M17.599 6.5a3 3 0 0 0 .399-1.375" />,
+    <path key="e" d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />,
+    <path key="f" d="M3.477 10.896a4 4 0 0 1 .585-.396" />,
+    <path key="g" d="M19.938 10.5a4 4 0 0 1 .585.396" />,
+    <path key="h" d="M6 18a4 4 0 0 1-1.967-.516" />,
+    <path key="i" d="M19.967 17.484A4 4 0 0 1 18 18" />,
+  ]);
+}
+
+export function Bot({ size = 16, className }: IconProps): JSX.Element {
+  return glyph(size, className, [
+    <path key="a" d="M12 8V4H8" />,
+    <rect key="b" width="16" height="12" x="4" y="8" rx="2" />,
+    <path key="c" d="M2 14h2" />,
+    <path key="d" d="M20 14h2" />,
+    <path key="e" d="M15 13v2" />,
+    <path key="f" d="M9 13v2" />,
+  ]);
+}
+
+export function Database({ size = 16, className }: IconProps): JSX.Element {
+  return glyph(size, className, [
+    <ellipse key="a" cx="12" cy="5" rx="9" ry="3" />,
+    <path key="b" d="M3 5V19A9 3 0 0 0 21 19V5" />,
+    <path key="c" d="M3 12A9 3 0 0 0 21 12" />,
+  ]);
+}

@@ -1,7 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Layers } from '../components/Icons';
+import { ArrowLeft, ArrowRight, Layers } from '../components/Icons';
+import { VERIFICATION_STARTING, VERIFICATION_STATUS, type VerificationStatusView } from '../components/statusIcons';
 import {
   ReviewsApiError,
   reviewsApi,
@@ -25,29 +26,12 @@ import {
 
 type Phase = 'form' | 'processing' | 'success' | 'error';
 
-/** Sandbox-verification status → glanceable label + tone (mirrors VerificationTab). */
-const VERIFICATION_TONE: Record<
-  ReviewVerificationStatus,
-  { readonly icon: string; readonly label: string; readonly color: string }
-> = {
-  PENDING: { icon: '◷', label: 'pending', color: 'var(--color-text-muted)' },
-  RUNNING: { icon: '⟳', label: 'running', color: 'var(--color-info)' },
-  PASSED: { icon: '✓', label: 'passed', color: 'var(--color-success)' },
-  FAILED: { icon: '✕', label: 'failed', color: 'var(--color-danger)' },
-  SKIPPED: { icon: '→', label: 'skipped', color: 'var(--color-warning)' },
-  ERROR: { icon: '⚠', label: 'error', color: 'var(--color-danger)' },
-};
-
 /** One unified tone for the not-yet-started (null) and the real verification states. */
-function describeVerification(verification: ReviewVerification | null): {
-  readonly icon: string;
-  readonly label: string;
-  readonly color: string;
-} {
+function describeVerification(verification: ReviewVerification | null): VerificationStatusView {
   if (verification === null) {
-    return { icon: '⟳', label: 'starting', color: 'var(--color-text-muted)' };
+    return VERIFICATION_STARTING;
   }
-  return VERIFICATION_TONE[verification.status];
+  return VERIFICATION_STATUS[verification.status];
 }
 
 /** Humanize a millisecond duration (or `—` when unknown). */
@@ -259,7 +243,10 @@ export default function NewReviewPage(): JSX.Element {
   return (
     <main className="create-page">
       <Link to="/review" className="back-link">
-        <span aria-hidden="true">←</span> Review Queue
+        <span aria-hidden="true">
+          <ArrowLeft size={13} />
+        </span>{' '}
+        Review Queue
       </Link>
 
       <h1 className="create-title">New AI Code Review</h1>
@@ -366,7 +353,9 @@ export default function NewReviewPage(): JSX.Element {
                 className="verification-pill"
                 style={{ color: verificationView.color, borderColor: verificationView.color }}
               >
-                <span aria-hidden="true">{verificationView.icon}</span>
+                <span aria-hidden="true">
+                  <verificationView.Icon size={12} />
+                </span>
                 {verificationView.label}
               </span>
             </div>
@@ -401,7 +390,7 @@ export default function NewReviewPage(): JSX.Element {
 
           <div className="result-actions">
             <Link to={`/reviews/${result.reportId}`} className="btn btn-primary">
-              View Review <span aria-hidden="true">→</span>
+              View Review <ArrowRight size={13} />
             </Link>
             <Link to="/review" className="btn btn-ghost">
               Return to Review Queue

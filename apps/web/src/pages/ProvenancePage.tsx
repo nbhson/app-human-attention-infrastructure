@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { provenanceApi } from '../api/provenance';
+import { ArrowLeft, Check, X } from '../components/Icons';
 import { Timeline } from '../components/Timeline';
 
 /**
@@ -29,7 +30,9 @@ export default function ProvenancePage(): JSX.Element {
   return (
     <main style={{ maxWidth: 920, margin: '0 auto', padding: 16 }}>
       <p>
-        <Link to="/review">← Back to queue</Link>
+        <Link to="/review">
+          <ArrowLeft size={13} /> Back to queue
+        </Link>
       </p>
 
       <h2 style={{ marginBottom: 4 }}>{task.title}</h2>
@@ -107,7 +110,8 @@ export default function ProvenancePage(): JSX.Element {
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {verification.checkResults.map((check) => (
               <li key={check.id}>
-                <span>{check.status === 'PASSED' ? '✓' : '✗'}</span> {check.checkKind}: {check.status}
+                <span aria-hidden="true">{check.status === 'PASSED' ? <Check size={12} /> : <X size={12} />}</span>{' '}
+                {check.checkKind}: {check.status}
               </li>
             ))}
           </ul>

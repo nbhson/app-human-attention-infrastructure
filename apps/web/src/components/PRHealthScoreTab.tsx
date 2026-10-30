@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { PRHealthScore, HealthRating, OverallRiskLevel, ReviewFinding, ReviewStats } from '../api/reviews';
-import { Activity, AlertTriangle, CheckCircle2, Layers, ShieldCheck, Zap } from './Icons';
+import { Activity, AlertTriangle, BarChart3, CheckCircle2, Layers, ShieldCheck, Zap } from './Icons';
 import { ScoreHelp, type ScoreDimensionKey } from './ScoreExplanation';
 
 const HEALTH_COLORS: Record<HealthRating, string> = {
@@ -487,7 +487,9 @@ export function PRHealthScoreTab({
   if (!healthScore) {
     return (
       <div style={{ padding: 48, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+        <div style={{ marginBottom: 16 }} aria-hidden="true">
+          <BarChart3 size={48} />
+        </div>
         <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', color: 'var(--color-text)' }}>No Health Score Available</h3>
         <p style={{ margin: 0, fontSize: '0.85rem', maxWidth: 320 }}>
           Health scores are computed from review findings and PR composition. Run a review to see the analysis.

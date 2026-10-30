@@ -5,6 +5,7 @@ import { ReviewApiError, reviewApi, type DecisionChoice } from '../api/review';
 import { DiffViewer } from '../components/DiffViewer';
 import { EvidenceModal } from '../components/EvidenceModal';
 import { FactorBreakdown } from '../components/FactorBreakdown';
+import { ArrowLeft, Check, X } from '../components/Icons';
 import { LabelBadge } from '../components/LabelBadge';
 
 /**
@@ -86,7 +87,9 @@ export default function ReviewDetailPage(): JSX.Element {
   return (
     <main style={{ maxWidth: 1040, margin: '0 auto', padding: 16 }}>
       <p>
-        <Link to="/review">← Back to queue</Link>
+        <Link to="/review">
+          <ArrowLeft size={13} /> Back to queue
+        </Link>
       </p>
       {submitError && (
         <div
@@ -124,7 +127,8 @@ export default function ReviewDetailPage(): JSX.Element {
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {data.checks.map((check, index) => (
               <li key={`${check.kind}-${index}`} style={{ marginBottom: 4 }}>
-                <span>{check.status === 'PASSED' ? '✓' : '✗'}</span> {check.kind}: {check.status}
+                <span aria-hidden="true">{check.status === 'PASSED' ? <Check size={12} /> : <X size={12} />}</span>{' '}
+                {check.kind}: {check.status}
                 {check.evidenceId !== null && (
                   <button type="button" style={{ marginLeft: 8 }} onClick={() => setEvidenceId(check.evidenceId)}>
                     evidence

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { opsApi } from '../api/ops';
+import { ArrowLeft } from '../components/Icons';
 
 /**
  * Ops page — the operator surface over the otherwise API-only endpoints:
@@ -76,7 +77,9 @@ export default function OpsPage(): JSX.Element {
   return (
     <main style={{ maxWidth: 1120, margin: '0 auto', padding: 16 }}>
       <p>
-        <Link to="/review">← Back to queue</Link>
+        <Link to="/review">
+          <ArrowLeft size={13} /> Back to queue
+        </Link>
       </p>
       <h2 style={{ margin: '0 0 4px' }}>Ops &amp; Learning</h2>
       <p style={{ margin: '0 0 16px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
