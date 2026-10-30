@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isSensitiveFile, redactSensitivePatch } from '../review-secret-redact.js';
+import { isSensitiveFile, redactReviewPatch, redactSensitivePatch } from '../review-secret-redact.js';
 
 describe('isSensitiveFile', () => {
   it('flags env and Compose files', () => {
@@ -71,5 +71,40 @@ describe('redactSensitivePatch', () => {
     );
 
     expect(redactSensitivePatch('src/app.ts', '+const apiKey = "live";\n')).toBe('+const apiKey = "live";\n');
+  });
+});
+
+describe('redactReviewPatch (credential-shape sweep on ordinary files)', () => {
+  it('masks well-known token shapes on added lines of any file', () => {
+    const patch = [
+      '@@ -0,0 +1,5 @@',
+      '+const GITHUB_TOKEN = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234";',
+      '+const openai = new OpenAI({ apiKey: "sk-proj-abcdefghij1234567890" });',
+      '+# see https://gitlab.example/-/settings → glpat-AbCdEfGhIjKlMnOpQrSt',
+      '+const commit = "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"; // SHA — must survive',
+      '+const name = "reviewer";',
+    ].join('\n');
+
+    const out = redactReviewPatch('src/app.ts', patch);
+    expect(out).toContain('+const GITHUB_TOKEN = "<redacted-github-token>";');
+    expect(out).toContain('+const openai = new OpenAI({ apiKey: "<redacted-api-key>" });');
+    expect(out).toContain('+# see https://gitlab.example/-/settings → <redacted-gitlab-token>');
+    expect(out).toContain('a94a8fe5ccb19ba61c4c0873d391e987982fbbd3'); // SHA not masked
+    expect(out).toContain('+const name = "reviewer";');
+  });
+
+  it('only sweeps ADDED lines — context and removed lines pass through', () => {
+    const patch = [
+      '@@ -1,3 +1,3 @@',
+      ' const x = "ghp_CONTEXTTOKEN123456789";',
+      '-const old = "ghp_REMOVEDTOKEN123456";',
+    ].join('\n');
+    expect(redactReviewPatch('src/app.ts', patch)).toBe(patch);
+  });
+
+  it('composes with the sensitive-file masking (.env keeps key=value treatment)', () => {
+    const patch = '+API_KEY=sk-live-abc123456789\n+SOME_VAR=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234';
+    const out = redactReviewPatch('.env', patch);
+    expect(out).toBe('+API_KEY=<redacted>\n+SOME_VAR=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234');
   });
 });

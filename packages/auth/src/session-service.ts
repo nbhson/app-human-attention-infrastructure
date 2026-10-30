@@ -8,6 +8,8 @@
  * signature is not enough once the session is gone.
  */
 
+import { createHash } from 'node:crypto';
+
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { sessions as sessionsTable } from '@harness/db';
@@ -18,6 +20,20 @@ import type { Session, SessionID, UserID } from '@harness/domain';
 /** Rolling session lifetime. Configurable so the demo/test can shrink it. */
 export const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Session IDs are hashed at rest: the DB stores `sha256(raw sid)`, while the
+ * httpOnly cookie and the JWT `sid` claim carry the raw value. A database dump,
+ * backup leak, or read-only SQL injection therefore never exposes a *usable*
+ * session credential — the stored hash cannot be replayed as a cookie.
+ *
+ * `hashSessionId` is applied at every DB touchpoint (create / find / revoke /
+ * touch); callers always pass and receive the RAW sid. Lookups hash the input
+ * before querying, so a raw sid can never match a stored row by accident.
+ */
+export function hashSessionId(raw: string): string {
+  return createHash('sha256').update(raw, 'utf8').digest('hex');
+}
+
 /** Persistence for `SessionService` (kept small so tests use a real DrizzleDB). */
 export class SessionService {
   constructor(
@@ -25,18 +41,18 @@ export class SessionService {
     private readonly ttlMs: number = DEFAULT_SESSION_TTL_MS,
   ) {}
 
-  /** Create a session expiring `ttlMs` from now. */
+  /** Create a session expiring `ttlMs` from now. The returned `id` is the RAW sid. */
   async createSession(userId: UserID): Promise<Session> {
-    const id = newSessionID();
+    const raw = newSessionID();
     const issuedAt = new Date();
     const expiresAt = new Date(issuedAt.getTime() + this.ttlMs);
     await this.db.insert(sessionsTable).values({
-      id,
+      id: hashSessionId(raw),
       user_id: userId,
       issued_at: issuedAt,
       expires_at: expiresAt,
     });
-    return { id, userId, issuedAt, expiresAt, revokedAt: null };
+    return { id: raw, userId, issuedAt, expiresAt, revokedAt: null };
   }
 
   /** Revoke a session (logout / compromise). Guarded so a double-logout is a no-op. */
@@ -44,7 +60,7 @@ export class SessionService {
     await this.db
       .update(sessionsTable)
       .set({ revoked_at: new Date() })
-      .where(and(eq(sessionsTable.id, sid), isNull(sessionsTable.revoked_at)));
+      .where(and(eq(sessionsTable.id, hashSessionId(sid)), isNull(sessionsTable.revoked_at)));
   }
 
   /** Roll the session's expiry forward on activity (a rolling window). */
@@ -52,22 +68,22 @@ export class SessionService {
     await this.db
       .update(sessionsTable)
       .set({ expires_at: new Date(Date.now() + this.ttlMs) })
-      .where(and(eq(sessionsTable.id, sid), isNull(sessionsTable.revoked_at)));
+      .where(and(eq(sessionsTable.id, hashSessionId(sid)), isNull(sessionsTable.revoked_at)));
   }
 
-  /** Load a session row, or `null` if it does not exist or is revoked. */
+  /** Load a session row (by RAW sid), or `null` if it does not exist or is revoked. */
   async findActiveSession(sid: SessionID): Promise<Session | null> {
     const rows = await this.db
       .select()
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.id, sid), isNull(sessionsTable.revoked_at)))
+      .where(and(eq(sessionsTable.id, hashSessionId(sid)), isNull(sessionsTable.revoked_at)))
       .limit(1);
     const row = rows[0];
     if (!row) {
       return null;
     }
     return {
-      id: brand(row.id, 'SessionID'),
+      id: sid,
       userId: brand(row.user_id, 'UserID'),
       issuedAt: row.issued_at,
       expiresAt: row.expires_at,

@@ -68,7 +68,7 @@ Copy `.env.example` → `.env` and fill what you need. Unset ⇒ default shown. 
 
 | Var | Default | Effect | Code ref |
 |---|---|---|---|
-| `WRITEBACK_ENABLED` | `ON` (unset ⇒ armed) | Global ceiling — `0` disables all external writes fleet-wide | `writeback-gate.ts`, `operations.md` OP-2 |
+| `WRITEBACK_ENABLED` | `OFF` (unset ⇒ disarmed; `1`/`true` arms) | Global ceiling — must be explicitly armed before any external write; `0`/`false` disables all external writes fleet-wide | `writeback-gate.ts`, `operations.md` OP-2 |
 | `WRITEBACK_GITHUB` | `ON` | Per-provider kill for GitHub | `packages/writeback` |
 | `WRITEBACK_GITLAB` | `ON` | Per-provider kill for GitLab | `packages/writeback` |
 | `WRITEBACK_BITBUCKET` | `ON` | Per-provider kill for Bitbucket | `packages/writeback` |

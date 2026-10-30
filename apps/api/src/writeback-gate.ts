@@ -6,16 +6,19 @@
  * request-level flag and a global env ceiling —
  *
  * ```
- * effective = (request.writeback === true) && (WRITEBACK_ENABLED is not '0' | 'false')
+ * effective = (request.writeback === true) && (WRITEBACK_ENABLED is '1' | 'true')
  * ```
  *
- * The ceiling is **ON by default** (unset ⇒ on), so the feature ships armed. An
- * operator opts a whole deployment out with `WRITEBACK_ENABLED=0` (or `false`).
- * The per-request flag is still the *human's* choice — a decision that doesn't
- * ask for a write never writes — and the service's own `enabled(provider)` check
- * (`WRITEBACK_<PROVIDER>`, also on-by-default) is a third, per-host confirmation
- * that no write is dispatched by accident (day-09 §2.1, §6; default inverted so
- * write-back works out of the box).
+ * P0 security fix — the ceiling is **OFF by default** (unset ⇒ disarmed): an
+ * accidental or under-configured deployment can never write to an external
+ * system, because no environment layer is armed without an explicit act. An
+ * operator arms a deployment with `WRITEBACK_ENABLED=1` (or `true`) — `.env`
+ * in development carries exactly that line, so the local UX is unchanged.
+ * The per-request flag is still the *human's* per-decision choice — a decision
+ * that doesn't ask for a write never writes — and the service's own
+ * `enabled(provider)` check (`WRITEBACK_<PROVIDER>`, opt-out) is a third,
+ * per-host confirmation that no write is dispatched by accident (day-09 §2.1,
+ * §6; per-provider stays opt-out because the ceiling is now the explicit arm).
  */
 
 /**
@@ -23,11 +26,12 @@
  *
  * @param writeback - the request-level `writeback` flag (missing/falsy ⇒ OFF).
  * @param env - the process environment (injected for testability).
- * @returns true only when both the request asks for a write AND the
- *   `WRITEBACK_ENABLED` ceiling is armed (armed unless set to `0`/`false`).
+ * @returns true only when the request asks for a write AND the
+ *   `WRITEBACK_ENABLED` ceiling is explicitly armed (`1`/`true`,
+ *   case-insensitive). Unset or any other value ⇒ OFF.
  */
 export function writebackEnabled(writeback: unknown, env: Record<string, string | undefined> = process.env): boolean {
-  const ceiling = env['WRITEBACK_ENABLED'];
-  const ceilingOn = ceiling !== '0' && ceiling !== 'false';
+  const ceiling = env['WRITEBACK_ENABLED']?.toLowerCase();
+  const ceilingOn = ceiling === '1' || ceiling === 'true';
   return writeback === true && ceilingOn;
 }

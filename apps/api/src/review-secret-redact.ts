@@ -75,6 +75,87 @@ function maskSecretValue(body: string): string | null {
 }
 
 /**
+ * Well-known credential *shapes* — masked on the added (`+`) lines of EVERY
+ * file, not just sensitive-path files. P1 security fix: the path-allowlist
+ * above misses a live token pasted into ordinary source (`const apiKey =
+ * "sk-..."` in `src/app.ts`), a README snippet, or a test fixture. Pattern
+ * masking is value-shape-based, so it catches those without the false-positive
+ * risk of masking arbitrary strings.
+ */
+const CREDENTIAL_PATTERNS: readonly { readonly pattern: RegExp; readonly label: string }[] = [
+  // AWS access key id (the 40-char secret is deliberately NOT swept: a generic
+  // 40-char base64ish pattern would false-positive on every commit SHA-1 in a
+  // diff; secret-named keys are caught by redactSensitivePatch / SECRET_KEY)
+  { pattern: /\b(AKIA|ASIA)[0-9A-Z]{16}\b/g, label: '<redacted-aws-key>' },
+  // OpenAI / Anthropic / generic sk- keys
+  { pattern: /\bsk-(?:ant-)?[A-Za-z0-9_-]{16,}\b/g, label: '<redacted-api-key>' },
+  // GitHub tokens (classic + fine-grained + OAuth/app)
+  { pattern: /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g, label: '<redacted-github-token>' },
+  // GitLab personal access tokens
+  { pattern: /\bglpat-[A-Za-z0-9_-]{16,}\b/g, label: '<redacted-gitlab-token>' },
+  // Slack tokens
+  { pattern: /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g, label: '<redacted-slack-token>' },
+  // Google API keys
+  { pattern: /\bAIza[0-9A-Za-z_-]{30,}\b/g, label: '<redacted-google-key>' },
+  // npm publish tokens
+  { pattern: /\bnpm_[A-Za-z0-9]{30,}\b/g, label: '<redacted-npm-token>' },
+  // Embedded private-key headers (the body is caught line-by-line via BEGIN/END)
+  { pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g, label: '<redacted-private-key-header>' },
+];
+
+/**
+ * Mask credential-shaped values in one line body. Returns the masked body, or
+ * `null` when nothing matched (so callers keep the original line).
+ */
+function maskCredentialPatterns(body: string): string | null {
+  let masked = body;
+  let matched = false;
+  for (const { pattern, label } of CREDENTIAL_PATTERNS) {
+    pattern.lastIndex = 0;
+    if (pattern.test(masked)) {
+      matched = true;
+      pattern.lastIndex = 0;
+      masked = masked.replace(pattern, label);
+    }
+  }
+  return matched ? masked : null;
+}
+
+/**
+ * P1 security fix: credential-shape sweep applied to the ADDED (`+`) lines of
+ * every file — including ordinary source where a secret lives on a
+ * non-sensitive path (`const apiKey = "sk-..."` in `src/app.ts`). Removed and
+ * context lines pass through unchanged: the sweep's job is to stop a PR from
+ * *introducing* a live credential into the LLM prompt, not to rewrite history.
+ * Sensitive-path files keep their stronger {@link redactSensitivePatch}
+ * treatment (key-value masking on all line kinds); the two compose.
+ */
+export function redactCredentialSweep(path: string, patch: string): string {
+  if (isSensitiveFile(path)) {
+    return patch; // already handled by redactSensitivePatch
+  }
+  return patch
+    .split('\n')
+    .map((line) => {
+      if (line[0] !== '+') {
+        return line;
+      }
+      const masked = maskCredentialPatterns(line.slice(1));
+      return masked === null ? line : `+${masked}`;
+    })
+    .join('\n');
+}
+
+/**
+ * The one-call composition used by the review ingest: strong path-based
+ * redaction for sensitive files, plus the credential-shape sweep for the added
+ * lines of everything else.
+ */
+export function redactReviewPatch(path: string, patch: string): string {
+  return redactCredentialSweep(path, redactSensitivePatch(path, patch));
+}
+
+/**
  * Mask secret values on the lines of a sensitive file's patch. Added, removed
  * and context lines are all redacted — a live credential is a secret whether the
  * PR introduces, deletes, or merely shows it as unchanged context. Only line

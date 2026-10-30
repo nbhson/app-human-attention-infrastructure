@@ -107,7 +107,8 @@ async function main(): Promise<void> {
   console.log(
     `  writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' }) → ${writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' })}`,
   );
-  console.log('  → unset is ON; WRITEBACK_ENABLED=0 defeats a request-level ON ✓');
+  console.log('  → unset is OFF (default-deny: the ceiling must be explicitly armed);');
+  console.log('    WRITEBACK_ENABLED=0 keeps it disarmed, =1 explicitly arms it ✓');
   console.log();
 
   console.log('=== 2. APPROVE with toggle OFF → nothing external ===');

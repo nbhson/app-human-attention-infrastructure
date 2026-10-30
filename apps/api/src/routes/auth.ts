@@ -176,7 +176,11 @@ export function registerAuthRoutes(app: FastifyInstance, container: Container): 
     if (!request.auth) {
       return reply.code(401).send({ error: 'unauthenticated' });
     }
-    const { user, sid } = request.auth;
+    const { user } = request.auth;
+    // P0 security fix: the raw session id is no longer echoed in the response
+    // body. It already lives in the httpOnly cookie — returning it in JSON
+    // made it readable to any script in the page's origin, defeating the point
+    // of the httpOnly flag. Session identity travels ONLY via the cookie.
     return {
       user: {
         id: user.id,
@@ -185,7 +189,6 @@ export function registerAuthRoutes(app: FastifyInstance, container: Container): 
         displayName: user.displayName,
         roles: user.roles,
       },
-      sid,
     };
   });
 

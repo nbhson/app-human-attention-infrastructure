@@ -25,20 +25,22 @@ rides an MCP tool call, never a host SDK.
 5. **Redact secrets** — a caught tool error is scrubbed before it lands in the
    audit log.
 
-## The toggle (fail-safe, on by default)
+## The toggle (fail-safe, off by default)
 
-Write-back is **ON by default** and can be opted out at any of three layers — the
+Write-back is **OFF by default** — the global ceiling must be explicitly armed
+(`WRITEBACK_ENABLED=1`/`true`) before anything external can be written — and every
+layer can still opt out independently: the
 human's request, the operator's ceiling, or the per-host check:
 
 ```
    request `writeback: true`
-        ∧  WRITEBACK_ENABLED  ≠ 0|false    (global env ceiling, unset ⇒ ON)
+        ∧  WRITEBACK_ENABLED  = 1|true    (global env ceiling, unset ⇒ OFF — explicit arm required)
         ∧  WRITEBACK_<PROVIDER> ≠ 0|false  (per-host env check inside MCPWriteBack, unset ⇒ ON)
 ```
 
 Any layer opting out → `write()` resolves to a successful no-op with **no** audit
-row and **nothing** external. To re-arm the historical off-at-rest behavior, set
-`WRITEBACK_ENABLED=0` (and/or `WRITEBACK_<PROVIDER>=0`).
+row and **nothing** external. The historical on-at-rest behavior is available by
+setting `WRITEBACK_ENABLED=1` (and/or adjusting `WRITEBACK_<PROVIDER>`).
 
 ## The write path
 

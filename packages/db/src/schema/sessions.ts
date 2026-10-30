@@ -7,6 +7,10 @@ import { users } from './users.js';
  * the `sessions` row is the source of truth for revocation — `revoked_at IS
  * NULL` means active, and logout setting `revoked_at` kills every token minted
  * under the session, valid signature or not.
+ *
+ * `id` holds **sha256(raw sid)**, never the raw session id: the httpOnly cookie
+ * and the JWT carry the raw value, so a leaked DB dump contains no usable
+ * session credential (migration `0057_hash_session_ids`).
  */
 export const sessions = pgTable(
   'sessions',

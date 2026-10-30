@@ -435,7 +435,7 @@ describe('full-system E2E (day-37)', () => {
     // The gate now defaults ON, so an explicit `0` is the only opt-out; the rest
     // of the three-layer contract is unchanged.
     expect(writebackEnabled(true)).toBe(false); // process.env has WRITEBACK_ENABLED='0'
-    expect(writebackEnabled(true, {})).toBe(true); // unset ⇒ ON by default
+    expect(writebackEnabled(true, {})).toBe(false); // unset ⇒ OFF (default-deny ceiling)
     expect(writebackEnabled(true, { WRITEBACK_ENABLED: '1' })).toBe(true);
     expect(writebackEnabled(true, { WRITEBACK_ENABLED: 'true' })).toBe(true);
     expect(writebackEnabled(undefined, { WRITEBACK_ENABLED: '1' })).toBe(false);
