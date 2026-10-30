@@ -1,37 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import {
-  reviewsApi,
-  type ReviewDecision,
-  type ReviewFinding,
-  type TriageRuleId,
-  type WritebackRecord,
-} from '../api/reviews';
+import type { ReviewFinding, WritebackRecord } from '../api/reviews';
+import { AlertTriangle } from '../components/Icons';
 import { BreakdownTab } from '../components/BreakdownTab';
 import { DiffTab } from '../components/DiffTab';
 import { PRHealthScoreTab } from '../components/PRHealthScoreTab';
 import { PRMetadataPanel } from '../components/PRMetadataPanel';
-import { RecalledMemoriesPanel } from '../components/RecalledMemoriesPanel';
 import { ReportStats } from '../components/ReportStats';
 import { ReviewTab } from '../components/ReviewTab';
-import { Skeleton, SkeletonLines } from '../components/Skeleton';
 import { SummaryMetricsPanel } from '../components/SummaryMetricsPanel';
 import { TraceTab } from '../components/TraceTab';
 import { VerificationTab } from '../components/VerificationTab';
 import { WritebackDetailModal } from '../components/WritebackDetailModal';
-import { severityColor, sortFindingsBySeverity } from '../components/severity';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  RefreshCw,
-  ShieldAlert,
-  Sliders,
-  Zap,
-} from '../components/Icons';
+import { sortFindingsBySeverity } from '../components/severity';
+import { DecisionBar } from '../components/report/DecisionBar';
+import { ReportHeader } from '../components/report/ReportHeader';
+import { ReportLoadError } from '../components/report/ReportLoadError';
+import { ReportPendingView } from '../components/report/ReportPendingView';
+import { ReviewReportSkeleton } from '../components/report/ReviewReportSkeleton';
+import { TABS, tabBadge, tabTitle, type ReviewTabKey } from '../components/report/reportTabs';
+import { TriageBanner } from '../components/report/TriageBanner';
+import { useReviewReport } from './useReviewReport';
 
 /**
  * AI review report page (review-reorient Phase 3) — the human-in-the-loop read
@@ -46,625 +34,34 @@ import {
  * The selected finding is lifted here and shared across tabs, so the question
  * "which finding am I investigating?" stays answered as the reviewer moves from
  * findings → diff → trace → verification → decision.
+ *
+ * This component is the orchestrator: data fetching lives in `useReviewReport`,
+ * and each rendered region (skeleton, load error, pending pipeline, header,
+ * triage banner, decision bar) is extracted under `components/report/`.
  */
-
-type ReviewTabKey = 'review' | 'detail' | 'verification' | 'diff' | 'breakdown' | 'trace';
-
-const TABS: readonly { key: ReviewTabKey; label: string }[] = [
-  { key: 'review', label: 'Review' },
-  { key: 'detail', label: 'Detail' },
-  { key: 'verification', label: 'Verification (sandbox)' },
-  { key: 'diff', label: 'Diff' },
-  { key: 'breakdown', label: 'Breakdown' },
-  { key: 'trace', label: 'AI trace' },
-];
-
-/** A radio's accessible name stays the raw token so tests/AT read APPROVE; the
- *  visible chip shows a human label. */
-const DECISION_LABEL: Record<ReviewDecision, string> = {
-  APPROVE: 'Approve',
-  REQUEST_CHANGES: 'Request changes',
-  REJECT: 'Reject',
-};
-
-const DECISION_TONE: Record<ReviewDecision, string> = {
-  APPROVE: 'var(--color-success)',
-  REQUEST_CHANGES: 'var(--color-warning)',
-  REJECT: 'var(--color-danger)',
-};
-
-/** Per-rule copy for the triage banner; `{verdict}` is filled with the raw AI verdict. */
-const TRIAGE_META: Record<TriageRuleId, { icon: typeof ShieldAlert; color: string; message: string }> = {
-  'security-block': {
-    icon: ShieldAlert,
-    color: 'var(--color-danger)',
-    message:
-      'Security rule fired — a CRITICAL finding in an auth/secrets path downgrades the ' +
-      'recommendation to Request changes (the AI’s own verdict was {verdict}).',
-  },
-  'performance-regression': {
-    icon: Zap,
-    color: 'var(--color-warning)',
-    message:
-      'Performance rule fired — possible regression risk: MAJOR+ findings in production code ' +
-      'with a low-confidence shadow-judge run.',
-  },
-  'schema-integrity': {
-    icon: Sliders,
-    color: 'var(--color-info)',
-    message:
-      'Schema rule fired — this PR touches migration/schema files; write-back will post only on ' +
-      'an explicit APPROVE.',
-  },
-};
-
-const visuallyHidden = {
-  position: 'absolute',
-  width: 1,
-  height: 1,
-  padding: 0,
-  margin: -1,
-  overflow: 'hidden',
-  clip: 'rect(0 0 0 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
-} as const;
-
-function reviewSkeleton(): JSX.Element {
-  const block = { borderRadius: 12 } as const;
-  const twoCol = {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 16,
-    marginTop: 16,
-  } as const;
-  return (
-    <main
-      role="status"
-      aria-label="Loading review report"
-      style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 0' }}
-    >
-      {/* back link */}
-      <Skeleton width={116} height={30} style={{ borderRadius: 8 }} />
-
-      {/* PR title + meta line */}
-      <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9 }}>
-        <Skeleton width="62%" height={26} />
-        <Skeleton width="38%" height={13} />
-      </div>
-
-      {/* verdict / attention hero */}
-      <Skeleton height={180} style={{ ...block, marginTop: 18 }} />
-
-      {/* summary + metrics visualization */}
-      <div style={twoCol}>
-        <Skeleton height={144} style={block} />
-        <Skeleton height={144} style={block} />
-      </div>
-
-      {/* investigation tabs */}
-      <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
-        {['Review', 'Detail', 'Verification (sandbox)', 'Diff', 'Breakdown', 'AI trace'].map((label, index) => (
-          <Skeleton key={label} height={32} style={{ borderRadius: 8, width: [72, 72, 160, 64, 98, 82][index] }} />
-        ))}
-      </div>
-
-      {/* findings list + detail pane */}
-      <div style={twoCol}>
-        <div style={{ display: 'grid', gap: 8 }}>
-          <SkeletonLines count={5} />
-        </div>
-        <Skeleton height={180} style={block} />
-      </div>
-    </main>
-  );
-}
-
-/** How often to poll for an in-progress report (ms). */
-const PENDING_POLL_MS = 3_000;
-
-function formatDateTime(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-}
-
-/** `125000` → `"2m 5s"`; sub-minute stays seconds-only. */
-function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return 'unknown duration';
-  const totalSeconds = Math.round(ms / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  if (minutes < 60) return `${minutes}m ${totalSeconds % 60}s`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
 export default function ReviewReportPage(): JSX.Element {
-  const { id = '' } = useParams();
-  const queryClient = useQueryClient();
-  const [decision, setDecision] = useState<ReviewDecision | null>(null);
-  const [writeback, setWriteback] = useState(true);
-  const [comment, setComment] = useState('');
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const report = useReviewReport();
   const [activeTab, setActiveTab] = useState<ReviewTabKey>('review');
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [writebackDetail, setWritebackDetail] = useState<WritebackRecord | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(true);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['reviewReport', id],
-    queryFn: () => reviewsApi.getReport(id),
-    enabled: id !== '',
-    refetchInterval: (query) => {
-      const d = query.state.data as { reviewStatus?: string; verification?: { status?: string } | null } | undefined;
-      // Poll while the review is still being processed.
-      if (!d) {
-        return PENDING_POLL_MS;
-      }
-      if (d.reviewStatus !== 'complete' && d.reviewStatus !== 'error') {
-        return PENDING_POLL_MS;
-      }
-      if (d.reviewStatus === 'error') {
-        return false;
-      }
-      // Report is complete but sandbox verification runs fire-and-forget after
-      // it — keep polling while that run has not reached a terminal state so
-      // the Verification tab never looks stuck at "running".
-      const vStatus = d.verification?.status;
-      if (vStatus === 'RUNNING' || vStatus === 'PENDING') {
-        return PENDING_POLL_MS;
-      }
-      return false;
-    },
-  });
-
-  const decide = useMutation({
-    mutationFn: () => reviewsApi.decide(id, { decision: decision as ReviewDecision, writeback, comment }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviewReport', id] }),
-    onError: (error: unknown) => setSubmitError(error instanceof Error ? error.message : 'Decision failed.'),
-  });
-
-  const retry = useMutation({
-    mutationFn: () => reviewsApi.retry(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviewReport', id] }),
-    onError: (error: unknown) => setSubmitError(error instanceof Error ? error.message : 'Retry failed.'),
-  });
-
-  if (isLoading) {
-    return reviewSkeleton();
+  if (report.isLoading) {
+    return <ReviewReportSkeleton />;
   }
-  if (isError || !data) {
+  if (report.isError || !report.data) {
     return (
-      <main style={{ maxWidth: 1120, margin: '0 auto', padding: 16 }}>
-        <div className="rq-empty" role="alert">
-          <div className="rq-empty-icon">
-            <AlertTriangle />
-          </div>
-          <h3 className="rq-empty-title">Couldn&rsquo;t load this review report</h3>
-          <p className="rq-empty-text">
-            {error instanceof Error
-              ? error.message
-              : 'The report failed to load — it may have been deleted, or the review service is unreachable.'}
-          </p>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <Link to="/review" className="rq-empty-reset">
-              <ArrowLeft size={13} />
-              Back to Queue
-            </Link>
-            <button type="button" className="rq-empty-reset" onClick={() => void refetch()}>
-              <RefreshCw size={13} />
-              Retry
-            </button>
-          </div>
-        </div>
-      </main>
+      <ReportLoadError message={report.error instanceof Error ? report.error.message : null} onRetry={report.refetch} />
     );
   }
+
+  const data = report.data;
 
   // While the background worker is still processing, show a progressive status
   // with current stage, batch progress, and any findings already inserted.
   const isPending = data.reviewStatus !== 'complete' && data.reviewStatus !== 'error';
   if (isPending || data.reviewStatus === 'error') {
-    // Human-readable labels for each stage.
-    const STATUS_LABEL: Record<string, string> = {
-      pending: 'Waiting to start…',
-      fetching: '📡 Fetching pull request from GitHub…',
-      recalling: '🧠 Recalling past review context…',
-      reviewing: '🤖 Reviewing code…',
-      storing: '💾 Storing results…',
-      complete: '✅ Complete',
-      error: '❌ Review failed',
-    };
-
-    // Pipeline stage order for progress calculation
-    const STAGE_ORDER: Record<string, number> = {
-      pending: 0,
-      fetching: 1,
-      recalling: 2,
-      reviewing: 3,
-      storing: 4,
-      complete: 5,
-      error: 5,
-    };
-    const TOTAL_STAGES = 5;
-
-    // Calculate overall progress percentage
-    let progressPercent = 0;
-    const stageIndex = STAGE_ORDER[data.reviewStatus] ?? 0;
-    if (data.reviewStatus === 'error') {
-      progressPercent = 0;
-    } else if (stageIndex === 0) {
-      progressPercent = 2;
-    } else if (stageIndex >= TOTAL_STAGES) {
-      progressPercent = 100;
-    } else {
-      // Each stage is roughly (100 / TOTAL_STAGES) % of the total
-      const stageWidth = 100 / TOTAL_STAGES;
-      // Base = stages before current
-      const base = (stageIndex - 1) * stageWidth;
-      if (data.reviewStatus === 'reviewing' && data.batchProgress) {
-        const { current, total } = data.batchProgress;
-        if (total > 0) {
-          // Within the reviewing stage, progress is proportional to completed batches
-          progressPercent = Math.round(base + (current / total) * stageWidth);
-        } else {
-          // current=0, total=0 — preparing batches
-          progressPercent = Math.round(base + stageWidth * 0.1);
-        }
-      } else {
-        // Other stages: show ~70% progress within the stage
-        progressPercent = Math.round(base + stageWidth * 0.7);
-      }
-    }
-    // Clamp to [2, 99] so the bar never looks fully done or stuck at 0
-    progressPercent = Math.max(2, Math.min(99, progressPercent));
-
-    // Stage label with visual indicator
-    const label = STATUS_LABEL[data.reviewStatus] ?? data.reviewStatus;
-
-    // Human-readable stage names for the pipeline indicator
-    const STAGE_NAMES: Record<string, string> = {
-      pending: 'Pending',
-      fetching: 'Fetching PR',
-      recalling: 'Recalling',
-      reviewing: 'Reviewing',
-      storing: 'Storing',
-    };
-
-    return (
-      <main style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 0' }}>
-        <header style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-          <Link
-            to="/review"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              color: 'var(--color-text-muted)',
-              textDecoration: 'none',
-              fontSize: '0.78rem',
-              fontWeight: 500,
-              padding: '6px 10px',
-              borderRadius: 8,
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-surface)',
-              width: 'fit-content',
-            }}
-          >
-            <ArrowLeft size={13} />
-            Back to Queue
-          </Link>
-          <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.01em' }}>{data.prTitle}</h1>
-          <p
-            style={{
-              margin: 0,
-              color: 'var(--color-text-muted)',
-              fontSize: '0.83rem',
-              fontFamily: 'var(--font-mono)',
-            }}
-          >
-            {data.repo} · PR #{data.prNumber}
-          </p>
-        </header>
-
-        {data.reviewStatus === 'error' ? (
-          // Error state
-          <section
-            role="alert"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 16,
-              padding: 48,
-              textAlign: 'center',
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                fontSize: '1.1rem',
-                fontWeight: 600,
-                color: 'var(--color-danger)',
-              }}
-            >
-              {label}
-            </h2>
-            <p
-              style={{
-                margin: 0,
-                color: 'var(--color-text-muted)',
-                fontSize: '0.9rem',
-                maxWidth: 480,
-              }}
-            >
-              {data.summary}
-            </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Link to="/review" className="btn btn-primary">
-                Back to Review Queue
-              </Link>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={retry.isPending}
-                onClick={() => void retry.mutate()}
-              >
-                <RefreshCw size={13} />
-                {retry.isPending ? 'Retrying…' : 'Retry'}
-              </button>
-            </div>
-          </section>
-        ) : (
-          // In-progress state with pipeline progress bar
-          <section
-            role="status"
-            aria-live="polite"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 24,
-              padding: 32,
-            }}
-          >
-            {/* Pipeline stage indicator (5 stages visual) */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0,
-                background: 'var(--color-surface)',
-                borderRadius: 12,
-                border: '1px solid var(--color-border)',
-                padding: '20px 24px',
-                overflow: 'hidden',
-              }}
-            >
-              {['pending', 'fetching', 'recalling', 'reviewing', 'storing'].map((stage, i) => {
-                const currentStage = STAGE_ORDER[data.reviewStatus] ?? 0;
-                const stageNum = STAGE_ORDER[stage] ?? 0;
-                const isActive = stageNum === currentStage;
-                const isPast = stageNum < currentStage;
-                const isFuture = stageNum > currentStage;
-                const stageLabel = STAGE_NAMES[stage] ?? stage;
-
-                return (
-                  <div
-                    key={stage}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      flex: 1,
-                      position: 'relative',
-                    }}
-                  >
-                    {/* Stage circle + label */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 6,
-                        position: 'relative',
-                        zIndex: 1,
-                        width: '100%',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          background: isPast
-                            ? 'var(--color-success)'
-                            : isActive
-                              ? 'var(--color-info)'
-                              : 'var(--color-bg)',
-                          color: isPast || isActive ? '#fff' : 'var(--color-text-faint)',
-                          border: isFuture ? '2px solid var(--color-border)' : 'none',
-                          transition: 'background 0.3s, color 0.3s',
-                        }}
-                      >
-                        {isPast ? '✓' : i + 1}
-                      </div>
-                      <span
-                        style={{
-                          fontSize: '0.7rem',
-                          fontWeight: isActive ? 600 : 400,
-                          color: isPast
-                            ? 'var(--color-success)'
-                            : isActive
-                              ? 'var(--color-text)'
-                              : 'var(--color-text-faint)',
-                          textAlign: 'center',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {stageLabel}
-                      </span>
-                    </div>
-
-                    {/* Connector line to next stage */}
-                    {i < 4 && (
-                      <div
-                        style={{
-                          flex: 1,
-                          height: 2,
-                          background: isPast ? 'var(--color-success)' : 'var(--color-border)',
-                          marginTop: -22,
-                          transition: 'background 0.3s',
-                        }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Current status + progress bar */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-                padding: '16px 20px',
-                borderRadius: 12,
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              {/* Status text */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {data.reviewStatus !== 'storing' ? (
-                    <span className="spinner" aria-hidden="true" />
-                  ) : (
-                    <span style={{ fontSize: 20 }} aria-hidden="true">
-                      💾
-                    </span>
-                  )}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{label}</span>
-                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.82rem' }}>
-                      {data.reviewStatus === 'reviewing' && data.batchProgress
-                        ? data.batchProgress.total > 0
-                          ? `Batch ${data.batchProgress.current} of ${data.batchProgress.total}`
-                          : 'Preparing files and splitting into batches…'
-                        : 'This page updates automatically.'}
-                    </span>
-                  </div>
-                </div>
-                {/* Percentage badge */}
-                <div
-                  style={{
-                    fontSize: '1.4rem',
-                    fontWeight: 700,
-                    fontVariantNumeric: 'tabular-nums',
-                    color: 'var(--color-info)',
-                  }}
-                >
-                  {progressPercent}%
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div
-                style={{
-                  width: '100%',
-                  height: 6,
-                  borderRadius: 3,
-                  background: 'var(--color-bg)',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    width: `${progressPercent}%`,
-                    height: '100%',
-                    borderRadius: 3,
-                    background: 'linear-gradient(90deg, var(--color-info), var(--color-success))',
-                    transition: 'width 0.5s ease-in-out',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Progressive findings — show partial results as they arrive */}
-            {data.findings.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>
-                  Findings so far ({data.findings.length})
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {sortFindingsBySeverity(data.findings)
-                    .slice(0, 20)
-                    .map((finding) => (
-                      <div
-                        key={finding.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 8,
-                          padding: '8px 12px',
-                          borderRadius: 8,
-                          background: 'var(--color-surface)',
-                          border: '1px solid var(--color-border)',
-                          fontSize: '0.82rem',
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: severityColor(finding.severity),
-                            fontWeight: 700,
-                            fontSize: '0.72rem',
-                            textTransform: 'uppercase',
-                            minWidth: 48,
-                          }}
-                        >
-                          {finding.severity}
-                        </span>
-                        <span
-                          style={{
-                            color: 'var(--color-text-muted)',
-                            minWidth: 120,
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: '0.76rem',
-                          }}
-                        >
-                          {finding.file}
-                          {finding.line !== null ? `:${finding.line}` : ''}
-                        </span>
-                        <span>{finding.message}</span>
-                      </div>
-                    ))}
-                  {data.findings.length > 20 && (
-                    <p
-                      style={{
-                        margin: 0,
-                        color: 'var(--color-text-faint)',
-                        fontSize: '0.8rem',
-                        textAlign: 'center',
-                      }}
-                    >
-                      … and {data.findings.length - 20} more
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Recalled memories — show during "recalling" stage */}
-            {data.reviewStatus === 'recalling' && data.recalledMemories && data.recalledMemories.length > 0 && (
-              <RecalledMemoriesPanel memories={data.recalledMemories} />
-            )}
-          </section>
-        )}
-      </main>
-    );
+    return <ReportPendingView data={data} onRetry={report.retryReport} retrying={report.retrying} />;
   }
 
   const findings = sortFindingsBySeverity(data.findings);
@@ -678,8 +75,6 @@ export default function ReviewReportPage(): JSX.Element {
   // no matter what, so we disable + explain it instead of letting the reviewer tick
   // a box that silently does nothing. REQUEST_CHANGES never writes by design.
   const writebackArmed = data.writeback?.enabled ?? false;
-  const requestChanges = decision === 'REQUEST_CHANGES';
-  const writebackAllowed = writebackArmed && !requestChanges;
 
   const selectFinding = (findingId: string): void => setSelectedFindingId(findingId);
   const openInDiff = (finding: ReviewFinding): void => {
@@ -697,184 +92,20 @@ export default function ReviewReportPage(): JSX.Element {
 
   const healthScore = data.healthScore;
 
-  const tabTitle = (tab: ReviewTabKey): string | undefined => {
-    if (tab === 'trace') {
-      const memoryCount = data.recalledMemories?.length ?? 0;
-      return memoryCount > 0 ? `${data.trace.calls.length} model calls + ${memoryCount} recalled memories` : undefined;
-    }
-    return undefined;
-  };
-
-  const tabBadge = (tab: ReviewTabKey): string | number | undefined => {
-    switch (tab) {
-      case 'review':
-        return data.findings.length;
-      case 'diff':
-        return data.diff.length;
-      case 'trace':
-        return data.trace.calls.length;
-      case 'verification': {
-        const v = data.verification;
-        if (v === null || v === undefined) {
-          return undefined;
-        }
-        if (v.status === 'PASSED') {
-          return '✓';
-        }
-        if (v.status === 'FAILED' || v.status === 'ERROR') {
-          return '✕';
-        }
-        return '·';
-      }
-      case 'detail':
-        return healthScore?.overallRisk;
-      default:
-        return undefined;
-    }
-  };
-
   return (
     <main style={{ maxWidth: 1120, margin: '0 auto', padding: '16px 16px 0' }}>
       {/* 1 — review context */}
-      <header style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-          }}
-        >
-          <Link
-            to="/review"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              color: 'var(--color-text-muted)',
-              textDecoration: 'none',
-              fontSize: '0.78rem',
-              fontWeight: 500,
-              padding: '6px 10px',
-              borderRadius: 8,
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-surface)',
-            }}
-          >
-            <ArrowLeft size={13} />
-            Back to Queue
-          </Link>
-
-          {selectedFinding !== null && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '4px 12px',
-                borderRadius: '999px',
-                background: 'var(--color-danger-bg)',
-                border: '1px solid rgba(239,68,68,0.3)',
-                fontSize: '0.76rem',
-                fontFamily: 'var(--font-mono)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  position: 'relative',
-                  display: 'inline-flex',
-                  width: 8,
-                  height: 8,
-                }}
-              >
-                <span
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    borderRadius: '50%',
-                    background: 'var(--color-danger)',
-                    opacity: 0.6,
-                    animation: 'hai-ping 1.4s cubic-bezier(0,0,0.2,1) infinite',
-                  }}
-                />
-                <span
-                  style={{
-                    position: 'relative',
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: 'var(--color-danger)',
-                  }}
-                />
-              </span>
-              <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>Investigating</span>
-              <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>
-                {selectedFinding.file}
-                {selectedFinding.line !== null ? `:${selectedFinding.line}` : ''}
-              </span>
-            </span>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '1.4rem',
-              fontWeight: 700,
-              letterSpacing: '-0.01em',
-              lineHeight: 1.25,
-            }}
-          >
-            {data.prTitle}
-          </h1>
-          <p
-            style={{
-              margin: 0,
-              color: 'var(--color-text-muted)',
-              fontSize: '0.83rem',
-              fontFamily: 'var(--font-mono)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-            }}
-          >
-            <a
-              href={data.prUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                color: 'var(--color-info)',
-                textDecoration: 'none',
-              }}
-            >
-              <span>
-                {data.repo} · PR #{data.prNumber}
-              </span>
-              <ExternalLink size={12} />
-            </a>
-            <span style={{ color: 'var(--color-text-faint)' }}>·</span>
-            <span>
-              {data.aiProvider}/{data.model}
-            </span>
-            {data.completedAt !== null && (
-              <>
-                <span style={{ color: 'var(--color-text-faint)' }}>·</span>
-                <span title={`Started ${formatDateTime(data.createdAt)}`}>
-                  ✅ Completed {formatDateTime(data.completedAt)} · took{' '}
-                  {formatDuration(new Date(data.completedAt).getTime() - new Date(data.createdAt).getTime())}
-                </span>
-              </>
-            )}
-          </p>
-        </div>
-      </header>
+      <ReportHeader
+        prTitle={data.prTitle}
+        repo={data.repo}
+        prNumber={data.prNumber}
+        prUrl={data.prUrl}
+        aiProvider={data.aiProvider}
+        model={data.model}
+        createdAt={data.createdAt}
+        completedAt={data.completedAt}
+        selectedFinding={selectedFinding}
+      />
 
       {/* PR Metadata (commits, CI status) */}
       {data.pullRequestMetadata && (
@@ -885,44 +116,7 @@ export default function ReviewReportPage(): JSX.Element {
       )}
 
       {/* 1b — triage rule flags, if any fired */}
-      {data.triage.matchedRules.length > 0 && (
-        <section
-          role="note"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            margin: '0 0 12px',
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-          }}
-        >
-          {data.triage.matchedRules.map((rule) => {
-            const meta = TRIAGE_META[rule];
-            const Icon = meta.icon;
-            return (
-              <div
-                key={rule}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 8,
-                  color: 'var(--color-text-muted)',
-                  fontSize: '0.82rem',
-                  lineHeight: 1.4,
-                }}
-              >
-                <span style={{ color: meta.color, display: 'inline-flex', marginTop: 1 }}>
-                  <Icon size={15} />
-                </span>
-                <span>{meta.message.replace('{verdict}', data.overallVerdict)}</span>
-              </div>
-            );
-          })}
-        </section>
-      )}
+      <TriageBanner rules={data.triage.matchedRules} verdict={data.overallVerdict} />
 
       {/* Transparency flag: the model output was truncated and repaired. */}
       {data.wasRepaired === true && (
@@ -941,7 +135,10 @@ export default function ReviewReportPage(): JSX.Element {
             fontWeight: 500,
           }}
         >
-          ⚠️ This review was truncated and auto-repaired by the parser — some findings may be incomplete or spurious.
+          <span aria-hidden="true">
+            <AlertTriangle size={14} />
+          </span>
+          This review was truncated and auto-repaired by the parser — some findings may be incomplete or spurious.
           Verify before merging.
         </div>
       )}
@@ -961,7 +158,7 @@ export default function ReviewReportPage(): JSX.Element {
       <nav role="tablist" aria-label="Review detail" className="review-tabs" style={{ marginTop: 20 }}>
         {TABS.map((tab) => {
           const selected = activeTab === tab.key;
-          const badge = tabBadge(tab.key);
+          const badge = tabBadge(data, tab.key);
           return (
             <button
               key={tab.key}
@@ -969,7 +166,7 @@ export default function ReviewReportPage(): JSX.Element {
               role="tab"
               aria-selected={selected}
               onClick={() => setActiveTab(tab.key)}
-              title={tabTitle(tab.key)}
+              title={tabTitle(data, tab.key)}
               className={`review-tab${selected ? ' review-tab-active' : ''}`}
             >
               {tab.label}
@@ -1041,184 +238,23 @@ export default function ReviewReportPage(): JSX.Element {
       </div>
 
       {/* 4 — human decision */}
-      <section className="decision-bar" style={decisionOpen ? undefined : { padding: '10px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>
-            Your decision
-            {decision !== null && (
-              <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · {DECISION_LABEL[decision]}</span>
-            )}
-            {decision === null && data.decisions.length > 0 && (
-              <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>
-                {' '}
-                · {data.decisions.length} submitted
-              </span>
-            )}
-          </h3>
-          <button
-            type="button"
-            aria-expanded={decisionOpen}
-            aria-controls="decision-panel"
-            aria-label={decisionOpen ? 'Collapse decision panel' : 'Expand decision panel'}
-            onClick={() => setDecisionOpen((open) => !open)}
-            className="btn btn-ghost"
-            style={{ padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            {decisionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {decisionOpen ? 'Collapse' : 'Expand'}
-          </button>
-        </div>
-        {decisionOpen && (
-          <div id="decision-panel" style={{ marginTop: 8 }}>
-            {submitError && (
-              <div
-                role="alert"
-                style={{
-                  background: 'var(--color-danger-bg)',
-                  color: 'var(--color-danger)',
-                  padding: 8,
-                  borderRadius: 6,
-                  marginBottom: 8,
-                }}
-              >
-                {submitError}
-              </div>
-            )}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (decision !== null) {
-                  void decide.mutate();
-                }
-              }}
-            >
-              <div role="radiogroup" aria-label="Decision" className="decision-options">
-                {(Object.keys(DECISION_LABEL) as ReviewDecision[]).map((choice) => {
-                  const selected = decision === choice;
-                  const tone = DECISION_TONE[choice];
-                  return (
-                    <label
-                      key={choice}
-                      className={`decision-option${selected ? ' decision-option-selected' : ''}`}
-                      style={selected ? { background: tone, borderColor: tone } : undefined}
-                    >
-                      <input
-                        type="radio"
-                        name="decision"
-                        value={choice}
-                        aria-label={choice}
-                        checked={selected}
-                        onChange={() => setDecision(choice)}
-                        style={visuallyHidden}
-                      />
-                      {DECISION_LABEL[choice]}
-                    </label>
-                  );
-                })}
-                <button
-                  type="submit"
-                  disabled={decision === null || decide.isPending}
-                  className={decision === null ? 'btn btn-ghost' : 'btn btn-primary'}
-                  style={{ marginLeft: 'auto' }}
-                >
-                  {decide.isPending ? 'Submitting…' : 'Submit decision'}
-                </button>
-              </div>
-
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={writeback}
-                    onChange={(event) => setWriteback(event.target.checked)}
-                    disabled={!writebackAllowed}
-                    aria-label="Write decision back to PR"
-                  />
-                  Write the decision back to the PR
-                </label>
-                {writeback && writebackAllowed && (
-                  <textarea
-                    aria-label="Write-back comment"
-                    placeholder="Comment to post on the PR (leave blank for a decision summary)"
-                    value={comment}
-                    onChange={(event) => setComment(event.target.value)}
-                    rows={3}
-                    style={{
-                      width: '100%',
-                      padding: 8,
-                      borderRadius: 6,
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)',
-                      color: 'var(--color-text)',
-                      font: 'inherit',
-                      resize: 'vertical',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                )}
-                <p style={{ margin: 0, color: 'var(--color-text-faint)', fontSize: '0.75rem' }}>
-                  {!writebackArmed
-                    ? 'Write-back is disabled on this deployment (WRITEBACK_ENABLED=0 is set). This ' +
-                      'decision will still be recorded, but nothing will be posted to the PR until an ' +
-                      'operator removes that override (or sets WRITEBACK_ENABLED=1), with the ' +
-                      'per-provider WRITEBACK_<PROVIDER> left armed.'
-                    : requestChanges
-                      ? 'REQUEST_CHANGES is recorded for audit but never writes back to the PR.'
-                      : 'APPROVE posts a comment + success status; REJECT posts a comment + failure status.'}
-                </p>
-              </div>
-            </form>
-
-            {data.decisions.length > 0 && (
-              <div
-                data-testid="decision-audit"
-                style={{ marginTop: 12, fontSize: '0.82rem', color: 'var(--color-text-muted)' }}
-              >
-                {data.decisions.map((record) => (
-                  <div key={record.id} style={{ marginBottom: 2 }}>
-                    <strong>{record.decision}</strong>
-                    {record.rationale !== null && ` — ${record.rationale}`}
-                    {' · '}
-                    {new Date(record.createdAt).toLocaleString()}
-                    {' · '}
-                    {record.writebackEnabled ? 'write-back ON' : 'write-back OFF'}
-                  </div>
-                ))}
-                {data.writebacks.map((record) => (
-                  <button
-                    key={record.id}
-                    type="button"
-                    onClick={() => setWritebackDetail(record)}
-                    style={{
-                      marginLeft: 16,
-                      padding: '4px 8px',
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'var(--color-info)',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                      fontSize: '0.82rem',
-                      textAlign: 'left',
-                      font: 'inherit',
-                    }}
-                  >
-                    {record.provider}/{record.action}: {record.status}
-                    {record.error !== null && ` — ${record.error}`}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+      <DecisionBar
+        open={decisionOpen}
+        onToggle={() => setDecisionOpen((open) => !open)}
+        decision={report.decision}
+        onDecisionChange={report.setDecision}
+        writeback={report.writeback}
+        onWritebackChange={report.setWriteback}
+        comment={report.comment}
+        onCommentChange={report.setComment}
+        submitError={report.submitError}
+        submitting={report.submitting}
+        onSubmit={report.submitDecision}
+        writebackArmed={writebackArmed}
+        decisions={data.decisions}
+        writebacks={data.writebacks}
+        onOpenWriteback={setWritebackDetail}
+      />
 
       {writebackDetail && <WritebackDetailModal record={writebackDetail} onClose={() => setWritebackDetail(null)} />}
     </main>
