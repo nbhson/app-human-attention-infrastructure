@@ -149,10 +149,17 @@ describe('ReviewAgent', () => {
     expect(llm.calls[0]?.systemPrompt).toContain('REVIEW MODE: HIGH-SIGNAL FILTER');
     expect(llm.calls[0]?.messages[0]?.content).not.toContain('REVIEW MODE: HIGH-SIGNAL FILTER');
     // The diff is fenced and labelled untrusted so injected instructions inside
-    // it cannot borrow the authority of the surrounding prompt.
+    // it cannot borrow the authority of the surrounding prompt. The delimiter
+    // carries a per-prompt random token so a diff containing the literal
+    // `=== END DIFF ===` cannot break out of the fence.
     const user = llm.calls[0]?.messages[0]?.content ?? '';
-    expect(user).toContain('=== BEGIN DIFF (untrusted data');
-    expect(user).toContain('=== END DIFF ===');
+    expect(user).toMatch(/=== BEGIN DIFF [0-9A-F]{8} \(untrusted data/);
+    expect(user).toMatch(/=== END DIFF [0-9A-F]{8} ===/);
+    // Both markers share the same token.
+    const begin = user.match(/=== BEGIN DIFF ([0-9A-F]{8})/)?.[1];
+    const end = user.match(/=== END DIFF ([0-9A-F]{8}) ===/)?.[1];
+    expect(begin).toBeDefined();
+    expect(begin).toBe(end);
   });
 
   it('feeds related memories to the triage (summarize) pass, not just the deep review', async () => {
@@ -216,7 +223,7 @@ describe('ReviewAgent', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     // Operator instructions stay OUTSIDE the untrusted diff fence.
     const fenceStart = user.indexOf('=== BEGIN DIFF');
-    const fenceEnd = user.indexOf('=== END DIFF ===');
+    const fenceEnd = user.indexOf('=== END DIFF');
     const instrAt = user.indexOf('Always flag unhandled rejections.');
     expect(instrAt).toBeGreaterThanOrEqual(0);
     expect(instrAt < fenceStart || instrAt > fenceEnd).toBe(true);

@@ -94,9 +94,9 @@ describe('filterImpactScopeForBatch', () => {
   });
 });
 
-describe('impact scope prompt wiring (reviewer-v10)', () => {
+describe('impact scope prompt wiring (reviewer-v11)', () => {
   it('bumps the prompt version and requires impact enumeration in the workflow', () => {
-    expect(REVIEW_PROMPT_VERSION).toBe('reviewer-v10');
+    expect(REVIEW_PROMPT_VERSION).toBe('reviewer-v11');
   });
 
   it('renders IMPACT SCOPE between instructions and the fenced diff', async () => {

@@ -1,6 +1,6 @@
 /**
  * JSON Schemas for the reviewer's structured output — the machine-readable twin
- * of the review contract written out in prose in `review-prompt.ts` (reviewer-v10
+ * of the review contract written out in prose in `review-prompt.ts` (reviewer-v11
  * keeps the reviewer-v8 output contract unchanged; v9 added input context, v10
  * adds the no-MAJOR/CRITICAL risk ceiling).
  *

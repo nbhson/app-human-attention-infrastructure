@@ -23,6 +23,37 @@ const MAX_RETRIES = 3;
 /** Base delay in ms; doubled per attempt (1s, 2s, 4s). */
 const RETRY_BASE_MS = 1_000;
 
+/**
+ * Upstream status codes worth retrying: rate limiting and server-side faults.
+ * Anything else with an explicit status (4xx validation, 404 missing PR) is a
+ * permanent fault — retrying would burn LLM quota without ever succeeding.
+ */
+const TRANSIENT_STATUS_CODES: ReadonlySet<number> = new Set([429, 500, 502, 503, 504]);
+
+/** Message fingerprints of transient network/timeout faults (no status attached). */
+const TRANSIENT_MESSAGE_PATTERN =
+  /429|502|503|504|rate.?limit|timeout|timed out|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|fetch failed/i;
+
+/**
+ * P0 fix (rewritten): classify a pipeline failure as transient (retryable) or
+ * permanent. The previous nested-ternary predicate never retried HTTP 500 and
+ * its `|| status !== undefined` tail made the message regex dead code.
+ *
+ * An explicit status decides on its own; only status-less errors (network
+ * faults, timeouts) fall back to matching the message text.
+ */
+export function isTransientReviewError(error: unknown): boolean {
+  if (error === null || error === undefined) {
+    return false;
+  }
+  const status = (error as { status?: number }).status;
+  if (typeof status === 'number') {
+    return TRANSIENT_STATUS_CODES.has(status);
+  }
+  const msg = error instanceof Error ? error.message : String(error);
+  return TRANSIENT_MESSAGE_PATTERN.test(msg);
+}
+
 export class ReviewWorkerSubscriber {
   constructor(
     private readonly ingest: ReviewIngestService,
@@ -66,11 +97,7 @@ export class ReviewWorkerSubscriber {
         // processReview already persists `review_status=error`, so a permanent
         // failure returns here without further retries.
         const msg = error instanceof Error ? error.message : String(error);
-        const status = (error as { status?: number }).status;
-        const transient =
-          status === 429 || status === 502 || status === 503 || status === 504 || status === undefined
-            ? /429|502|503|504|rate.?limit|timeout|ECONNRESET|ETIMEDOUT|fetch failed/i.test(msg) || status !== undefined
-            : false;
+        const transient = isTransientReviewError(error);
         if (!transient || attempt === MAX_RETRIES) {
           if (!transient) {
             this.logger.warn('review worker permanent failure — not retrying', {

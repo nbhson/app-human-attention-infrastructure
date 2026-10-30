@@ -845,25 +845,30 @@ export function registerReviewIngestRoutes(
       // 1. Clear stale findings + suggestions + judge/verification artefacts (P0 fix:
       // retry must re-verify — ReviewVerificationService early-returns when a row
       // exists, so a stale RUNNING/ERROR row would block re-verification forever).
-      await db.delete(reviewFindings).where(eq(reviewFindings.report_id, id));
-      await db.delete(fixSuggestions).where(eq(fixSuggestions.report_id, id));
-      await db.delete(judgeRuns).where(eq(judgeRuns.report_id, id));
-      await db.delete(reviewVerifications).where(eq(reviewVerifications.report_id, id));
-      if (report.correlation_id !== null && report.correlation_id !== undefined) {
-        await db.delete(llmCallLog).where(eq(llmCallLog.correlation_id, report.correlation_id));
-      }
+      // P0 fix #2: all clears + the status reset run in ONE transaction — a crash
+      // mid-sequence previously left the report half-cleared (e.g. findings gone
+      // but review_status still `error`, or artefacts gone but not re-queueable).
+      await db.transaction(async (tx) => {
+        await tx.delete(reviewFindings).where(eq(reviewFindings.report_id, id));
+        await tx.delete(fixSuggestions).where(eq(fixSuggestions.report_id, id));
+        await tx.delete(judgeRuns).where(eq(judgeRuns.report_id, id));
+        await tx.delete(reviewVerifications).where(eq(reviewVerifications.report_id, id));
+        if (report.correlation_id !== null && report.correlation_id !== undefined) {
+          await tx.delete(llmCallLog).where(eq(llmCallLog.correlation_id, report.correlation_id));
+        }
 
-      // 2. Reset report status to pending.
-      await db
-        .update(reviewReports)
-        .set({
-          review_status: 'pending',
-          summary: '',
-          overall_verdict: 'COMMENT',
-          batch_progress: null,
-          completed_at: null,
-        })
-        .where(eq(reviewReports.id, id));
+        // 2. Reset report status to pending.
+        await tx
+          .update(reviewReports)
+          .set({
+            review_status: 'pending',
+            summary: '',
+            overall_verdict: 'COMMENT',
+            batch_progress: null,
+            completed_at: null,
+          })
+          .where(eq(reviewReports.id, id));
+      });
 
       // 3. Re-publish the review.requested event so the worker picks it up.
       const ruleState = await loadTriageRuleState(db);
