@@ -12,11 +12,11 @@ and fix suggestions — so a reviewer sees only what actually matters, never the
 flood. Every step lands in an append-only event log, so the trail is replayable,
 queryable, and auditable.
 
-![HAI Review UI](./HAI.png)
+![HAI Review UI](./docs/assets/HAI.png)
 
-![SCORE Review UI](./SCORE.png)
+![SCORE Review UI](./docs/assets/SCORE.png)
 
-![DETAILS Review UI](./DETAILS.png)
+![DETAILS Review UI](./docs/assets/DETAILS.png)
 
 |                    |                                                                                                                         |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
@@ -46,8 +46,11 @@ hai-harness/
 └── docker-compose.yml   # Postgres 16 + pgvector :5432 (service duy nhất)
 ```
 
-- `apps/api/src/routes/`: 10 groups, 31 handlers. Slice chính là `reviews.ts`
-  (`POST/GET /api/reviews`, `/:id/decision` | `retry`, `/auto`) + `review.ts`
+- `apps/api/src/routes/`: 10 route groups, 31 handlers. The review slice lives in
+  the `reviews*.ts` family — `reviews.ts` (aggregator) + `reviews-ingest.ts` /
+  `reviews-list.ts` / `reviews-detail.ts` / `reviews-auto.ts` /
+  `reviews-decision.ts` / `reviews-retry.ts` (`POST/GET /api/reviews`,
+  `/:id/decision` | `retry`, `/auto`) + `review.ts`
   (`queue`, `:id/claim` | `decide` | `drop` | `release` | `escalate`).
 - `apps/web/src/`: `pages/` + `components/` + `api/` + `context/`.
 
@@ -133,7 +136,11 @@ The flow is a single review vertical slice:
                               WRITE-BACK (toggle-gated comment/status → PR / Jira)
 ```
 
-Seven endpoints carry the review slice (`apps/api/src/routes/reviews.ts`), plus the queue/decision surface (`apps/api/src/routes/review.ts`) — 10 route groups, 31 handlers total (`apps/api/src/app.ts`). The review slice:
+Seven endpoints carry the review slice (`apps/api/src/routes/reviews.ts` + its
+`reviews-*.ts` sibling modules — `reviews-ingest` / `reviews-list` /
+`reviews-detail` / `reviews-auto` / `reviews-decision` / `reviews-retry`), plus
+the queue/decision surface (`apps/api/src/routes/review.ts`) — 10 route groups,
+31 handlers total (`apps/api/src/app.ts`). The review slice:
 
 - `POST /api/reviews` → `202 Accepted` — paste `{ prUrl, jiraTicket? }`; fetches the PR (GitHub/GitLab/Bitbucket via MCP), fetches the ticket if given (Jira via MCP), enqueues `review.requested` for the async worker (`ReviewWorkerSubscriber`).
 - `GET /api/reviews` — list reports with triage/risk pagination.
@@ -164,6 +171,23 @@ into the slice by default, not merely retained; see the Capabilities table.):
 The review slice creates a task purely to anchor the provenance trail and
 immediately `CANCELLED` it — the retired dispatcher used to pull `PENDING`/`REWORK`
 tasks into the code-gen workflow, and a cancelled task is never consumed.
+
+### Retained-but-not-wired machinery — current scope vs. plan
+
+These packages are built, unit-tested, and CI-gated, but not every one sits on
+the request path of the review slice today. Nothing is deleted; each package
+documents its own invariants in its README:
+
+| Package        | Current scope (today)                                                                                                                                                     | Plan (not yet wired)                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `orchestrator` | Wired partially: the Task state machine + `TaskService` anchor every review's provenance trail (task created then `CANCELLED`); the dispatch/workflow loop stays retired  | A durable, multi-consumer task pipeline would re-use the same state machine — no dispatch revival is planned (see the pivot note above)      |
+| `sandbox`      | Wired: `DockerSandbox` backs the verification-engine's clone verification, which is on by default in the slice                                                            | Broader sandboxed check profiles (lint/type matrices) behind the same `Sandbox` seam                                                         |
+| `evaluation`   | Registered in the DI container (`MetricsComputer`) but only exercised **offline** — the `pnpm eval:*` / `benchmark:regression` CLIs; no runtime request-path consumer yet | Wiring the learning-loop scheduler into the `/ops` surface once the CF-1 / CF-2 carryforwards clear their HOLD (see the Phase-3 exit review) |
+
+Note on CI cost: the per-package test matrix runs **all** of these packages
+(including `orchestrator`, `sandbox`, `evaluation`) on every push, plus the
+global coverage gate — that is deliberate (regression-proofing for the day they
+are wired), and currently accepted cost.
 
 | Engine                  | Role                                                                                                                                                                                                                         |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -205,7 +229,7 @@ nitpicks like a missing trailing newline.
 | **Review modes**         | Two modes via Triage Rules settings (`POST /api/triage-rules`):<br>- **High-signal** (default, OFF): only CRITICAL/MAJOR findings — attention router for humans<br>- **Full code review** (ON): ALL severities (CRITICAL/MAJOR/MINOR/NIT/INFO) — like GitHub Copilot Review, SonarQube<br>- **Review instructions** (text.md): upload a markdown skills file via the UI; when ON, injected into every AI review prompt alongside the PR diff and Jira requirement (PR + Jira + text.md + AI flow) |
 | **Verify**               | Clone into the Docker sandbox and run build/test; dependency-graph targeted verification; a FAILED run _flags_ the report, never authors a fix                                                                                                                                                                                                                                                                                                                                                    |
 | **Attention & decision** | Score + route every review; a human APPROVES / REJECTS; `AUTO_APPROVABLE` stays the only auto-path — gated + sampling-audited; **Detail tab shows AI health score** (6 dimensions); the overview badge shows the **effective verdict after triage** with the raw AI verdict alongside when a rule overrides it                                                                                                                                                                                    |
-| **Write-back**           | Off by default (opt-in: `WRITEBACK_ENABLED=1`), fail-safe 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; ceiling unset = nothing external                                                                                                                                                                                                                                                                                                        |
+| **Write-back**           | Off by default (opt-in: `WRITEBACK_ENABLED=1`), fail-safe 3-layer toggle: comment/label/status → PR/MR, comment/transition → Jira; every write lands in `writeback_log`; ceiling unset = nothing external                                                                                                                                                                                                                                                                                         |
 | **Memory**               | Review / finding / decision memory tiers, distilled + relevance-scored, with consolidation / decay / archive; recalled memories are visible in the report's **AI trace** tab (timeline step + panel)                                                                                                                                                                                                                                                                                              |
 | **Quality & learning**   | LLM-as-judge (rubric-scored) + inter-judge agreement, a versioned gold corpus, and a closed learning loop feeding decisions + judge signals back into calibration/routing                                                                                                                                                                                                                                                                                                                         |
 | **Observability**        | OpenTelemetry tracing + metrics; every step in an append-only `event_log` joined by one `correlation_id`; sidebar nav exposes the **Audit Log** page (`/audit`, the `/api/audit` timeline) and the **Ops & Learning** page (`/ops`: DB health, queue depth, orphan alarm, recent learning cycles); the AI trace tab totals model-call tokens and the Verification tab keeps the raw flag output one click away                                                                                    |

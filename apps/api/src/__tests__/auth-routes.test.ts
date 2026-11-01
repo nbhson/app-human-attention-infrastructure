@@ -5,7 +5,7 @@
  */
 
 import Fastify from 'fastify';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { AuthService, MockOidcProvider, SessionService } from '@harness/auth';
 import { sessions, users } from '@harness/db';
@@ -156,5 +156,106 @@ describe('auth routes', () => {
     const limited = await app.inject({ method: 'GET', url: '/api/auth/login' });
     expect(limited.statusCode).toBe(429);
     expect(limited.json()).toMatchObject({ error: expect.stringContaining('rate limited') });
+  });
+
+  describe('mock-mode callback host derivation (allowlist)', () => {
+    // The callback URL is the mock login's 302 Location (the mock IdP echoes
+    // `redirectUri` back with a code + state), so the derived host is directly
+    // observable there.
+    async function loginLocation(app: ReturnType<typeof buildApp>): Promise<URL> {
+      const login = await app.inject({ method: 'GET', url: '/api/auth/login' });
+      expect(login.statusCode).toBe(302);
+      return new URL(login.headers.location!);
+    }
+
+    let saved: Record<string, string | undefined>;
+    beforeEach(() => {
+      saved = {
+        OIDC_MOCK: process.env.OIDC_MOCK,
+        OIDC_MOCK_ALLOWED_HOSTS: process.env.OIDC_MOCK_ALLOWED_HOSTS,
+        APP_URL: process.env.APP_URL,
+      };
+      process.env.OIDC_MOCK = 'true';
+      process.env.APP_URL = 'http://app-default.test';
+      delete process.env.OIDC_MOCK_ALLOWED_HOSTS;
+    });
+    afterEach(() => {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    });
+
+    it('an allowlisted Origin host is honoured (LAN/Vite proxy case)', async () => {
+      const app = buildApp();
+      const location = await loginLocation(app);
+      const withOrigin = await app.inject({
+        method: 'GET',
+        url: '/api/auth/login',
+        headers: { origin: 'http://localhost:5174' },
+      });
+      const direct = new URL(withOrigin.headers.location!);
+      expect(`${direct.origin}${direct.pathname}`).toBe('http://localhost:5174/api/auth/callback');
+      // Sanity: without the Origin header the injected Host (localhost, on the
+      // default allowlist) is what drives the derivation.
+      expect(`${location.origin}${location.pathname}`).toBe('http://localhost/api/auth/callback');
+    });
+
+    it('a non-allowlisted Origin host falls back to the APP_URL default (open-redirect guard)', async () => {
+      const app = buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/login',
+        // Host must be unlisted too — the injected default (localhost) would
+        // otherwise be the allowlisted fallback.
+        headers: { origin: 'http://evil.example.com', host: 'evil.example.com' },
+      });
+      const location = new URL(res.headers.location!);
+      expect(`${location.origin}${location.pathname}`).toBe('http://app-default.test/api/auth/callback');
+    });
+
+    it('OIDC_MOCK_ALLOWED_HOSTS can admit an extra (LAN) host', async () => {
+      process.env.OIDC_MOCK_ALLOWED_HOSTS = 'localhost,127.0.0.1,192.168.1.10';
+      const app = buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/login',
+        headers: { origin: 'http://192.168.1.10:5174' },
+      });
+      const location = new URL(res.headers.location!);
+      expect(`${location.origin}${location.pathname}`).toBe('http://192.168.1.10:5174/api/auth/callback');
+    });
+
+    it('a non-localhost X-Forwarded-Host defaults to https, localhost to http (scheme fix)', async () => {
+      process.env.OIDC_MOCK_ALLOWED_HOSTS = 'localhost,127.0.0.1,api.tunnel.test';
+      const app = buildApp();
+      const tunnel = await app.inject({
+        method: 'GET',
+        url: '/api/auth/login',
+        headers: { host: 'api.tunnel.test' },
+      });
+      expect(`${new URL(tunnel.headers.location!).origin}${new URL(tunnel.headers.location!).pathname}`).toBe(
+        'https://api.tunnel.test/api/auth/callback',
+      );
+      const local = await app.inject({
+        method: 'GET',
+        url: '/api/auth/login',
+        headers: { host: '127.0.0.1:3000' },
+      });
+      expect(`${new URL(local.headers.location!).origin}${new URL(local.headers.location!).pathname}`).toBe(
+        'http://127.0.0.1:3000/api/auth/callback',
+      );
+    });
+
+    it('a disallowed X-Forwarded-Host falls back to the APP_URL default', async () => {
+      const app = buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/login',
+        headers: { host: 'evil.example.com:8080' },
+      });
+      const location = new URL(res.headers.location!);
+      expect(`${location.origin}${location.pathname}`).toBe('http://app-default.test/api/auth/callback');
+    });
   });
 });

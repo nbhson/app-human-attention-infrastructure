@@ -61,6 +61,35 @@ export function stopPendingLoginPruner(): void {
   }
 }
 
+/**
+ * Host allowlist for mock-mode callback derivation (open-redirect guard).
+ *
+ * The mock-mode derivation below trusts request-supplied headers
+ * (Origin/Referer/X-Forwarded-Host), which a crafted request could point at an
+ * attacker-controlled host. Only hosts on `OIDC_MOCK_ALLOWED_HOSTS`
+ * (comma-separated; default `localhost,127.0.0.1`) are honoured — any other
+ * host falls through to the static `APP_URL` default. Mock mode only: with a
+ * real IdP the redirect URI must match the pre-registered one, so headers are
+ * never consulted there.
+ */
+function mockAllowedHosts(): readonly string[] {
+  const raw = process.env.OIDC_MOCK_ALLOWED_HOSTS ?? 'localhost,127.0.0.1';
+  return raw
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+}
+
+/** True when `host` (an optional `:port` authority) is on the mock allowlist. */
+function isAllowedMockHost(host: string): boolean {
+  const allowed = mockAllowedHosts();
+  const lowered = host.toLowerCase();
+  if (allowed.includes(lowered)) return true;
+  // A `host:port` authority is allowed when its hostname part is allowlisted.
+  const hostname = lowered.split(':')[0] ?? '';
+  return hostname.length > 0 && allowed.includes(hostname);
+}
+
 /** The absolute callback URL the IdP redirects to. */
 function callbackUrl(request?: FastifyRequest): string {
   // LAN fix: the old code always returned `${APP_URL}/api/auth/callback`
@@ -72,7 +101,7 @@ function callbackUrl(request?: FastifyRequest): string {
   //
   // When the mock IdP is in use there is no pre-registered redirect URI to
   // honour (the mock just echoes back to whatever `redirectUri` we pass), so
-  // we can safely derive the base from the incoming request: prefer the
+  // we can derive the base from the incoming request: prefer the
   // browser-facing origin (Origin/Referer carry the LAN host
   // `http://192.168.x.x:5174` even when Vite proxies with `Host:
   // localhost:3000`), then X-Forwarded-Host/Host, and only fall back to
@@ -80,25 +109,32 @@ function callbackUrl(request?: FastifyRequest): string {
   // used (e.g. via the Vite `/api` proxy), the `sid` cookie is set for the
   // LAN host, and `credentials: 'include'` fetches from `:5174` are
   // authenticated — no need to expose `:3000` to the LAN.
-  // With a real IdP the redirect URI must match the registered one, so keep
-  // the static APP_URL there.
+  //
+  // Because those headers are request-supplied, the derived host must be on
+  // the mock allowlist (see {@link mockAllowedHosts}); anything else — and any
+  // request when the mock is off — falls back to the static APP_URL, so a
+  // crafted Origin cannot turn the login redirect into an open redirect.
+  // The default allowlist is localhost/127.x only; a LAN deployment opts the
+  // server's IP back in via `OIDC_MOCK_ALLOWED_HOSTS` (e.g. `192.168.1.10`).
   if (process.env.OIDC_MOCK === 'true' && request) {
     const origin = request.headers.origin ?? request.headers.referer;
     if (typeof origin === 'string') {
-      const match = origin.match(/^https?:\/\/[^/]+/);
-      if (match) {
+      const match = origin.match(/^https?:\/\/([^/]+)/);
+      if (match && isAllowedMockHost(match[1] ?? '')) {
         return `${match[0].replace(/\/$/, '')}/api/auth/callback`;
       }
     }
     const forwardedHost = request.headers['x-forwarded-host'] ?? request.headers['x-forwarded-server'];
-    const host = (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ?? request.headers.host;
-    if (typeof host === 'string' && host.length > 0) {
-      const forwardedProto = request.headers['x-forwarded-proto'];
-      const proto =
-        (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)?.split(',')[0]?.trim() ||
-        (host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'http');
-      const cleanHost = host.split(',')[0]?.trim();
-      if (cleanHost) {
+    const rawHost = (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ?? request.headers.host;
+    if (typeof rawHost === 'string') {
+      const cleanHost = rawHost.split(',')[0]?.trim();
+      if (cleanHost !== undefined && cleanHost.length > 0 && isAllowedMockHost(cleanHost)) {
+        const forwardedProto = request.headers['x-forwarded-proto'];
+        // Scheme: honour an explicit X-Forwarded-Proto; otherwise localhost /
+        // 127.x are plain http and any other (allowlisted) host is https.
+        const proto =
+          (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)?.split(',')[0]?.trim() ||
+          (cleanHost.startsWith('localhost') || cleanHost.startsWith('127.') ? 'http' : 'https');
         return `${proto}://${cleanHost.replace(/\/$/, '')}/api/auth/callback`;
       }
     }
