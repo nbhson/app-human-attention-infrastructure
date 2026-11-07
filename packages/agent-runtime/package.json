@@ -26,7 +26,7 @@
     "@harness/event-bus": "workspace:^",
     "@harness/observability": "workspace:^",
     "@harness/sandbox": "workspace:^",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
